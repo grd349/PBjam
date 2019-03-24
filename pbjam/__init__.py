@@ -3,3 +3,5 @@
 
 import os
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
+
+from .guess_epsilon import epsilon 
