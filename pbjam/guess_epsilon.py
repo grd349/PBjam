@@ -1,12 +1,13 @@
 import numpy as np
 
 class epsilon():
-    ''' A class to predict epsilon TODO
+    ''' A class to predict epsilon.
 
     Attributes
     ----------
     method : string
-        Sets the method used to estimat eepsilon
+        Sets the method used to estimat epsilon
+        Possible methods are ['Vrard', ...]
     vrard_dict : dict
         Stores the Vrard coefficients
     '''
@@ -17,6 +18,7 @@ class epsilon():
 
     def vrard(self, dnu):
         ''' Calculates epsilon prediction from Vrard 2015
+        https://arxiv.org/pdf/1505.07280.pdf
 
         Uses the equation from Table 1.
 
@@ -27,7 +29,8 @@ class epsilon():
         return [self.vrard_dict['alpha'] +
                 self.vrard_dict['alpha'] * np.log10(dnu), 0.1]
 
-    def __call__(self, dnu, numax=-1, teff=-1, dnu_err=-1, numax_err=-1, teff_err=-1):
+    def __call__(self, dnu, numax=-1, teff=-1,
+                 dnu_err=-1, numax_err=-1, teff_err=-1):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
 
