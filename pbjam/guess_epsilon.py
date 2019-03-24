@@ -179,5 +179,5 @@ class epsilon():
             self.read_prior_data()
             self.obs_to_log(self.obs)
             self.make_kde()
-            samples = self.kde_sampler()
-            return [samples[:,3].mean(), samples[:,3].std()]
+            self.samples = self.kde_sampler()
+            return [self.samples[:,3].mean(), self.samples[:,3].std()]
