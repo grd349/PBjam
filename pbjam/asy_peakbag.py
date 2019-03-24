@@ -97,19 +97,19 @@ class mcmc():
         logp = self.lp(p)
         if logp == -np.inf:
             return -np.inf
-        mod = self.model(p[:-1])
+        mod = self.model(p[:-1]) # Last p is seff so ignore.
         like = -1.0 * np.sum(np.log(mod) + \
                           self.snr[self.sel]/mod)
         return like
 
-    def __call__(self, x0):
+    def __call__(self, x0, niter=1000, nwalkers=200):
         import emcee
-        ndim, nwalkers = len(x0), 20
+        ndim = len(x0)
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
         print('Burmingham')
-        sampler.run_mcmc(p0, 1000)
+        sampler.run_mcmc(p0, niter)
         sampler.reset()
         print('Sampling')
-        sampler.run_mcmc(p0, 1000)
+        sampler.run_mcmc(p0, niter)
         return sampler.flatchain
