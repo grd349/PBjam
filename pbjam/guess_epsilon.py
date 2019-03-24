@@ -20,13 +20,13 @@ class epsilon():
         self.method = method
         # 0.601 + 0.632 logh∆νi
         self.vrard_dict = {'alpha': 0.601, 'beta': 0.632}
-        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
+        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'rg_results.csv'
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
         self.prior_data = pd.read_csv(self.data_file)
 
-    
+
 
     def vrard(self, dnu):
         ''' Calculates epsilon prediction from Vrard 2015
