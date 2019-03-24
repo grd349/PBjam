@@ -14,21 +14,21 @@ def test_epsilon():
 def test_epsilon_vrard():
     ''' Test a simple red giant result '''
     eps = guess_epsilon.epsilon(method='Vrard')
-    result = eps.vrard(4.5)
+    result = eps.vrard(dnu=[4.5, 0.1])
     assert_almost_equal(result[0], 1.0, 0.1)
     assert_almost_equal(result[1], 0.1, 0.01)
 
 def test_epsilon_vrard_giant():
     ''' Test a simple red giant result '''
     eps = guess_epsilon.epsilon(method='Vrard')
-    result = eps(4.5)
+    result = eps(dnu=[4.5, 0.1])
     assert_almost_equal(result[0], 1.0, 0.1)
     assert_almost_equal(result[1], 0.1, 0.01)
 
 def test_epsilon_vrard_dwarf():
     ''' Check Vrard unc high for the Sun '''
     eps = guess_epsilon.epsilon(method='Vrard')
-    result = eps(135.0, 3050.0)
+    result = eps(dnu=[135.0, 0.1], numax=[3050.0, 1.0])
     assert_almost_equal(result[1], 1.0, 0.01)
 
 def test_read_prior_data():
@@ -54,12 +54,23 @@ def test_kde_sampler():
 
 def test_application():
     eps = guess_epsilon.epsilon(method='kde')
-    res = eps(dnu = 10.0, numax = 120.0, teff=4800.0,
-              dnu_err = 0.1, numax_err = 1.0, teff_err = 70.0)
+    res = eps(dnu = [10.0, 0.1],
+              numax = [120.0, 1.0],
+              teff = [4800.0, 70.0])
     assert_almost_equal(res[0], 1.2, 0.05)
     assert_almost_equal(res[1], 0.12, 0.02)
 
 def test_application_sparse():
     eps = guess_epsilon.epsilon(method='kde')
-    res = eps(dnu = 10.0, dnu_err = 0.1)
+    res = eps(dnu = [10.0, 0.1])
+    assert_almost_equal(res[0], 1.2, 0.2)
+
+def test_application_sparse_numax():
+    eps = guess_epsilon.epsilon(method='kde')
+    res = eps(numax = [120.0, 1.0])
+    assert_almost_equal(res[0], 1.2, 0.2)
+
+def test_application_sparse_teff():
+    eps = guess_epsilon.epsilon(method='kde')
+    res = eps(teff = [4800.0, 70.0])
     assert_almost_equal(res[0], 1.2, 0.2)

@@ -108,7 +108,6 @@ class epsilon():
               self.log_obs['numax'][0],
               self.log_obs['seff'][0],
               1.0]
-        print(x0)
         ndim, nwalkers = len(x0), 20
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
@@ -141,8 +140,7 @@ class epsilon():
         return [self.vrard_dict['alpha'] +
                 self.vrard_dict['alpha'] * np.log10(dnu), 0.1]
 
-    def __call__(self, dnu, numax=-1, teff=-1,
-                 dnu_err=-1, numax_err=-1, teff_err=-1):
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
 
@@ -154,18 +152,12 @@ class epsilon():
 
         Inputs
         ------
-        dnu : real
-            Large frequency spacing
-        numax : real
-            Frequency of maximum power
-        teff : real
-            Stellar effective temperature
-        dnu_err : real
-            Uncertainty on dnu
-        numax_err : real
-            uncertainty on numax
-        teff_err : real
-            uncertainty on teff
+        dnu : [real, real]
+            Large frequency spacing and uncertainty
+        numax : [real, real]
+            Frequency of maximum power and uncertainty
+        teff : [real, real]
+            Stellar effective temperature and uncertainty
 
         Returns
         -------
@@ -173,16 +165,16 @@ class epsilon():
             [estimate of epsilon, unceritainty on estimate]
         '''
         if self.method == 'Vrard':
-            if numax > 288.0:
+            if numax[0] > 288.0:
                 print('Vrard method really only valid for Giants')
-                return [self.vrard(dnu)[0], 1.0]
-            return self.vrard(dnu)
-        self.obs = {'dnu': [dnu, dnu_err],
-                    'numax': [numax, numax_err],
-                    'teff': [teff, teff_err],
-                    'seff': [teff - self.seff_offset, teff_err]}
+                return [self.vrard(dnu[0])[0], 1.0]
+            return self.vrard(dnu[0])
+        self.obs = {'dnu': dnu,
+                    'numax': numax,
+                    'teff': teff,
+                    'seff': [teff[0] - self.seff_offset, teff[1]]}
         if self.method == 'kde':
-            if numax > 288.0:
+            if numax[0] > 288.0:
                 print('Not yet implemented for SC stars')
             self.read_prior_data()
             self.obs_to_log(self.obs)
