@@ -1,4 +1,7 @@
 import numpy as np
+import pandas as pd
+import os
+from . import PACKAGEDIR
 
 class epsilon():
     ''' A class to predict epsilon.
@@ -10,11 +13,20 @@ class epsilon():
         Possible methods are ['Vrard', ...]
     vrard_dict : dict
         Stores the Vrard coefficients
+    data_file : string
+        The loc of the prior data file
     '''
     def __init__(self, method='Vrard'):
         self.method = method
         # 0.601 + 0.632 logh∆νi
         self.vrard_dict = {'alpha': 0.601, 'beta': 0.632}
+        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
+
+    def read_prior_data(self):
+        ''' Read in the prior data from self.data_file '''
+        self.prior_data = pd.read_csv(self.data_file)
+
+    
 
     def vrard(self, dnu):
         ''' Calculates epsilon prediction from Vrard 2015
