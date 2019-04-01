@@ -88,6 +88,7 @@ class mcmc():
         self.model = model(f[self.sel])
         # numax, dnu, d02, eps, alpha, hmax, Envwidth, w, seff
         # TODO - tidy this bit up!
+        self.seff_offset = 4000.0
         bounds = [[x0[0]*0.9, x0[0]*1.1], [x0[1]*0.9, x0[1]*1.1],
                    [0.04, 0.2], [0.5, 2.5], [0, 1], [x0[5]*0.5, x0[5]*1.5],
                    [x0[6]*0.9, x0[6]*1.1], [-2, 1.0], [2.0, 4.0]]
