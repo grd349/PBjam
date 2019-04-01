@@ -138,7 +138,7 @@ class epsilon():
         Assumes a fixed uncertainty of 0.1.
         '''
         return [self.vrard_dict['alpha'] +
-                self.vrard_dict['alpha'] * np.log10(dnu), 0.1]
+                self.vrard_dict['beta'] * np.log10(dnu), 0.1]
 
     def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
