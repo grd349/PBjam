@@ -27,6 +27,7 @@ class epsilon():
         self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'rg_results.csv'
         self.obs = []
         self.seff_offset = 4000.0
+        self.samples = []
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
@@ -162,8 +163,7 @@ class epsilon():
             return self.vrard_dict['alpha'] + \
                    self.vrard_dict['beta'] * np.log10(dnu), unc
 
-
-    def vrard_predict(self, n, dnu, npts=1000):
+    def vrard_predict(self, n, dnu, npts=10000):
         '''
         Predict the l=0 mode frequencies using vrard_dict
 
@@ -191,7 +191,7 @@ class epsilon():
         frequencies_mc = np.array([(nn + eps_mc) * dnu_mc for nn in n])
         return frequencies_mc.mean(axis=1), frequencies_mc.std(axis=1)
 
-    def plot_vrard(self, dnu, periodogram):
+    def plot(self, dnu, numax, teff, periodogram):
         '''
         Make a plot of the suggested Vrard epsilon_guess
 
@@ -211,14 +211,50 @@ class epsilon():
         nmin = f.min() / dnu[0]
         nmax = f.max() / dnu[0]
         self.n = np.arange(nmin-1, nmax+1, 1)
-        freq, freq_unc = self.vrard_predict(self.n, dnu)
+        if self.method == 'Vrard':
+            freq, freq_unc = self.vrard_predict(self.n, dnu)
+        elif self.method == 'kde':
+            freq, freq_unc = self.kde_predict(self.n, dnu, numax, teff)
         for i in range(len(self.n)):
             ax.axvline(freq[i], c='k', linestyle='--', zorder=0, alpha=0.3)
-            ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
-                    c='k', alpha=0.5)
+            y = 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
+            #ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
+            #            c='k', alpha=0.5)
+            ax.fill_between(f, y, alpha=0.3, facecolor='r', edgecolor='none')
         ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, periodogram.power.value.max()])
 
+    def kde_predict(self, n, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
+        '''
+        Predict the frequencies from the kde method samples
+
+        Parameters
+        ----------
+
+        n: numpy_array
+            The radial order
+        dnu : [real, real]
+            Large frequency spacing and uncertainty
+        numax : [real, real]
+            Frequency of maximum power and uncertainty
+        teff : [real, real]
+            Stellar effective temperature and uncertainty
+
+        Returns
+        -------
+        frequencies: numpy-array
+            A numpy array of length len(n) containting the frequency estimates.
+
+        frequencies_unc: numpy-array
+            A numpy array of length len(n) containting the frequency estimates
+            uncertainties.
+        '''
+        if self.samples == []:
+            _, _ = self(dnu, numax, teff)
+        dnu = self.samples[:, 0]
+        eps = self.samples[:, 3]
+        freq = np.array([(nn + eps) * 10**dnu for nn in n])
+        return freq.mean(axis=1), freq.std(axis=1)
 
     def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
