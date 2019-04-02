@@ -2,50 +2,128 @@ import numpy as np
 from pbjam import epsilon
 import os
 
-from . import PACKAGEDIR
+from . import PACKAGEDIR #I have no idea what this does
 
 class model():
     def __init__(self, f):
+        """ 
+        Parameters
+        ----------
+        f : float, array 
+            Array of frequency bins of the power spectrum (muHz)
+        """
         self.f = f
 
     def lor(self, freq, h, w):
+        ''' Lorentzian to describe a mode.
+        
+        Parameters
+        ----------
+        freq : float
+            Frequency of lorentzian (muHz)
+        h : float
+            Height of the lorentizan (?, spectrum units) 
+        w : float
+            Full width of the lorentzian (log10(muHz))
+        
+        Returns
+        ------- 
+        mode : array
+            The mode power distribution in frequency bins
         '''
-        Lorentzian to describe modes.
-
-        Line width in in log_10.
-        '''
+     
         w = 10**(w)
+        
         return h / (1.0 + 4.0/w**2*(self.f - freq)**2)
 
     def pair(self, freq0, h, w, d02, hfac=0.7):
-        ''' A pair is the sum of two Lorentzians '''
+        ''' Define a pair as the sum of two Lorentzians
+        
+        A pair is assumed to consist of an l=0 and an l=2 mode.
+        The widths are assumed to be identical, and the height
+        of the l=2 mode is scaled relative to that of the l=0
+        mode. The frequency of the l=2 mode is the l=0 frequency
+        minus the small separation.
+        
+        Parameters
+        ----------
+        freq0 : float
+            Frequency of the l=0 (muHz)
+        h : float
+            Height of the l=0 (?, spectrum units)
+        w : float
+            The mode width (identical for l=2 and l=0) (log10(muHz))
+        d02 : float
+            The small separation (muHz)
+        hfac : float, optional
+            Ratio of the l=2 height to that of l=0 (unitless)
+        Returns
+        -------
+        pair : array
+            The power distribution in frequency of a mode pair 
+            (?, spectrum units)
+        '''
+        
         model = self.lor(freq0, h, w)
         model += self.lor(freq0 - d02, h*hfac, w)
         return model
 
     def asy(self, numax, dnu, d02, eps, alpha, hmax, Envwidth, w):
-        ''' We fit the asymptotic relation:
-
+        '''Constructs a spectrum model from the asymptotic relation
+        
+        The asymptotic relation for p-modes is defined as:
         nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu
-
         where,
-
         nmax = numax / dnu - eps.
-
         We separate the l=0 and l=2 modes by d02*dnu.
-
+        
+        Parameters
+        ----------
+        numax : float
+            Frequency of maximum power of the p-mode envelope (muHz)
+        dnu : float
+            Large separation (muHz)
+        d02 : float
+            Small separation (muHz)
+        eps : float
+            Phase term of the asymptotic relation (unitless)
+        alpha : float
+            Curvature of the asymptotic relation (unitless)
+        hmax : float
+            Gaussian height of p-mode envelope (?, spectrum units) 
+        Envwidth : float
+            Gaussian width of the p-mode envelope (muHz)
+        w : float
+            Width of the modes (log_10(muHz))
+        
+        Returns
+        -------
+        model : array
+            spectrum model around the p-mode envelope
         '''
+        
         nmax = numax / dnu - eps
-        nn = np.arange(np.floor(nmax-5), np.floor(nmax+6), 1)
-        model = np.ones(len(self.f))
+        nn = np.arange(np.floor(nmax-5), np.floor(nmax+6), 1) # Why is floor used here? Hard code?
+        model = np.ones(len(self.f)) 
         for n in nn:
-            f0 = (n + eps + alpha/2*(n - nmax)**2) * dnu
-            h = hmax * np.exp(- 0.5 * (f0 - numax)**2 / Envwidth**2)
+            f0 = (n + eps + alpha/2*(n - nmax)**2) * dnu # asymptotic relation
+            h = hmax * np.exp(- 0.5 * (f0 - numax)**2 / Envwidth**2) # Gaussian p-mode envelope
             model += self.pair(f0, h, w, d02*dnu)
         return model
 
     def __call__(self, p):
-        ''' Return the model '''
+        '''Calls model of the asymptotic relation 
+        
+        Parameters
+        ----------
+        p : list
+            list of model parameters
+        
+        Returns
+        -------
+        model : array
+            spectrum model around the p-mode envelope
+        '''
         return self.asy(*p)
 
 class Prior(epsilon):
@@ -53,7 +131,7 @@ class Prior(epsilon):
         self.bounds = _bounds
         self.gaussian = _gaussian
         self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'rg_results.csv'
-        self.seff_offset = 4000.0
+        self.seff_offset = 4000.0 #What is this?
         self.read_prior_data()
         self.make_kde()
 
