@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 import emcee
+import matplotlib.pyplot as plt
 
 from . import PACKAGEDIR
 
@@ -136,9 +137,88 @@ class epsilon():
         Has no dependence on temperature so not reliable.
 
         Assumes a fixed uncertainty of 0.1.
+
+        Parameters
+        ----------
+
+        dnu: array-like
+            Either a len=2 array with [dnu, dnu_uncertainty] or and monte carlo
+            version with [[dnu], [dnu_uncertainty]]
+
+        Returns
+        -------
+
+        epsilon: array-like
+            Either a len=2 list of epsilon and epsilon uncertainty or a
+            monte carlo version with [[epsilon], [epsilon_uncertainty]]
+
         '''
-        return [self.vrard_dict['alpha'] +
-                self.vrard_dict['beta'] * np.log10(dnu), 0.1]
+        if len(dnu) == 2:
+            unc = 0.1
+            return self.vrard_dict['alpha'] + \
+                   self.vrard_dict['beta'] * np.log10(dnu[0]), unc
+        else:
+            unc = 0.1 * np.ones(len(dnu))
+            return self.vrard_dict['alpha'] + \
+                   self.vrard_dict['beta'] * np.log10(dnu), unc
+
+
+    def vrard_predict(self, n, dnu, npts=1000):
+        '''
+        Predict the l=0 mode frequencies using vrard_dict
+
+        Parameters
+        ----------
+
+        n: numpy-array
+            A numpy array of radial orders
+
+        dnu: array-like
+            The estimate of dnu where dnu = [dnu, dnu_uncertainty].
+
+        Returns
+        -------
+        frequencies: numpy-array
+            A numpy array of length len(n) containting the frequency estimates.
+
+        frequencies_unc: numpy-array
+            A numpy array of length len(n) containting the frequency estimates
+            uncertainties.
+        '''
+        dnu_mc = np.random.randn(npts) * dnu[1] + dnu[0]
+        eps, eps_unc = self.vrard(dnu_mc)
+        eps_mc = eps + np.random.randn(npts) * eps_unc
+        frequencies_mc = np.array([(nn + eps_mc) * dnu_mc for nn in n])
+        return frequencies_mc.mean(axis=1), frequencies_mc.std(axis=1)
+
+    def plot_vrard(self, dnu, periodogram):
+        '''
+        Make a plot of the suggested Vrard epsilon_guess
+
+        Parameters
+        ----------
+
+        dnu: array-like
+            An array-like with [dnu, dnu_uncertainty]
+
+        periodogram: Periodogram
+            A lightkurve Periodogram object for plotting
+
+        '''
+        fig, ax = plt.subplots(figsize=[16,9])
+        periodogram.plot(ax=ax)
+        f = periodogram.frequency.value
+        nmin = f.min() / dnu[0]
+        nmax = f.max() / dnu[0]
+        self.n = np.arange(nmin-1, nmax+1, 1)
+        freq, freq_unc = self.vrard_predict(self.n, dnu)
+        for i in range(len(self.n)):
+            ax.axvline(freq[i], c='k', linestyle='--', zorder=0, alpha=0.3)
+            ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
+                    c='k', alpha=0.5)
+        ax.set_xlim([f.min(), f.max()])
+        ax.set_ylim([0, periodogram.power.value.max()])
+
 
     def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
@@ -167,8 +247,8 @@ class epsilon():
         if self.method == 'Vrard':
             if numax[0] > 288.0:
                 print('Vrard method really only valid for Giants')
-                return [self.vrard(dnu[0])[0], 1.0]
-            return self.vrard(dnu[0])
+                return self.vrard(dnu)[0], 1.0
+            return self.vrard(dnu)
         self.obs = {'dnu': dnu,
                     'numax': numax,
                     'teff': teff,
