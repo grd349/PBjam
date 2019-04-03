@@ -5,13 +5,15 @@ import os
 from . import PACKAGEDIR #I have no idea what this does
 
 class model():
-    def __init__(self, f):
-        """ 
-        Parameters
-        ----------
-        f : float, array 
+    """ Class for power spectrum model using asymptotic relation
+      
+    Attributes
+    ----------
+    f : float, array 
             Array of frequency bins of the power spectrum (muHz)
-        """
+    """
+    
+    def __init__(self, f):
         self.f = f
 
     def lor(self, freq, h, w):
@@ -113,7 +115,7 @@ class model():
         return model
 
     def __call__(self, p):
-        """Calls model of the asymptotic relation 
+        """Produce model of the asymptotic relation 
         
         Parameters
         ----------
@@ -128,33 +130,47 @@ class model():
         return self.asy(*p)
 
 class Prior(epsilon):
-    def __init__(self, bounds, gaussian):
-        """ 
-        Parameters
-        ----------
-        bounds : list
-            list of upper and lower bounds for the priors on the fit parameters
-        gaussian : ?
-            ???
-        """
-        
+    """ Evaluate the proirs on the provided model parameters 
+    
+    Attributes
+    ----------
+    bounds : array
+    gaussian : ??
+    data_file : 
+    seff_offset : int
+    
+    Methods
+    -------
+    read_prior_data : 
+    make_kde : 
+    
+    Parameters
+    ----------
+    bounds : list
+        list of upper and lower bounds for the priors on the model parameters
+    gaussian : ?
+        ???
+    
+    """
+   
+    def __init__(self, bounds, gaussian):       
         self.bounds = bounds
         self.gaussian = gaussian
         
         self.data_file = os.path.join(*[PACKAGEDIR,'data','rg_results.csv']) # is this better/worse, slower/faster?
-        self.seff_offset = 4000.0 #Norm. const. for same KDE bandwidth on all axes (hard code values)
-        self.read_prior_data() #Inherited from epsilon
-        self.make_kde() #Inherited from epsilon, assigns the kde attribute
+        self.seff_offset = 4000.0 # Norm. const. for same KDE bandwidths (hard code values)
+        self.read_prior_data() # Inherited from epsilon
+        self.make_kde() # Inherited from epsilon, assigns the kde attribute
 
     def pbound(self, p):
-        ''' Check if proposed step is out of bounds
+        ''' Check if parameter set is out of bounds
        
-        Effectively truncates any prior beyond the supplied bounds.
+        Truncates posterior beyond the supplied bounds.
         
         Parameters
         ----------
         p : array
-            Array containing mcmc proposal
+            Array containing model parameters
         
         Returns
         -------
@@ -178,8 +194,8 @@ class Prior(epsilon):
         p : array
             Array containing mcmc proposal
             
-        Return
-        ------
+        Returns
+        -------
         lnprior : float
             ???
         """
@@ -192,20 +208,20 @@ class Prior(epsilon):
         return lnprior
 
     def __call__(self, p):
-        """ Evaluate the prior on a proposed set of parameters
+        """ Evaluate the priors for a set of parameters
         
-        The prior is estimated by a KDE of a large set of previous Kepler 
+        The prior is estimated by a KDE of a set of previous Kepler 
         observations.
         
         Parameters
         ----------
         p : array
-            Array containing mcmc proposal
+            Array of model parameters
             
-        Return
-        ------
+        Returns
+        -------
         lp : float
-            The prior evaluated at the proposed mcmc step
+            The prior
         """
         
         if self.pbound(p) == -np.inf:
@@ -215,7 +231,8 @@ class Prior(epsilon):
         lp = self.kde([np.log10(p[1]), np.log10(p[0]), p[8], p[3]])
         return lp
 
-class mcmc():
+class mcmc():  
+    
     def __init__(self, f, snr, x0):      
         self.f = f
         self.snr = snr
@@ -236,6 +253,22 @@ class mcmc():
         self.lp = Prior(bounds, [(0,0) for n in range(len(x0))])
 
     def likelihood(self, p):
+        """ Likelihood function for set of model parameters
+        
+        Evaluates the likelihood function and applies any priors
+        for a set of model parameters. 
+        
+        Parameters
+        ----------
+        p : array
+            Array of model parameters
+        
+        Returns
+        -------
+        like : float
+            likelihood function at p
+        """
+        
         logp = self.lp(p)
         if logp == -np.inf:
             return -np.inf
@@ -245,8 +278,26 @@ class mcmc():
         return like
 
     def __call__(self, x0, niter=1000, nwalkers=200):
+        """ Initialize the EMCEE afine invariant sampler
+        Parameters
+        ----------
+        x0 : array
+            Initial starting location for MCMC walkers
+        niter : int 
+            number of setps for the walkers to take
+        nwalkers : int
+            number of walkers to use
+        
+        Returns
+        -------
+        sampler.flatchain : array
+            the chain of (nwalkers, niter, ndim) flattened to 
+            (nwalkers*niter, ndim)
+        """
+        
         import emcee
         ndim = len(x0)
+        # Start walkers in a tight random ball
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
         print('Burning ham')
