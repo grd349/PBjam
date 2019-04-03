@@ -1,3 +1,10 @@
+""" Fitting asymptotic relation to an SNR spectrum
+
+This module fits the asymptotic relation to the p-modes in a frequency range
+around nu_max in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 is 
+ignored.     
+"""
+
 import numpy as np
 from pbjam import epsilon
 import os
@@ -6,7 +13,12 @@ from . import PACKAGEDIR #I have no idea what this does
 
 class model():
     """ Class for power spectrum model using asymptotic relation
-      
+    
+    Parameters
+    ---------_
+    f : float, array 
+            Array of frequency bins of the power spectrum (muHz)  
+            
     Attributes
     ----------
     f : float, array 
@@ -41,11 +53,10 @@ class model():
     def pair(self, freq0, h, w, d02, hfac=0.7):
         """ Define a pair as the sum of two Lorentzians
         
-        A pair is assumed to consist of an l=0 and an l=2 mode.
-        The widths are assumed to be identical, and the height
-        of the l=2 mode is scaled relative to that of the l=0
-        mode. The frequency of the l=2 mode is the l=0 frequency
-        minus the small separation.
+        A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
+        assumed to be identical, and the height of the l=2 mode is scaled 
+        relative to that of the l=0 mode. The frequency of the l=2 mode is the
+        l=0 frequency minus the small separation.
         
         Parameters
         ----------
@@ -64,7 +75,7 @@ class model():
         -------
         pair_model : array
             The power distribution in frequency of a mode pair 
-            (?, spectrum units)
+            (???, spectrum units)
         """
         
         pair_model = self.lor(freq0, h, w)
@@ -106,11 +117,13 @@ class model():
         """
         
         nmax = numax / dnu - eps
-        nn = np.arange(np.floor(nmax-5), np.floor(nmax+6), 1) # (hard code values)
+        nn = np.arange(np.floor(nmax-5), np.floor(nmax+6), 1) # (hard code)
         model = np.ones(len(self.f)) 
         for n in nn:
-            f0 = (n + eps + alpha/2*(n - nmax)**2) * dnu # asymptotic relation
-            h = hmax * np.exp(- 0.5 * (f0 - numax)**2 / Envwidth**2) # Gaussian p-mode envelope
+            # asymptotic relation
+            f0 = (n + eps + alpha/2*(n - nmax)**2) * dnu 
+            # Gaussian p-mode envelope
+            h = hmax * np.exp(- 0.5 * (f0 - numax)**2 / Envwidth**2) 
             model += self.pair(f0, h, w, d02*dnu)
         return model
 
@@ -127,6 +140,7 @@ class model():
         model : array
             spectrum model around the p-mode envelope
         """
+        
         return self.asy(*p)
 
 class Prior(epsilon):
@@ -135,32 +149,36 @@ class Prior(epsilon):
     Attributes
     ----------
     bounds : array
+        Boundary values for model parameters, beyond which the likelihood 
+        is -inf
     gaussian : ??
-    data_file : 
+    data_file : str
+        File containing stellar parameters for make the prior KDE
     seff_offset : int
-    
-    Methods
-    -------
-    read_prior_data : 
-    make_kde : 
-    
+        Normalization constant for Teff so that the KDE can have roughly
+        the same bandwidth along each axis.
+    read_prior_data : function
+        Function to read the prior data file. Inherited from epsilon
+    make_kde : function
+        Function to get a KDE from the prior data file. Inherited from epsilon
+       
     Parameters
     ----------
     bounds : list
         list of upper and lower bounds for the priors on the model parameters
-    gaussian : ?
+    gaussian : ???
         ???
-    
     """
    
     def __init__(self, bounds, gaussian):       
         self.bounds = bounds
         self.gaussian = gaussian
         
-        self.data_file = os.path.join(*[PACKAGEDIR,'data','rg_results.csv']) # is this better/worse, slower/faster?
-        self.seff_offset = 4000.0 # Norm. const. for same KDE bandwidths (hard code values)
+        # ??? is this better/worse, slower/faster?
+        self.data_file = os.path.join(*[PACKAGEDIR,'data','rg_results.csv']) 
+        self.seff_offset = 4000.0 #(hard code)
         self.read_prior_data() # Inherited from epsilon
-        self.make_kde() # Inherited from epsilon, assigns the kde attribute
+        self.make_kde() # Inherited from epsilon
 
     def pbound(self, p):
         ''' Check if parameter set is out of bounds
@@ -179,7 +197,7 @@ class Prior(epsilon):
         '''
         
         for idx, i in enumerate(p):
-            if all(self.bounds[idx] != 0): #((self.bounds[idx][0] != 0) & (self.bounds[idx][1] != 0)):
+            if all(self.bounds[idx] != 0):
                 if ((i < self.bounds[idx][0]) | (i > self.bounds[idx][1])):
                     return -np.inf
         return 0
@@ -187,7 +205,7 @@ class Prior(epsilon):
     def pgaussian(self, p):
         """ Guassian priors - not yet implemented!!!
         
-        ????
+        Function for setting Gaussian priors (???)
         
         Parameters
         ----------
@@ -221,7 +239,7 @@ class Prior(epsilon):
         Returns
         -------
         lp : float
-            The prior
+            The prior at p
         """
         
         if self.pbound(p) == -np.inf:
@@ -232,6 +250,40 @@ class Prior(epsilon):
         return lp
 
 class mcmc():  
+    """ Class for MCMC sampling 
+    
+    Fit the asymptotic relation around the p-mode envelope. The MCMC sampler 
+    burns-in and then proceeds to sample the posterior distribution. 
+    
+    Parameters
+    ----------
+    f : float, array 
+        Array of frequency bins of the power spectrum (muHz)        
+    snr : array
+        The power spectrum normalized to a background noise
+        level of 1
+    x0 : array
+        Initial positions for the MCMC walkers
+    
+    Attributes
+    ----------
+    f : float, array 
+        Array of frequency bins of the power spectrum (muHz)        
+    snr : array
+        The power spectrum normalized to a background noise
+        level of 1
+    sel : array
+        Boolean array to select the frequency range immediately around the 
+        p-mode envelope (so we don't fit the whole damn spectrum)
+    model : class instance
+        Model class instance initalized with frequency range around the p-mode 
+        envelope
+    seff_offset : int
+        Normalization constant for Teff so that the KDE can have roughly
+        the same bandwidth along each axis.
+    lp : class instance
+        Prior class initialized using model parameter limits    
+    """
     
     def __init__(self, f, snr, x0):      
         self.f = f
@@ -240,7 +292,7 @@ class mcmc():
         self.model = model(f[self.sel])
         # numax, dnu, d02, eps, alpha, hmax, Envwidth, w, seff
         # TODO - tidy this bit up!
-        self.seff_offset = 4000.0
+        self.seff_offset = 4000.0 #(hard code)
         bounds = [[x0[0]*0.9, x0[0]*1.1], 
                   [x0[1]*0.9, x0[1]*1.1],
                   [0.04, 0.2], 
@@ -255,8 +307,8 @@ class mcmc():
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
         
-        Evaluates the likelihood function and applies any priors
-        for a set of model parameters. 
+        Evaluates the likelihood function and applies any priors for a set of 
+        model parameters. 
         
         Parameters
         ----------
@@ -279,12 +331,13 @@ class mcmc():
 
     def __call__(self, x0, niter=1000, nwalkers=200):
         """ Initialize the EMCEE afine invariant sampler
+        
         Parameters
         ----------
         x0 : array
             Initial starting location for MCMC walkers
         niter : int 
-            number of setps for the walkers to take
+            number of steps for the walkers to take (both burn-in and sampling)
         nwalkers : int
             number of walkers to use
         
@@ -292,15 +345,16 @@ class mcmc():
         -------
         sampler.flatchain : array
             the chain of (nwalkers, niter, ndim) flattened to 
-            (nwalkers*niter, ndim)
+            (nwalkers*niter, ndim) (???)
         """
         
+        # TODO - Swap this with faster sampler?
         import emcee
         ndim = len(x0)
         # Start walkers in a tight random ball
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
-        print('Burning ham')
+        print('Burningham')
         sampler.run_mcmc(p0, niter)
         sampler.reset()
         print('Sampling')
