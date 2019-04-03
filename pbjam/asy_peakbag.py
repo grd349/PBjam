@@ -9,20 +9,20 @@ import numpy as np
 from pbjam import epsilon
 import os
 
-from . import PACKAGEDIR #I have no idea what this does
+from . import PACKAGEDIR
 
 class model():
-    """ Class for power spectrum model using asymptotic relation
+    """ Class for SNR spectrum model using asymptotic relation
     
     Parameters
     ---------_
     f : float, array 
-            Array of frequency bins of the power spectrum (muHz)  
+            Array of frequency bins of the SNR spectrum (muHz)  
             
     Attributes
     ----------
     f : float, array 
-            Array of frequency bins of the power spectrum (muHz)
+            Array of frequency bins of the SNR spectrum (muHz)
     """
     
     def __init__(self, f):
@@ -36,14 +36,14 @@ class model():
         freq : float
             Frequency of lorentzian (muHz)
         h : float
-            Height of the lorentizan (?, spectrum units) 
+            Height of the lorentizan (SNR) 
         w : float
             Full width of the lorentzian (log10(muHz))
         
         Returns
         ------- 
         mode : array
-            The mode power distribution in frequency bins
+            The SNR as a function frequency for a lorentzian
         """
      
         w = 10**(w)
@@ -63,7 +63,7 @@ class model():
         freq0 : float
             Frequency of the l=0 (muHz)
         h : float
-            Height of the l=0 (?, spectrum units)
+            Height of the l=0 (SNR)
         w : float
             The mode width (identical for l=2 and l=0) (log10(muHz))
         d02 : float
@@ -74,8 +74,7 @@ class model():
         Returns
         -------
         pair_model : array
-            The power distribution in frequency of a mode pair 
-            (???, spectrum units)
+            The SNR as a function of frequency of a mode pair.
         """
         
         pair_model = self.lor(freq0, h, w)
@@ -104,7 +103,7 @@ class model():
         alpha : float
             Curvature of the asymptotic relation (unitless)
         hmax : float
-            Gaussian height of p-mode envelope (?, spectrum units) 
+            Gaussian height of p-mode envelope (SNR) 
         Envwidth : float
             Gaussian width of the p-mode envelope (muHz)
         w : float
@@ -174,7 +173,6 @@ class Prior(epsilon):
         self.bounds = bounds
         self.gaussian = gaussian
         
-        # ??? is this better/worse, slower/faster?
         self.data_file = os.path.join(*[PACKAGEDIR,'data','rg_results.csv']) 
         self.seff_offset = 4000.0 #(hard code)
         self.read_prior_data() # Inherited from epsilon
@@ -258,7 +256,7 @@ class mcmc():
     Parameters
     ----------
     f : float, array 
-        Array of frequency bins of the power spectrum (muHz)        
+        Array of frequency bins of the SNR spectrum (muHz)        
     snr : array
         The power spectrum normalized to a background noise
         level of 1
@@ -268,7 +266,7 @@ class mcmc():
     Attributes
     ----------
     f : float, array 
-        Array of frequency bins of the power spectrum (muHz)        
+        Array of frequency bins of the SNR spectrum (muHz)        
     snr : array
         The power spectrum normalized to a background noise
         level of 1
