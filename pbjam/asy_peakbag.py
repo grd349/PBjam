@@ -195,7 +195,7 @@ class Prior(epsilon):
         '''
 
         for idx, i in enumerate(p):
-            if all(self.bounds[idx] != 0):
+            if np.all(self.bounds[idx] != 0):
                 if ((i < self.bounds[idx][0]) | (i > self.bounds[idx][1])):
                     return -np.inf
         return 0
