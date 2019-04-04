@@ -200,7 +200,8 @@ class epsilon():
 
     def plot(self, dnu, numax, teff, periodogram):
         '''
-        Make a plot of the suggested Vrard epsilon_guess
+        Make a plot of the suggested Vrard epsilon_guess, on top of a
+        `lightkurve` periodogram object passed by the user.
 
         Parameters
         ----------
@@ -208,8 +209,14 @@ class epsilon():
         dnu: array-like
             An array-like with [dnu, dnu_uncertainty]
 
+        numax: array-like
+            An array-like with [numax, numax_uncertainty]
+
+        teff:  array-like
+            An array-like with [teff, teff_uncertainty]
+
         periodogram: Periodogram
-            A lightkurve Periodogram object for plotting
+            A lightkurve Periodogram object for plotting.
 
         '''
         fig, ax = plt.subplots(figsize=[16,9])
@@ -220,7 +227,7 @@ class epsilon():
         self.n = np.arange(nmin-1, nmax+1, 1)
         if self.method == 'Vrard':
             freq, freq_unc = self.vrard_predict(self.n, dnu)
-        elif self.method == 'kde':
+        elif self.method == 'KDE':
             freq, freq_unc = self.kde_predict(self.n, dnu, numax, teff)
         for i in range(len(self.n)):
             ax.axvline(freq[i], c='k', linestyle='--', zorder=0, alpha=0.3)
@@ -290,8 +297,7 @@ class epsilon():
         if self.method == 'Vrard':
             if numax[0] > 288.0:
                 warnings.warn('Vrard method really only valid for Giants.')
-                return 0
-                # return self.vrard(dnu)[0], 1.0
+                return self.vrard(dnu)[0], 1.0
             return self.vrard(dnu)
 
         self.obs = {'dnu': dnu,
@@ -301,7 +307,6 @@ class epsilon():
         if self.method == 'KDE':
             if numax[0] > 288.0:
                 warnings.warn('Not yet implemented for SC stars')
-                return 0
             self.read_prior_data()
             self.obs_to_log(self.obs)
             self.make_kde()
