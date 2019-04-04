@@ -84,7 +84,7 @@ class model():
     def asy(self, numax, dnu, d02, eps, alpha, hmax, Envwidth, w):
         """Constructs a spectrum model from the asymptotic relation
 
-        The asymptotic relation for p-modes is defined as:
+        The asymptotic relation for p-modes in red giants is defined as:
         nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu
         where,
         nmax = numax / dnu - eps.
