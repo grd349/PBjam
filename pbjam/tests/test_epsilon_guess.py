@@ -53,7 +53,7 @@ def test_kde_sampler():
     pass
 
 def test_application():
-    eps = guess_epsilon.epsilon(method='kde')
+    eps = guess_epsilon.epsilon(method='KDE')
     res = eps(dnu = [10.0, 0.1],
               numax = [120.0, 1.0],
               teff = [4800.0, 70.0])
@@ -61,16 +61,16 @@ def test_application():
     assert_almost_equal(res[1], 0.12, 0.02)
 
 def test_application_sparse():
-    eps = guess_epsilon.epsilon(method='kde')
+    eps = guess_epsilon.epsilon(method='KDE')
     res = eps(dnu = [10.0, 0.1])
     assert_almost_equal(res[0], 1.2, 0.2)
 
 def test_application_sparse_numax():
-    eps = guess_epsilon.epsilon(method='kde')
+    eps = guess_epsilon.epsilon(method='KDE')
     res = eps(numax = [120.0, 1.0])
     assert_almost_equal(res[0], 1.2, 0.2)
 
 def test_application_sparse_teff():
-    eps = guess_epsilon.epsilon(method='kde')
+    eps = guess_epsilon.epsilon(method='KDE')
     res = eps(teff = [4800.0, 70.0])
     assert_almost_equal(res[0], 1.2, 0.2)
