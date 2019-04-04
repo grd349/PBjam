@@ -3,6 +3,7 @@ import pandas as pd
 import os
 import emcee
 import matplotlib.pyplot as plt
+import warnings
 
 from . import PACKAGEDIR
 
@@ -11,17 +12,23 @@ from scipy.stats import gaussian_kde
 class epsilon():
     ''' A class to predict epsilon.
 
+    TODO: flesh this out a bit more
+
     Attributes
     ----------
     method : string
-        Sets the method used to estimat epsilon
-        Possible methods are ['Vrard', ...]
+        Sets the method used to estimate epsilon
+        Possible methods are ['Vrard', 'KDE']
     vrard_dict : dict
-        Stores the Vrard coefficients
+        Stores the Vrard coefficients (for Red Giant stars)
     data_file : string
-        The loc of the prior data file
+        The location of the prior data file
     '''
     def __init__(self, method='Vrard'):
+        if method not in ('Vrard','KDE'):
+            raise ValueError("The `method` parameter must be one of either"
+                                "`Vrard` or `KDE`")
+
         self.method = method
         self.vrard_dict = {'alpha': 0.601, 'beta': 0.632}
         self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'rg_results.csv'
@@ -42,7 +49,7 @@ class epsilon():
         self.kde = gaussian_kde(self.prior_data[self.cols].values.T, bw)
 
     def normal(self, y, mu, sigma):
-        ''' returns normal log likelihood
+        ''' Returns normal log likelihood
 
         Inputs
         ------
@@ -53,7 +60,7 @@ class epsilon():
         sigma : real
             distribution standard deviation
 
-        returns
+        Returns
         -------
         log likelihood : real
         '''
@@ -71,7 +78,7 @@ class epsilon():
 
         Returns
         -------
-        like: real
+        like : real
             The log likelihood evaluated at p.
 
         '''
@@ -97,7 +104,7 @@ class epsilon():
 
         p(D | theta) is given by the observable constraints
 
-        Convergence is far from Guaranteed!
+        Convergence is far from guaranteed! Samples are drawn using `emcee`.
 
         Returns
         -------
@@ -282,16 +289,19 @@ class epsilon():
         '''
         if self.method == 'Vrard':
             if numax[0] > 288.0:
-                print('Vrard method really only valid for Giants')
-                return self.vrard(dnu)[0], 1.0
+                warnings.warn('Vrard method really only valid for Giants.')
+                return 0
+                # return self.vrard(dnu)[0], 1.0
             return self.vrard(dnu)
+
         self.obs = {'dnu': dnu,
                     'numax': numax,
                     'teff': teff,
                     'seff': [teff[0] - self.seff_offset, teff[1]]}
-        if self.method == 'kde':
+        if self.method == 'KDE':
             if numax[0] > 288.0:
-                print('Not yet implemented for SC stars')
+                warnings.warn('Not yet implemented for SC stars')
+                return 0
             self.read_prior_data()
             self.obs_to_log(self.obs)
             self.make_kde()
