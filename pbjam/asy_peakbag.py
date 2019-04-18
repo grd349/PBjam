@@ -327,7 +327,7 @@ class mcmc():
                           self.snr[self.sel]/mod)
         return like + logp
 
-    def __call__(self, x0, niter=1000, nwalkers=200):
+    def __call__(self, x0, niter=500, nwalkers=200):
         """ Initialize the EMCEE afine invariant sampler
 
         Parameters
@@ -354,7 +354,8 @@ class mcmc():
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
         print('Burningham')
         sampler.run_mcmc(p0, niter)
+        pb = sampler.chain[:,-1,:].copy()
         sampler.reset()
         print('Sampling')
-        sampler.run_mcmc(p0, niter)
+        sampler.run_mcmc(pb, niter)
         return sampler.flatchain
