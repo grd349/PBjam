@@ -8,10 +8,27 @@ ignored.
 import numpy as np
 from pbjam import epsilon
 import os
+import pandas as pd
 
 from . import PACKAGEDIR
 
-class model():
+
+def asymptotic_relation(numax, dnu, eps, alpha, nrads):
+    nmax = get_nmax(numax, dnu, eps)    
+    enns = get_enns(nmax, nrads)
+    return (enns + eps + alpha/2*(enns - nmax)**2) * dnu
+
+def P_envelope(f0, hmax, numax, width):
+    return hmax * np.exp(- 0.5 * (f0 - numax)**2 / width**2)
+
+def get_nmax(numax, dnu, eps):
+    return numax / dnu - eps
+
+def get_enns(nmax, nrads):
+    # TODO - why +1?
+    return np.arange(np.floor(nmax-np.floor(nrads/2)), np.floor(nmax+np.ceil(nrads/2)+1), 1)
+
+class asymp_spec_model():
     """ Class for SNR spectrum model using asymptotic relation
 
     Parameters
@@ -25,9 +42,10 @@ class model():
             Array of frequency bins of the SNR spectrum (muHz)
     """
 
-    def __init__(self, f):
+    def __init__(self, f, nrads):
         self.f = f
-
+        self.nrads = nrads
+                
     def lor(self, freq, h, w):
         """ Lorentzian to describe a mode.
 
@@ -47,7 +65,6 @@ class model():
         """
 
         w = 10**(w)
-
         return h / (1.0 + 4.0/w**2*(self.f - freq)**2)
 
     def pair(self, freq0, h, w, d02, hfac=0.7):
@@ -80,8 +97,8 @@ class model():
         pair_model = self.lor(freq0, h, w)
         pair_model += self.lor(freq0 - d02, h*hfac, w)
         return pair_model
-
-    def asy(self, numax, dnu, d02, eps, alpha, hmax, Envwidth, w):
+    
+    def model(self, numax, dnu, eps, alpha, d02, hmax, Envwidth, w):
         """Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
@@ -115,16 +132,15 @@ class model():
             spectrum model around the p-mode envelope
         """
 
-        nmax = numax / dnu - eps
-        nn = np.arange(np.floor(nmax-5), np.floor(nmax+6), 1) # (hard code)
-        model = np.ones(len(self.f))
-        for n in nn:
-            # asymptotic relation
-            f0 = (n + eps + alpha/2*(n - nmax)**2) * dnu
-            # Gaussian p-mode envelope
-            h = hmax * np.exp(- 0.5 * (f0 - numax)**2 / Envwidth**2)
-            model += self.pair(f0, h, w, d02*dnu)
-        return model
+        f0s = asymptotic_relation(numax, dnu, eps, alpha, self.nrads)
+
+        Hs = P_envelope(f0s, hmax, numax, Envwidth)
+        
+        mod = np.ones(len(self.f))
+        for n in range(len(f0s)):
+            mod += self.pair(f0s[n], Hs[n], w, d02*dnu)
+            
+        return mod
 
     def __call__(self, p):
         """Produce model of the asymptotic relation
@@ -140,7 +156,65 @@ class model():
             spectrum model around the p-mode envelope
         """
 
-        return self.asy(*p)
+        return self.model(*p)
+
+
+
+def asymptotic_fit(f, snr, numax, dnu, epsilon, N = 5, d02 = None, mwidth = 1, alpha = 1e-3, eheight = 10, ewidth = None, seff = 4000):
+
+    if not ewidth:
+        ewidth = 0.66 * numax[0]**0.88                
+        
+    if not d02:
+        d02 = 0.1 # In units of Dnu
+    else:
+        d02 = d02/dnu[0]
+    
+    x0 = [numax[0], dnu[0], epsilon[0], alpha, d02, eheight, ewidth, mwidth, seff]
+        
+    sel = np.where(np.abs(f - x0[0]) < N*x0[1]) # select range around numax to fit
+            
+    model = asymp_spec_model(f[sel], N)
+    
+    
+    bounds = [[numax[0]-5*numax[1]    , numax[0]+5*numax[1]], # numax
+              [dnu[0]-5*dnu[1]        , dnu[0]+5*dnu[1]], # Dnu
+              [epsilon[0]-5*epsilon[1], epsilon[0]+5*epsilon[1]], # eps
+              [0, 1], # alpha
+              [0.04, 0.2], # d02
+              [x0[5]*0.5, x0[5]*1.5], #hmax
+              [x0[6]*0.9, x0[6]*1.1], #Ewidth
+              [-2, 1.0], # mode width (log10)
+              [1e2, 1e4]] # seff
+    
+    fit = mcmc(f[sel], snr[sel], model, x0, bounds)
+    
+    flatchain = fit() # do the fit with default settings    
+    
+    # Get mode ID and frequency list
+    #TODO - is there a better way to do this?
+    nu0s = np.empty((fit.niter*fit.nwalkers, N+1))
+    for j in range(fit.niter*fit.nwalkers):
+        nu0s[j,:] = asymptotic_relation(*flatchain[j,:4], N)
+   
+    nu2s = np.array([nu0s[:,i] - flatchain[:,4]*flatchain[:,1] for i in range(len(nu0s[0,:]))]).T
+        
+    nus_mu = np.median(np.array([nu0s, nu2s]), axis = 1)
+    nus_std = np.std(np.array([nu0s, nu2s]), axis = 1)
+
+    ells = [2 if i%2 else 0 for i in range(2*len(nus_mu[0,:]))]
+    
+    nus_mu_out = []
+    nus_std_out = []    
+    
+    for i in range(len(nus_mu[0,:])):
+        nus_mu_out  += [nus_mu[0,i] , nus_mu[1,i]]
+        nus_std_out += [nus_std[0,i], nus_std[1,i]]
+        
+    return pd.DataFrame({'ell': ells, 'nu_mu': nus_mu_out, 'nu_std': nus_std_out})
+
+
+
 
 class Prior(epsilon):
     """ Evaluate the proirs on the provided model parameters
@@ -172,7 +246,6 @@ class Prior(epsilon):
     def __init__(self, bounds, gaussian):
         self.bounds = bounds
         self.gaussian = gaussian
-
         self.data_file = os.path.join(*[PACKAGEDIR,'data','rg_results.csv'])
         self.seff_offset = 4000.0 #(hard code)
         self.read_prior_data() # Inherited from epsilon
@@ -219,8 +292,7 @@ class Prior(epsilon):
         lnprior = 0.0
         for idx, i in enumerate(p):
             if self.gaussian[idx][1] != 0:
-                lnprior += -0.5 * (i - self.gaussian[idx][0])**2 / \
-                           self.gaussian[idx][1]**2
+                lnprior += -0.5 * (i - self.gaussian[idx][0])**2 / self.gaussian[idx][1]**2
         return lnprior
 
     def __call__(self, p):
@@ -244,9 +316,10 @@ class Prior(epsilon):
             return -np.inf
 
         # Evaluate the prior, defined by a KDE
-        lp = self.kde([np.log10(p[1]), np.log10(p[0]), p[8], p[3]])
+        # log10(Dnu), log10(numax), log10(Seff), eps
+        lp = self.kde([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), p[3]])
         return lp
-
+    
 class mcmc():
     """ Class for MCMC sampling
 
@@ -283,24 +356,16 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, snr, x0):
+    def __init__(self, f, s, model, x0, bounds):
         self.f = f
-        self.snr = snr
-        self.sel = np.where(np.abs(self.f - x0[0]) < 3*x0[1])
-        self.model = model(f[self.sel])
-        # numax, dnu, d02, eps, alpha, hmax, Envwidth, w, seff
-        # TODO - tidy this bit up!
-        self.seff_offset = 4000.0 #(hard code)
-        bounds = [[x0[0]*0.9, x0[0]*1.1],
-                  [x0[1]*0.9, x0[1]*1.1],
-                  [0.04, 0.2],
-                  [0.5, 2.5],
-                  [0, 1],
-                  [x0[5]*0.5, x0[5]*1.5],
-                  [x0[6]*0.9, x0[6]*1.1],
-                  [-2, 1.0],
-                  [2.0, 4.0]]
-        self.lp = Prior(bounds, [(0,0) for n in range(len(x0))])
+        self.s = s
+        self.model = model
+        self.x0 = x0
+        self.bounds = bounds
+        
+        self.ndim = len(x0)
+        self.lp = Prior(bounds, [(0,0) for n in range(len(x0))]) # init prior instance
+       
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -319,15 +384,15 @@ class mcmc():
             likelihood function at p
         """
 
+        #TODO - change self.model(p[:-1]) to self.model(p), x0 needs to be changed
         logp = self.lp(p)
         if logp == -np.inf:
             return -np.inf
         mod = self.model(p[:-1]) # Last p is seff so ignore.
-        like = -1.0 * np.sum(np.log(mod) + \
-                          self.snr[self.sel]/mod)
+        like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
-    def __call__(self, x0, niter=500, nwalkers=200):
+    def __call__(self, niter=500, nwalkers=200, spread = 0.01):
         """ Initialize the EMCEE afine invariant sampler
 
         Parameters
@@ -346,16 +411,22 @@ class mcmc():
             (nwalkers*niter, ndim) (???)
         """
 
-        # TODO - Swap this with faster sampler?
+        self.niter = niter
+        self.nwalkers = nwalkers
+
         import emcee
-        ndim = len(x0)
+        
         # Start walkers in a tight random ball
-        p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
+        p0 = np.array([[np.random.uniform(max(self.bounds[i][0], self.x0[i]*(1-spread)), 
+                                          min(self.bounds[i][1], self.x0[i]*(1+spread))) for i in range(self.ndim)] for i in range(nwalkers)])
+        
+        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.likelihood)
         print('Burningham')
         sampler.run_mcmc(p0, niter)
         pb = sampler.chain[:,-1,:].copy()
         sampler.reset()
         print('Sampling')
         sampler.run_mcmc(pb, niter)
-        return sampler.flatchain
+        return sampler.flatchain    
+    
+    
