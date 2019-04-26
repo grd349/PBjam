@@ -6,27 +6,107 @@ ignored.
 """
 
 import numpy as np
-from pbjam import epsilon
+import pbjam as pb
 import os
 import pandas as pd
 
 from . import PACKAGEDIR
 
+def get_nmax(numax, dnu, eps):
+    """Compute radial order at numax. 
+    
+    Note this is not necessarily integer
+    
+    Parameters
+    ----------
+    numax : float
+        Frequency of maximum power of the p-mode envelope
+    dnu : float
+        Large separation of l=0 modes
+    eps : float
+        Epsilon phase term in asymptotic relation
+        
+    Returns
+        nmax : float
+            non-integer radial order of maximum power of the p-mode envelope
+    -------
+    """
+    
+    return numax / dnu - eps
+
+def get_enns(nmax, nrads):
+    """Compute radial orders to include in asymptotic relation.
+    
+    These are all integer
+    
+    Parameters
+    ----------
+    nmax : float
+        Frequency of maximum power of the p-mode envelope
+    nrads : int
+        Total number of radial orders to consider
+        
+    Returns
+    -------    
+    enns : array
+            array of nrads radial orders (integers) around numax (nmax)    
+    """
+    
+    below = np.floor(nmax - np.floor(nrads/2))
+    above = np.floor(nmax + np.ceil(nrads/2))
+    return np.arange(below, above).astype(int)
 
 def asymptotic_relation(numax, dnu, eps, alpha, nrads):
+    """ Compute the l=0 mode frequencies from the asymptotic relation for p-modes
+    
+    Parameters
+    ----------
+    numax : float
+        Frequency of maximum power of the p-mode envelope.
+    dnu : float
+        Large separation of l=0 modes.
+    eps : float
+        Epsilon phase term in asymptotic relation.
+    alpha : float
+        Curvature factor of l=0 ridge (second order term).
+    nrads : int
+        Number of desired radial orders to calculate frequncies for, centered
+        around numax. 
+        
+    Returns
+    -------    
+    nu0s : array()
+        Array of l=0 mode frequencies from the asymptotic relation    
+    
+    """
     nmax = get_nmax(numax, dnu, eps)    
     enns = get_enns(nmax, nrads)
     return (enns + eps + alpha/2*(enns - nmax)**2) * dnu
 
-def P_envelope(f0, hmax, numax, width):
-    return hmax * np.exp(- 0.5 * (f0 - numax)**2 / width**2)
-
-def get_nmax(numax, dnu, eps):
-    return numax / dnu - eps
-
-def get_enns(nmax, nrads):
-    # TODO - why +1?
-    return np.arange(np.floor(nmax-np.floor(nrads/2)), np.floor(nmax+np.ceil(nrads/2)+1), 1)
+def P_envelope(nu, hmax, numax, width):
+    """ Power of the p-mode envelope
+    
+    Computes the power at frequency nu in the p-mode envelope from a Gaussian 
+    distribution. Used for computing mode heights
+    
+    Parameters
+    ----------
+    nu : float
+        Frequency 
+    hmax : float
+        Height of p-mode envelope
+    numax : float
+        Frequency of maximum power of the p-mode envelope.
+    width : float
+        Width of the p-mode envelope
+        
+    Returns
+    -------    
+    h : float
+        Power at frequency nu
+    """
+    
+    return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
 class asymp_spec_model():
     """ Class for SNR spectrum model using asymptotic relation
@@ -98,7 +178,7 @@ class asymp_spec_model():
         pair_model += self.lor(freq0 - d02, h*hfac, w)
         return pair_model
     
-    def model(self, numax, dnu, eps, alpha, d02, hmax, Envwidth, w):
+    def model(self, numax, dnu, eps, alpha, d02, hmax, envwidth, modewidth):
         """Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
@@ -113,17 +193,17 @@ class asymp_spec_model():
             Frequency of maximum power of the p-mode envelope (muHz)
         dnu : float
             Large separation (muHz)
-        d02 : float
-            Small separation (units of dnu)
         eps : float
             Phase term of the asymptotic relation (unitless)
         alpha : float
             Curvature of the asymptotic relation (unitless)
+        d02 : float
+            Small separation (units of dnu)
         hmax : float
             Gaussian height of p-mode envelope (SNR)
-        Envwidth : float
+        envwidth : float
             Gaussian width of the p-mode envelope (muHz)
-        w : float
+        modewidth : float
             Width of the modes (log_10(muHz))
 
         Returns
@@ -134,11 +214,11 @@ class asymp_spec_model():
 
         f0s = asymptotic_relation(numax, dnu, eps, alpha, self.nrads)
 
-        Hs = P_envelope(f0s, hmax, numax, Envwidth)
+        Hs = P_envelope(f0s, hmax, numax, envwidth)
         
         mod = np.ones(len(self.f))
         for n in range(len(f0s)):
-            mod += self.pair(f0s[n], Hs[n], w, d02*dnu)
+            mod += self.pair(f0s[n], Hs[n], modewidth, d02*dnu)
             
         return mod
 
@@ -158,42 +238,87 @@ class asymp_spec_model():
 
         return self.model(*p)
 
-
-
-def asymptotic_fit(f, snr, numax, dnu, epsilon, N = 5, d02 = None, mwidth = 1, alpha = 1e-3, eheight = 10, ewidth = None, seff = 4000):
-
-    if not ewidth:
-        ewidth = 0.66 * numax[0]**0.88                
-        
-    if not d02:
-        d02 = 0.1 # In units of Dnu
-    else:
-        d02 = d02/dnu[0]
+class star():
     
-    x0 = [numax[0], dnu[0], epsilon[0], alpha, d02, eheight, ewidth, mwidth, seff]
+    def __init__(self, f, s, parameters):
+        self.f = f
+        self.s = s
+        self.numax = parameters['numax']
+        self.dnu = parameters['dnu']
+        self.teff = parameters['teff']
+        self.epsilon = None
+        self.mode_ID = []
         
-    sel = np.where(np.abs(f - x0[0]) < N*x0[1]) # select range around numax to fit
+        self._d02 = None
+        self._alpha = None
+        self._seff = None
+        self._mode_width = None
+        self._env_width = None
+        self._env_height = None
+        
+
+    def parse_asy_pars(self):
+        
+        if not self.epsilon:
+            ge_vrard = pb.epsilon()
+            self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
             
-    model = asymp_spec_model(f[sel], N)
+        if not self._d02:
+            self._d02 = 0.1 # In units of Dnu
+        else:
+            self._d02 /= self.dnu[0]
+        
+        if not self._alpha:
+            self._alpha = 1e-3
+        
+        if not self._seff:
+            # TODO this needs to be done properly
+            self._seff = 4000 
+        
+        if not self._mode_width:
+            self._mode_width = 1e-20 # log10
+        
+        if not self._env_width:
+            self._env_width = 0.66 * self.numax[0]**0.88      
+        
+        if not self._env_height:
+            self._env_height = 10
+        
+        pars = [self.numax[0], self.dnu[0], self.epsilon[0], self._alpha, 
+                self._d02, self._env_height, self._env_width, self._mode_width,
+                self._seff]
+        
+        return pars
+        
+        
+#def asymptotic_fit(f, snr, numax, dnu, epsilon, N = 5, d02 = None, mwidth = 1, alpha = 1e-3, eheight = 10, ewidth = None, seff = 4000):
+def asymptotic_fit(star, N = 5):
+          
+    x0 = star.parse_asy_pars()
+    #x0 = [numax[0], dnu[0], epsilon[0], alpha, d02, eheight, ewidth, mwidth, seff]
+        
+    sel = np.where(np.abs(star.f - star.numax) < N*star.dnu) # select range around numax to fit
+            
+    model = asymp_spec_model(star.f[sel], N)
     
-    
-    bounds = [[numax[0]-5*numax[1]    , numax[0]+5*numax[1]], # numax
-              [dnu[0]-5*dnu[1]        , dnu[0]+5*dnu[1]], # Dnu
-              [epsilon[0]-5*epsilon[1], epsilon[0]+5*epsilon[1]], # eps
-              [0, 1], # alpha
+    # TODO this should ideally be handled in a neater way, factor 5 is arbitrary, and value errors may not be in [1]
+    bounds = [[star.numax[0]-5*star.numax[1], star.numax[0]+5*star.numax[1]], # numax
+              [star.dnu[0]-5*star.dnu[1]    , star.dnu[0]+5*star.dnu[1]], # Dnu
+              [star.epsilon[0]-5*star.epsilon[1], star.epsilon[0]+5*star.epsilon[1]], # eps
+              [-1, 1], # alpha
               [0.04, 0.2], # d02
-              [x0[5]*0.5, x0[5]*1.5], #hmax
-              [x0[6]*0.9, x0[6]*1.1], #Ewidth
+              [star._env_height*0.5, star._env_height*1.5], #hmax
+              [star._env_width*0.9, star._env_width*1.1], #Ewidth
               [-2, 1.0], # mode width (log10)
               [1e2, 1e4]] # seff
     
-    fit = mcmc(f[sel], snr[sel], model, x0, bounds)
+    fit = mcmc(star.f[sel], star.s[sel], model, x0, bounds)
     
     flatchain = fit() # do the fit with default settings    
     
     # Get mode ID and frequency list
     #TODO - is there a better way to do this?
-    nu0s = np.empty((fit.niter*fit.nwalkers, N+1))
+    nu0s = np.empty((fit.niter*fit.nwalkers, N))
     for j in range(fit.niter*fit.nwalkers):
         nu0s[j,:] = asymptotic_relation(*flatchain[j,:4], N)
    
@@ -211,12 +336,14 @@ def asymptotic_fit(f, snr, numax, dnu, epsilon, N = 5, d02 = None, mwidth = 1, a
         nus_mu_out  += [nus_mu[0,i] , nus_mu[1,i]]
         nus_std_out += [nus_std[0,i], nus_std[1,i]]
         
-    return pd.DataFrame({'ell': ells, 'nu_mu': nus_mu_out, 'nu_std': nus_std_out})
+    star.mode_ID = pd.DataFrame({'ell': ells, 'nu_mu': nus_mu_out, 'nu_std': nus_std_out})
+    
+    return star.mode_ID
 
 
 
 
-class Prior(epsilon):
+class Prior(pb.epsilon):
     """ Evaluate the proirs on the provided model parameters
 
     Attributes
@@ -323,35 +450,33 @@ class Prior(epsilon):
 class mcmc():
     """ Class for MCMC sampling
 
-    Fit the asymptotic relation around the p-mode envelope. The MCMC sampler
-    burns-in and then proceeds to sample the posterior distribution.
+    Use EMCEE to fit a provided model to a spectrum. 
 
     Parameters
     ----------
     f : float, array
-        Array of frequency bins of the SNR spectrum (muHz)
-    snr : array
-        The power spectrum normalized to a background noise
-        level of 1
+        Array of frequency bins of the spectrum (muHz)
+    s : array
+        The power at frequencies f
+    model: class instance
+        Initialized instance of the model class to use in the fit
     x0 : array
         Initial positions for the MCMC walkers
+    bounds: array
+        Array of shape (len(x0), 2) of boundary values to use in the fit. Lower
+        and upper limits are in the first and second columns respectively. This
+        enforces a log-likelihood = -inf if any parameter exceeds these limits.
 
     Attributes
     ----------
     f : float, array
-        Array of frequency bins of the SNR spectrum (muHz)
-    snr : array
-        The power spectrum normalized to a background noise
-        level of 1
-    sel : array
-        Boolean array to select the frequency range immediately around the
-        p-mode envelope (so we don't fit the whole damn spectrum)
+        Array of frequency bins of the spectrum (muHz)
+    s : array
+        The power at frequencies f
     model : class instance
-        Model class instance initalized with frequency range around the p-mode
-        envelope
-    seff_offset : int
-        Normalization constant for Teff so that the KDE can have roughly
-        the same bandwidth along each axis.
+        Initialized instance of the model class to use in the fit
+    x0 : array
+        Initial positions for the MCMC walkers
     lp : class instance
         Prior class initialized using model parameter limits
     """
@@ -362,9 +487,8 @@ class mcmc():
         self.model = model
         self.x0 = x0
         self.bounds = bounds
-        
         self.ndim = len(x0)
-        self.lp = Prior(bounds, [(0,0) for n in range(len(x0))]) # init prior instance
+        self.lp = Prior(bounds, [(0,0) for n in range(len(x0))]) 
        
 
     def likelihood(self, p):
@@ -393,24 +517,27 @@ class mcmc():
         return like + logp
 
     def __call__(self, niter=500, nwalkers=200, spread = 0.01):
-        """ Initialize the EMCEE afine invariant sampler
+        """ Initialize and run the EMCEE afine invariant sampler
 
         Parameters
         ----------
-        x0 : array
-            Initial starting location for MCMC walkers
         niter : int
-            number of steps for the walkers to take (both burn-in and sampling)
+            Number of steps for the walkers to take (both burn-in and sampling).
         nwalkers : int
-            number of walkers to use
+            Number of walkers to use in the EMCEE run.
+        spread : float
+            Percent spread around the intial position of the walkers. Small
+            value starts the walkers in a tight ball, large value fills out
+            the range set by parameter bounds.
 
         Returns
         -------
         sampler.flatchain : array
-            the chain of (nwalkers, niter, ndim) flattened to
-            (nwalkers*niter, ndim) (???)
+            The chain of (nwalkers, niter, ndim) flattened to 
+            (nwalkers*niter, ndim).
         """
 
+        # Save these for later
         self.niter = niter
         self.nwalkers = nwalkers
 
@@ -420,13 +547,13 @@ class mcmc():
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0], self.x0[i]*(1-spread)), 
                                           min(self.bounds[i][1], self.x0[i]*(1+spread))) for i in range(self.ndim)] for i in range(nwalkers)])
         
-        sampler = emcee.EnsembleSampler(nwalkers, self.ndim, self.likelihood)
+        sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim, self.likelihood)
         print('Burningham')
-        sampler.run_mcmc(p0, niter)
+        sampler.run_mcmc(p0, self.niter)
         pb = sampler.chain[:,-1,:].copy()
         sampler.reset()
         print('Sampling')
-        sampler.run_mcmc(pb, niter)
+        sampler.run_mcmc(pb, self.niter)
         return sampler.flatchain    
     
     
