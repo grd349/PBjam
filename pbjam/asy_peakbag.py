@@ -257,17 +257,19 @@ class star():
         self._env_height = None
         
 
-    def parse_asy_pars(self):
+    def parse_asy_pars(self, verbose = False):
         
         if not self.epsilon:
             ge_vrard = pb.epsilon()
             self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
-            
+        
+        print(self._d02)
         if not self._d02:
             self._d02 = 0.1 # In units of Dnu
         else:
             self._d02 /= self.dnu[0]
-        
+            
+        print(self._d02)
         if not self._alpha:
             self._alpha = 1e-3
         
@@ -276,7 +278,7 @@ class star():
             self._seff = 4000 
         
         if not self._mode_width:
-            self._mode_width = 1e-20 # log10
+            self._mode_width = 1e-20 # must be non-zero for walkers' start pos
         
         if not self._env_width:
             self._env_width = 0.66 * self.numax[0]**0.88      
@@ -287,7 +289,13 @@ class star():
         pars = [self.numax[0], self.dnu[0], self.epsilon[0], self._alpha, 
                 self._d02, self._env_height, self._env_width, self._mode_width,
                 self._seff]
-        
+        parsnames = ['numax', 'large separation', 'epsilon', 'alpha', 'd02', 
+                     'p-mode envelope height', 'p-mode envelope width',
+                     'mode width (log10)', 'Seff (normalized Teff)']
+        if verbose:
+            for i in range(len(pars)):
+                print('%s: %f' % (parsnames[i], pars[i]))
+                
         return pars
         
         
@@ -297,7 +305,7 @@ def asymptotic_fit(star, N = 5):
     x0 = star.parse_asy_pars()
     #x0 = [numax[0], dnu[0], epsilon[0], alpha, d02, eheight, ewidth, mwidth, seff]
         
-    sel = np.where(np.abs(star.f - star.numax) < N*star.dnu) # select range around numax to fit
+    sel = np.where(np.abs(star.f - star.numax[0]) < N*star.dnu[0]) # select range around numax to fit
             
     model = asymp_spec_model(star.f[sel], N)
     
@@ -327,14 +335,14 @@ def asymptotic_fit(star, N = 5):
     nus_mu = np.median(np.array([nu0s, nu2s]), axis = 1)
     nus_std = np.std(np.array([nu0s, nu2s]), axis = 1)
 
-    ells = [2 if i%2 else 0 for i in range(2*len(nus_mu[0,:]))]
+    ells = [0 if i%2 else 2 for i in range(2*len(nus_mu[0,:]))]
     
     nus_mu_out = []
     nus_std_out = []    
     
     for i in range(len(nus_mu[0,:])):
-        nus_mu_out  += [nus_mu[0,i] , nus_mu[1,i]]
-        nus_std_out += [nus_std[0,i], nus_std[1,i]]
+        nus_mu_out  += [nus_mu[1,i], nus_mu[0,i]]
+        nus_std_out += [nus_std[1,i], nus_std[0,i]]
         
     star.mode_ID = pd.DataFrame({'ell': ells, 'nu_mu': nus_mu_out, 'nu_std': nus_std_out})
     
@@ -547,6 +555,11 @@ class mcmc():
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0], self.x0[i]*(1-spread)), 
                                           min(self.bounds[i][1], self.x0[i]*(1+spread))) for i in range(self.ndim)] for i in range(nwalkers)])
         
+        print(np.shape(p0))
+        
+        for i in range(len(p0[0,:])):
+            print(self.x0[i], any(p0[:,i] < self.bounds[i][0]), any(self.bounds[i][1] < p0[:,i]))
+            
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim, self.likelihood)
         print('Burningham')
         sampler.run_mcmc(p0, self.niter)
