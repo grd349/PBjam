@@ -266,7 +266,7 @@ class star():
         print(self._d02)
         if not self._d02:
             self._d02 = 0.1 # In units of Dnu
-        else:
+        elif self._d02 > 1: # unpretty way of checking input units of d02
             self._d02 /= self.dnu[0]
             
         print(self._d02)
