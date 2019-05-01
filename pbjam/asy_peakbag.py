@@ -239,59 +239,121 @@ class asymp_spec_model():
         return self.model(*p)
 
        
+class asymptotic_fit():
+    
+    def __init__(self, star, d02=None, alpha=None, seff=None, mode_width=None,
+                 env_width=None, env_height=None):
         
-def asymptotic_fit(star, N = 5):
-          
-    x0 = star.parse_asy_pars()
+        self.f = star.f
+        self.s = star.s
+        self.numax = star.numax
+        self.dnu = star.dnu
+        self.teff = star.teff
+        self.epsilon = star.epsilon
+        self.d02 = d02
+        self.alpha = alpha
+        self.seff = seff
+        self.mode_width = mode_width
+        self.env_width = env_width
+        self.env_height = env_height
+        self.mode_ID = {}
+        self.asy_model = None
+    
+        
+    def parse_asy_pars(self, verbose = False):
+       
+        if not self.epsilon:
+            ge_vrard = pb.epsilon()
+            self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
+        
+        if not self.d02:
+            self.d02 = 0.1*self.dnu[0]
             
-    sel = np.where(np.abs(star.f - star.numax[0]) < N*star.dnu[0]) # select range around numax to fit
-    
-    model = asymp_spec_model(star.f[sel], N)
-    
-    # TODO this should ideally be handled in a neater way, factor 5 is arbitrary, and value errors may not be in [1]
-    nsig = 5
-    bounds = [[star.numax[0]-nsig*star.numax[1] , star.numax[0]+nsig*star.numax[1]], # numax
-              [star.dnu[0]-nsig*star.dnu[1] , star.dnu[0]+nsig*star.dnu[1]], # Dnu
-              [star.epsilon[0]-nsig*star.epsilon[1], star.epsilon[0]+nsig*star.epsilon[1]], # eps
-              [-1, 1], # alpha
-              [0.01*star.dnu[0] , 0.5*star.dnu[0]], # d02
-              [star._env_height*0.5, star._env_height*1.5], #hmax
-              [star._env_width*0.9 , star._env_width*1.1], #Ewidth
-              [-2, 1.0], # mode width (log10)
-              [1e2, 1e4]] # seff
-    
-    fit = mcmc(star.f[sel], star.s[sel], model, x0, bounds)
-    
-    star.flatchain = fit() # do the fit with default settings
-    
-    star.fit_pars = np.median(star.flatchain, axis = 0)
-    
-    star.asy_model = model.model(*star.fit_pars[:-1])
-    
-    
-    # Get mode ID and frequency list
-    #TODO - is there a better/neater way to do this?
-    nu0s = np.empty((fit.niter*fit.nwalkers, N))
-    for j in range(fit.niter*fit.nwalkers):
-        nu0s[j,:] = asymptotic_relation(*star.flatchain[j,:4], N)
-   
-    nu2s = np.array([nu0s[:,i] - star.flatchain[:,4] for i in range(len(nu0s[0,:]))]).T
+        if not self.alpha:
+            self.alpha = 1e-3
         
-    nus_mu = np.median(np.array([nu0s, nu2s]), axis = 1)
-    nus_std = np.std(np.array([nu0s, nu2s]), axis = 1)
-
-    ells = [0 if i%2 else 2 for i in range(2*len(nus_mu[0,:]))]
-    
-    nus_mu_out = []
-    nus_std_out = []    
-    
-    for i in range(len(nus_mu[0,:])):
-        nus_mu_out  += [nus_mu[1,i], nus_mu[0,i]]
-        nus_std_out += [nus_std[1,i], nus_std[0,i]]
+        if not self.seff:
+            # TODO this needs to be done properly
+            self.seff = 4000 
         
-    star.mode_ID = pd.DataFrame({'ell': ells, 'nu_mu': nus_mu_out, 'nu_std': nus_std_out})
+        if not self.mode_width:
+            self.mode_width = 1e-20 # must be non-zero for walkers' start pos
         
-    return star.mode_ID
+        if not self.env_width:
+            self.env_width = 0.66 * self.numax[0]**0.88      
+        
+        if not self.env_height:
+            df = np.median(np.diff(self.f))
+            a = int(np.floor(self.dnu[0]/df)) 
+            b = int(len(self.s) / a)
+            smoo = self.s[:a*b].reshape((b,a)).mean(1)
+            self.env_height = max(smoo)
+        
+        pars = [self.numax[0], self.dnu[0], self.epsilon[0], self.alpha, 
+                self.d02, self.env_height, self.env_width, self.mode_width,
+                self.seff]
+        
+        parsnames = ['numax', 'large separation', 'epsilon', 'alpha', 'd02', 
+                     'p-mode envelope height', 'p-mode envelope width',
+                     'mode width (log10)', 'Seff (adjusted Teff)']
+        if verbose:
+            for i in range(len(pars)):
+                print('%s: %f' % (parsnames[i], pars[i]))
+                
+        return pars    
+        
+        
+    def run(self, N):
+            
+        x0 = self.parse_asy_pars()
+                
+        sel = np.where(np.abs(self.f - self.numax[0]) < N/1.5*self.dnu[0]) # select range around numax to fit
+        
+        model = asymp_spec_model(self.f[sel], N)
+        
+        # TODO this should ideally be handled in a neater way, factor 5 is arbitrary, and value errors may not be in [1]
+        nsig = 5
+        bounds = [[self.numax[0]  -nsig*self.numax[1]   , self.numax[0]   +nsig*self.numax[1]], # numax
+                  [self.dnu[0]    -nsig*self.dnu[1]     , self.dnu[0]     +nsig*self.dnu[1]], # Dnu
+                  [self.epsilon[0]-nsig*self.epsilon[1] , self.epsilon[0] +nsig*self.epsilon[1]], # eps
+                  [-1, 1], # alpha
+                  [0.01*self.dnu[0] , 0.5*self.dnu[0]], # d02
+                  [self.env_height*0.5, self.env_height*1.5], #hmax
+                  [self.env_width*0.9 , self.env_width*1.1], #Ewidth
+                  [-2, 1.0], # mode width (log10)
+                  [1e2, 1e4]] # seff
+        
+        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds)
+        
+        self.flatchain = fit() # do the fit with default settings
+        
+        self.fit_pars = np.median(self.flatchain, axis = 0)
+        
+        self.asy_model = (model.f, model.model(*self.fit_pars[:-1]))
+              
+        # Get mode ID and frequency list
+        #TODO - is there a better/neater way to do this?
+        nu0s = np.empty((fit.niter*fit.nwalkers, N))
+        for j in range(fit.niter*fit.nwalkers):
+            nu0s[j,:] = asymptotic_relation(*self.flatchain[j,:4], N)
+       
+        nu2s = np.array([nu0s[:,i] - self.flatchain[:,4] for i in range(len(nu0s[0,:]))]).T
+            
+        nus_mu = np.median(np.array([nu0s, nu2s]), axis = 1)
+        nus_std = np.std(np.array([nu0s, nu2s]), axis = 1)
+    
+        ells = [0 if i%2 else 2 for i in range(2*len(nus_mu[0,:]))]
+        
+        nus_mu_out = []
+        nus_std_out = []    
+        
+        for i in range(len(nus_mu[0,:])):
+            nus_mu_out  += [nus_mu[1,i], nus_mu[0,i]]
+            nus_std_out += [nus_std[1,i], nus_std[0,i]]
+            
+        self.mode_ID = pd.DataFrame({'ell': ells, 'nu_mu': nus_mu_out, 'nu_std': nus_std_out})
+            
+        return self.mode_ID
 
 
 
