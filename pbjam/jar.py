@@ -1,11 +1,49 @@
+""" Setup jam sessions and perform mode ID and peakbagging
+
+This jar contains the input layer for setting up jam sessions for peakbagging
+solar-like oscillators. 
+
+A jam session is started by initializing the session class instance with a
+target ID, numax, large separation, and effective temperature, or lists of 
+these if you are working on multiple targets. Alternatively a dataframe or 
+dictionary can also be provided, with columns corresponding to the above
+keywords. 
+
+Specific quarters, campgains or sectors can be requested in a kwargs dictionary
+with the relevant keyword (i.e., 'quarter' for KIC, etc.) 
+
+Once initialized, the session class contains a list of star class instances
+for each requested target, with corresponding SNR spectra for each. 
+
+The next step is to perform a mode ID on the SNR spectra. At the moment PBjam 
+only supports use of the asymptotic relation mode ID method. 
+
+Note
+----
+Target IDs must be resolvable by Lightkurve
+"""
+
+
 import lightkurve as lk
 from pbjam.asy_peakbag import asymptotic_fit
-import sys
 import numpy as np
 import astropy.units as units
 
 
 def bouncer(X):
+    """ Turn elements of X into lists, and check their length
+    
+    Parameters
+    ----------
+    X : list
+        List of objects to be turned into list of lists of objects (yeah...)
+    
+    Returns
+    -------
+    X : list
+        List of lists of objects that was formerly just a list of objects
+    """
+    
     # TODO - this should probably be split into to, one to enforce list type 
     # and one to enforce all items in list of lists must have same length
     # right now ID, numax, dnu, teff are separate from kwarg arguments
@@ -21,7 +59,31 @@ def bouncer(X):
     return X
    
 def get_psd_from_lk(ID, lkargs):
-   
+    """ Use Lightkurve to get snr
+    
+    Querries MAST using Lightkurve, based on the provided target ID(s) and 
+    observing season number. Then computes the periodogram based on the 
+    downloaded time series. 
+    
+    Parameters
+    ----------
+    ID : str, list of strs
+        String or list of strings of target IDs that Lightkurve can resolve. 
+        (KIC, TIC, EPIC).
+    lkargs : dict
+        Dictionary of keywords for Lightkurve to get the correct observing
+        season.
+        quarter : for Kepler targets
+        month : for Kepler targets, applies to short-cadence data
+        sector : for TESS targets
+        campaign : for K2 targets
+        
+    Returns
+    -------
+    PS_list : list of tuples
+        List of tuples for each requested target. First column of a tuple is 
+        frequency, second column is power. 
+    """
     PS_list = []
     
     for i, id in enumerate(ID):
@@ -74,8 +136,7 @@ class session():
         physpars = [numax, dnu, teff]
         physchk = all(physpars)
         
-        # Given ID (must be TIC,KIC,EPIC) will use LK to download, must also have quarter keyword in kwargs
-        # must also provide numax,dnu,teff
+        # Given ID will use LK to download
         if ID and not path and not timeseries and not psd:
             assert physchk, 'Must provide numax, dnu, and teff'
         

@@ -1,8 +1,8 @@
 """ Fitting asymptotic relation to an SNR spectrum
 
 This module fits the asymptotic relation to the p-modes in a frequency range
-around nu_max in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 is
-ignored.
+around nu_max in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes 
+are ignored.
 """
 
 import numpy as np
@@ -179,7 +179,7 @@ class asymp_spec_model():
         return pair_model
     
     def model(self, numax, dnu, eps, alpha, d02, hmax, envwidth, modewidth):
-        """Constructs a spectrum model from the asymptotic relation
+        """ Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
         nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu
@@ -223,7 +223,7 @@ class asymp_spec_model():
         return mod
 
     def __call__(self, p):
-        """Produce model of the asymptotic relation
+        """ Produce model of the asymptotic relation
 
         Parameters
         ----------
@@ -240,7 +240,7 @@ class asymp_spec_model():
 
        
 class asymptotic_fit():
-    """Class for fitting a spectrum based on the asymptotic relation
+    """ Class for fitting a spectrum based on the asymptotic relation
     
     Parameters
     ---------_
@@ -302,8 +302,7 @@ class asymptotic_fit():
     """
     
     def __init__(self, star, d02=None, alpha=None, seff=None, mode_width=None,
-                 env_width=None, env_height=None):
-        
+                 env_width=None, env_height=None):     
         self.f = star.f
         self.s = star.s
         self.numax = star.numax
@@ -321,7 +320,7 @@ class asymptotic_fit():
     
         
     def parse_asy_pars(self, verbose = False):
-        """Parse input and initial guesses for the asymptotic relation fit
+        """ Parse input and initial guesses for the asymptotic relation fit
        
         Parameters
         ----------
@@ -378,17 +377,31 @@ class asymptotic_fit():
         
         
     def run(self, N):
+        """ Setup, run and parse the asymptotic relation fit using EMCEE
+        
+        Parameters
+        ----------
+        N : int
+            Number of radial orders to fit 
             
+        Returns
+        -------
+        mode_ID : dataframe
+            Pandas dataframe of the radial order, angular degree and mode frequency
+            and error for the modes fit in the asymptotic relation.
+        """
+        
         x0 = self.parse_asy_pars()
                 
-        sel = np.where(np.abs(self.f - self.numax[0]) < N/1.5*self.dnu[0]) # select range around numax to fit
+        # select range around numax to fit
+        sel = np.where(np.abs(self.f - self.numax[0]) < N/1.5*self.dnu[0]) 
         
         model = asymp_spec_model(self.f[sel], N)
         
         nsig = 5
-        bounds = [[self.numax[0]  -nsig*self.numax[1]   , self.numax[0]   +nsig*self.numax[1]], # numax
-                  [self.dnu[0]    -nsig*self.dnu[1]     , self.dnu[0]     +nsig*self.dnu[1]], # Dnu
-                  [self.epsilon[0]-nsig*self.epsilon[1] , self.epsilon[0] +nsig*self.epsilon[1]], # eps
+        bounds = [[self.numax[0]-nsig*self.numax[1], self.numax[0]+nsig*self.numax[1]], # numax
+                  [self.dnu[0]-nsig*self.dnu[1], self.dnu[0]+nsig*self.dnu[1]], # Dnu
+                  [self.epsilon[0]-nsig*self.epsilon[1], self.epsilon[0]+nsig*self.epsilon[1]], # eps
                   [-1, 1], # alpha
                   [0.01*self.dnu[0] , 0.5*self.dnu[0]], # d02
                   [self.env_height*0.5, self.env_height*1.5], #hmax
