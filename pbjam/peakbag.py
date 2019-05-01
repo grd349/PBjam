@@ -14,11 +14,11 @@ import warnings
 
 from . import PACKAGEDIR
 
-def create_asterostan():
+def create_pbstan():
     pbstan = '''
     functions{
-        real lorentzian(real loc, int l, int m, real f, real eps, real H, real w, real nus){
-            return (eps * H) ./ (1 + (4/w^2) * (f - loc + m*nus)^2);
+        vector lorentzian(real loc, int l, int m, vector f, real eps, real H, real w, real nus){
+            return (eps * H) ./ (1 + (4/w^2) * square(f - loc + m*nus));
         }
     }
     data{
@@ -32,26 +32,28 @@ def create_asterostan():
     parameters{
         real logAmp[M];         // Mode amplitude in log space
         real logGamma[M];       // Mode linewidth in log space
-        real<lower=0> locs[M];  // True mode locations
-        real<lower=0> vsini;    // Line of sight rotational frequency
-        real<lower=0> nus;      // Rotational frequency splitting
+        real locs[M];  // True mode locations
+        real vsini;    // Line of sight rotational frequency
+        real<lower=0.> nus;      // Rotational frequency splitting
     }
     transformed parameters{
-        real sini;       // Sin of angle of inclination (rad)
-        real i;          // Angle of inclination (rad)
         real H[M];       // Mode height
         real w[M];       // Mode linewidth
-        matrix[4,4] eps; // Matrix of legendre polynomials
-        eps = rep_matrix(i, 4, 4);
 
-        sini = vsini / nus;       // Transform sin of angle of inclination from line of sight rotation frequency
-        i = asin(sini);
         for (m in 1:M){
             w[m] = 10^logGamma[m];             // Transform mode linewidth from log space
             H[m] = 10^logAmp[m] / pi() / w[m]; // Transform mode amplitude to mode height
         }
+    }
+    model{
+        vector[N] modes; // Our Model
+        real i;          // Angle of inclination (rad)
+        matrix[4,4] eps; // Matrix of legendre polynomials
+        int l;           // The radial degree
 
-        // Now I'll calculate all the legendre polynomials for this i
+        // First we'll calculate all the legendre polynomials for this i
+        i = asin(vsini / nus);
+        eps = rep_matrix(1., 4, 4);
         eps[0+1,0+1] = 1.;
         eps[1+1,0+1] = cos(i)^2;
         eps[1+1,1+1] = 0.5 * sin(i)^2;
@@ -63,30 +65,23 @@ def create_asterostan():
         eps[3+1,2+1] = (15./8.)*cos(i)^2 * sin(i)^4;
         eps[3+1,3+1] = (5./16.)*sin(i)^6;
 
-    }
-    model{
-        vector[N] modes;
-        int l;
-
         modes = rep_vector(1., N);
         for (mode in 1:M){        // Iterate over all modes passed in
             l = asy_ids[mode];    // Identify the Mode ID
             for (m in -l:l){      // Iterate over all m in a given l
-                for (n in 1:N){
-                    modes[n] += lorentzian(locs[l+1], l, m, f[n], eps[l+1,abs(m)+1], H[l+1], w[l+1], nus);
-                }
+                modes += lorentzian(locs[mode], l, m, f, eps[l+1,abs(m)+1], H[mode], w[mode], nus);
             }
         }
 
         // Model drawn from a gamma distribution scaled to the model (Anderson+1990)
-        p ~ gamma(1, 1../modes);
+        p ~ gamma(1., 1../modes);
 
         //priors on the parameters
         logAmp ~ normal(1.5, 1);
         logGamma ~ normal(0, 0.01);
         locs ~ normal(asy_locs, 1);
-        sini ~ uniform(0., 1.);
         nus ~ normal(0.411, 0.1);
+        vsini ~ uniform(0.,nus);
     }
     '''
     model_path = 'pbstan.pkl'
@@ -94,7 +89,6 @@ def create_asterostan():
     pkl_file =  open(model_path, 'wb')
     pickle.dump(sm, pkl_file)
     pkl_file.close()
-
 
 class peakbag():
     def __init__(self, snr, locs, siglocs, modeids,
