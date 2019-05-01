@@ -240,6 +240,66 @@ class asymp_spec_model():
 
        
 class asymptotic_fit():
+    """Class for fitting a spectrum based on the asymptotic relation
+    
+    Parameters
+    ---------_
+    star : class instance
+        Star class instance to perform the fit on. This contains the required 
+        attributes for the fit, f, s, numax, dnu, teff. All others are derived 
+        from these, or can optionally be set.
+    d02 : float, optional
+        Initial guess for the small frequency separation (in muHz) between 
+        l=0 and l=2.
+    alpha : float, optional
+        Initial guess for the scale of the second order frequency term in the
+        asymptotic relation
+    seff : float, optional 
+        Normalized Teff
+    mode_width : float, optional 
+        Initial guess for the mode width (in log10!) for all the modes that are
+        fit. 
+    env_width : float, optional
+        Initial guess for the p-mode envelope width (muHz)
+    env_height : float, optional
+        Initial guess for the p-mode envelope height
+
+    Attributes
+    ----------
+    f : array
+            Array of frequency bins of the spectrum (muHz)
+    s : array
+        The power at frequencies f
+    numax : float
+        Initial guess for numax. Frequency of maximum power of the p-mode 
+        envelope
+    dnu : float
+        Initial guess for dnu. Large separation of l=0 modes
+    eps : float
+        Initial guess for epsilon. Epsilon phase term in asymptotic relation
+    d02 : float, optional
+        Initial guess for the small frequency separation (in muHz) between 
+        l=0 and l=2.
+    alpha : float, optional
+        Initial guess for the scale of the second order frequency term in the
+        asymptotic relation
+    seff : float, optional 
+        Normalized Teff
+    mode_width : float, optional 
+        Initial guess for the mode width (in log10!) for all the modes that are
+        fit. 
+    env_width : float, optional
+        Initial guess for the p-mode envelope width (muHz)
+    env_height : float, optional
+        Initial guess for the p-mode envelope height
+    mode_ID : dataframe
+        Pandas dataframe of the radial order, angular degree and mode frequency
+        and error for the modes fit in the asymptotic relation.
+    asy_model : tuple
+        Tuple containing the frequency (first column) and best-fit spectrum 
+        model (second colunm). Frequency is truncated to a range around numax 
+        that contains the requested number of radial orders. 
+    """
     
     def __init__(self, star, d02=None, alpha=None, seff=None, mode_width=None,
                  env_width=None, env_height=None):
@@ -261,7 +321,21 @@ class asymptotic_fit():
     
         
     def parse_asy_pars(self, verbose = False):
+        """Parse input and initial guesses for the asymptotic relation fit
        
+        Parameters
+        ----------
+        verbose : bool
+            Print the values of the initial guesses that will be used in the 
+            asymptotic relation fit.
+        
+        Returns
+        -------
+        pars : list
+            List of initial guesses for the parameters in the asymptotic 
+            relation fit.
+        """
+        
         if not self.epsilon:
             ge_vrard = pb.epsilon()
             self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
@@ -311,7 +385,6 @@ class asymptotic_fit():
         
         model = asymp_spec_model(self.f[sel], N)
         
-        # TODO this should ideally be handled in a neater way, factor 5 is arbitrary, and value errors may not be in [1]
         nsig = 5
         bounds = [[self.numax[0]  -nsig*self.numax[1]   , self.numax[0]   +nsig*self.numax[1]], # numax
                   [self.dnu[0]    -nsig*self.dnu[1]     , self.dnu[0]     +nsig*self.dnu[1]], # Dnu
@@ -370,7 +443,7 @@ class Prior(pb.epsilon):
     data_file : str
         File containing stellar parameters for make the prior KDE
     seff_offset : int
-        Normalization constant for Teff so that the KDE can have roughly
+        Normalized Teff so that the KDE can have roughly
         the same bandwidth along each axis.
     read_prior_data : function
         Function to read the prior data file. Inherited from epsilon
