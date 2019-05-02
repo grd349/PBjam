@@ -109,17 +109,23 @@ def P_envelope(nu, hmax, numax, width):
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
 class asymp_spec_model():
-    """ Class for SNR spectrum model using asymptotic relation
+    """ Class for spectrum model using asymptotic relation
 
     Parameters
     ---------_
     f : float, array
-            Array of frequency bins of the SNR spectrum (muHz)
+        Array of frequency bins of the spectrum (muHz). Truncated to the range
+        around numax.
+    nrads : int
+        Number of radial order to fit
 
     Attributes
     ----------
     f : float, array
-            Array of frequency bins of the SNR spectrum (muHz)
+        Array of frequency bins of the spectrum (muHz). Truncated to the range
+        around numax.
+    nrads : int
+        Number of radial order to fit
     """
 
     def __init__(self, f, nrads):
@@ -570,7 +576,7 @@ class mcmc():
 
     Attributes
     ----------
-    f : float, array
+    f : array
         Array of frequency bins of the spectrum (muHz)
     s : array
         The power at frequencies f

@@ -105,6 +105,29 @@ def get_psd_from_lk(ID, lkargs):
 
 
 class star():
+    """ Class for each star to be peakbagged
+    
+    Additional attributes are added for each step of the peakbagging process
+    
+    Parameters
+    ----------
+    ID : str
+        Identifier of the target. If no timeseries or powerspectrum files are
+        provided the lightcurve will be downloaded by Lightkurve. ID must 
+        therefore be resolvable by Lightkurve.
+    f : float, array
+        Array of frequency bins of the spectrum (muHz)
+    s : array
+        The power at frequencies f
+    numax : float
+        Initial guess for numax. Frequency of maximum power of the p-mode 
+        envelope (muHz)
+    dnu : float
+        Initial guess for dnu. Large separation of l=0 modes (muHz)
+    teff : float
+        Temperature estimate for the star. Used to compute epsilon.  
+    """
+    
     def __init__(self, ID, f, s, numax, dnu, teff):
         self.ID = ID
         self.f = f
@@ -119,6 +142,28 @@ class star():
     def asymptotic_modeid(self, d02=None, alpha=None, seff=None, 
                           mode_width=None, env_width=None, env_height=None, 
                           norders = 5):
+        """ Called to perform mode ID using the asymptotic method
+        
+        Parameters
+        ----------
+    d02 : float, optional
+        Initial guess for the small frequency separation (in muHz) between 
+        l=0 and l=2.
+    alpha : float, optional
+        Initial guess for the scale of the second order frequency term in the
+        asymptotic relation
+    seff : float, optional 
+        Normalized Teff
+    mode_width : float, optional 
+        Initial guess for the mode width (in log10!) for all the modes that are
+        fit. 
+    env_width : float, optional
+        Initial guess for the p-mode envelope width (muHz)
+    env_height : float, optional
+        Initial guess for the p-mode envelope height
+    norders : int, optional
+        Number of radial orders to fit
+        """
         
         fit = asymptotic_fit(self, d02, alpha, seff, mode_width, env_width, env_height)
         
@@ -128,16 +173,54 @@ class star():
         self.asy_model = fit.asy_model
 
 class session():
-
+    """ Main class used to initiate peakbagging. 
+    
+    Use this class to initialize the star class instance(s) based on the 
+    provided input. Data can be provided as ascii files, or will automatically
+    be downloaded from MAST using Lightkurve. 
+        
+    Note
+    ----
+    The physical parameters, numax, dnu, teff, must each be provided at least 
+    as a list of length 2 for each star. This should containg the parameter 
+    value and it's error. Setting the error to zero will effectively fix the 
+    corresponding parameter in the fit. 
+    
+    Examples
+    --------
+    Single target, no ascii files. In this case PBjam will attempt to download
+    the time series from MAST, using Lightkurve. In this case kwargs must be
+    a dictionary with the required observing season number, e.g. 
+    kwargs = {'quarter': 5} for Kepler quarter 5. Cadence and quarter month 
+    keywords can also be passed to Lightkurve through kwargs.
+    
+    Multiple targets, no ascii files. Similar to the single target case, except
+    all arguments must be in a list. kwargs must now be a dictionary of lists.
+    
+    Single or multiple targets, with ascii files. Similar to above each target
+    must have an ID and associated physical parameters. Here the timeseries
+    or power spectrum can be passed to the PBjam session as either a tuple
+    or a local path to the ascii file, or a list of either. Note that if both 
+    a timeseries and spectrum are passed, the timeseries will be ignored.
+     
+    Dictionary or dataframe of targets. In this case, use the provided 
+    template .csv or pickled .dict file. Similar to above, a path can be
+    provided, or just a target ID. In the latter case, the observing season
+    must be provided in the relevant column as either an integer, or a string
+    of zeros with 1 in the bit number equivalent to the requested observing 
+    seasons.    
+    
+    """
+    
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, 
-                       path=None, timeseries=None, psd=None, dictionary=None, 
+                       timeseries=None, psd=None, dictionary=None, 
                        dataframe=None, kwargs = {}):
             
         physpars = [numax, dnu, teff]
         physchk = all(physpars)
         
         # Given ID will use LK to download
-        if ID and not path and not timeseries and not psd:
+        if ID and not timeseries and not psd:
             assert physchk, 'Must provide numax, dnu, and teff'
         
             ID, numax, dnu, teff = bouncer([ID, numax, dnu, teff])
