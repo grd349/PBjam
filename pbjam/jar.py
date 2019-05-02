@@ -27,7 +27,7 @@ import lightkurve as lk
 from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
-
+import warnings, sys
 
 def bouncer(X):
     """ Turn elements of X into lists, and check their lengths are the same
@@ -96,6 +96,39 @@ def get_psd_from_lk(ID, lkargs):
         p = lc.to_periodogram(freq_unit=units.microHertz,
                               normalization='psd').flatten()
         PS_list.append((np.array(p.frequency), np.array(p.power)))
+    return PS_list
+
+
+def parse_ts_psd(A):
+    if (type(A) == str):
+        x, y = np.genfromtxt(A).T
+    elif (type(A) == tuple):
+        assert len(A) == 2, 'Tuple must be of length 2'
+        x, y = A    
+    return x, y
+
+def get_psd_from_ascii(ID, timeseries = None, psd = None):
+    
+    # Check there's something in all arguments
+    assert any([ID, timeseries, psd]), "Stop and catch fire."
+    
+    # Ignore time series if psd is also given
+    if timeseries and psd:
+        timeseries = None
+    
+    PS_list = []
+
+    if timeseries:
+        for i in range(len(ID)):
+            t,d = parse_ts_psd(timeseries[i])
+            lc = lk.LightCurve(time=t, flux=d)
+            p = lc.to_periodogram(freq_unit=units.microHertz,
+                                  normalization='psd').flatten()
+            PS_list.append((np.array(p.frequency), np.array(p.power)))
+    if psd:
+        for i in range(len(ID)):
+            f,s = parse_ts_psd(psd[i])
+            PS_list.append((np.array(f),np.array(s)))
     return PS_list
 
 
@@ -232,18 +265,26 @@ class session():
 
             PS_list = get_psd_from_lk(ID, lkargs)
 
+        # Given path will use genfromtxt to read ascii file, must be 2 column time and relative flux, must also provude  
+        # must also provide numax,dnu,teff 
+        elif timeseries:
+            assert ID, 'Provide target name'
+            assert physchk, 'Must provide numax, dnu, and teff'
+            ID, numax, dnu, teff, timeseries = bouncer([ID, numax, dnu, teff, 
+                                                        timeseries])
+            PS_list = get_psd_from_ascii(ID, timeseries = timeseries)
+        elif psd: # This can probably be merged with elif timeseries
+            assert ID, 'Provide target name'
+            assert physchk, 'Must provide numax, dnu, and teff'
+            ID, numax, dnu, teff, psd = bouncer([ID, numax, dnu, teff, psd])            
+            PS_list = get_psd_from_ascii(ID, psd = psd)
+        
         self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1], numax[i],
                       dnu[i], teff[i]) for i in range(len(ID))]
-
-
-
-      
-#        # Given path will use genfromtxt to read ascii file, must be 2 column time and relative flux, must also provude  
-#        # must also provide numax,dnu,teff
-#        elif ID and path and not timeseries and not psd:
-#            assert(physchk)
-#
-#        
+    
+    
+    
+    
 #        # Given lc periodogram object, tuple, array, list of (frequency, psd) will compute psd
 #        # must also have numax,dnu,teff
 #        elif ID and timeseries and not psd and not path:            
@@ -294,3 +335,5 @@ class session():
 #        else:
 #            'Break'
 #            sys.exit()
+            
+        
