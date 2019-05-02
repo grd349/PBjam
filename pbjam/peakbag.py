@@ -11,6 +11,8 @@ import os
 import emcee
 import matplotlib.pyplot as plt
 import warnings
+import pystan
+import pickle
 
 from . import PACKAGEDIR
 
@@ -35,6 +37,7 @@ def create_pbstan():
         real locs[M];  // True mode locations
         real vsini;    // Line of sight rotational frequency
         real<lower=0.> nus;      // Rotational frequency splitting
+        real<lower=0.1> b;  // Background
     }
     transformed parameters{
         real H[M];       // Mode height
@@ -65,7 +68,7 @@ def create_pbstan():
         eps[3+1,2+1] = (15./8.)*cos(i)^2 * sin(i)^4;
         eps[3+1,3+1] = (5./16.)*sin(i)^6;
 
-        modes = rep_vector(1., N);
+        modes = rep_vector(b, N);
         for (mode in 1:M){        // Iterate over all modes passed in
             l = asy_ids[mode];    // Identify the Mode ID
             for (m in -l:l){      // Iterate over all m in a given l
@@ -77,14 +80,16 @@ def create_pbstan():
         p ~ gamma(1., 1../modes);
 
         //priors on the parameters
-        logAmp ~ normal(1.5, 1);
-        logGamma ~ normal(0, 0.01);
+        logAmp ~ normal(1.5, 1.);
+        logGamma ~ normal(0, .05);
         locs ~ normal(asy_locs, 1);
         nus ~ normal(0.411, 0.1);
         vsini ~ uniform(0.,nus);
+
+        b ~ normal(1.,.1);
     }
     '''
-    model_path = 'pbstan.pkl'
+    model_path = PACKAGEDIR+'/data/pbstan.pkl'
     sm = pystan.StanModel(model_code = pbstan, model_name='pbstan')
     pkl_file =  open(model_path, 'wb')
     pickle.dump(sm, pkl_file)
@@ -92,7 +97,7 @@ def create_pbstan():
 
 class peakbag():
     def __init__(self, snr, locs, siglocs, modeids,
-                    iters=5000, nchains=4):
+                    iters=2000, nchains=4):
         """Module to fit a model of lorentzians to the p-modes identified by the
         asymptotic peakbag module.
 
@@ -139,17 +144,20 @@ class peakbag():
     def get_stanmodel(self):
         """If a stan model is saved locally, read that in. If not, create it
         """
-        model_path = 'data/pbstan.pkl'
+        model_path = PACKAGEDIR+'/data/pbstan.pkl'
         if os.path.isfile(model_path):
             sm = pickle.load(open(model_path, 'rb'))
         else:
             warnings.warn('No stan model found, creating stan model.')
-            create_pbstan(overwrite=True)
+            create_pbstan()
+            sm = pickle.load(open(model_path, 'rb'))
         return sm
 
     def run_stan(self):
         """Runs the PBJam peakbag model on the given input data.
         """
+        sm = self.get_stanmodel()
+
         data = {'N':len(self.f),
                 'M': len(self.locs),
                 'f':self.f,
@@ -157,11 +165,11 @@ class peakbag():
                 'asy_locs':self.locs,
                 'asy_ids':self.modeids}
 
-        init = {'logAmp' :   np.ones(len(modelocs))*1.5,
-                'logGamma' : np.zeros(len(modelocs)),
-                'locs' : modelocs}
+        init = {'logAmp' :   np.ones(len(self.locs))*1.5,
+                'logGamma' : np.zeros(len(self.locs)),
+                'locs' : self.locs}
 
-        fit = sm.sampling(data = self.dat,
+        fit = sm.sampling(data = data,
                     iter= self.iters, chains=4, seed=1895,
                     init = [init for n in range(self.nchains)])
 
@@ -187,4 +195,4 @@ class peakbag():
 
     def __call__(self):
         fit = self.run_stan()
-        return get_output(fit)
+        return fit
