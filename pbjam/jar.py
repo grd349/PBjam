@@ -13,9 +13,9 @@ Specific quarters, campgains or sectors can be requested in a kwargs dictionary
 with the relevant keyword (i.e., 'quarter' for KIC, etc.)
 
 Once initialized, the session class contains a list of star class instances
-for each requested target, with corresponding SNR spectra for each.
+for each requested target, with corresponding spectra for each.
 
-The next step is to perform a mode ID on the SNR spectra. At the moment PBjam
+The next step is to perform a mode ID on the spectra. At the moment PBjam
 only supports use of the asymptotic relation mode ID method.
 
 Note
