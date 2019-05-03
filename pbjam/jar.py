@@ -27,7 +27,7 @@ import lightkurve as lk
 from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
-import warnings, sys
+
 
 def bouncer(X):
     """ Turn elements of X into lists, and check their lengths are the same
@@ -57,7 +57,7 @@ def bouncer(X):
     return X
 
 
-def get_psd_from_lk(ID, lkargs):
+def download_lc(ID, lkargs):
     """ Use Lightkurve to get snr
 
     Querries MAST using Lightkurve, based on the provided target ID(s) and
@@ -76,6 +76,7 @@ def get_psd_from_lk(ID, lkargs):
         month : for Kepler targets, applies to short-cadence data
         sector : for TESS targets
         campaign : for K2 targets
+        cadence : long or short
 
     Returns
     -------
@@ -84,51 +85,74 @@ def get_psd_from_lk(ID, lkargs):
         frequency, second column is power.
     """
 
-    PS_list = []
+    lc_list = []
     for i, id in enumerate(ID):
         tgt = lk.search_lightcurvefile(target=id,
                                        quarter=lkargs['quarter'][i],
                                        campaign=lkargs['campaign'][i],
                                        sector=lkargs['sector'][i],
-                                       month=lkargs['month'][i])
+                                       month=lkargs['month'][i],
+                                       cadence=lkargs['cadence'][i])
         lc = tgt.download().PDCSAP_FLUX
         lc = lc.remove_nans().normalize().flatten().remove_outliers()
-        p = lc.to_periodogram(freq_unit=units.microHertz,
-                              normalization='psd').flatten()
-        PS_list.append((np.array(p.frequency), np.array(p.power)))
-    return PS_list
+        lc_list.append(lc)
+    return lc_list
 
 
-def parse_ts_psd(A):
-    if (type(A) == str):
-        x, y = np.genfromtxt(A).T
-    elif (type(A) == tuple):
-        assert len(A) == 2, 'Tuple must be of length 2'
-        x, y = A    
-    return x, y
+def get_psd(arr, arr_type):
+    """ Get psd from timeseries/psd arguments in session class
 
-def get_psd_from_ascii(ID, timeseries = None, psd = None):
-    
-    # Check there's something in all arguments
-    assert any([ID, timeseries, psd]), "Stop and catch fire."
-    
-    # Ignore time series if psd is also given
-    if timeseries and psd:
-        timeseries = None
-    
+    Parameters
+    ----------
+    arr : list
+        List of either tuples of time/flux, tuples of frequency/power, file
+        paths, lightkurve.lightcurve objects, or lightkurve.periodogram
+        objects.
+    arr_type: str
+        Definition of the type of data in arr, TS for time series, PS for
+        power spectrum.
+
+    Returns
+    -------
+    PS_list : list
+        List of length 2 tuples, with frequency in first column and power in
+        second column, for each star in the session list.
+    """
+
+    make_lk = lk.LightCurve
+    make_lk_pg = lk.periodogram.Periodogram
+
     PS_list = []
+    for i, A in enumerate(arr):
+        if arr_type == 'TS':
+            if type(A) == str:
+                inpt = np.genfromtxt(A, usecols=(0, 1))
+                lk_lc = make_lk(time=inpt[:, 0], flux=inpt[:, 1])
+            elif type(A) == tuple:
+                assert len(A) >= 2, 'Tuple must be of length >=2 '
+                lk_lc = make_lk(time=A[0], flux=A[1])
+            elif A.__module__ == lk.lightcurve.__name__:
+                lk_lc = A
+            else:
+                raise TypeError("Can't handle this type of time series object")
+            lk_p = lk_lc.to_periodogram(freq_unit=units.microHertz,
+                                        normalization='psd').flatten()
 
-    if timeseries:
-        for i in range(len(ID)):
-            t,d = parse_ts_psd(timeseries[i])
-            lc = lk.LightCurve(time=t, flux=d)
-            p = lc.to_periodogram(freq_unit=units.microHertz,
-                                  normalization='psd').flatten()
-            PS_list.append((np.array(p.frequency), np.array(p.power)))
-    if psd:
-        for i in range(len(ID)):
-            f,s = parse_ts_psd(psd[i])
-            PS_list.append((np.array(f),np.array(s)))
+        if arr_type == 'PS':
+            if type(A) == str:
+                inpt = np.genfromtxt(A, usecols=(0, 1))
+                lk_p = make_lk_pg(inpt[:, 0]*units.microhertz,
+                                  units.Quantity(inpt[:, 1], None))
+            elif type(A) == tuple:
+                assert len(A) >= 2, 'Tuple must be of length >=2 '
+                lk_p = make_lk_pg(A[0]*units.microhertz,
+                                  units.Quantity(A[1], None))
+            elif A.__module__ == lk.periodogram.__name__:
+                lk_p = A.flatten()
+            else:
+                raise TypeError("Can't handle this type of spectrum object")
+
+        PS_list.append((np.array(lk_p.frequency), np.array(lk_p.power)))
     return PS_list
 
 
@@ -195,7 +219,6 @@ class star():
 
         fit = asymptotic_fit(self, d02, alpha, seff, mode_width, env_width,
                              env_height)
-
         fit.run(norders)
 
         self.mode_ID = fit.mode_ID
@@ -249,78 +272,33 @@ class session():
         physchk = all(physpars)
 
         # Given ID will use LK to download
-        if ID and not timeseries and not psd:
-            assert physchk, 'Must provide numax, dnu, and teff'
-
+        if ID and physchk and not timeseries and not psd:
             ID, numax, dnu, teff = bouncer([ID, numax, dnu, teff])
-
             lkargs = {}
             for key in ['cadence', 'month', 'quarter', 'campaign', 'sector']:
                 if key in kwargs:
                     lkargs[key] = kwargs[key]
                 else:
                     lkargs[key] = [None]*len(ID)
-
                 lkargs[key] = bouncer([lkargs[key]])[0]
+            lc_list = download_lc(ID, lkargs)
+            PS_list = get_psd(lc_list, arr_type='TS')
 
-            PS_list = get_psd_from_lk(ID, lkargs)
+        # Given time series as lk object, tuple or path
+        elif ID and physchk and timeseries:
+            ID, numax, dnu, teff, timeseries = bouncer([ID, numax, dnu,
+                                                        teff, timeseries])
+            PS_list = get_psd(timeseries, arr_type='TS')
 
-        # Given path will use genfromtxt to read ascii file, must be 2 column time and relative flux, must also provude  
-        # must also provide numax,dnu,teff 
-        elif timeseries:
-            assert ID, 'Provide target name'
-            assert physchk, 'Must provide numax, dnu, and teff'
-            ID, numax, dnu, teff, timeseries = bouncer([ID, numax, dnu, teff, 
-                                                        timeseries])
-            PS_list = get_psd_from_ascii(ID, timeseries = timeseries)
-        elif psd: # This can probably be merged with elif timeseries
-            assert ID, 'Provide target name'
-            assert physchk, 'Must provide numax, dnu, and teff'
-            ID, numax, dnu, teff, psd = bouncer([ID, numax, dnu, teff, psd])            
-            PS_list = get_psd_from_ascii(ID, psd = psd)
-        
+        # Given power spectrum as lk object, tuple or path
+        elif ID and physchk and psd:
+            ID, numax, dnu, teff, psd = bouncer([ID, numax, dnu, teff, psd])
+            PS_list = get_psd(psd, arr_type='PS')
+
         self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1], numax[i],
                       dnu[i], teff[i]) for i in range(len(ID))]
-    
-    
-    
-    
-#        # Given lc periodogram object, tuple, array, list of (frequency, psd) will compute psd
-#        # must also have numax,dnu,teff
-#        elif ID and timeseries and not psd and not path:            
-#            assert(physchk)
-#
-#        
-#            # Type check, is it tuple or lc object        
-#            if lc:
-#                'bla'
-#            elif tup:
-#                'bla'
-#            elif array:
-#                'bla'
-#            elif list:
-#                'bla'
-#            else:
-#                'Unhandled type'
-#                sys.exit()
-#                
-#        # Given lc periodogram object, tuple, array, list of (frequency, psd)
-#        # must also have numax,dnu,teff
-#        elif ID and psd and not path and not timeseries:
-#            assert(physchk)
-#            
-#            if lc:
-#                'bla'
-#            elif tup:
-#                'bla'
-#            elif array:
-#                'bla'
-#            elif list:
-#                'bla'
-#            else:
-#                'Unhandled type'
-#                sys.exit()
-#            
+
+
 #        # Given dataframe, must at least have ID, numax, dnu and teff keywords
 #        # path column will override download
 #        elif dataframe:
