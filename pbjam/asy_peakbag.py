@@ -666,4 +666,6 @@ class mcmc():
         sampler.reset()
         print('Sampling')
         sampler.run_mcmc(pb, self.niter)
-        return sampler.flatchain
+        out = sampler.flatchain.copy()
+        sampler.reset() # This hopefully minimizes emcee memory leak
+        return out
