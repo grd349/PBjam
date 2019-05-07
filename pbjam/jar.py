@@ -27,6 +27,7 @@ import lightkurve as lk
 from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
+import pandas as pd
 
 
 def bouncer(X):
@@ -268,11 +269,10 @@ class session():
                  timeseries=None, psd=None, dictionary=None,
                  dataframe=None, kwargs={}):
 
-        physpars = [numax, dnu, teff]
-        physchk = all(physpars)
+        listchk = all([ID, numax, dnu, teff])
 
         # Given ID will use LK to download
-        if ID and physchk and not timeseries and not psd:
+        if listchk and not timeseries and not psd:
             ID, numax, dnu, teff = bouncer([ID, numax, dnu, teff])
             lkargs = {}
             for key in ['cadence', 'month', 'quarter', 'campaign', 'sector']:
@@ -285,33 +285,32 @@ class session():
             PS_list = get_psd(lc_list, arr_type='TS')
 
         # Given time series as lk object, tuple or path
-        elif ID and physchk and timeseries:
+        elif listchk and timeseries:
             ID, numax, dnu, teff, timeseries = bouncer([ID, numax, dnu,
                                                         teff, timeseries])
             PS_list = get_psd(timeseries, arr_type='TS')
 
         # Given power spectrum as lk object, tuple or path
-        elif ID and physchk and psd:
+        elif listchk and psd:
             ID, numax, dnu, teff, psd = bouncer([ID, numax, dnu, teff, psd])
             PS_list = get_psd(psd, arr_type='PS')
 
-        self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1], numax[i],
-                      dnu[i], teff[i]) for i in range(len(ID))]
+        # Given dataframe or dictionary
+        elif dictionary or dataframe:
+            if dictionary:
+                dataframe = pd.DataFrame.from_dict(dictionary)
 
-
-#        # Given dataframe, must at least have ID, numax, dnu and teff keywords
-#        # path column will override download
-#        elif dataframe:
-#            assert(any(x not in ['ID','numax','dnu','teff'] for x in dataframe.keys()))
-#        
-#        # Given dictionary, must at least have ID, numax, dnu and teff keywords
-#        # path keyword will override download
-#        elif dictionary:
-#            assert(any(x not in ['ID','numax','dnu','teff'] for x in dictionary.keys()))
-#                
-#        # *throws hands in the air and sighs audibly*
-#        else:
-#            'Break'
-#            sys.exit()
+            dfkeys = ['ID', 'numax', 'dnu', 'teff', 'numax_error', 'dnu_error',
+                      'teff_error']
+            dfkeychk = any(x not in dfkeys for x in dataframe.keys())
+            assert dfkeychk, 'Some of the required keywords were missing.'
             
-        
+            #if 'path' in dataframe.keys(): # try to read of ascii first
+            #else: # otherwise download from MAST
+                
+
+        else:
+            raise NotImplementedError("Magic not implemented, please give PBjam some input")
+
+        self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1], numax[i],
+                           dnu[i], teff[i]) for i in range(len(ID))]

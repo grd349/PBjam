@@ -409,7 +409,7 @@ class asymptotic_fit():
                   [self.dnu[0]-nsig*self.dnu[1], self.dnu[0]+nsig*self.dnu[1]],  # Dnu
                   [self.epsilon[0]-nsig*self.epsilon[1], self.epsilon[0]+nsig*self.epsilon[1]],  # eps
                   [-1, 1],  # alpha
-                  [0.01*self.dnu[0], 0.5*self.dnu[0]],  # d02
+                  [0.01*self.dnu[0], 0.2*self.dnu[0]],  # d02
                   [self.env_height*0.5, self.env_height*1.5],  # hmax
                   [self.env_width*0.9, self.env_width*1.1],  # Ewidth
                   [-2, 1.0],  # mode width (log10)
