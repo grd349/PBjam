@@ -287,7 +287,9 @@ class session():
             for key in lk_kws:
                 if key not in kwargs:
                     kwargs[key] = [None]*len(ID)
-                kwargs[key] = bouncer([kwargs[key]])[0] # TODO - This doesn't actually check that all kwarg inputs are same length, this is why bouncer should be split
+                # TODO - Here, bouncer doesn't actually check if all kwarg 
+                # inputs are same length, this is why bouncer should be split
+                kwargs[key] = bouncer([kwargs[key]])[0] 
             lc_list, source_list = download_lc(ID, kwargs)
             PS_list = get_psd(lc_list, arr_type='TS')
 
@@ -312,15 +314,14 @@ class session():
                 print('Unrecognized type in dictlike. Must be convertable to dataframe through pandas.DataFrame.from_records()')
 
             if any([ID, numax, dnu, teff]):
-                warnings.warn('You provided dataframe/dictionary as input, ignoring other inputs.')
+                warnings.warn('Dictlike provided as input, ignoring other inputs.')
 
+            # Check if required keywords are present
             dfkeys = ['ID', 'numax', 'dnu', 'teff', 'numax_error', 'dnu_error',
                       'teff_error']
             dfkeychk = any(x not in dfkeys for x in df.keys())
             if not dfkeychk:
                 raise(KeyError, 'Some of the required keywords were missing.')
-
-            # Required columns
             ID = list(df['ID'])
             numax = [[df['numax'][i], df['numax_error'][i]] for i in range(len(ID))]
             dnu = [[df['dnu'][i], df['dnu_error'][i]] for i in range(len(ID))]

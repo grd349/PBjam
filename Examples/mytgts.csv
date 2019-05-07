@@ -1,0 +1,3 @@
+ID,numax,numax_error,teff,teff_error,dnu,dnu_error,quarter,timeseries
+4448777,220,3,4750,100,16.97,0.01,5,/home/nielsemb/work/repos/PBjam/Examples/myts.asciifile
+4448777,220,3,4750,100,16.97,0.01,5,/home/nielsemb/work/repos/PBjam/Examples/myts.asciifile
