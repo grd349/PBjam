@@ -31,7 +31,7 @@ class epsilon():
 
         self.method = method
         self.vrard_dict = {'alpha': 0.601, 'beta': 0.632}
-        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'rg_results.csv'
+        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
         self.obs = []
         self.seff_offset = 4000.0
         self.samples = []
@@ -45,7 +45,7 @@ class epsilon():
 
     def make_kde(self, bw=0.8):
         ''' Takes the prior data and constructs a KDE function '''
-        self.cols = ['log_dnu_', 'log_numax', 'log_Seff', 'eps_mod']
+        self.cols = ['log_dnu_', 'log_numax', 'log_Seff', 'bp_rp', 'eps_mod']
         self.kde = gaussian_kde(self.prior_data[self.cols].values.T, bw)
 
     def normal(self, y, mu, sigma):
@@ -74,7 +74,7 @@ class epsilon():
         Inputs
         ------
         p : array
-            Array of the parameters [log_dnu, log_numax, log_seff, eps]
+            Array of the parameters [log_dnu, log_numax, log_seff, bp_rp, eps]
 
         Returns
         -------
@@ -82,7 +82,7 @@ class epsilon():
             The log likelihood evaluated at p.
 
         '''
-        log_dnu, log_numax, log_seff, eps = p
+        log_dnu, log_numax, log_seff, bp_rp, eps = p
         if log_seff < np.log10(4100.0 - self.seff_offset):
             return -np.inf
         # Constraint from prior
@@ -92,10 +92,11 @@ class epsilon():
         ld += self.normal(log_dnu, *self.log_obs['dnu'])
         ld += self.normal(log_numax, *self.log_obs['numax'])
         ld += self.normal(log_seff, *self.log_obs['seff'])
+        ld += self.normal(bp_rp, *self.log_obs['bp_rp'])
 
         return lp + ld
 
-    def kde_sampler(self):
+    def kde_sampler(self, niter=2000, nwalkers=20):
         ''' Samples from the posterior probability distribution
 
         p(theta | D) propto p(theta) p(D | theta)
@@ -116,13 +117,14 @@ class epsilon():
         x0 = [self.log_obs['dnu'][0],
               self.log_obs['numax'][0],
               self.log_obs['seff'][0],
+              self.log_obs['bp_rp'][0],
               1.0]
-        ndim, nwalkers = len(x0), 20
+        ndim = len(x0)
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
-        sampler.run_mcmc(p0, 4000)
+        sampler.run_mcmc(p0, niter)
         sampler.reset()
-        sampler.run_mcmc(p0, 2000)
+        sampler.run_mcmc(p0, niter)
         return sampler.flatchain
 
     def to_log10(self, x, xerr):
@@ -134,7 +136,8 @@ class epsilon():
         self.log_obs = {'dnu': self.to_log10(*self.obs['dnu']),
                         'numax': self.to_log10(*self.obs['numax']),
                         'teff': self.to_log10(*self.obs['teff']),
-                        'seff': self.to_log10(*self.obs['seff'])}
+                        'seff': self.to_log10(*self.obs['seff']),
+                        'bprp': *self.obs['bprp']}
 
     def vrard(self, dnu):
         ''' Calculates epsilon prediction from Vrard 2015
@@ -270,7 +273,7 @@ class epsilon():
         freq = np.array([(nn + eps) * 10**dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
 
@@ -288,7 +291,8 @@ class epsilon():
             Frequency of maximum power and uncertainty
         teff : [real, real]
             Stellar effective temperature and uncertainty
-
+        bp_rp : [real, real]
+            The Gaia Gbp - Grp color value and uncertainty (probably ~< 0.01 dex)
         Returns
         -------
         result : array-like
@@ -303,7 +307,8 @@ class epsilon():
         self.obs = {'dnu': dnu,
                     'numax': numax,
                     'teff': teff,
-                    'seff': [teff[0] - self.seff_offset, teff[1]]}
+                    'seff': [teff[0] - self.seff_offset, teff[1]],
+                    'bp_rp': bp_rp}
         if self.method == 'KDE':
             if numax[0] > 288.0:
                 warnings.warn('Not yet implemented for SC stars')
