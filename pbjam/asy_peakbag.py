@@ -311,7 +311,7 @@ class asymptotic_fit():
     """
 
     def __init__(self, star, d02=None, alpha=None, seff=None, mode_width=None,
-                 env_width=None, env_height=None):
+                 env_width=None, env_height=None, verbose=False):
         self.f = star.f
         self.s = star.s
         self.numax = star.numax
@@ -327,6 +327,7 @@ class asymptotic_fit():
         self.asy_modeID = {}
         self.asy_model = None
         self.asy_bestfit = {}
+        self.verbose = verbose
 
     def parse_asy_pars(self, verbose=False):
         """ Parse input and initial guesses for the asymptotic relation fit
@@ -448,11 +449,11 @@ class asymptotic_fit():
         self.asy_modeID = pd.DataFrame({'ell': ells,
                                      'nu_mu': nus_mu_out,
                                      'nu_std': nus_std_out})
-        
+
         for j,key in enumerate(['numax','dnu','eps','alpha','d02','env_height',
                                 'env_width','mode_width']):
             self.asy_bestfit[key] = self.fit_pars[:,j]
-        
+
         return self.asy_modeID
 
 
