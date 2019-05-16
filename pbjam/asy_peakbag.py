@@ -190,7 +190,9 @@ class asymp_spec_model():
         pair_model += self.lor(freq0 - d02, h*hfac, w)
         return pair_model
 
-    def model(self, numax, dnu, eps, alpha, d02, hmax, envwidth, modewidth):
+    def model(self, numax, dnu, eps, alpha, d02,
+                    hmax, envwidth, modewidth,
+                    Teff, bp_rp):
         """ Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
@@ -311,22 +313,23 @@ class asymptotic_fit():
     """
 
     def __init__(self, star, d02=None, alpha=None, seff=None, mode_width=None,
-                 env_width=None, env_height=None):
+                 env_width=None, env_height=None, verbose=False):
         self.f = star.f
         self.s = star.s
         self.numax = star.numax
         self.dnu = star.dnu
         self.teff = star.teff
+        self.bp_rp = star.bp_rp
         self.epsilon = star.epsilon
         self.d02 = d02
         self.alpha = alpha
-        self.seff = seff
         self.mode_width = mode_width
         self.env_width = env_width
         self.env_height = env_height
         self.asy_modeID = {}
         self.asy_model = None
         self.asy_bestfit = {}
+        self.verbose = verbose
 
     def parse_asy_pars(self, verbose=False):
         """ Parse input and initial guesses for the asymptotic relation fit
@@ -354,10 +357,6 @@ class asymptotic_fit():
         if not self.alpha:
             self.alpha = 1e-3
 
-        if not self.seff:
-            # TODO this needs to be done properly
-            self.seff = 4000
-
         if not self.mode_width:
             self.mode_width = 1e-20  # must be non-zero for walkers' start pos
 
@@ -373,12 +372,12 @@ class asymptotic_fit():
 
         pars = [self.numax[0], self.dnu[0], self.epsilon[0], self.alpha,
                 self.d02, self.env_height, self.env_width, self.mode_width,
-                self.seff]
+                self.teff, self.bp_rp]
 
         parsnames = ['numax', 'large separation', 'epsilon', 'alpha', 'd02',
                      'p-mode envelope height', 'p-mode envelope width',
-                     'mode width (log10)', 'Seff (adjusted Teff)']
-        if verbose:
+                     'mode width (log10)', 'Teff', 'bp_rp']
+        if verbose or self.verbose:
             for i in range(len(pars)):
                 print('%s: %f' % (parsnames[i], pars[i]))
         return pars
@@ -414,7 +413,8 @@ class asymptotic_fit():
                   [self.env_height*0.5, self.env_height*1.5],  # hmax
                   [self.env_width*0.9, self.env_width*1.1],  # Ewidth
                   [-2, 1.0],  # mode width (log10)
-                  [1e2, 1e4]]  # seff
+                  [2000.0, 7200.0], # Teff
+                  [-1, 2]]  # Gaia bp-rp
 
         fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds)
 
@@ -448,11 +448,11 @@ class asymptotic_fit():
         self.asy_modeID = pd.DataFrame({'ell': ells,
                                      'nu_mu': nus_mu_out,
                                      'nu_std': nus_std_out})
-        
+
         for j,key in enumerate(['numax','dnu','eps','alpha','d02','env_height',
-                                'env_width','mode_width']):
+                                'env_width','mode_width','Teff','bp_rp']):
             self.asy_bestfit[key] = self.fit_pars[:,j]
-        
+
         return self.asy_modeID
 
 
@@ -479,15 +479,15 @@ class Prior(pb.epsilon):
     ----------
     bounds : list
         list of upper and lower bounds for the priors on the model parameters
-    gaussian : ???
+    gaussian : ??? # TODO ... if at all
         ???
     """
 
-    def __init__(self, bounds, gaussian):
+    def __init__(self, bounds, gaussian, verbose=False):
         self.bounds = bounds
         self.gaussian = gaussian
-        self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'rg_results.csv'])
-        self.seff_offset = 4000.0  # (hard code)
+        self.verbose = verbose
+        self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
         self.read_prior_data()  # Inherited from epsilon
         self.make_kde()  # Inherited from epsilon
 
@@ -556,8 +556,8 @@ class Prior(pb.epsilon):
             return -np.inf
 
         # Evaluate the prior, defined by a KDE
-        # log10(Dnu), log10(numax), log10(Seff), eps
-        lp = self.kde([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), p[3]])
+        # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
+        lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), p[9], p[3]])
         return lp
 
 
@@ -602,7 +602,7 @@ class mcmc():
         self.x0 = x0
         self.bounds = bounds
         self.ndim = len(x0)
-        self.lp = Prior(bounds, [(0, 0) for n in range(len(x0))])
+        self.lp = Prior(bounds, [(0, 0) for n in range(self.ndim)])
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -620,17 +620,14 @@ class mcmc():
         like : float
             likelihood function at p
         """
-
-        # TODO - change self.model(p[:-1]) to self.model(p), x0 needs to be
-        # changed. This is part of the seff/teff rework.
         logp = self.lp(p)
         if logp == -np.inf:
             return -np.inf
-        mod = self.model(p[:-1])  # Last p is seff so ignore.
+        mod = self.model(p)
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
-    def __call__(self, niter=500, nwalkers=200, spread=0.01):
+    def __call__(self, niter=1000, nwalkers=50, burnin=2000, spread=0.01):
         """ Initialize and run the EMCEE afine invariant sampler
 
         Parameters
@@ -655,6 +652,7 @@ class mcmc():
         # Save these for later
         self.niter = niter
         self.nwalkers = nwalkers
+        self.burnin = burnin
 
         import emcee
 
@@ -667,7 +665,7 @@ class mcmc():
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood)
         print('Burningham')
-        sampler.run_mcmc(p0, self.niter)
+        sampler.run_mcmc(p0, self.burnin)
         pb = sampler.chain[:, -1, :].copy()
         sampler.reset()
         print('Sampling')
