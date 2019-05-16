@@ -324,8 +324,9 @@ class asymptotic_fit():
         self.mode_width = mode_width
         self.env_width = env_width
         self.env_height = env_height
-        self.mode_ID = {}
+        self.asy_modeID = {}
         self.asy_model = None
+        self.asy_bestfit = {}
 
     def parse_asy_pars(self, verbose=False):
         """ Parse input and initial guesses for the asymptotic relation fit
@@ -419,9 +420,10 @@ class asymptotic_fit():
 
         self.flatchain = fit()  # do the fit with default settings
 
-        self.fit_pars = np.median(self.flatchain, axis=0)
+        #self.fit_pars = np.median(self.flatchain, axis=0)
+        self.fit_pars = np.percentile(self.flatchain, [16, 50, 84], axis=0)
 
-        self.asy_model = (model.f, model.model(*self.fit_pars[:-1]))
+        self.asy_model = (model.f, model.model(*self.fit_pars[1,:-1]))
 
         # Get mode ID and frequency list
         # TODO - is there a better/neater way to do this?
@@ -443,11 +445,15 @@ class asymptotic_fit():
             nus_mu_out += [nus_mu[1, i], nus_mu[0, i]]
             nus_std_out += [nus_std[1, i], nus_std[0, i]]
 
-        self.mode_ID = pd.DataFrame({'ell': ells,
+        self.asy_modeID = pd.DataFrame({'ell': ells,
                                      'nu_mu': nus_mu_out,
                                      'nu_std': nus_std_out})
-
-        return self.mode_ID
+        
+        for j,key in enumerate(['numax','dnu','eps','alpha','d02','env_height',
+                                'env_width','mode_width']):
+            self.asy_bestfit[key] = self.fit_pars[:,j]
+        
+        return self.asy_modeID
 
 
 class Prior(pb.epsilon):
@@ -666,4 +672,6 @@ class mcmc():
         sampler.reset()
         print('Sampling')
         sampler.run_mcmc(pb, self.niter)
-        return sampler.flatchain
+        out = sampler.flatchain.copy()
+        sampler.reset() # This hopefully minimizes emcee memory leak
+        return out
