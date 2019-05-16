@@ -28,36 +28,27 @@ from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
 import pandas as pd
+import warnings
 
 
-def bouncer(X):
-    """ Turn elements of X into lists, and check their lengths are the same
-
-    Parameters
-    ----------
-    X : list
-        List of objects to be turned into list of lists of objects (yeah...)
-
-    Returns
-    -------
-    X : list
-        List of lists of objects that was formerly just a list of objects
-    """
-
-    # TODO - this should probably be split into to, one to enforce list type
-    # and one to enforce all items in list of lists must have same length
-    # right now ID, numax, dnu, teff are separate from kwarg arguments
-    lens = []
+def enforce_list(X):
     # Check that all elements of X are lists, and if not, make them so
     for i, x in enumerate(X):
         if not isinstance(x, (list, np.ndarray, tuple)):
             X[i] = [x]
-        lens.append(len(X[i]))
-    # Check that all elements of X are the same length
-    assert lens[1:] == lens[:-1], "Provided inputs must be same length"
     return X
 
-
+def check_list_lengths(X):
+    lens = []
+    if type(X) == dict:
+        for key in X.keys():
+            lens.append(len(X[key]))
+    elif type(X) == list:        
+        for i, x in enumerate(X):
+            lens.append(len(X[i]))    
+    # Check that all elements of X are the same length
+    assert lens[1:] == lens[:-1], "Provided inputs must be same length"
+    
 def download_lc(ID, lkargs):
     """ Use Lightkurve to get snr
 
@@ -84,9 +75,12 @@ def download_lc(ID, lkargs):
     PS_list : list of tuples
         List of tuples for each requested target. First column of a tuple is
         frequency, second column is power.
+    source_list : list
+        List of fitsfile names for each target
     """
 
     lc_list = []
+    source_list = []
     for i, id in enumerate(ID):
         tgt = lk.search_lightcurvefile(target=id,
                                        quarter=lkargs['quarter'][i],
@@ -97,7 +91,8 @@ def download_lc(ID, lkargs):
         lc = tgt.download().PDCSAP_FLUX
         lc = lc.remove_nans().normalize().flatten().remove_outliers()
         lc_list.append(lc)
-    return lc_list
+        source_list.append(tgt.table['productFilename'][0])
+    return lc_list, source_list
 
 
 def get_psd(arr, arr_type):
@@ -179,9 +174,13 @@ class star():
         Initial guess for dnu. Large separation of l=0 modes (muHz)
     teff : float
         Temperature estimate for the star. Used to compute epsilon.
+    source : str, optional
+        Pathname of the file used to make the star class instance (timeseries
+        or psd). If data is downloaded via Lightkurve the fits file name is 
+        used. 
     """
 
-    def __init__(self, ID, f, s, numax, dnu, teff):
+    def __init__(self, ID, f, s, numax, dnu, teff, source = None):
         self.ID = ID
         self.f = f
         self.s = s
@@ -189,8 +188,10 @@ class star():
         self.dnu = dnu
         self.teff = teff
         self.epsilon = None
-        self.mode_ID = {}
+        self.asy_modeID = {}
         self.asy_model = None
+        self.asy_bestfit = {}
+        self.source = source
 
     def asymptotic_modeid(self, d02=None, alpha=None, seff=None,
                           mode_width=None, env_width=None, env_height=None,
@@ -222,8 +223,9 @@ class star():
                              env_height)
         fit.run(norders)
 
-        self.mode_ID = fit.mode_ID
+        self.asy_modeID = fit.asy_modeID
         self.asy_model = fit.asy_model
+        self.asy_bestfit = fit.asy_bestfit
 
 
 class session():
@@ -266,51 +268,85 @@ class session():
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None,
-                 timeseries=None, psd=None, dictionary=None,
-                 dataframe=None, kwargs={}):
+                 timeseries=None, psd=None, dictlike=None, kwargs={}):
 
         listchk = all([ID, numax, dnu, teff])
 
+        lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
+
         # Given ID will use LK to download
         if listchk and not timeseries and not psd:
-            ID, numax, dnu, teff = bouncer([ID, numax, dnu, teff])
-            lkargs = {}
-            for key in ['cadence', 'month', 'quarter', 'campaign', 'sector']:
-                if key in kwargs:
-                    lkargs[key] = kwargs[key]
-                else:
-                    lkargs[key] = [None]*len(ID)
-                lkargs[key] = bouncer([lkargs[key]])[0]
-            lc_list = download_lc(ID, lkargs)
+            ID, numax, dnu, teff = enforce_list([ID, numax, dnu, teff])
+            check_list_lengths([ID, numax, dnu, teff])
+            for key in lk_kws:
+                if key not in kwargs:
+                    kwargs[key] = [None]*len(ID)
+                kwargs[key] = enforce_list([kwargs[key]])[0] 
+            check_list_lengths(kwargs)
+            lc_list, source_list = download_lc(ID, kwargs)
             PS_list = get_psd(lc_list, arr_type='TS')
 
         # Given time series as lk object, tuple or path
         elif listchk and timeseries:
-            ID, numax, dnu, teff, timeseries = bouncer([ID, numax, dnu,
+            ID, numax, dnu, teff, timeseries = enforce_list([ID, numax, dnu,
                                                         teff, timeseries])
+            check_list_lengths([ID, numax, dnu, teff, timeseries])
             PS_list = get_psd(timeseries, arr_type='TS')
+            source_list = [x if type(x) == str else None for x in timeseries]
 
         # Given power spectrum as lk object, tuple or path
         elif listchk and psd:
-            ID, numax, dnu, teff, psd = bouncer([ID, numax, dnu, teff, psd])
+            ID, numax, dnu, teff, timeseries = enforce_list([ID, numax, dnu,
+                                                        teff, timeseries])
+            check_list_lengths([ID, numax, dnu, teff, timeseries])           
             PS_list = get_psd(psd, arr_type='PS')
-
+            source_list = [x if type(x) == str else None for x in psd]
+            
         # Given dataframe or dictionary
-        elif dictionary or dataframe:
-            if dictionary:
-                dataframe = pd.DataFrame.from_dict(dictionary)
+        elif isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
+            try:
+                df = pd.DataFrame.from_records(dictlike)
+            except TypeError:
+                print('Unrecognized type in dictlike. Must be convertable to dataframe through pandas.DataFrame.from_records()')
 
+            if any([ID, numax, dnu, teff]):
+                warnings.warn('Dictlike provided as input, ignoring other inputs.')
+
+            # Check if required keywords are present
             dfkeys = ['ID', 'numax', 'dnu', 'teff', 'numax_error', 'dnu_error',
                       'teff_error']
-            dfkeychk = any(x not in dfkeys for x in dataframe.keys())
-            assert dfkeychk, 'Some of the required keywords were missing.'
-            
-            #if 'path' in dataframe.keys(): # try to read of ascii first
-            #else: # otherwise download from MAST
-                
+            dfkeychk = any(x not in dfkeys for x in df.keys())
+            if not dfkeychk:
+                raise(KeyError, 'Some of the required keywords were missing.')
+            ID = list(df['ID'])
+            numax = [[df['numax'][i], df['numax_error'][i]] for i in range(len(ID))]
+            dnu = [[df['dnu'][i], df['dnu_error'][i]] for i in range(len(ID))]
+            teff = [[df['teff'][i], df['teff_error'][i]] for i in range(len(ID))]
+
+            # if timeseries/psd columns exist, assume its a list of paths
+            if 'timeseries' in df.keys():
+                PS_list = get_psd(list(df['timeseries']), arr_type='TS')
+                source_list = df['timeseries']
+            elif 'psd' in df.keys():
+                PS_list = get_psd(list(df['psd']), arr_type='PS')
+                source_list = df['psd']
+            else:  # Else try to get data from Lightkurve
+                if not any(x in df.keys() for x in lk_kws):
+                    raise(KeyError, 'Must provide dataframe with observing season keywords and optionally cadence and/or month.')
+
+                for key in lk_kws:
+                    if key in df.keys():
+                        kwargs[key] = list(df[key])
+                    else:
+                        kwargs[key] = [None]*len(ID)
+                check_list_lengths(kwargs)
+
+                lc_list, source_list = download_lc(ID, kwargs)
+                PS_list = get_psd(lc_list, arr_type='TS')
 
         else:
             raise NotImplementedError("Magic not implemented, please give PBjam some input")
 
-        self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1], numax[i],
-                           dnu[i], teff[i]) for i in range(len(ID))]
+        self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1],
+                           numax[i], dnu[i], teff[i],
+                           source_list[i]) for i in range(len(ID))]
