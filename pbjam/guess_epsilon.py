@@ -24,7 +24,7 @@ class epsilon():
     data_file : string
         The location of the prior data file
     '''
-    def __init__(self, method='Vrard'):
+    def __init__(self, method='KDE', verbose=False):
         if method not in ('Vrard','KDE'):
             raise ValueError("The `method` parameter must be one of either"
                                 "`Vrard` or `KDE`")
@@ -33,20 +33,44 @@ class epsilon():
         self.vrard_dict = {'alpha': 0.601, 'beta': 0.632}
         self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
         self.obs = []
-        self.seff_offset = 4000.0
         self.samples = []
+        self.verbose = verbose
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
+        if self.verbose:
+            print('Reading in prior data')
         self.prior_data = pd.read_csv(self.data_file)
-        self.prior_data['Seff'] = self.prior_data.Teff \
-                                    - self.seff_offset
-        self.prior_data['log_Seff'] = np.log10(self.prior_data.Seff)
+        self.prior_data = self.prior_data.dropna()
+        self.prior_data['log_dnu'] = np.log10(self.prior_data.dnu)
+        self.prior_data['log_numax'] = np.log10(self.prior_data.numax)
+        self.prior_data['log_Teff'] = np.log10(self.prior_data.Teff)
 
-    def make_kde(self, bw=0.8):
-        ''' Takes the prior data and constructs a KDE function '''
-        self.cols = ['log_dnu_', 'log_numax', 'log_Seff', 'bp_rp', 'eps_mod']
-        self.kde = gaussian_kde(self.prior_data[self.cols].values.T, bw)
+    def make_kde(self):
+        ''' Takes the prior data and constructs a KDE function
+
+        Setting the bw correctly is very important.  Values of
+        [0.03, 0.03, 0,.03, 0.03, 0.3] do a pretty good job but are
+        certtainly too wide given the uncertainty in the data.  This results
+        in a prior that is smooth but too wide.  We can live with this here
+        as this just a first step in the PBjam method.
+
+        I have settled on using the values from a cross validated maximum
+        likelihood estimate.
+
+        '''
+        if self.verbose:
+            print('Building KDE')
+        self.cols = ['log_dnu', 'log_numax', 'log_Teff', 'bp_rp', 'eps']
+        import statsmodels.api as sm
+        # bw set using CV ML but times two.
+        bw = np.array([0.01419127, 0.02364931,
+                        0.00995797, 0.11237306,
+                        0.04371931])
+        self.kde = sm.nonparametric.KDEMultivariate(
+                            data=self.prior_data[self.cols].values,
+                            var_type='ccccc',
+                            bw=bw)
 
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood
@@ -74,7 +98,7 @@ class epsilon():
         Inputs
         ------
         p : array
-            Array of the parameters [log_dnu, log_numax, log_seff, bp_rp, eps]
+            Array of the parameters [log_dnu, log_numax, log_teff, bp_rp, eps]
 
         Returns
         -------
@@ -82,21 +106,19 @@ class epsilon():
             The log likelihood evaluated at p.
 
         '''
-        log_dnu, log_numax, log_seff, bp_rp, eps = p
-        if log_seff < np.log10(4100.0 - self.seff_offset):
-            return -np.inf
+        log_dnu, log_numax, log_teff, bp_rp, eps = p
         # Constraint from prior
-        lp = np.log(self.kde(p))
+        lp = np.log(self.kde.pdf(p))
         # Constraint from data
         ld = 0.0
         ld += self.normal(log_dnu, *self.log_obs['dnu'])
         ld += self.normal(log_numax, *self.log_obs['numax'])
-        ld += self.normal(log_seff, *self.log_obs['seff'])
+        ld += self.normal(log_teff, *self.log_obs['teff'])
         ld += self.normal(bp_rp, *self.log_obs['bp_rp'])
 
         return lp + ld
 
-    def kde_sampler(self, niter=2000, nwalkers=20):
+    def kde_sampler(self, niter=4000, nwalkers=20, burnin=2000):
         ''' Samples from the posterior probability distribution
 
         p(theta | D) propto p(theta) p(D | theta)
@@ -114,18 +136,18 @@ class epsilon():
             The emcee chain of samples from the posterior
 
         '''
+        if self.verbose:
+            print('Running KDE sampler')
         x0 = [self.log_obs['dnu'][0],
               self.log_obs['numax'][0],
-              self.log_obs['seff'][0],
+              self.log_obs['teff'][0],
               self.log_obs['bp_rp'][0],
               1.0]
         ndim = len(x0)
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
         sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
         sampler.run_mcmc(p0, niter)
-        sampler.reset()
-        sampler.run_mcmc(p0, niter)
-        return sampler.flatchain
+        return sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
     def to_log10(self, x, xerr):
         if xerr > 0:
@@ -136,8 +158,7 @@ class epsilon():
         self.log_obs = {'dnu': self.to_log10(*self.obs['dnu']),
                         'numax': self.to_log10(*self.obs['numax']),
                         'teff': self.to_log10(*self.obs['teff']),
-                        'seff': self.to_log10(*self.obs['seff']),
-                        'bprp': *self.obs['bprp']}
+                        'bp_rp': self.obs['bp_rp']}
 
     def vrard(self, dnu):
         ''' Calculates epsilon prediction from Vrard 2015
@@ -201,22 +222,13 @@ class epsilon():
         frequencies_mc = np.array([(nn + eps_mc) * dnu_mc for nn in n])
         return frequencies_mc.mean(axis=1), frequencies_mc.std(axis=1)
 
-    def plot(self, dnu, numax, teff, periodogram):
+    def plot(self, periodogram):
         '''
-        Make a plot of the suggested Vrard epsilon_guess, on top of a
+        Make a plot of the suggested Vrard \"\ ilon_guess, on top of a
         `lightkurve` periodogram object passed by the user.
 
         Parameters
         ----------
-
-        dnu: array-like
-            An array-like with [dnu, dnu_uncertainty]
-
-        numax: array-like
-            An array-like with [numax, numax_uncertainty]
-
-        teff:  array-like
-            An array-like with [teff, teff_uncertainty]
 
         periodogram: Periodogram
             A lightkurve Periodogram object for plotting.
@@ -231,7 +243,7 @@ class epsilon():
         if self.method == 'Vrard':
             freq, freq_unc = self.vrard_predict(self.n, dnu)
         elif self.method == 'KDE':
-            freq, freq_unc = self.kde_predict(self.n, dnu, numax, teff)
+            freq, freq_unc = self.kde_predict(self.n)
         for i in range(len(self.n)):
             ax.axvline(freq[i], c='k', linestyle='--', zorder=0, alpha=0.3)
             y = 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
@@ -241,21 +253,17 @@ class epsilon():
         ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, periodogram.power.value.max()])
 
-    def kde_predict(self, n, dnu=[1, -1], numax=[1, -1], teff=[1, -1]):
+    def kde_predict(self, n):
         '''
-        Predict the frequencies from the kde method samples
+        Predict the frequencies from the kde method samples.
+
+        The sampler must be run before calling the predict method.
 
         Parameters
         ----------
 
         n: numpy_array
             The radial order
-        dnu : [real, real]
-            Large frequency spacing and uncertainty
-        numax : [real, real]
-            Frequency of maximum power and uncertainty
-        teff : [real, real]
-            Stellar effective temperature and uncertainty
 
         Returns
         -------
@@ -267,21 +275,18 @@ class epsilon():
             uncertainties.
         '''
         if self.samples == []:
-            _, _ = self(dnu, numax, teff)
+            print('Need to run the sampler first')
+            return -1, -1
         dnu = self.samples[:, 0]
         eps = self.samples[:, 3]
         freq = np.array([(nn + eps) * 10**dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
+    def __call__(self,
+                dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1],
+                niter=4000, burnin=2000):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
-
-        Note: The call function creates a seff observable that is just
-        the (Teff - self.seff_offset).  The reason for this is to put
-        the Teff dynamic range into a more useful range that has
-        characteristics that are somewhat consistent with the dex
-        uncertainty of the rest of the observables.
 
         Inputs
         ------
@@ -307,13 +312,10 @@ class epsilon():
         self.obs = {'dnu': dnu,
                     'numax': numax,
                     'teff': teff,
-                    'seff': [teff[0] - self.seff_offset, teff[1]],
                     'bp_rp': bp_rp}
         if self.method == 'KDE':
-            if numax[0] > 288.0:
-                warnings.warn('Not yet implemented for SC stars')
             self.read_prior_data()
             self.obs_to_log(self.obs)
             self.make_kde()
-            self.samples = self.kde_sampler()
-            return [self.samples[:,3].mean(), self.samples[:,3].std()]
+            self.samples = self.kde_sampler(niter=niter, burnin=burnin)
+            return [self.samples[:,4].mean(), self.samples[:,4].std()]
