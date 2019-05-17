@@ -29,6 +29,7 @@ import numpy as np
 import astropy.units as units
 import pandas as pd
 import warnings
+import matplotlib.pyplot as plt
 
 
 def enforce_list(X):
@@ -119,14 +120,17 @@ def get_psd(arr, arr_type):
     make_lk_pg = lk.periodogram.Periodogram
 
     PS_list = []
+    
+    tinyoffset = 1e-20 # to avoid cases LC median = 0 (lk doesn't like it)
+    
     for i, A in enumerate(arr):
         if arr_type == 'TS':
             if type(A) == str:
                 inpt = np.genfromtxt(A, usecols=(0, 1))
-                lk_lc = make_lk(time=inpt[:, 0], flux=inpt[:, 1])
+                lk_lc = make_lk(time=inpt[:, 0], flux=inpt[:, 1]+tinyoffset)
             elif type(A) == tuple:
                 assert len(A) >= 2, 'Tuple must be of length >=2 '
-                lk_lc = make_lk(time=A[0], flux=A[1])
+                lk_lc = make_lk(time=A[0], flux=A[1]+tinyoffset)
             elif A.__module__ == lk.lightcurve.__name__:
                 lk_lc = A
             else:
@@ -180,13 +184,15 @@ class star():
         used. 
     """
 
-    def __init__(self, ID, f, s, numax, dnu, teff, source = None):
+    def __init__(self, ID, f, s, numax, dnu, 
+                 bp_rp = None, teff = None, source = None):
         self.ID = ID
         self.f = f
         self.s = s
         self.numax = numax
         self.dnu = dnu
         self.teff = teff
+        self.bp_rp = bp_rp
         self.epsilon = None
         self.asy_modeID = {}
         self.asy_model = None
@@ -226,6 +232,33 @@ class star():
         self.asy_modeID = fit.asy_modeID
         self.asy_model = fit.asy_model
         self.asy_bestfit = fit.asy_bestfit
+        
+        
+    def plot_asyfit(self, model=None, ax=None, modeID=None):
+        # Plot resulting spectrum model
+        if not model:
+            model = self.asy_model
+        mod_f, mod_s = model        
+        if not modeID:
+            modeID = self.asy_modeID        
+        if not ax:
+            fig, ax = plt.subplots()
+        
+        ax.set_xlim(min(mod_f), max(mod_f))
+        #ax.set_ylim(0, 10)
+        ax.plot(self.f, self.s, lw = 0.5, label = 'Spectrum')
+        ax.plot(mod_f, mod_s, label = 'Model', lw = 4)
+        ax.set_xlabel('Frequency [$\mu$Hz]')
+        ax.set_ylabel('SNR')
+        linestyles = ['-','--','-.','.']
+        labels = ['$l=0$','$l=1$','$l=2$','$l=3$']
+        for i in range(len(modeID)):
+            ax.axvline(modeID['nu_mu'][i], color = 'C3', 
+                       ls = linestyles[modeID['ell'][i]])
+        for i in np.unique(modeID['ell']):
+            ax.plot([-100,-101],[-100,-101],ls = linestyles[i], label = labels[i])
+        ax.axvline(self.numax[0], color = 'k', label = r'$\nu_{\mathrm{max}}$')
+        ax.legend()
 
 
 class session():

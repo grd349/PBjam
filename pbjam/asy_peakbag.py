@@ -191,8 +191,7 @@ class asymp_spec_model():
         return pair_model
 
     def model(self, numax, dnu, eps, alpha, d02,
-                    hmax, envwidth, modewidth,
-                    Teff, bp_rp):
+                    hmax, envwidth, modewidth):
         """ Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
@@ -483,7 +482,9 @@ class Prior(pb.epsilon):
         ???
     """
 
-    def __init__(self, bounds, gaussian, verbose=False):
+    def __init__(self, Teff, bp_rp, bounds, gaussian, verbose=False):
+        self.Teff = Teff
+        self.bp_rp = bp_rp
         self.bounds = bounds
         self.gaussian = gaussian
         self.verbose = verbose
@@ -545,6 +546,8 @@ class Prior(pb.epsilon):
         ----------
         p : array
             Array of model parameters
+        Teff: float
+        bp_rp: float   
 
         Returns
         -------
@@ -557,7 +560,8 @@ class Prior(pb.epsilon):
 
         # Evaluate the prior, defined by a KDE
         # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
-        lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), p[9], p[3]])
+        lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(self.Teff), 
+                           self.bp_rp, p[3]])
         return lp
 
 
@@ -595,14 +599,14 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, s, model, x0, bounds):
+    def __init__(self, f, s, Teff, bp_rp, model, x0, bounds):
         self.f = f
         self.s = s
         self.model = model
         self.x0 = x0
         self.bounds = bounds
         self.ndim = len(x0)
-        self.lp = Prior(bounds, [(0, 0) for n in range(self.ndim)])
+        self.lp = Prior(Teff, bp_rp, bounds, [(0, 0) for n in range(self.ndim)])
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
