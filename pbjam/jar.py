@@ -32,12 +32,21 @@ import warnings
 import matplotlib.pyplot as plt
 
 
-def enforce_list(X):
+def multiplier(x, N):
+    if not x[0]:
+        return [None]*N
+    else:
+        return x
+
+def enforce_list(*X):
     # Check that all elements of X are lists, and if not, make them so
+    Y = []
     for i, x in enumerate(X):
         if not isinstance(x, (list, np.ndarray, tuple)):
-            X[i] = [x]
-    return X
+            Y.append([x])
+        else:
+            Y.append(x)
+    return Y
 
 def check_list_lengths(X):
     lens = []
@@ -122,7 +131,6 @@ def get_psd(arr, arr_type):
     PS_list = []
     
     tinyoffset = 1e-20 # to avoid cases LC median = 0 (lk doesn't like it)
-    
     for i, A in enumerate(arr):
         if arr_type == 'TS':
             if type(A) == str:
@@ -155,7 +163,6 @@ def get_psd(arr, arr_type):
         PS_list.append((np.array(lk_p.frequency), np.array(lk_p.power)))
     return PS_list
 
-
 class star():
     """ Class for each star to be peakbagged
 
@@ -184,8 +191,8 @@ class star():
         used. 
     """
 
-    def __init__(self, ID, f, s, numax, dnu, 
-                 bp_rp = None, teff = None, source = None):
+    def __init__(self, ID, f, s, numax, dnu, teff = None, bp_rp = None,
+                 epsilon = None, source = None):
         self.ID = ID
         self.f = f
         self.s = s
@@ -193,39 +200,38 @@ class star():
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
-        self.epsilon = None
+        self.epsilon = epsilon
         self.asy_modeID = {}
         self.asy_model = None
         self.asy_bestfit = {}
         self.source = source
 
-    def asymptotic_modeid(self, d02=None, alpha=None, seff=None,
-                          mode_width=None, env_width=None, env_height=None,
-                          norders=5):
+    def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None, 
+                          env_width=None, env_height=None, norders=5):
         """ Called to perform mode ID using the asymptotic method
 
         Parameters
         ----------
-    d02 : float, optional
-        Initial guess for the small frequency separation (in muHz) between
-        l=0 and l=2.
-    alpha : float, optional
-        Initial guess for the scale of the second order frequency term in the
-        asymptotic relation
-    seff : float, optional
-        Normalized Teff
-    mode_width : float, optional
-        Initial guess for the mode width (in log10!) for all the modes that are
-        fit.
-    env_width : float, optional
-        Initial guess for the p-mode envelope width (muHz)
-    env_height : float, optional
-        Initial guess for the p-mode envelope height
-    norders : int, optional
-        Number of radial orders to fit
+        d02 : float, optional
+            Initial guess for the small frequency separation (in muHz) between
+            l=0 and l=2.
+        alpha : float, optional
+            Initial guess for the scale of the second order frequency term in the
+            asymptotic relation
+        seff : float, optional
+            Normalized Teff
+        mode_width : float, optional
+            Initial guess for the mode width (in log10!) for all the modes that are
+            fit.
+        env_width : float, optional
+            Initial guess for the p-mode envelope width (muHz)
+        env_height : float, optional
+            Initial guess for the p-mode envelope height
+        norders : int, optional
+            Number of radial orders to fit
         """
 
-        fit = asymptotic_fit(self, d02, alpha, seff, mode_width, env_width,
+        fit = asymptotic_fit(self, d02, alpha, mode_width, env_width, 
                              env_height)
         fit.run(norders)
 
@@ -242,11 +248,12 @@ class star():
         if not modeID:
             modeID = self.asy_modeID        
         if not ax:
-            fig, ax = plt.subplots()
+            fig, ax = plt.subplots(figsize = (16,9))
         
         ax.set_xlim(min(mod_f), max(mod_f))
-        #ax.set_ylim(0, 10)
-        ax.plot(self.f, self.s, lw = 0.5, label = 'Spectrum')
+        idx = (mod_f[0] < self.f) & (self.f < mod_f[-1])
+        ax.set_ylim(0, max(self.s[idx]) * 1.1)
+        ax.plot(self.f[idx], self.s[idx], lw = 0.5, label = 'Spectrum')
         ax.plot(mod_f, mod_s, label = 'Model', lw = 4)
         ax.set_xlabel('Frequency [$\mu$Hz]')
         ax.set_ylabel('SNR')
@@ -254,13 +261,16 @@ class star():
         labels = ['$l=0$','$l=1$','$l=2$','$l=3$']
         for i in range(len(modeID)):
             ax.axvline(modeID['nu_mu'][i], color = 'C3', 
-                       ls = linestyles[modeID['ell'][i]])
+                       ls = linestyles[modeID['ell'][i]], alpha = 0.5)
         for i in np.unique(modeID['ell']):
-            ax.plot([-100,-101],[-100,-101],ls = linestyles[i], label = labels[i])
-        ax.axvline(self.numax[0], color = 'k', label = r'$\nu_{\mathrm{max}}$')
+            ax.plot([-100,-101],[-100,-101], ls = linestyles[i], color = 'C3',
+                    label = labels[i])
+        ax.axvline(self.numax[0], color = 'k', label = r'$\nu_{\mathrm{max}}$',alpha = 0.5)
         ax.legend()
+        
+        return fig, ax
 
-
+    
 class session():
     """ Main class used to initiate peakbagging.
 
@@ -300,40 +310,48 @@ class session():
     seasons.
     """
 
-    def __init__(self, ID=None, numax=None, dnu=None, teff=None,
-                 timeseries=None, psd=None, dictlike=None, kwargs={}):
+    def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
+                 epsilon=None, timeseries=None, psd=None, dictlike=None, 
+                 kwargs={}):
 
-        listchk = all([ID, numax, dnu, teff])
+        listchk = all([ID, numax, dnu])
 
         lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
 
         # Given ID will use LK to download
-        if listchk and not timeseries and not psd:
-            ID, numax, dnu, teff = enforce_list([ID, numax, dnu, teff])
-            check_list_lengths([ID, numax, dnu, teff])
-            for key in lk_kws:
-                if key not in kwargs:
-                    kwargs[key] = [None]*len(ID)
-                kwargs[key] = enforce_list([kwargs[key]])[0] 
-            check_list_lengths(kwargs)
-            lc_list, source_list = download_lc(ID, kwargs)
-            PS_list = get_psd(lc_list, arr_type='TS')
+        if listchk:
+            ID, numax, dnu, teff, bp_rp, epsilon = enforce_list(ID, numax, dnu,
+                                                                teff, bp_rp,
+                                                                epsilon)
+            
+            teff = multiplier(teff, len(ID))
+            bp_rp = multiplier(bp_rp, len(ID))
+            epsilon = multiplier(epsilon, len(ID))
+
+            check_list_lengths([ID, numax, dnu, teff, bp_rp, epsilon])
+    
+            if not timeseries and not psd:    
+                for key in lk_kws:
+                    if key not in kwargs:
+                        kwargs[key] = [None]*len(ID)
+                    kwargs[key] = enforce_list(kwargs[key])[0] 
+                check_list_lengths(kwargs)
+                lc_list, source_list = download_lc(ID, kwargs)
+                PS_list = get_psd(lc_list, arr_type='TS')
 
         # Given time series as lk object, tuple or path
-        elif listchk and timeseries:
-            ID, numax, dnu, teff, timeseries = enforce_list([ID, numax, dnu,
-                                                        teff, timeseries])
-            check_list_lengths([ID, numax, dnu, teff, timeseries])
-            PS_list = get_psd(timeseries, arr_type='TS')
-            source_list = [x if type(x) == str else None for x in timeseries]
+            elif timeseries:
+                timeseries = enforce_list(timeseries)[0]
+                check_list_lengths([timeseries])
+                PS_list = get_psd(timeseries, arr_type='TS')
+                source_list = [x if type(x) == str else None for x in timeseries]
 
         # Given power spectrum as lk object, tuple or path
-        elif listchk and psd:
-            ID, numax, dnu, teff, timeseries = enforce_list([ID, numax, dnu,
-                                                        teff, timeseries])
-            check_list_lengths([ID, numax, dnu, teff, timeseries])           
-            PS_list = get_psd(psd, arr_type='PS')
-            source_list = [x if type(x) == str else None for x in psd]
+            elif psd:
+                psd = enforce_list(psd)[0]
+                check_list_lengths([psd])           
+                PS_list = get_psd(psd, arr_type='PS')
+                source_list = [x if type(x) == str else None for x in psd]
             
         # Given dataframe or dictionary
         elif isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
@@ -342,19 +360,29 @@ class session():
             except TypeError:
                 print('Unrecognized type in dictlike. Must be convertable to dataframe through pandas.DataFrame.from_records()')
 
-            if any([ID, numax, dnu, teff]):
+            if any([ID, numax, dnu, teff, bp_rp]):
                 warnings.warn('Dictlike provided as input, ignoring other inputs.')
 
             # Check if required keywords are present
-            dfkeys = ['ID', 'numax', 'dnu', 'teff', 'numax_error', 'dnu_error',
-                      'teff_error']
+            dfkeys = ['ID', 'numax', 'dnu', 'numax_error', 'dnu_error']
             dfkeychk = any(x not in dfkeys for x in df.keys())
             if not dfkeychk:
                 raise(KeyError, 'Some of the required keywords were missing.')
+                
             ID = list(df['ID'])
             numax = [[df['numax'][i], df['numax_error'][i]] for i in range(len(ID))]
             dnu = [[df['dnu'][i], df['dnu_error'][i]] for i in range(len(ID))]
-            teff = [[df['teff'][i], df['teff_error'][i]] for i in range(len(ID))]
+            
+            if ('teff' in df.keys) and ('teff_error' in df.keys):
+                teff = [[df['teff'][i], df['teff_error'][i]] for i in range(len(ID))]
+            else:
+                teff = [None for i in range(len(ID))]
+
+            if ('bp_rp' in df.keys): # No provided errors on bp_rp
+                bp_rp = [[df['bp_rp'][i]] for i in range(len(ID))]
+            else:
+                bp_rp = [None for i in range(len(ID))]
+
 
             # if timeseries/psd columns exist, assume its a list of paths
             if 'timeseries' in df.keys():
@@ -379,7 +407,8 @@ class session():
 
         else:
             raise NotImplementedError("Magic not implemented, please give PBjam some input")
-
-        self.stars = [star(ID[i], PS_list[i][0], PS_list[i][1],
-                           numax[i], dnu[i], teff[i],
-                           source_list[i]) for i in range(len(ID))]
+            
+        self.stars = [star(ID=ID[i], f=PS_list[i][0], s=PS_list[i][1],
+                           numax=numax[i], dnu=dnu[i], teff=teff[i],
+                           bp_rp=bp_rp[i], epsilon=epsilon[i],
+                           source=source_list[i]) for i in range(len(ID))]
