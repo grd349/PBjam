@@ -7,8 +7,10 @@ are ignored.
 
 import numpy as np
 import pbjam as pb
-import os
+import os, sys
+import corner
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from . import PACKAGEDIR
 
@@ -191,8 +193,7 @@ class asymp_spec_model():
         return pair_model
 
     def model(self, numax, dnu, eps, alpha, d02,
-                    hmax, envwidth, modewidth,
-                    Teff, bp_rp):
+                    hmax, envwidth, modewidth):
         """ Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
@@ -312,8 +313,8 @@ class asymptotic_fit():
         that contains the requested number of radial orders.
     """
 
-    def __init__(self, star, d02=None, alpha=None, seff=None, mode_width=None,
-                 env_width=None, env_height=None, verbose=False):
+    def __init__(self, star, d02, alpha, mode_width, env_width, env_height,
+                 verbose=False):
         self.f = star.f
         self.s = star.s
         self.numax = star.numax
@@ -347,6 +348,12 @@ class asymptotic_fit():
             relation fit.
         """
 
+        if not self.teff:
+            self.teff = [4931, 4931] # TODO - hardcode, bad!
+        
+        if not self.bp_rp:
+            self.bp_rp = [1.26, 1.26] # TODO - hardcode, bad!
+    
         if not self.epsilon:
             ge_vrard = pb.epsilon()
             self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
@@ -372,11 +379,12 @@ class asymptotic_fit():
 
         pars = [self.numax[0], self.dnu[0], self.epsilon[0], self.alpha,
                 self.d02, self.env_height, self.env_width, self.mode_width,
-                self.teff, self.bp_rp]
+                self.teff[0], self.bp_rp[0]]
 
         parsnames = ['numax', 'large separation', 'epsilon', 'alpha', 'd02',
                      'p-mode envelope height', 'p-mode envelope width',
                      'mode width (log10)', 'Teff', 'bp_rp']
+        
         if verbose or self.verbose:
             for i in range(len(pars)):
                 print('%s: %f' % (parsnames[i], pars[i]))
@@ -396,7 +404,7 @@ class asymptotic_fit():
             Pandas dataframe of the radial order, angular degree and mode
             frequency and error for the modes fit in the asymptotic relation.
         """
-
+        
         x0 = self.parse_asy_pars()
 
         # select range around numax to fit
@@ -405,6 +413,7 @@ class asymptotic_fit():
         model = asymp_spec_model(self.f[sel], N)
 
         nsig = 5
+        
         bounds = [[self.numax[0]-nsig*self.numax[1], self.numax[0]+nsig*self.numax[1]],  # numax
                   [self.dnu[0]-nsig*self.dnu[1], self.dnu[0]+nsig*self.dnu[1]],  # Dnu
                   [self.epsilon[0]-nsig*self.epsilon[1], self.epsilon[0]+nsig*self.epsilon[1]],  # eps
@@ -413,17 +422,33 @@ class asymptotic_fit():
                   [self.env_height*0.5, self.env_height*1.5],  # hmax
                   [self.env_width*0.9, self.env_width*1.1],  # Ewidth
                   [-2, 1.0],  # mode width (log10)
-                  [2000.0, 7200.0], # Teff
-                  [-1, 2]]  # Gaia bp-rp
+                  [0, self.teff[0] + nsig*self.teff[1]], # Teff
+                  [self.bp_rp[0] - nsig*self.bp_rp[1], self.bp_rp[0] + nsig*self.bp_rp[1]] # Gaia bp-rp
+                  ]  
 
-        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds)
+        gaussian = [(0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (self.teff[0], self.teff[1]),
+                    (self.bp_rp[0], self.bp_rp[1]),
+                    ]
+
+        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian)
 
         self.flatchain = fit()  # do the fit with default settings
+        
 
-        #self.fit_pars = np.median(self.flatchain, axis=0)
+        
         self.fit_pars = np.percentile(self.flatchain, [16, 50, 84], axis=0)
 
-        self.asy_model = (model.f, model.model(*self.fit_pars[1,:-1]))
+        
+
+        self.asy_model = (model.f, model.model(*self.fit_pars[1,:-2]))
 
         # Get mode ID and frequency list
         # TODO - is there a better/neater way to do this?
@@ -446,11 +471,12 @@ class asymptotic_fit():
             nus_std_out += [nus_std[1, i], nus_std[0, i]]
 
         self.asy_modeID = pd.DataFrame({'ell': ells,
-                                     'nu_mu': nus_mu_out,
-                                     'nu_std': nus_std_out})
+                                        'nu_mu': nus_mu_out,
+                                        'nu_std': nus_std_out})
 
-        for j,key in enumerate(['numax','dnu','eps','alpha','d02','env_height',
-                                'env_width','mode_width','Teff','bp_rp']):
+        var_names = ['numax','dnu','eps','alpha','d02','env_height', 
+                     'env_width','mode_width','teff','bp_rp']
+        for j,key in enumerate(var_names):
             self.asy_bestfit[key] = self.fit_pars[:,j]
 
         return self.asy_modeID
@@ -464,7 +490,7 @@ class Prior(pb.epsilon):
     bounds : array
         Boundary values for model parameters, beyond which the likelihood
         is -inf
-    gaussian : ??
+    gaussian : ???
     data_file : str
         File containing stellar parameters for make the prior KDE
     seff_offset : int
@@ -526,13 +552,14 @@ class Prior(pb.epsilon):
         Returns
         -------
         lnprior : float
-            ???
+            Sum of Guassian priors evaluted at respective values of p
         """
 
         lnprior = 0.0
-        for idx, i in enumerate(p):
+        for idx, x in enumerate(p):
             if self.gaussian[idx][1] != 0:
-                lnprior += -0.5 * (i - self.gaussian[idx][0])**2 / self.gaussian[idx][1]**2
+                lnprior += -0.5*(np.log(2*np.pi*self.gaussian[idx][1]**2) + 
+                                 (x - self.gaussian[idx][0])**2 / self.gaussian[idx][1]**2)
         return lnprior
 
     def __call__(self, p):
@@ -545,6 +572,8 @@ class Prior(pb.epsilon):
         ----------
         p : array
             Array of model parameters
+        Teff: float
+        bp_rp: float   
 
         Returns
         -------
@@ -557,7 +586,11 @@ class Prior(pb.epsilon):
 
         # Evaluate the prior, defined by a KDE
         # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
-        lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), p[9], p[3]])
+        lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), 
+                           p[9], p[3]])
+    
+        lp += self.pgaussian(p)
+    
         return lp
 
 
@@ -595,14 +628,15 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, s, model, x0, bounds):
+    def __init__(self, f, s, model, x0, bounds, gaussian):
         self.f = f
         self.s = s
         self.model = model
         self.x0 = x0
         self.bounds = bounds
         self.ndim = len(x0)
-        self.lp = Prior(bounds, [(0, 0) for n in range(self.ndim)])
+        self.gaussian = gaussian
+        self.lp = Prior(self.bounds, self.gaussian)
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -623,7 +657,10 @@ class mcmc():
         logp = self.lp(p)
         if logp == -np.inf:
             return -np.inf
-        mod = self.model(p)
+        
+        model_pars = p[:-2] # -2 and -1 are Teff and bp_rp hyperparameters
+        
+        mod = self.model(model_pars)
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
@@ -655,7 +692,7 @@ class mcmc():
         self.burnin = burnin
 
         import emcee
-
+        
         # Start walkers in a tight random ball
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0],
                                               self.x0[i]*(1-spread)),
