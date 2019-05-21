@@ -7,8 +7,10 @@ are ignored.
 
 import numpy as np
 import pbjam as pb
-import os
+import os, sys
+import corner
 import pandas as pd
+import matplotlib.pyplot as plt
 
 from . import PACKAGEDIR
 
@@ -420,15 +422,31 @@ class asymptotic_fit():
                   [self.env_height*0.5, self.env_height*1.5],  # hmax
                   [self.env_width*0.9, self.env_width*1.1],  # Ewidth
                   [-2, 1.0],  # mode width (log10)
-                  [self.teff[0] - self.teff[1], self.teff[0] + self.teff[1]], # Teff
-                  [self.bp_rp[0] - self.bp_rp[1], self.bp_rp[0] + self.bp_rp[1]] # Gaia bp-rp
+                  [0, self.teff[0] + nsig*self.teff[1]], # Teff
+                  [self.bp_rp[0] - nsig*self.bp_rp[1], self.bp_rp[0] + nsig*self.bp_rp[1]] # Gaia bp-rp
                   ]  
 
-        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds)
+        gaussian = [(0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (0,0),
+                    (self.teff[0], self.teff[1]),
+                    (self.bp_rp[0], self.bp_rp[1]),
+                    ]
+
+        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian)
 
         self.flatchain = fit()  # do the fit with default settings
+        
 
+        
         self.fit_pars = np.percentile(self.flatchain, [16, 50, 84], axis=0)
+
+        
 
         self.asy_model = (model.f, model.model(*self.fit_pars[1,:-2]))
 
@@ -456,8 +474,9 @@ class asymptotic_fit():
                                         'nu_mu': nus_mu_out,
                                         'nu_std': nus_std_out})
 
-        for j,key in enumerate(['numax','dnu','eps','alpha','d02','env_height',
-                                'env_width','mode_width','teff','bp_rp']):
+        var_names = ['numax','dnu','eps','alpha','d02','env_height', 
+                     'env_width','mode_width','teff','bp_rp']
+        for j,key in enumerate(var_names):
             self.asy_bestfit[key] = self.fit_pars[:,j]
 
         return self.asy_modeID
@@ -471,7 +490,7 @@ class Prior(pb.epsilon):
     bounds : array
         Boundary values for model parameters, beyond which the likelihood
         is -inf
-    gaussian : ??
+    gaussian : ???
     data_file : str
         File containing stellar parameters for make the prior KDE
     seff_offset : int
@@ -533,13 +552,14 @@ class Prior(pb.epsilon):
         Returns
         -------
         lnprior : float
-            ???
+            Sum of Guassian priors evaluted at respective values of p
         """
 
         lnprior = 0.0
-        for idx, i in enumerate(p):
+        for idx, x in enumerate(p):
             if self.gaussian[idx][1] != 0:
-                lnprior += -0.5 * (i - self.gaussian[idx][0])**2 / self.gaussian[idx][1]**2
+                lnprior += -0.5*(np.log(2*np.pi*self.gaussian[idx][1]**2) + 
+                                 (x - self.gaussian[idx][0])**2 / self.gaussian[idx][1]**2)
         return lnprior
 
     def __call__(self, p):
@@ -568,6 +588,9 @@ class Prior(pb.epsilon):
         # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
         lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), 
                            p[9], p[3]])
+    
+        lp += self.pgaussian(p)
+    
         return lp
 
 
@@ -605,14 +628,15 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, s, model, x0, bounds):
+    def __init__(self, f, s, model, x0, bounds, gaussian):
         self.f = f
         self.s = s
         self.model = model
         self.x0 = x0
         self.bounds = bounds
         self.ndim = len(x0)
-        self.lp = Prior(bounds, [(0, 0) for n in range(self.ndim)])
+        self.gaussian = gaussian
+        self.lp = Prior(self.bounds, self.gaussian)
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
