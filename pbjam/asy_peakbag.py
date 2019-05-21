@@ -402,9 +402,6 @@ class asymptotic_fit():
             Pandas dataframe of the radial order, angular degree and mode
             frequency and error for the modes fit in the asymptotic relation.
         """
-        print(self.epsilon)
-        print(self.teff)
-        print(self.bp_rp)
         
         x0 = self.parse_asy_pars()
 
@@ -460,7 +457,7 @@ class asymptotic_fit():
                                         'nu_std': nus_std_out})
 
         for j,key in enumerate(['numax','dnu','eps','alpha','d02','env_height',
-                                'env_width','mode_width','Teff','bp_rp']):
+                                'env_width','mode_width','teff','bp_rp']):
             self.asy_bestfit[key] = self.fit_pars[:,j]
 
         return self.asy_modeID
