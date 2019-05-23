@@ -326,7 +326,9 @@ class session():
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  epsilon=None, timeseries=None, psd=None, dictlike=None, 
                  kwargs={}):
-
+        
+        lkwargs = kwargs.copy() # prevents memory leak between sessions
+        
         listchk = all([ID, numax, dnu])
 
         lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
@@ -345,11 +347,11 @@ class session():
     
             if not timeseries and not psd:    
                 for key in lk_kws:
-                    if key not in kwargs:
-                        kwargs[key] = [None]*len(ID)
-                    kwargs[key] = enforce_list(kwargs[key])[0] 
-                check_list_lengths(kwargs)
-                lc_list, source_list = download_lc(ID, kwargs)
+                    if key not in lkwargs:
+                        lkwargs[key] = [None]*len(ID)
+                    lkwargs[key] = enforce_list(lkwargs[key])[0]
+                check_list_lengths(lkwargs)
+                lc_list, source_list = download_lc(ID, lkwargs)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
         # Given time series as lk object, tuple or path
