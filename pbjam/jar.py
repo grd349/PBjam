@@ -88,19 +88,26 @@ def download_lc(ID, lkargs):
     source_list : list
         List of fitsfile names for each target
     """
-
+    def clean_lc(lc):
+        lc = lc.remove_nans().normalize().flatten().remove_outliers()
+        lc.flux = (lc.flux-1)*1e6
+        return lc 
+    
     lc_list = []
     source_list = []
-    for i, id in enumerate(ID):
+    
+    for i, id in enumerate(ID):        
         tgt = lk.search_lightcurvefile(target=id,
                                        quarter=lkargs['quarter'][i],
                                        campaign=lkargs['campaign'][i],
                                        sector=lkargs['sector'][i],
                                        month=lkargs['month'][i],
                                        cadence=lkargs['cadence'][i])
-        lc = tgt.download().PDCSAP_FLUX
-        lc = lc.remove_nans().normalize().flatten().remove_outliers()
-        lc_list.append(lc)
+        lc_col = tgt.download_all()
+        lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
+        for i,lc in enumerate(lc_col[1:]):
+            lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
+        lc_list.append(lc0)
         source_list.append(tgt.table['productFilename'][0])
     return lc_list, source_list
 
@@ -137,7 +144,7 @@ def get_psd(arr, arr_type):
                 inpt = np.genfromtxt(A, usecols=(0, 1))
                 lk_lc = make_lk(time=inpt[:, 0], flux=inpt[:, 1]+tinyoffset)
             elif type(A) == tuple:
-                assert len(A) >= 2, 'Tuple must be of length >=2 '
+                assert len(A) >= 2, 'Time series tuple must be of length >=2 '
                 lk_lc = make_lk(time=A[0], flux=A[1]+tinyoffset)
             elif A.__module__ == lk.lightcurve.__name__:
                 lk_lc = A
@@ -152,7 +159,7 @@ def get_psd(arr, arr_type):
                 lk_p = make_lk_pg(inpt[:, 0]*units.microhertz,
                                   units.Quantity(inpt[:, 1], None))
             elif type(A) == tuple:
-                assert len(A) >= 2, 'Tuple must be of length >=2 '
+                assert len(A) >= 2, 'Spectrum tuple must be of length >=2 '
                 lk_p = make_lk_pg(A[0]*units.microhertz,
                                   units.Quantity(A[1], None))
             elif A.__module__ == lk.periodogram.__name__:
@@ -238,7 +245,13 @@ class star():
         self.asy_modeID = fit.asy_modeID
         self.asy_model = fit.asy_model
         self.asy_bestfit = fit.asy_bestfit
-        
+#    
+#    def corner_asyfit(self,):
+#        import corner
+#        
+#        sparser = np.shape(self.)
+#
+#        fig = corner.corner()
         
     def plot_asyfit(self, model=None, ax=None, modeID=None):
         # Plot resulting spectrum model
