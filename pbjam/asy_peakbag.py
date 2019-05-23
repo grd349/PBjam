@@ -442,11 +442,7 @@ class asymptotic_fit():
 
         self.flatchain = fit()  # do the fit with default settings
         
-
-        
         self.fit_pars = np.percentile(self.flatchain, [16, 50, 84], axis=0)
-
-        
 
         self.asy_model = (model.f, model.model(*self.fit_pars[1,:-2]))
 
