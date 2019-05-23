@@ -338,7 +338,6 @@ class session():
             ID, numax, dnu, teff, bp_rp, epsilon = enforce_list(ID, numax, dnu,
                                                                 teff, bp_rp,
                                                                 epsilon)
-            
             teff = multiplier(teff, len(ID))
             bp_rp = multiplier(bp_rp, len(ID))
             epsilon = multiplier(epsilon, len(ID))
@@ -351,6 +350,7 @@ class session():
                         lkwargs[key] = [None]*len(ID)
                     lkwargs[key] = enforce_list(lkwargs[key])[0]
                 check_list_lengths(lkwargs)
+                
                 lc_list, source_list = download_lc(ID, lkwargs)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
@@ -422,8 +422,13 @@ class session():
 
         else:
             raise NotImplementedError("Magic not implemented, please give PBjam some input")
-            
+        
         self.stars = [star(ID=ID[i], f=PS_list[i][0], s=PS_list[i][1],
                            numax=numax[i], dnu=dnu[i], teff=teff[i],
                            bp_rp=bp_rp[i], epsilon=epsilon[i],
                            source=source_list[i]) for i in range(len(ID))]
+        
+        for i, star in enumerate(self.stars):
+            if star.numax > star.f[-1]:
+                warnings.warn("Numax is greater than Nyquist frequeny for this data set")    
+        
