@@ -582,8 +582,8 @@ class Prior(pb.epsilon):
 
         # Evaluate the prior, defined by a KDE
         # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
-        lp = self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), 
-                           p[9], p[3]])
+        lp = np.log(self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]), 
+                           p[9], p[3]]))
     
         lp += self.pgaussian(p)
     
