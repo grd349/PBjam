@@ -214,7 +214,8 @@ class star():
         self.source = source
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None, 
-                          env_width=None, env_height=None, norders=5):
+                          env_width=None, env_height=None, norders=5, 
+                          flatchains = True, corner = False):
         """ Called to perform mode ID using the asymptotic method
 
         Parameters
@@ -245,13 +246,11 @@ class star():
         self.asy_modeID = fit.asy_modeID
         self.asy_model = fit.asy_model
         self.asy_bestfit = fit.asy_bestfit
-#    
-#    def corner_asyfit(self,):
-#        import corner
-#        
-#        sparser = np.shape(self.)
-#
-#        fig = corner.corner()
+        
+        if flatchains:
+            self.asy_flatchains = fit.flatchains
+        if corner:
+            self.corner_asyfit(fit.flatchains, labels)
         
     def plot_asyfit(self, model=None, ax=None, modeID=None):
         # Plot resulting spectrum model
