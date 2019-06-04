@@ -285,7 +285,7 @@ class star():
                             ls=linestyles[modeID['ell'][i]], alpha=0.5)
         for i in np.unique(modeID['ell']):
             ax_main.plot([-100, -101], [-100, -101],  # for the labels
-                         ls=linestyles[i], colo='C3', label=labels[i])
+                         ls=linestyles[i], color='C3', label=labels[i])
         ax_main.axvline(self.numax[0], color='k', alpha=0.75, lw=3,
                         label=r'$\nu_{\mathrm{max}}$')
         ax_main.set_ylim(0, min([max(mod_s) * 10, max(self.s)]))
