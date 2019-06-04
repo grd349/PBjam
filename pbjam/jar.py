@@ -32,11 +32,13 @@ import warnings
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 
+
 def multiplier(x, N):
     if not x[0]:
         return [None]*N
     else:
         return x
+
 
 def enforce_list(*X):
     # Check that all elements of X are lists, and if not, make them so
@@ -48,17 +50,19 @@ def enforce_list(*X):
             Y.append(x)
     return Y
 
+
 def check_list_lengths(X):
     lens = []
     if type(X) == dict:
         for key in X.keys():
             lens.append(len(X[key]))
-    elif type(X) == list:        
+    elif type(X) == list:
         for i, x in enumerate(X):
-            lens.append(len(X[i]))    
+            lens.append(len(X[i]))
     # Check that all elements of X are the same length
     assert lens[1:] == lens[:-1], "Provided inputs must be same length"
-    
+
+
 def download_lc(ID, lkargs):
     """ Use Lightkurve to get snr
 
@@ -91,12 +95,12 @@ def download_lc(ID, lkargs):
     def clean_lc(lc):
         lc = lc.remove_nans().normalize().flatten().remove_outliers()
         lc.flux = (lc.flux-1)*1e6
-        return lc 
-    
+        return lc
+
     lc_list = []
     source_list = []
-    
-    for i, id in enumerate(ID):        
+
+    for i, id in enumerate(ID):
         tgt = lk.search_lightcurvefile(target=id,
                                        quarter=lkargs['quarter'][i],
                                        campaign=lkargs['campaign'][i],
@@ -105,7 +109,7 @@ def download_lc(ID, lkargs):
                                        cadence=lkargs['cadence'][i])
         lc_col = tgt.download_all()
         lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
-        for i,lc in enumerate(lc_col[1:]):
+        for i, lc in enumerate(lc_col[1:]):
             lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
         lc_list.append(lc0)
         source_list.append(tgt.table['productFilename'][0])
@@ -136,8 +140,8 @@ def get_psd(arr, arr_type):
     make_lk_pg = lk.periodogram.Periodogram
 
     PS_list = []
-    
-    tinyoffset = 1e-20 # to avoid cases LC median = 0 (lk doesn't like it)
+
+    tinyoffset = 1e-20  # to avoid cases LC median = 0 (lk doesn't like it)
     for i, A in enumerate(arr):
         if arr_type == 'TS':
             if type(A) == str:
@@ -170,6 +174,7 @@ def get_psd(arr, arr_type):
         PS_list.append((np.array(lk_p.frequency), np.array(lk_p.power)))
     return PS_list
 
+
 class star():
     """ Class for each star to be peakbagged
 
@@ -194,12 +199,12 @@ class star():
         Temperature estimate for the star. Used to compute epsilon.
     source : str, optional
         Pathname of the file used to make the star class instance (timeseries
-        or psd). If data is downloaded via Lightkurve the fits file name is 
-        used. 
+        or psd). If data is downloaded via Lightkurve the fits file name is
+        used.
     """
 
-    def __init__(self, ID, f, s, numax, dnu, teff = None, bp_rp = None,
-                 epsilon = None, source = None):
+    def __init__(self, ID, f, s, numax, dnu, teff=None, bp_rp=None,
+                 epsilon=None, source=None):
         self.ID = ID
         self.f = f
         self.s = s
@@ -213,9 +218,9 @@ class star():
         self.asy_bestfit = {}
         self.source = source
 
-    def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None, 
-                          env_width=None, env_height=None, norders=5, 
-                          flatchains = True):
+    def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
+                          env_width=None, env_height=None, norders=5,
+                          flatchains=True):
         """ Called to perform mode ID using the asymptotic method
 
         Parameters
@@ -224,13 +229,13 @@ class star():
             Initial guess for the small frequency separation (in muHz) between
             l=0 and l=2.
         alpha : float, optional
-            Initial guess for the scale of the second order frequency term in the
-            asymptotic relation
+            Initial guess for the scale of the second order frequency term in
+            the asymptotic relation
         seff : float, optional
             Normalized Teff
         mode_width : float, optional
-            Initial guess for the mode width (in log10!) for all the modes that are
-            fit.
+            Initial guess for the mode width (in log10!) for all the modes that
+            are fit.
         env_width : float, optional
             Initial guess for the p-mode envelope width (muHz)
         env_height : float, optional
@@ -239,127 +244,123 @@ class star():
             Number of radial orders to fit
         """
 
-        fit = asymptotic_fit(self, d02, alpha, mode_width, env_width, 
+        fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
                              env_height)
         fit.run(norders)
 
-        self.asy_modeID  = fit.asy_modeID
-        self.asy_model   = fit.asy_model
+        self.asy_modeID = fit.asy_modeID
+        self.asy_model = fit.asy_model
         self.asy_bestfit = fit.asy_bestfit
-        
-    def plot_asyfit(self, model=None, fig = None, modeID=None):
+
+    def plot_asyfit(self, model=None, fig=None, modeID=None):
         # Plot resulting spectrum model
         if not model:
             model = self.asy_model
-        mod_f, mod_s = model        
+        mod_f, mod_s = model
         if not modeID:
-            modeID = self.asy_modeID        
+            modeID = self.asy_modeID
         if not fig:
-            fig = plt.figure(figsize = (12,7))
-    
+            fig = plt.figure(figsize=(12, 7))
+
         bf = self.asy_bestfit
-        
-        prior = pd.read_csv('pbjam/data/prior_data.csv')    
-                       
-        ax_res  = fig.add_axes([0.05, 0.07 , 0.69, 0.15])
-        ax_main = fig.add_axes([0.05, 0.23 , 0.69, 0.76])
-        ax_0    = fig.add_axes([0.75, 0.07 , 0.19, 0.15])
-        ax_1    = fig.add_axes([0.75, 0.30 , 0.19, 0.226])
-        ax_2    = fig.add_axes([0.75, 0.53 , 0.19, 0.226])
-        ax_3    = fig.add_axes([0.75, 0.76 , 0.19, 0.23])
-    
+
+        prior = pd.read_csv('pbjam/data/prior_data.csv')
+
+        ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
+        ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
+        ax_0 = fig.add_axes([0.75, 0.07, 0.19, 0.15])
+        ax_1 = fig.add_axes([0.75, 0.30, 0.19, 0.226])
+        ax_2 = fig.add_axes([0.75, 0.53, 0.19, 0.226])
+        ax_3 = fig.add_axes([0.75, 0.76, 0.19, 0.23])
+
         # Main plot
         idx = (mod_f[0] <= self.f) & (self.f <= mod_f[-1])
-        ax_main.plot(self.f[idx], self.s[idx], lw = 0.5, label = 'Spectrum', color = 'C0')
-        ax_main.plot(mod_f, mod_s, label = 'Model', lw = 3, color = 'C3')
-        linestyles = ['-','--','-.','.']
-        labels = ['$l=0$','$l=1$','$l=2$','$l=3$']
+        ax_main.plot(self.f[idx], self.s[idx],
+                     lw=0.5, label='Spectrum', color='C0')
+        ax_main.plot(mod_f, mod_s, label='Model', lw=3, color='C3')
+        linestyles = ['-', '--', '-.', '.']
+        labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
-            ax_main.axvline(modeID['nu_mu'][i], color = 'C3', 
-                            ls = linestyles[modeID['ell'][i]], alpha = 0.5)
+            ax_main.axvline(modeID['nu_mu'][i], color='C3',
+                            ls=linestyles[modeID['ell'][i]], alpha=0.5)
         for i in np.unique(modeID['ell']):
-            ax_main.plot([-100,-101],[-100,-101],  # for the labels
-                         ls = linestyles[i], color = 'C3',
-                         label = labels[i])
-        ax_main.axvline(self.numax[0], color = 'k', 
-                        label = r'$\nu_{\mathrm{max}}$',alpha = 0.75, lw = 3)
-        ax_main.set_ylim(0, min([max(mod_s) * 10,max(self.s)]))
+            ax_main.plot([-100, -101], [-100, -101],  # for the labels
+                         ls=linestyles[i], colo='C3', label=labels[i])
+        ax_main.axvline(self.numax[0], color='k', alpha=0.75, lw=3,
+                        label=r'$\nu_{\mathrm{max}}$')
+        ax_main.set_ylim(0, min([max(mod_s) * 10, max(self.s)]))
         ax_main.set_ylabel('SNR')
         ax_main.set_xticks([])
         ax_main.set_xlim(min(mod_f), max(mod_f))
         ax_main.legend()
-               
+
         # Residual plot
         res = self.s[idx]/mod_s
         ax_res.plot(self.f[idx], res)
-        ax_res.set_xlabel('Frequency [$\mu$Hz]')
+        ax_res.set_xlabel(r'Frequency [$\mu$Hz]')
         ax_res.set_xlim(min(mod_f), max(mod_f))
         ax_res.set_ylabel('SNR/Model')
         ax_res.set_yscale('log')
-        ax_res.set_ylim(1e-1,max(res))
+        ax_res.set_ylim(1e-1, max(res))
         res_lims = ax_res.get_ylim()
-                
+
         # KDE plot
         res_kde = gaussian_kde(res)
-        ref_kde = gaussian_kde(np.random.exponential(scale = 1, size = len(res)))    
+        ref_kde = gaussian_kde(np.random.exponential(scale=1, size=len(res)))
         y = np.linspace(res_lims[0], res_lims[1], 5000)
-        ref_exp = np.exp(-y)    
-        xlims = [min([min(res_kde(y)),min(ref_kde(y))]),
-                 max([max(res_kde(y)),max(ref_kde(y))])]        
-        ax_0.plot(res_kde(y), y, lw = 4, color = 'C0')
-        ax_0.plot(ref_kde(y), y, lw = 4, color = 'C1')
-        ax_0.fill_betweenx(y, x2 = xlims[0], x1 = res_kde(y), color = 'C0', alpha = 0.5)
-        ax_0.fill_betweenx(y, x2 = xlims[0], x1 = ref_kde(y), color = 'C1', alpha = 0.5)
-        ax_0.plot(ref_exp, y, ls ='dashed', color = 'k', lw = 1)        
+        ref_exp = np.exp(-y)
+        xlim = [min([min(res_kde(y)), min(ref_kde(y))]),
+                max([max(res_kde(y)), max(ref_kde(y))])]
+        ax_0.plot(res_kde(y), y, lw=4, color='C0')
+        ax_0.plot(ref_kde(y), y, lw=4, color='C1')
+        ax_0.fill_betweenx(y, x2=xlim[0], x1=res_kde(y), color='C0', alpha=0.5)
+        ax_0.fill_betweenx(y, x2=xlim[0], x1=ref_kde(y), color='C1', alpha=0.5)
+        ax_0.plot(ref_exp, y, ls='dashed', color='k', lw=1)
         ax_0.set_yticks([])
-        ax_0.set_ylim(y[0],y[-1])
+        ax_0.set_ylim(y[0], y[-1])
         ax_0.set_xlim(1e-4, 1.1)
-        
-        # Teff plot    
-        ax_1.errorbar(x = self.dnu[0], 
-                      y = self.teff[0], 
-                      xerr = self.dnu[1],
-                      yerr = self.teff[1],
-                      fmt = 'o', color = 'C1') 
+
+        # Teff plot
+        ax_1.errorbar(x=self.dnu[0], y=self.teff[0],
+                      xerr=self.dnu[1], yerr=self.teff[1],
+                      fmt='o', color='C1')
         ax_1.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
         ax_1.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')
-        
+
         # epsilon plot
         ax_2.set_ylabel(r'$\epsilon$')
-        ax_2.set_ylim(0.4,1.6)
-        
+        ax_2.set_ylim(0.4, 1.6)
+
         # nu_max plot
-        ax_3.errorbar(x = self.dnu[0], 
-                      y = self.numax[0],
-                      xerr = self.dnu[1],
-                      yerr = self.numax[1],
-                      fmt = 'o', color = 'C1')
+        ax_3.errorbar(x=self.dnu[0], y=self.numax[0],
+                      xerr=self.dnu[1], yerr=self.numax[1],
+                      fmt='o', color='C1')
         ax_3.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')
-    
+
         # Input values
-        for ax, key in zip([ax_1,ax_2,ax_3],['teff','eps','numax']):
-            ax.errorbar(x = bf['dnu'][1], y = bf[key][1],
-                        xerr = [np.diff(bf['dnu'])], yerr = [np.diff(bf[key])],
-                        fmt = 'o', color = 'C0')
-            
+        for ax, key in zip([ax_1, ax_2, ax_3], ['teff', 'eps', 'numax']):
+            ax.errorbar(x=bf['dnu'][1], y=bf[key][1],
+                        xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf[key])],
+                        fmt='o', color='C0')
+
         # Prior values
-        for ax, key in zip([ax_1,ax_2,ax_3],['Teff','eps','numax']):
-            ax.scatter(prior['dnu'], prior[key], c = 'k', s = 2, alpha = 0.2)  
-        
-        for ax in [ax_0,ax_1,ax_2,ax_3]:
+        for ax, key in zip([ax_1, ax_2, ax_3], ['Teff', 'eps', 'numax']):
+            ax.scatter(prior['dnu'], prior[key], c='k', s=2, alpha=0.2)
+
+        for ax in [ax_0, ax_1, ax_2, ax_3]:
             ax.yaxis.tick_right()
             ax.yaxis.set_label_position("right")
             ax.set_xscale('log')
-    
+
         ax_2.set_xticks([])
         ax_3.set_xticks([])
-        
+
         ax_0.set_yscale('log')
         ax_3.set_yscale('log')
-    
+
         return fig
 
-    
+
 class session():
     """ Main class used to initiate peakbagging.
 
@@ -400,11 +401,11 @@ class session():
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
-                 epsilon=None, timeseries=None, psd=None, dictlike=None, 
+                 epsilon=None, timeseries=None, psd=None, dictlike=None,
                  kwargs={}):
-        
-        lkwargs = kwargs.copy() # prevents memory leak between sessions
-        
+
+        lkwargs = kwargs.copy()  # prevents memory leak between sessions
+
         listchk = all([ID, numax, dnu])
 
         lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
@@ -419,14 +420,14 @@ class session():
             epsilon = multiplier(epsilon, len(ID))
 
             check_list_lengths([ID, numax, dnu, teff, bp_rp, epsilon])
-    
-            if not timeseries and not psd:    
+
+            if not timeseries and not psd:
                 for key in lk_kws:
                     if key not in lkwargs:
                         lkwargs[key] = [None]*len(ID)
                     lkwargs[key] = enforce_list(lkwargs[key])[0]
                 check_list_lengths(lkwargs)
-                
+
                 lc_list, source_list = download_lc(ID, lkwargs)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
@@ -440,10 +441,10 @@ class session():
         # Given power spectrum as lk object, tuple or path
             elif psd:
                 psd = enforce_list(psd)[0]
-                check_list_lengths([psd])           
+                check_list_lengths([psd])
                 PS_list = get_psd(psd, arr_type='PS')
                 source_list = [x if type(x) == str else None for x in psd]
-            
+
         # Given dataframe or dictionary
         elif isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
             try:
@@ -459,17 +460,17 @@ class session():
             dfkeychk = any(x not in dfkeys for x in df.keys())
             if not dfkeychk:
                 raise(KeyError, 'Some of the required keywords were missing.')
-                
+
             ID = list(df['ID'])
             numax = [[df['numax'][i], df['numax_error'][i]] for i in range(len(ID))]
             dnu = [[df['dnu'][i], df['dnu_error'][i]] for i in range(len(ID))]
-            
+
             if ('teff' in df.keys) and ('teff_error' in df.keys):
                 teff = [[df['teff'][i], df['teff_error'][i]] for i in range(len(ID))]
             else:
                 teff = [None for i in range(len(ID))]
 
-            if ('bp_rp' in df.keys): # No provided errors on bp_rp
+            if ('bp_rp' in df.keys):  # No provided errors on bp_rp
                 bp_rp = [[df['bp_rp'][i]] for i in range(len(ID))]
             else:
                 bp_rp = [None for i in range(len(ID))]
@@ -498,13 +499,12 @@ class session():
 
         else:
             raise NotImplementedError("Magic not implemented, please give PBjam some input")
-        
+
         self.stars = [star(ID=ID[i], f=PS_list[i][0], s=PS_list[i][1],
                            numax=numax[i], dnu=dnu[i], teff=teff[i],
                            bp_rp=bp_rp[i], epsilon=epsilon[i],
                            source=source_list[i]) for i in range(len(ID))]
-        
+
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Numax is greater than Nyquist frequeny for this data set")    
-        
