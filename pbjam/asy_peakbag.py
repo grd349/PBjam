@@ -8,7 +8,6 @@ are ignored.
 import numpy as np
 import pbjam as pb
 import os, sys
-import corner
 import pandas as pd
 import matplotlib.pyplot as plt
 
