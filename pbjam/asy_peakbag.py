@@ -311,7 +311,7 @@ class asymptotic_fit():
     """
 
     def __init__(self, star, d02, alpha, mode_width, env_width, env_height,
-                 verbose=False):
+                 nthreads=1, verbose=False):
         self.f = star.f
         self.s = star.s
         self.numax = star.numax
@@ -327,6 +327,7 @@ class asymptotic_fit():
         self.asy_modeID = {}
         self.asy_model = None
         self.asy_bestfit = {}
+        self.nthreads = nthreads
         self.verbose = verbose
 
     def parse_asy_pars(self, verbose=False):
@@ -352,8 +353,8 @@ class asymptotic_fit():
             self.bp_rp = [1.26, 1.26]  # TODO - hardcode, bad!
 
         if not self.epsilon:
-            ge_vrard = pb.epsilon()
-            self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
+            ge = pb.epsilon(nthreads=self.nthreads)
+            self.epsilon = ge(self.dnu, self.numax, self.teff)
 
         if not self.d02:
             self.d02 = 0.1*self.dnu[0]
@@ -417,21 +418,21 @@ class asymptotic_fit():
                   [max(1e-20, self.dnu[0]-nsig*self.dnu[1]),  # Dnu
                    self.dnu[0]+nsig*self.dnu[1]],
 
-                  [self.epsilon[0]-nsig*self.epsilon[1],  # eps
-                   self.epsilon[0]+nsig*self.epsilon[1]],
+                  [max(0.4, self.epsilon[0]-nsig*self.epsilon[1]),  # eps
+                   min(1.6, self.epsilon[0]+nsig*self.epsilon[1])],
 
-                  [-1, 1],  # alpha
+                  [0, 0.1],  # alpha
 
-                  [0.01*self.dnu[0], 0.2*self.dnu[0]],  # d02
+                  [0.05*self.dnu[0], 0.2*self.dnu[0]],  # d02
 
                   [self.env_height*0.5, self.env_height*1.5],  # hmax
 
-                  [self.env_width*0.9, self.env_width*1.1],  # Ewidth
+                  [self.env_width*0.75, self.env_width*1.25],  # Ewidth
 
                   [-2, 1.0],  # mode width (log10)
 
-                  [max(1e-20, self.teff[0]-nsig*self.teff[1]),  # Teff
-                   self.teff[0]+nsig*self.teff[1]],
+                  [max(3000.0, self.teff[0]-nsig*self.teff[1]),  # Teff
+                   min(7800.0, self.teff[0]+nsig*self.teff[1])],
 
                   [self.bp_rp[0]-nsig*self.bp_rp[1],
                    self.bp_rp[0]+nsig*self.bp_rp[1]]  # Gaia bp-rp
@@ -440,16 +441,17 @@ class asymptotic_fit():
         gaussian = [(0, 0),  # numax
                     (0, 0),  # Dnu
                     (0, 0),  # eps
-                    (0, 0),  # alpha
-                    (0, 0),  # d02
+                    (0.015*self.dnu[0]**-0.32, 0.01),  # alpha
+                    (0.14*self.dnu[0], 0.3*self.dnu[0]),  # d02
                     (0, 0),  # hmax
                     (0, 0),  # Ewidth
-                    (0, 0),  # mode width (log10)
+                    (np.log10(0.65) + np.log10(0.64) + 17 * np.log10(self.teff[0]/5777.0), 0.2),  # mode width (log10)
                     (self.teff[0], self.teff[1]),  # Teff
                     (self.bp_rp[0], self.bp_rp[1]),  # Gaia bp-rp
                     ]
 
-        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian)
+        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian,
+                   nthreads=self.nthreads)
 
         self.flatchain = fit()  # do the fit with default settings
 
@@ -636,7 +638,7 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, s, model, x0, bounds, gaussian):
+    def __init__(self, f, s, model, x0, bounds, gaussian, nthreads=1):
         self.f = f
         self.s = s
         self.model = model
@@ -645,6 +647,7 @@ class mcmc():
         self.ndim = len(x0)
         self.gaussian = gaussian
         self.lp = Prior(self.bounds, self.gaussian)
+        self.nthreads = nthreads
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -708,7 +711,7 @@ class mcmc():
                                               self.x0[i]*(1+spread))) for i in range(self.ndim)] for i in range(nwalkers)])
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
-                                        self.likelihood)
+                                        self.likelihood, threads=self.nthreads)
         print('Burningham')
         sampler.run_mcmc(p0, self.burnin)
         pb = sampler.chain[:, -1, :].copy()

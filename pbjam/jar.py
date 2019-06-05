@@ -204,7 +204,7 @@ class star():
     """
 
     def __init__(self, ID, f, s, numax, dnu, teff=None, bp_rp=None,
-                 epsilon=None, source=None):
+                 epsilon=None, source=None, nthreads=1):
         self.ID = ID
         self.f = f
         self.s = s
@@ -217,6 +217,7 @@ class star():
         self.asy_model = None
         self.asy_bestfit = {}
         self.source = source
+        self.nthreads = nthreads
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=5,
@@ -245,7 +246,7 @@ class star():
         """
 
         fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
-                             env_height)
+                             env_height, nthreads=self.nthreads)
         fit.run(norders)
 
         self.asy_modeID = fit.asy_modeID
@@ -402,9 +403,11 @@ class session():
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  epsilon=None, timeseries=None, psd=None, dictlike=None,
+                 nthreads=1,
                  kwargs={}):
 
         lkwargs = kwargs.copy()  # prevents memory leak between sessions
+        self.nthreads=nthreads
 
         listchk = all([ID, numax, dnu])
 
@@ -503,8 +506,8 @@ class session():
         self.stars = [star(ID=ID[i], f=PS_list[i][0], s=PS_list[i][1],
                            numax=numax[i], dnu=dnu[i], teff=teff[i],
                            bp_rp=bp_rp[i], epsilon=epsilon[i],
-                           source=source_list[i]) for i in range(len(ID))]
+                           source=source_list[i], nthreads=self.nthreads) for i in range(len(ID))]
 
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
-                warnings.warn("Numax is greater than Nyquist frequeny for this data set")    
+                warnings.warn("Numax is greater than Nyquist frequeny for this data set")

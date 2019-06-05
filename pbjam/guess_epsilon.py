@@ -24,7 +24,7 @@ class epsilon():
     data_file : string
         The location of the prior data file
     '''
-    def __init__(self, method='KDE', verbose=False):
+    def __init__(self, method='KDE', nthreads=1, verbose=False):
         if method not in ('Vrard','KDE'):
             raise ValueError("The `method` parameter must be one of either"
                                 "`Vrard` or `KDE`")
@@ -35,6 +35,7 @@ class epsilon():
         self.obs = []
         self.samples = []
         self.verbose = verbose
+        self.nthreads = nthreads
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
@@ -145,7 +146,8 @@ class epsilon():
               1.0]
         ndim = len(x0)
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood)
+        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood,
+                                        threads=self.nthreads)
         sampler.run_mcmc(p0, niter)
         return sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
