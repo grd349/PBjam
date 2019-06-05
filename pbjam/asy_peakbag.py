@@ -311,7 +311,7 @@ class asymptotic_fit():
     """
 
     def __init__(self, star, d02, alpha, mode_width, env_width, env_height,
-                 verbose=False):
+                 nthreads=1, verbose=False):
         self.f = star.f
         self.s = star.s
         self.numax = star.numax
@@ -327,6 +327,7 @@ class asymptotic_fit():
         self.asy_modeID = {}
         self.asy_model = None
         self.asy_bestfit = {}
+        self.nthreads = nthreads
         self.verbose = verbose
 
     def parse_asy_pars(self, verbose=False):
@@ -352,8 +353,8 @@ class asymptotic_fit():
             self.bp_rp = [1.26, 1.26]  # TODO - hardcode, bad!
 
         if not self.epsilon:
-            ge_vrard = pb.epsilon()
-            self.epsilon = ge_vrard(self.dnu, self.numax, self.teff)
+            ge = pb.epsilon(nthreads=self.nthreads)
+            self.epsilon = ge(self.dnu, self.numax, self.teff)
 
         if not self.d02:
             self.d02 = 0.1*self.dnu[0]
