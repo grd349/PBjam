@@ -360,10 +360,10 @@ class asymptotic_fit():
             self.d02 = 0.1*self.dnu[0]
 
         if not self.alpha:
-            self.alpha = 1e-3
+            self.alpha = 0.01
 
         if not self.mode_width:
-            self.mode_width = 1e-20  # must be non-zero for walkers' start pos
+            self.mode_width = np.log10(0.05 + 0.64 * (self.teff[0]/5777.0)**17)
 
         if not self.env_width:
             self.env_width = 0.66 * self.numax[0]**0.88
@@ -429,7 +429,7 @@ class asymptotic_fit():
 
                   [self.env_width*0.75, self.env_width*1.25],  # Ewidth
 
-                  [-2, 1.0],  # mode width (log10)
+                  [-2, 1.2],  # mode width (log10)
 
                   [max(3000.0, self.teff[0]-nsig*self.teff[1]),  # Teff
                    min(7800.0, self.teff[0]+nsig*self.teff[1])],
@@ -445,7 +445,7 @@ class asymptotic_fit():
                     (0.14*self.dnu[0], 0.3*self.dnu[0]),  # d02
                     (0, 0),  # hmax
                     (0, 0),  # Ewidth
-                    (np.log10(0.65) + np.log10(0.64) + 17 * np.log10(self.teff[0]/5777.0), 0.2),  # mode width (log10)
+                    (np.log10(0.05 + 0.64 * (self.teff[0]/5777.0)**17), 0.2),  # mode width (log10)
                     (self.teff[0], self.teff[1]),  # Teff
                     (self.bp_rp[0], self.bp_rp[1]),  # Gaia bp-rp
                     ]
