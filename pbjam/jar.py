@@ -94,7 +94,7 @@ def download_lc(ID, lkargs):
     """
     def clean_lc(lc):
         lc = lc.remove_nans().normalize().flatten().remove_outliers()
-        lc.flux = (lc.flux-1)*1e6
+        #lc.flux = (lc.flux-1)*1e6
         return lc
 
     lc_list = []
