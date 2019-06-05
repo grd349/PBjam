@@ -418,21 +418,21 @@ class asymptotic_fit():
                   [max(1e-20, self.dnu[0]-nsig*self.dnu[1]),  # Dnu
                    self.dnu[0]+nsig*self.dnu[1]],
 
-                  [self.epsilon[0]-nsig*self.epsilon[1],  # eps
-                   self.epsilon[0]+nsig*self.epsilon[1]],
+                  [max(0.4, self.epsilon[0]-nsig*self.epsilon[1]),  # eps
+                   min(1.6, self.epsilon[0]+nsig*self.epsilon[1])],
 
-                  [-1, 1],  # alpha
+                  [0, 0.1],  # alpha
 
-                  [0.01*self.dnu[0], 0.2*self.dnu[0]],  # d02
+                  [0.05*self.dnu[0], 0.2*self.dnu[0]],  # d02
 
                   [self.env_height*0.5, self.env_height*1.5],  # hmax
 
-                  [self.env_width*0.9, self.env_width*1.1],  # Ewidth
+                  [self.env_width*0.75, self.env_width*1.25],  # Ewidth
 
                   [-2, 1.0],  # mode width (log10)
 
-                  [max(1e-20, self.teff[0]-nsig*self.teff[1]),  # Teff
-                   self.teff[0]+nsig*self.teff[1]],
+                  [max(3000.0, self.teff[0]-nsig*self.teff[1]),  # Teff
+                   min(7800.0, self.teff[0]+nsig*self.teff[1])],
 
                   [self.bp_rp[0]-nsig*self.bp_rp[1],
                    self.bp_rp[0]+nsig*self.bp_rp[1]]  # Gaia bp-rp
@@ -441,11 +441,11 @@ class asymptotic_fit():
         gaussian = [(0, 0),  # numax
                     (0, 0),  # Dnu
                     (0, 0),  # eps
-                    (0, 0),  # alpha
-                    (0, 0),  # d02
+                    (0.015*self.dnu[0]**-0.32, 0.01),  # alpha
+                    (0.14*self.dnu[0], 0.3*self.dnu[0]),  # d02
                     (0, 0),  # hmax
                     (0, 0),  # Ewidth
-                    (0, 0),  # mode width (log10)
+                    (np.log10(0.65) + np.log10(0.64) + 17 * np.log10(self.teff[0]/5777.0), 0.2),  # mode width (log10)
                     (self.teff[0], self.teff[1]),  # Teff
                     (self.bp_rp[0], self.bp_rp[1]),  # Gaia bp-rp
                     ]
