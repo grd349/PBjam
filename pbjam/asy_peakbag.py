@@ -450,7 +450,8 @@ class asymptotic_fit():
                     (self.bp_rp[0], self.bp_rp[1]),  # Gaia bp-rp
                     ]
 
-        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian)
+        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian,
+                   nthreads=self.nthreads)
 
         self.flatchain = fit()  # do the fit with default settings
 
@@ -637,7 +638,7 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, s, model, x0, bounds, gaussian):
+    def __init__(self, f, s, model, x0, bounds, gaussian, nthreads=1):
         self.f = f
         self.s = s
         self.model = model
@@ -646,6 +647,7 @@ class mcmc():
         self.ndim = len(x0)
         self.gaussian = gaussian
         self.lp = Prior(self.bounds, self.gaussian)
+        self.nthreads = nthreads
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -709,7 +711,7 @@ class mcmc():
                                               self.x0[i]*(1+spread))) for i in range(self.ndim)] for i in range(nwalkers)])
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
-                                        self.likelihood)
+                                        self.likelihood, threads=self.nthreads)
         print('Burningham')
         sampler.run_mcmc(p0, self.burnin)
         pb = sampler.chain[:, -1, :].copy()
