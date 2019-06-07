@@ -31,6 +31,7 @@ import pandas as pd
 import warnings
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
+import os
 
 from . import PACKAGEDIR
 
