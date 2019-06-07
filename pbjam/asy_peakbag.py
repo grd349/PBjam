@@ -190,7 +190,8 @@ class asymp_spec_model():
         pair_model += self.lor(freq0 - d02, h*hfac, w)
         return pair_model
 
-    def model(self, numax, dnu, eps, alpha, d02, hmax, envwidth, modewidth):
+    def model(self, numax, dnu, eps, alpha, d02, hmax, envwidth, modewidth, 
+              *args):
         """ Constructs a spectrum model from the asymptotic relation
 
         The asymptotic relation for p-modes in red giants is defined as:
@@ -217,6 +218,10 @@ class asymp_spec_model():
             Gaussian width of the p-mode envelope (muHz)
         modewidth : float
             Width of the modes (log_10(muHz))
+        *args : array-like
+            List of additional parameters (Teff, bp_rp) that aren't actually
+            used to construct the spectrum model, but just for evaluating the
+            prior.
 
         Returns
         -------
@@ -304,29 +309,28 @@ class asymptotic_fit():
     mode_ID : dataframe
         Pandas dataframe of the radial order, angular degree and mode frequency
         and error for the modes fit in the asymptotic relation.
-    asy_model : tuple
+    model : tuple
         Tuple containing the frequency (first column) and best-fit spectrum
         model (second colunm). Frequency is truncated to a range around numax
         that contains the requested number of radial orders.
     """
 
-    def __init__(self, star, d02, alpha, mode_width, env_width, env_height,
-                 nthreads=1, verbose=False):
+    def __init__(self, star, d02, alpha, mode_width, env_width, env_height, 
+                 store_chains = False, nthreads=1, verbose=False):
+        
+        pars = [star.numax, star.dnu, star.epsilon, alpha, d02, env_height,
+                env_width, mode_width, star.teff, star.bp_rp,]
+            
         self.f = star.f
         self.s = star.s
-        self.numax = star.numax
-        self.dnu = star.dnu
-        self.teff = star.teff
-        self.bp_rp = star.bp_rp
-        self.epsilon = star.epsilon
-        self.d02 = d02
-        self.alpha = alpha
-        self.mode_width = mode_width
-        self.env_width = env_width
-        self.env_height = env_height
-        self.asy_modeID = {}
-        self.asy_model = None
-        self.asy_bestfit = {}
+        self.pars_names = ['numax', 'dnu', 'eps', 'alpha', 'd02', 'env_height',
+                           'env_width', 'mode_width', 'teff', 'bp_rp']
+        self.guess = {pars_names: pars for pars_names, pars in zip(self.pars_names, pars)}       
+        self.modeID = None
+        self.model = None
+        self.bestfit = None
+        self.flatchains = None
+        self.store_chains = store_chains
         self.nthreads = nthreads
         self.verbose = verbose
 
@@ -346,48 +350,73 @@ class asymptotic_fit():
             relation fit.
         """
 
-        if not self.teff:
-            self.teff = [4931, 4931]  # TODO - hardcode, bad!
+        if not self.guess['teff']:
+            self.guess['teff'] = [4931, 4931]  # TODO - hardcode, bad!
 
-        if not self.bp_rp:
-            self.bp_rp = [1.26, 1.26]  # TODO - hardcode, bad!
+        if not self.guess['bp_rp']:
+            self.guess['bp_rp'] = [1.26, 1.26]  # TODO - hardcode, bad!
 
-        if not self.epsilon:
+        if not self.guess['eps']:
             ge = pb.epsilon(nthreads=self.nthreads)
-            self.epsilon = ge(self.dnu, self.numax, self.teff)
+            self.guess['eps'] = ge(self.guess['dnu'], 
+                                   self.guess['numax'], 
+                                   self.guess['teff'])  
+        if not self.guess['d02']:
+            self.guess['d02'] = [0.14*self.guess['dnu'][0]]
 
-        if not self.d02:
-            self.d02 = 0.1*self.dnu[0]
+        if not self.guess['alpha']:
+            self.guess['alpha'] = [0.01]
 
-        if not self.alpha:
-            self.alpha = 0.01
+        if not self.guess['mode_width']:
+            self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
-        if not self.mode_width:
-            self.mode_width = np.log10(0.05 + 0.64 * (self.teff[0]/5777.0)**17)
+        if not self.guess['env_width']:
+            self.guess['env_width'] = [0.66 * self.guess['numax'][0]**0.88]
 
-        if not self.env_width:
-            self.env_width = 0.66 * self.numax[0]**0.88
-
-        if not self.env_height:
+        if not self.guess['env_height']:
             df = np.median(np.diff(self.f))
-            a = int(np.floor(self.dnu[0]/df))
+            a = int(np.floor(self.guess['dnu'][0]/df))
             b = int(len(self.s) / a)
             smoo = self.s[:a*b].reshape((b, a)).mean(1)
-            self.env_height = max(smoo)
+            self.guess['env_height'] = [max(smoo)]
 
-        pars = [self.numax[0], self.dnu[0], self.epsilon[0], self.alpha,
-                self.d02, self.env_height, self.env_width, self.mode_width,
-                self.teff[0], self.bp_rp[0]]
-
-        parsnames = ['numax', 'large separation', 'epsilon', 'alpha', 'd02',
-                     'p-mode envelope height', 'p-mode envelope width',
-                     'mode width (log10)', 'Teff', 'bp_rp']
+        pars = [self.guess[key][0] for key in self.pars_names]
 
         if verbose or self.verbose:
-            for i in range(len(pars)):
-                print('%s: %f' % (parsnames[i], pars[i]))
+            for i, key in enumerate(self.pars_names):
+                print('%s: %f' % (key, pars[i]))
         return pars
+    
+    def get_modeIDs(self, fit, N):
+        # Get mode ID and frequency list
+        # TODO - is there a better/neater way to do this?
+        nu0s = np.empty((fit.niter*fit.nwalkers, N))
+        
+        flatchains = fit.chains.reshape(-1, fit.ndim)
+        
+        for j in range(fit.niter*fit.nwalkers):
+            nu0s[j, :] = asymptotic_relation(*flatchains[j, :4], N)
 
+        nu2s = np.array([nu0s[:, i] - flatchains[:, 4] for i in range(len(nu0s[0, :]))]).T
+
+        nus_mu = np.median(np.array([nu0s, nu2s]), axis=1)
+        nus_std = np.std(np.array([nu0s, nu2s]), axis=1)
+
+        ells = [0 if i % 2 else 2 for i in range(2*len(nus_mu[0, :]))]
+
+        nus_mu_out = []
+        nus_std_out = []
+
+        for i in range(len(nus_mu[0, :])):
+            nus_mu_out += [nus_mu[1, i], nus_mu[0, i]]
+            nus_std_out += [nus_std[1, i], nus_std[0, i]]
+        
+        modeID = pd.DataFrame({'ell': ells,
+                               'nu_mu': nus_mu_out,
+                               'nu_std': nus_std_out})
+        
+        return modeID
+        
     def run(self, N):
         """ Setup, run and parse the asymptotic relation fit using EMCEE
 
@@ -404,91 +433,76 @@ class asymptotic_fit():
         """
 
         x0 = self.parse_asy_pars()
-
+        
         # select range around numax to fit
-        sel = np.where(np.abs(self.f - self.numax[0]) < N/1.5*self.dnu[0])
+        sel = np.where(np.abs(self.f - self.guess['numax'][0]) < N/1.5*self.guess['dnu'][0])
 
         model = asymp_spec_model(self.f[sel], N)
 
         nsig = 5
+        
+        bounds = [[max(1e-20, self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
+                   self.guess['numax'][0]+nsig*self.guess['numax'][1]],
 
-        bounds = [[max(1e-20, self.numax[0]-nsig*self.numax[1]),  # numax
-                   self.numax[0]+nsig*self.numax[1]],
+                  [max(1e-20, self.guess['dnu'][0]-nsig*self.guess['dnu'][1]),  # Dnu
+                   self.guess['dnu'][0]+nsig*self.guess['dnu'][1]],
 
-                  [max(1e-20, self.dnu[0]-nsig*self.dnu[1]),  # Dnu
-                   self.dnu[0]+nsig*self.dnu[1]],
-
-                  [max(0.4, self.epsilon[0]-nsig*self.epsilon[1]),  # eps
-                   min(1.6, self.epsilon[0]+nsig*self.epsilon[1])],
+                  [max(0.4, self.guess['eps'][0]-nsig*self.guess['eps'][1]),  # eps
+                   min(1.6, self.guess['eps'][0]+nsig*self.guess['eps'][1])],
 
                   [0, 0.1],  # alpha
 
-                  [0.05*self.dnu[0], 0.2*self.dnu[0]],  # d02
+                  [0.05*self.guess['dnu'][0], 0.2*self.guess['dnu'][0]],  # d02
 
-                  [self.env_height*0.5, self.env_height*1.5],  # hmax
+                  [self.guess['env_height'][0]*0.5, self.guess['env_height'][0]*1.5],  # hmax
 
-                  [self.env_width*0.75, self.env_width*1.25],  # Ewidth
+                  [self.guess['env_width'][0]*0.75, self.guess['env_width'][0]*1.25],  # Ewidth
 
                   [-2, 1.2],  # mode width (log10)
 
-                  [max(3000.0, self.teff[0]-nsig*self.teff[1]),  # Teff
-                   min(7800.0, self.teff[0]+nsig*self.teff[1])],
+                  [max(3000.0, self.guess['teff'][0]-nsig*self.guess['teff'][1]),  # Teff
+                   min(7800.0, self.guess['teff'][0]+nsig*self.guess['teff'][1])],
 
-                  [self.bp_rp[0]-nsig*self.bp_rp[1],
-                   self.bp_rp[0]+nsig*self.bp_rp[1]]  # Gaia bp-rp
+                  [self.guess['bp_rp'][0]-nsig*self.guess['bp_rp'][1],
+                   self.guess['bp_rp'][0]+nsig*self.guess['bp_rp'][1]]  # Gaia bp-rp
                   ]
 
         gaussian = [(0, 0),  # numax
                     (0, 0),  # Dnu
                     (0, 0),  # eps
-                    (0.015*self.dnu[0]**-0.32, 0.01),  # alpha
-                    (0.14*self.dnu[0], 0.3*self.dnu[0]),  # d02
+                    (0.015*self.guess['dnu'][0]**-0.32, 0.01),  # alpha
+                    (0.14*self.guess['dnu'][0], 0.3*self.guess['dnu'][0]),  # d02
                     (0, 0),  # hmax
                     (0, 0),  # Ewidth
-                    (np.log10(0.05 + 0.64 * (self.teff[0]/5777.0)**17), 0.2),  # mode width (log10)
-                    (self.teff[0], self.teff[1]),  # Teff
-                    (self.bp_rp[0], self.bp_rp[1]),  # Gaia bp-rp
+                    (np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17), 0.2),  # mode width (log10)
+                    (self.guess['teff'][0], self.guess['teff'][1]),  # Teff
+                    (self.guess['bp_rp'][0], self.guess['bp_rp'][1]),  # Gaia bp-rp
                     ]
 
         fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian,
                    nthreads=self.nthreads)
 
-        self.flatchain = fit()  # do the fit with default settings
+        fit()  # do the fit with default settings
 
-        self.fit_pars = np.percentile(self.flatchain, [16, 50, 84], axis=0)
+        flatchains = fit.chains.reshape(-1, fit.ndim)
 
-        self.asy_model = (model.f, model.model(*self.fit_pars[1, :-2]))
+        fitpars = np.percentile(flatchains, [16, 50, 84], axis=0)
 
-        # Get mode ID and frequency list
-        # TODO - is there a better/neater way to do this?
-        nu0s = np.empty((fit.niter*fit.nwalkers, N))
-        for j in range(fit.niter*fit.nwalkers):
-            nu0s[j, :] = asymptotic_relation(*self.flatchain[j, :4], N)
+        self.model = (model.f, model.model)
 
-        nu2s = np.array([nu0s[:, i] - self.flatchain[:, 4] for i in range(len(nu0s[0, :]))]).T
+        self.modeID = self.get_modeIDs(fit, N)
+#
+#        for j, key in enumerate(self.pars_names):
+#            self.bestfit[key] = fitpars[:, j]
 
-        nus_mu = np.median(np.array([nu0s, nu2s]), axis=1)
-        nus_std = np.std(np.array([nu0s, nu2s]), axis=1)
+        self.bestfit = {key: fitpars[:, j] for j, key in enumerate(self.pars_names)}
 
-        ells = [0 if i % 2 else 2 for i in range(2*len(nus_mu[0, :]))]
-
-        nus_mu_out = []
-        nus_std_out = []
-
-        for i in range(len(nus_mu[0, :])):
-            nus_mu_out += [nus_mu[1, i], nus_mu[0, i]]
-            nus_std_out += [nus_std[1, i], nus_std[0, i]]
-
-        self.asy_modeID = pd.DataFrame({'ell': ells,
-                                        'nu_mu': nus_mu_out,
-                                        'nu_std': nus_std_out})
-
-        var_names = ['numax', 'dnu', 'eps', 'alpha', 'd02', 'env_height',
-                     'env_width', 'mode_width', 'teff', 'bp_rp']
-        for j, key in enumerate(var_names):
-            self.asy_bestfit[key] = self.fit_pars[:, j]
-
-        return self.asy_modeID
+        if self.store_chains:
+            self.flatchains = flatchains
+        else:
+            self.flatchains = fit.chains[:,-1,:]
+                
+        return self.modeID
 
 
 class Prior(pb.epsilon):
@@ -669,9 +683,7 @@ class mcmc():
         if logp == -np.inf:
             return -np.inf
 
-        model_pars = p[:-2]  # -2 and -1 are Teff and bp_rp hyperparameters
-
-        mod = self.model(model_pars)
+        mod = self.model(p)
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
@@ -718,6 +730,7 @@ class mcmc():
         sampler.reset()
         print('Sampling')
         sampler.run_mcmc(pb, self.niter)
-        out = sampler.flatchain.copy()
+        out = sampler.chain.copy()
         sampler.reset()  # This hopefully minimizes emcee memory leak
+        self.chains = out
         return out
