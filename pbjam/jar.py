@@ -102,14 +102,15 @@ def download_lc(ID, lkargs, use_cached=True):
 
     lc_list = []
     source_list = []
-
+    lc_col = []
     for i, id in enumerate(ID):
         if use_cached:
             ddir = os.path.join(os.path.expanduser('~'), '.lightkurve-cache')
             ddir += '/mastDownload/*/' + f'*{str(int(id))}*/*_llc.fits'
             tgt = glob.glob(ddir)
             lc_col = [lk.open(n) for n in tgt]
-        else:
+
+        if use_cached == False or lc_col == []:
             tgt = lk.search_lightcurvefile(target=id,
                                            quarter=lkargs['quarter'][i],
                                            campaign=lkargs['campaign'][i],
@@ -117,6 +118,7 @@ def download_lc(ID, lkargs, use_cached=True):
                                            month=lkargs['month'][i],
                                            cadence=lkargs['cadence'][i])
             lc_col = tgt.download_all()
+            
         lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
         for i, lc in enumerate(lc_col[1:]):
             lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
