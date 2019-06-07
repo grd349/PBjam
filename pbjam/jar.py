@@ -32,6 +32,7 @@ import warnings
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 
+from . import PACKAGEDIR
 
 def multiplier(x, N):
     if not x[0]:
@@ -218,6 +219,8 @@ class star():
         self.asy_bestfit = {}
         self.source = source
         self.nthreads = nthreads
+        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
+
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=5,
@@ -265,7 +268,7 @@ class star():
 
         bf = self.asy_bestfit
 
-        prior = pd.read_csv('pbjam/data/prior_data.csv')
+        prior = pd.read_csv(self.data_file)
 
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
