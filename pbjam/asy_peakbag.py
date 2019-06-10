@@ -115,22 +115,23 @@ def P_envelope(nu, hmax, numax, width):
 
 def get_summary_stats(fit, model, pnames):
         summary = pd.DataFrame()
-        smry_stats = ['best','mean', 'skew', '2nd', '16th', '50th', '84th', 
+        smry_stats = ['best','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
                       '97th']
         idx = np.argmax(fit.flatlnlike)       
-        means = np.mean(fit.flatchains, axis = 0)
-        skewness = scist.skew(fit.flatchains, axis = 0)
-        pars_percs = np.percentile(fit.flatchains, [0.50-0.954499736104/2,
+        means = np.mean(fit.flatchain, axis = 0)
+        stds = np.std(fit.flatchain, axis = 0)
+        skewness = scist.skew(fit.flatchain, axis = 0)
+        pars_percs = np.percentile(fit.flatchain, [0.50-0.954499736104/2,
                                                  0.50-0.682689492137/2,
                                                  0.50,
                                                  0.50+0.682689492137/2,
                                                  0.50+0.954499736104/2], axis=0)
-        best = fit.flatchains[idx,:]
+        best = fit.flatchain[idx,:]
         for i, par in enumerate(pnames):
-            z = [best[i], skewness[i], means[i], *pars_percs[:,i]]
+            z = [best[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
+                 pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], pars_percs[4,i]]
             A = {key: z[i] for i, key in enumerate(smry_stats)}
             summary[par] = pd.Series(A)
-            
         best_model = model(best)
         return summary, best_model
 
@@ -461,12 +462,12 @@ class asymptotic_fit():
         # TODO - is there a better/neater way to do this?
         nu0s = np.empty((fit.niter*fit.nwalkers, N))
         
-        flatchains = fit.chains.reshape(-1, fit.ndim)
+        flatchain = fit.chain.reshape(-1, fit.ndim)
         
         for j in range(fit.niter*fit.nwalkers):
-            nu0s[j, :] = asymptotic_relation(*flatchains[j, :4], N)
+            nu0s[j, :] = asymptotic_relation(*flatchain[j, :4], N)
 
-        nu2s = np.array([nu0s[:, i] - flatchains[:, 4] for i in range(len(nu0s[0, :]))]).T
+        nu2s = np.array([nu0s[:, i] - flatchain[:, 4] for i in range(len(nu0s[0, :]))]).T
 
         nus_mu = np.median(np.array([nu0s, nu2s]), axis=1)
         nus_std = np.std(np.array([nu0s, nu2s]), axis=1)
@@ -511,13 +512,15 @@ class asymptotic_fit():
         self.summary, self.best_model = get_summary_stats(fit, self.model, self.pars_names)
 
         if self.store_chains:
-            self.flatchains = fit.flatchains
+            self.flatchain = fit.flatchain
             self.lnlike_fin = fit.flatlnlike
         else:
-            self.flatchains = fit.chains[:,-1,:]
-            self.lnlike_fin = np.array([fit.likelihood(fit.chains[i,-1,:]) for i in range(fit.nwalkers)])
-            self.lnprior_fin = np.array([fit.lp(fit.chains[i,-1,:]) for i in range(fit.nwalkers)])
- 
+            self.flatchain = fit.chain[:,-1,:]
+            self.lnlike_fin = np.array([fit.likelihood(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
+            self.lnprior_fin = np.array([fit.lp(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
+
+
+
         return self.modeID
 
 
@@ -705,7 +708,7 @@ class mcmc():
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
-    def __call__(self, niter=100, nwalkers=50, burnin=200, spread=0.01, 
+    def __call__(self, niter=1000, nwalkers=50, burnin=2000, spread=0.01, 
                  prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 
@@ -752,7 +755,7 @@ class mcmc():
         sampler.reset()
         print('Sampling')
         sampler.run_mcmc(pos, self.niter)
-        self.chains = sampler.chain.copy()
+        self.chain = sampler.chain.copy()
         self.flatchain = sampler.flatchain
         self.lnlike = sampler.lnprobability
         self.flatlnlike = sampler.flatlnprobability

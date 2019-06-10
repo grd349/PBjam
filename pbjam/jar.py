@@ -255,8 +255,7 @@ class star():
 
         self.asy_result = fit
     
-    def make_main_plot(self, ax, sel, model, modeID, fc, bf):
-        
+    def make_main_plot(self, ax, sel, model, modeID, best, percs):        
         ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum', 
                 color='C0', alpha = 0.5)
     
@@ -273,10 +272,10 @@ class star():
                     color='C3', label=labels[i])
         ax.plot([-100, -101], [-100, -101], label='Model', lw=3, 
                 color='C3')
-        ax.axvline(bf['numax'][1], color='k', alpha=0.75, lw=3,
+        ax.axvline(best['numax'], color='k', alpha=0.75, lw=3,
                         label=r'$\nu_{\mathrm{max}}$')
         
-        ax.set_ylim(0, min([bf['env_height'][1] * 5, max(self.s[sel])]))
+        ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(min(self.f[sel]), max(self.f[sel]))
@@ -311,11 +310,13 @@ class star():
         ax.yaxis.set_label_position("right")
 
 
-    def make_Teff_plot(self, ax, gs, bf, prior):
+    def make_Teff_plot(self, ax, gs, percs, prior):
+        
         ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1], 
                     yerr=gs['teff'][1], fmt='o', color='C1')        
-        ax.errorbar(x=bf['dnu'][1], y=bf['teff'][1], 
-                    xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf['teff'])],
+        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1], 
+                    xerr=np.diff(percs['dnu']).reshape(2,1),
+                    yerr=np.diff(percs['teff']).reshape(2,1),
                     fmt='o', color='C0')        
         ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)        
         ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
@@ -324,9 +325,10 @@ class star():
         ax.yaxis.set_label_position("right")        
         ax.set_xscale('log')
         
-    def make_epsilon_plot(self, ax, gs, bf, prior):
-        ax.errorbar(x=bf['dnu'][1], y=bf['eps'][1], 
-                    xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf['eps'])],
+    def make_epsilon_plot(self, ax, gs, percs, prior):
+        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1], 
+                    xerr=np.diff(percs['dnu']).reshape(2,1),
+                    yerr=np.diff(percs['eps']).reshape(2,1),
                     fmt='o', color='C0')
         ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)           
         ax.set_ylabel(r'$\epsilon$')        
@@ -336,12 +338,13 @@ class star():
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
     
-    def make_numax_plot(self, ax, gs, bf, prior):
+    def make_numax_plot(self, ax, gs, percs, prior):
         ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0],
                       xerr=gs['dnu'][1], yerr=gs['numax'][1],
                       fmt='o', color='C1')    
-        ax.errorbar(x=bf['dnu'][1], y=bf['numax'][1],
-                    xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf['numax'])],
+        ax.errorbar(x=percs['dnu'][1], y=percs['numax'][1],
+                    xerr=np.diff(percs['dnu']).reshape(2,1),
+                    yerr=np.diff(percs['numax']).reshape(2,1),
                     fmt='o', color='C0')
         ax.scatter(prior['dnu'], prior['numax'], c='k', s=2, alpha=0.2)
         ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')    
@@ -361,16 +364,18 @@ class star():
             fig = plt.figure(figsize=(12, 7))
         
         prior = pd.read_csv('pbjam/data/prior_data.csv')
-        fc = self.asy_result.flatchains
-        bf = self.asy_result.bestfit
+        fc = self.asy_result.flatchain
+        smry = self.asy_result.summary
         gs = self.asy_result.guess
         sel = self.asy_result.sel
+        best = smry.loc['best']
+        percs = smry.loc[['16th', '50th', '84th']]
         
         self.residual = self.s[sel]/model
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
-        self.make_main_plot(ax_main, sel, model, modeID, fc, bf)
+        self.make_main_plot(ax_main, sel, model, modeID, best, percs)
         
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
@@ -382,15 +387,15 @@ class star():
 
         # Teff plot
         ax_teff = fig.add_axes([0.75, 0.30, 0.19, 0.226])
-        self.make_Teff_plot(ax_teff, gs, bf, prior)
+        self.make_Teff_plot(ax_teff, gs, percs, prior)
             
         # epsilon plot
         ax_eps = fig.add_axes([0.75, 0.53, 0.19, 0.226])
-        self.make_epsilon_plot(ax_eps, gs, bf, prior)
+        self.make_epsilon_plot(ax_eps, gs, percs, prior)
     
         # nu_max plot
         ax_numax = fig.add_axes([0.75, 0.76, 0.19, 0.23])
-        self.make_numax_plot(ax_numax, gs, bf, prior)
+        self.make_numax_plot(ax_numax, gs, percs, prior)
         
         return fig
 
