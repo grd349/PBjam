@@ -209,7 +209,7 @@ class star():
     """
 
     def __init__(self, ID, f, s, numax, dnu, teff=None, bp_rp=None,
-                 epsilon=None, source=None, store_chains = False, nthreads=1):
+                 epsilon=None, source=None, store_chains=False, nthreads=1):
         self.ID = ID
         self.f = f
         self.s = s
@@ -224,7 +224,7 @@ class star():
         self.store_chains = store_chains
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
-                          env_width=None, env_height=None, norders=5):
+                          env_width=None, env_height=None, norders=8):
         """ Called to perform mode ID using the asymptotic method
 
         Parameters
@@ -250,19 +250,17 @@ class star():
 
         fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
                              env_height, store_chains = self.store_chains,
-                             nthreads=self.nthreads)
-        fit.run(norders)
+                             nthreads=self.nthreads, nrads = norders)
+        fit.run()
 
         self.asy_result = fit
     
-    def make_main_plot(self, ax, idx, mod_f, mod_s, modeID, fc, bf):
+    def make_main_plot(self, ax, sel, model, modeID, fc, bf):
         
-        ax.plot(self.f[idx], self.s[idx], lw=0.5, label='Spectrum', 
+        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum', 
                 color='C0', alpha = 0.5)
     
-        for i in range(min(100, np.shape(fc)[0])):
-            m = mod_s(*fc[i,:])
-            ax.plot(mod_f, m, lw=3, color='C3', alpha=0.05)
+        ax.plot(self.f[sel], model, lw=3, color='C3', alpha=1)
             
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
@@ -278,24 +276,19 @@ class star():
         ax.axvline(bf['numax'][1], color='k', alpha=0.75, lw=3,
                         label=r'$\nu_{\mathrm{max}}$')
         
-        ax.set_ylim(0, min([bf['env_height'][1] * 5, max(self.s)]))
+        ax.set_ylim(0, min([bf['env_height'][1] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
-        ax.set_xlim(min(mod_f), max(mod_f))
+        ax.set_xlim(min(self.f[sel]), max(self.f[sel]))
         ax.legend()
         
     def make_residual_plot(self, ax, mod_f):
         res = self.residual
-#        df = np.median(np.diff(mod_f))
-#        n = max([1,int(np.floor(0.05/df))])
-#        m = int(np.floor(len(res)/n))
-#        ressmoo = res[:n*m].reshape(n,-1).mean(0)
-#        ax.plot(mod_f[:n*m:n], ressmoo)
         ax.plot(mod_f, res)
         ax.set_xlabel(r'Frequency [$\mu$Hz]')
         ax.set_xlim(min(mod_f), max(mod_f))
         ax.set_ylabel('SNR/Model')
-        #ax.set_yscale('log')
+        ax.set_yscale('log')
         ax.set_ylim(1e-1, max(res))
 
     def make_residual_kde_plot(self, ax, res_lims):
@@ -305,15 +298,13 @@ class star():
         y = np.linspace(res_lims[0], res_lims[1], 5000)
         xlim = [min([min(res_kde(y)), min(ref_kde(y))]),
                 max([max(res_kde(y)), max(ref_kde(y))])]
-    
         cols = ['C0', 'C1']
         for i, kde in enumerate([res_kde(y), ref_kde(y)]):
             ax.plot(kde, y, lw=4, color=cols[i])
             ax.fill_betweenx(y, x2=xlim[0], x1=kde, color=cols[i], alpha=0.5)
         ax.plot(np.exp(-y), y, ls='dashed', color='k', lw=1)
-    
         ax.set_ylim(y[0], y[-1])
-        ax.set_xlim(1e-4, 1.1)
+        ax.set_xlim(max([1e-4,xlim[0]]), 1.1)
         ax.set_yscale('log')
         ax.set_xscale('log')           
         ax.yaxis.tick_right()
@@ -321,63 +312,41 @@ class star():
 
 
     def make_Teff_plot(self, ax, gs, bf, prior):
-        # initial guess
         ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1], 
                     yerr=gs['teff'][1], fmt='o', color='C1')        
-        # best fit
         ax.errorbar(x=bf['dnu'][1], y=bf['teff'][1], 
                     xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf['teff'])],
                     fmt='o', color='C0')        
-        # prior
         ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)        
-        # labels
         ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
         ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')        
-        # limits        
-        #ticks
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")        
-        # scale
         ax.set_xscale('log')
         
-    # epsilon plot
     def make_epsilon_plot(self, ax, gs, bf, prior):
-        # initial guess
-        # best fit
         ax.errorbar(x=bf['dnu'][1], y=bf['eps'][1], 
                     xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf['eps'])],
                     fmt='o', color='C0')
-        # prior
         ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)           
-        # labels
         ax.set_ylabel(r'$\epsilon$')        
-        # limits
         ax.set_ylim(0.4, 1.6)                
-        # scale
         ax.set_xscale('log')        
-        # ticks
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
     
     def make_numax_plot(self, ax, gs, bf, prior):
-        # initial guess
         ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0],
                       xerr=gs['dnu'][1], yerr=gs['numax'][1],
                       fmt='o', color='C1')    
-        # best fit
         ax.errorbar(x=bf['dnu'][1], y=bf['numax'][1],
                     xerr=[np.diff(bf['dnu'])], yerr=[np.diff(bf['numax'])],
                     fmt='o', color='C0')
-        # prior
         ax.scatter(prior['dnu'], prior['numax'], c='k', s=2, alpha=0.2)
-        # labels
         ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')    
-        # limits               
-        #scale
         ax.set_xscale('log')
         ax.set_yscale('log')       
-        # ticks
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
@@ -385,35 +354,27 @@ class star():
     def plot_asyfit(self, model=None, fig=None, modeID=None):
         # Plot resulting spectrum model
         if not model:
-            model = self.asy_result.model
-        mod_f, mod_s = model
+            model = self.asy_result.best_model
         if not modeID:
             modeID = self.asy_result.modeID
         if not fig:
             fig = plt.figure(figsize=(12, 7))
-       
+        
         prior = pd.read_csv('pbjam/data/prior_data.csv')
         fc = self.asy_result.flatchains
         bf = self.asy_result.bestfit
         gs = self.asy_result.guess
-
-        idx = (mod_f[0] <= self.f) & (self.f <= mod_f[-1])
-
-        mod_s_av = np.zeros_like(mod_f)
-        for i in range(min(100, np.shape(fc)[0])):
-            m = mod_s(*fc[i,:])
-            mod_s_av += m
-        mod_s_av /= i+1
+        sel = self.asy_result.sel
         
-        self.residual = self.s[idx]/mod_s_av
+        self.residual = self.s[sel]/model
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
-        self.make_main_plot(ax_main, idx, mod_f, mod_s, modeID, fc, bf)
+        self.make_main_plot(ax_main, sel, model, modeID, fc, bf)
         
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
-        self.make_residual_plot(ax_res, mod_f)
+        self.make_residual_plot(ax_res, self.f[sel])
                
         # KDE plot
         ax_kde = fig.add_axes([0.75, 0.07, 0.19, 0.15])

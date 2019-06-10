@@ -9,9 +9,9 @@ import numpy as np
 import pbjam as pb
 import os
 import pandas as pd
-
+from collections import OrderedDict
 from . import PACKAGEDIR
-
+import scipy.stats as scist
 
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
@@ -112,6 +112,27 @@ def P_envelope(nu, hmax, numax, width):
     """
 
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
+
+def get_summary_stats(fit, model, pnames):
+        summary = pd.DataFrame()
+        smry_stats = ['best','mean', 'skew', '2nd', '16th', '50th', '84th', 
+                      '97th']
+        idx = np.argmax(fit.flatlnlike)       
+        means = np.mean(fit.flatchains, axis = 0)
+        skewness = scist.skew(fit.flatchains, axis = 0)
+        pars_percs = np.percentile(fit.flatchains, [0.50-0.954499736104/2,
+                                                 0.50-0.682689492137/2,
+                                                 0.50,
+                                                 0.50+0.682689492137/2,
+                                                 0.50+0.954499736104/2], axis=0)
+        best = fit.flatchains[idx,:]
+        for i, par in enumerate(pnames):
+            z = [best[i], skewness[i], means[i], *pars_percs[:,i]]
+            A = {key: z[i] for i, key in enumerate(smry_stats)}
+            summary[par] = pd.Series(A)
+            
+        best_model = model(best)
+        return summary, best_model
 
 
 class asymp_spec_model():
@@ -316,24 +337,33 @@ class asymptotic_fit():
     """
 
     def __init__(self, star, d02, alpha, mode_width, env_width, env_height, 
-                 store_chains = False, nthreads=1, verbose=False):
+                 store_chains = False, nthreads=1, verbose=False, nrads = 8):
         
         pars = [star.numax, star.dnu, star.epsilon, alpha, d02, env_height,
                 env_width, mode_width, star.teff, star.bp_rp,]
-            
+        
+        self.nthreads = nthreads
+        self.verbose = verbose
+        self.nrads = nrads
         self.f = star.f
         self.s = star.s
         self.pars_names = ['numax', 'dnu', 'eps', 'alpha', 'd02', 'env_height',
                            'env_width', 'mode_width', 'teff', 'bp_rp']
-        self.guess = {pars_names: pars for pars_names, pars in zip(self.pars_names, pars)}       
+        self.guess = OrderedDict({pars_names: pars for pars_names, pars in zip(self.pars_names, pars)})
+        self.parse_asy_pars() # interpret inputs and/or guess missing vals        
+        self.sel = np.where(np.abs(self.f - self.guess['numax'][0]) < self.nrads/1.5*self.guess['dnu'][0])
+        self.model = asymp_spec_model(self.f[self.sel], self.nrads)
+        self.bounds = self.set_bounds()
+        self.gaussian = self.set_gaussian_pars()
+        
+        self.store_chains = store_chains        
         self.modeID = None
-        self.model = None
-        self.bestfit = None
+        self.summary = None
         self.flatchains = None
-        self.store_chains = store_chains
-        self.nthreads = nthreads
-        self.verbose = verbose
-
+        self.lnlike_fin = None
+        self.lnprior_fin = None
+        self.best_model = None
+        
     def parse_asy_pars(self, verbose=False):
         """ Parse input and initial guesses for the asymptotic relation fit
 
@@ -380,13 +410,52 @@ class asymptotic_fit():
             smoo = self.s[:a*b].reshape((b, a)).mean(1)
             self.guess['env_height'] = [max(smoo)]
 
-        pars = [self.guess[key][0] for key in self.pars_names]
-
         if verbose or self.verbose:
-            for i, key in enumerate(self.pars_names):
-                print('%s: %f' % (key, pars[i]))
-        return pars
-    
+            for key in self.pars_names:
+                print('%s: %f' % (key, self.guess[key]))
+                
+    def set_bounds(self, nsig = 5):
+        bounds = [[max(1e-20, self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
+                   self.guess['numax'][0]+nsig*self.guess['numax'][1]],
+
+                  [max(1e-20, self.guess['dnu'][0]-nsig*self.guess['dnu'][1]),  # Dnu
+                   self.guess['dnu'][0]+nsig*self.guess['dnu'][1]],
+
+                  [max(0.4, self.guess['eps'][0]-nsig*self.guess['eps'][1]),  # eps
+                   min(1.6, self.guess['eps'][0]+nsig*self.guess['eps'][1])],
+
+                  [1e-20, 0.1],  # alpha
+
+                  [0.05*self.guess['dnu'][0], 0.25*self.guess['dnu'][0]],  # d02
+
+                  [self.guess['env_height'][0]*0.5, self.guess['env_height'][0]*1.5],  # hmax
+
+                  [self.guess['env_width'][0]*0.75, self.guess['env_width'][0]*1.25],  # Ewidth
+
+                  [-2, 1.2],  # mode width (log10)
+
+                  [max(3000.0, self.guess['teff'][0]-nsig*self.guess['teff'][1]),  # Teff
+                   min(7800.0, self.guess['teff'][0]+nsig*self.guess['teff'][1])],
+
+                  [self.guess['bp_rp'][0]-nsig*self.guess['bp_rp'][1],
+                   self.guess['bp_rp'][0]+nsig*self.guess['bp_rp'][1]]  # Gaia bp-rp
+                  ]
+        return bounds
+
+    def set_gaussian_pars(self):
+        gaussian = [(0, 0),  # numax
+                    (0, 0),  # Dnu
+                    (0, 0),  # eps
+                    (0.015*self.guess['dnu'][0]**-0.32, 0.01),  # alpha
+                    (0.14*self.guess['dnu'][0], 0.3*self.guess['dnu'][0]),  # d02
+                    (0, 0),  # hmax
+                    (0, 0),  # Ewidth
+                    (np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17), 0.2),  # mode width (log10)
+                    (self.guess['teff'][0], self.guess['teff'][1]),  # Teff
+                    (self.guess['bp_rp'][0], self.guess['bp_rp'][1]),  # Gaia bp-rp
+                    ]
+        return gaussian
+           
     def get_modeIDs(self, fit, N):
         # Get mode ID and frequency list
         # TODO - is there a better/neater way to do this?
@@ -414,10 +483,11 @@ class asymptotic_fit():
         modeID = pd.DataFrame({'ell': ells,
                                'nu_mu': nus_mu_out,
                                'nu_std': nus_std_out})
-        
         return modeID
-        
-    def run(self, N):
+    
+
+    
+    def run(self):
         """ Setup, run and parse the asymptotic relation fit using EMCEE
 
         Parameters
@@ -430,78 +500,24 @@ class asymptotic_fit():
         mode_ID : dataframe
             Pandas dataframe of the radial order, angular degree and mode
             frequency and error for the modes fit in the asymptotic relation.
-        """
-
-        x0 = self.parse_asy_pars()
-        
-        # select range around numax to fit
-        sel = np.where(np.abs(self.f - self.guess['numax'][0]) < N/1.5*self.guess['dnu'][0])
-
-        model = asymp_spec_model(self.f[sel], N)
-
-        nsig = 5
-        
-        bounds = [[max(1e-20, self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
-                   self.guess['numax'][0]+nsig*self.guess['numax'][1]],
-
-                  [max(1e-20, self.guess['dnu'][0]-nsig*self.guess['dnu'][1]),  # Dnu
-                   self.guess['dnu'][0]+nsig*self.guess['dnu'][1]],
-
-                  [max(0.4, self.guess['eps'][0]-nsig*self.guess['eps'][1]),  # eps
-                   min(1.6, self.guess['eps'][0]+nsig*self.guess['eps'][1])],
-
-                  [0, 0.1],  # alpha
-
-                  [0.05*self.guess['dnu'][0], 0.2*self.guess['dnu'][0]],  # d02
-
-                  [self.guess['env_height'][0]*0.5, self.guess['env_height'][0]*1.5],  # hmax
-
-                  [self.guess['env_width'][0]*0.75, self.guess['env_width'][0]*1.25],  # Ewidth
-
-                  [-2, 1.2],  # mode width (log10)
-
-                  [max(3000.0, self.guess['teff'][0]-nsig*self.guess['teff'][1]),  # Teff
-                   min(7800.0, self.guess['teff'][0]+nsig*self.guess['teff'][1])],
-
-                  [self.guess['bp_rp'][0]-nsig*self.guess['bp_rp'][1],
-                   self.guess['bp_rp'][0]+nsig*self.guess['bp_rp'][1]]  # Gaia bp-rp
-                  ]
-
-        gaussian = [(0, 0),  # numax
-                    (0, 0),  # Dnu
-                    (0, 0),  # eps
-                    (0.015*self.guess['dnu'][0]**-0.32, 0.01),  # alpha
-                    (0.14*self.guess['dnu'][0], 0.3*self.guess['dnu'][0]),  # d02
-                    (0, 0),  # hmax
-                    (0, 0),  # Ewidth
-                    (np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17), 0.2),  # mode width (log10)
-                    (self.guess['teff'][0], self.guess['teff'][1]),  # Teff
-                    (self.guess['bp_rp'][0], self.guess['bp_rp'][1]),  # Gaia bp-rp
-                    ]
-
-        fit = mcmc(self.f[sel], self.s[sel], model, x0, bounds, gaussian,
-                   nthreads=self.nthreads)
+        """    
+        fit = mcmc(self.f[self.sel], self.s[self.sel], self.model, self.guess, 
+                   self.pars_names, self.bounds, self.gaussian, nthreads=self.nthreads)
 
         fit()  # do the fit with default settings
 
-        flatchains = fit.chains.reshape(-1, fit.ndim)
+        self.modeID = self.get_modeIDs(fit, self.nrads)
 
-        fitpars = np.percentile(flatchains, [16, 50, 84], axis=0)
-
-        self.model = (model.f, model.model)
-
-        self.modeID = self.get_modeIDs(fit, N)
-#
-#        for j, key in enumerate(self.pars_names):
-#            self.bestfit[key] = fitpars[:, j]
-
-        self.bestfit = {key: fitpars[:, j] for j, key in enumerate(self.pars_names)}
+        self.summary, self.best_model = get_summary_stats(fit, self.model, self.pars_names)
 
         if self.store_chains:
-            self.flatchains = flatchains
+            self.flatchains = fit.flatchains
+            self.lnlike_fin = fit.flatlnlike
         else:
             self.flatchains = fit.chains[:,-1,:]
-                
+            self.lnlike_fin = np.array([fit.likelihood(fit.chains[i,-1,:]) for i in range(fit.nwalkers)])
+            self.lnprior_fin = np.array([fit.lp(fit.chains[i,-1,:]) for i in range(fit.nwalkers)])
+ 
         return self.modeID
 
 
@@ -557,7 +573,7 @@ class Prior(pb.epsilon):
         '''
 
         for idx, i in enumerate(p):
-            if np.all(self.bounds[idx] != 0):
+            if np.all(self.bounds[idx] != 0):  
                 if ((i < self.bounds[idx][0]) | (i > self.bounds[idx][1])):
                     return -np.inf
         return 0
@@ -610,13 +626,10 @@ class Prior(pb.epsilon):
         # Evaluate the prior, defined by a KDE
         # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
 
-        lp = np.log(self.kde.pdf([np.log10(p[1]), np.log10(p[0]), np.log10(p[8]),
-                           p[9], p[3]]))
-
+        lp = np.log(self.kde.pdf([np.log10(p[1]), np.log10(p[0]), 
+                                  np.log10(p[8]), p[9], p[3]]))
         lp += self.pgaussian(p)
-
         return lp
-
 
 class mcmc():
     """ Class for MCMC sampling
@@ -652,16 +665,20 @@ class mcmc():
         Prior class initialized using model parameter limits
     """
 
-    def __init__(self, f, s, model, x0, bounds, gaussian, nthreads=1):
+    def __init__(self, f, s, model, guess, pars_names, bounds, gaussian, 
+                 nthreads=1):
         self.f = f
         self.s = s
         self.model = model
-        self.x0 = x0
+        self.ndim = len(pars_names)
+        self.pars_names = pars_names
+        self.guess = guess
         self.bounds = bounds
-        self.ndim = len(x0)
         self.gaussian = gaussian
         self.lp = Prior(self.bounds, self.gaussian)
-        self.nthreads = nthreads
+        self.nthreads = nthreads        
+        self.chains = None
+
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -680,14 +697,16 @@ class mcmc():
             likelihood function at p
         """
         logp = self.lp(p)
+            
         if logp == -np.inf:
             return -np.inf
-
+        
         mod = self.model(p)
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
-    def __call__(self, niter=1000, nwalkers=50, burnin=2000, spread=0.01):
+    def __call__(self, niter=100, nwalkers=50, burnin=200, spread=0.01, 
+                 prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 
         Parameters
@@ -712,25 +731,31 @@ class mcmc():
         # Save these for later
         self.niter = niter
         self.nwalkers = nwalkers
-        self.burnin = burnin
+        self.burnin = burnin       
+        self.prior_only = True
 
         import emcee
 
+#        mus    = [self.guess[key][0] for key in self.pars_names]
+#        sigmas = [self.guess[key][1] for key in self.pars_names]
+
         # Start walkers in a tight random ball
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0],
-                                              self.x0[i]*(1-spread)),
+                                              self.guess[key][0]*(1-spread)),
                                           min(self.bounds[i][1],
-                                              self.x0[i]*(1+spread))) for i in range(self.ndim)] for i in range(nwalkers)])
+                                              self.guess[key][0]*(1+spread))) for i, key in enumerate(self.guess.keys())] for i in range(nwalkers)])
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)
         print('Burningham')
-        sampler.run_mcmc(p0, self.burnin)
-        pb = sampler.chain[:, -1, :].copy()
+        pos, prob, state = sampler.run_mcmc(p0, self.burnin)
         sampler.reset()
         print('Sampling')
-        sampler.run_mcmc(pb, self.niter)
-        out = sampler.chain.copy()
+        sampler.run_mcmc(pos, self.niter)
+        self.chains = sampler.chain.copy()
+        self.flatchain = sampler.flatchain
+        self.lnlike = sampler.lnprobability
+        self.flatlnlike = sampler.flatlnprobability
         sampler.reset()  # This hopefully minimizes emcee memory leak
-        self.chains = out
-        return out
+        
+        
