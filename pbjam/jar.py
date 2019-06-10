@@ -31,11 +31,10 @@ import pandas as pd
 import warnings
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
+import os
+import glob
 
-
-
-
-
+from . import PACKAGEDIR
 
 
 def multiplier(x, N):
@@ -68,7 +67,7 @@ def check_list_lengths(X):
     assert lens[1:] == lens[:-1], "Provided inputs must be same length"
 
 
-def download_lc(ID, lkargs):
+def download_lc(ID, lkargs, use_cached=True):
     """ Use Lightkurve to get snr
 
     Querries MAST using Lightkurve, based on the provided target ID(s) and
@@ -104,20 +103,32 @@ def download_lc(ID, lkargs):
 
     lc_list = []
     source_list = []
-
+    lc_col = []
     for i, id in enumerate(ID):
-        tgt = lk.search_lightcurvefile(target=id,
-                                       quarter=lkargs['quarter'][i],
-                                       campaign=lkargs['campaign'][i],
-                                       sector=lkargs['sector'][i],
-                                       month=lkargs['month'][i],
-                                       cadence=lkargs['cadence'][i])
-        lc_col = tgt.download_all()
+        if use_cached:
+            ddir = os.path.join(os.path.expanduser('~'), '.lightkurve-cache')
+            ddir += '/mastDownload/*/' + f'*{str(int(id))}*/*_llc.fits'
+            tgt = glob.glob(ddir)
+            lc_col = [lk.open(n) for n in tgt]
+
+        if use_cached == False or lc_col == []:
+            tgt = lk.search_lightcurvefile(target=id,
+                                           quarter=lkargs['quarter'][i],
+                                           campaign=lkargs['campaign'][i],
+                                           sector=lkargs['sector'][i],
+                                           month=lkargs['month'][i],
+                                           cadence=lkargs['cadence'][i])
+            lc_col = tgt.download_all()
+            
         lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
         for i, lc in enumerate(lc_col[1:]):
             lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
         lc_list.append(lc0)
-        source_list.append(tgt.table['productFilename'][0])
+        try:
+            source_list.append(tgt.table['productFilename'][0])
+        except AttributeError:
+            source_list.append(tgt)
+
     return lc_list, source_list
 
 
@@ -222,6 +233,8 @@ class star():
         self.source = source
         self.nthreads = nthreads
         self.store_chains = store_chains
+        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
+
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
@@ -441,7 +454,7 @@ class session():
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  epsilon=None, timeseries=None, psd=None, dictlike=None,
-                 store_chains = False, nthreads=1,
+                 store_chains = False, nthreads=1, use_cached=False,
                  kwargs={}):
 
         self.nthreads = nthreads
@@ -471,7 +484,8 @@ class session():
                     lkwargs[key] = enforce_list(lkwargs[key])[0]
                 check_list_lengths(lkwargs)
 
-                lc_list, source_list = download_lc(ID, lkwargs)
+                lc_list, source_list = download_lc(ID, lkwargs,
+                                                   use_cached=use_cached)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
         # Given time series as lk object, tuple or path
@@ -537,7 +551,8 @@ class session():
                         kwargs[key] = [None]*len(ID)
                 check_list_lengths(kwargs)
 
-                lc_list, source_list = download_lc(ID, kwargs)
+                lc_list, source_list = download_lc(ID, kwargs,
+                                                   use_cached=use_cached)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
         else:
