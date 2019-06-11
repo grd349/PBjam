@@ -119,7 +119,7 @@ def download_lc(ID, lkargs, use_cached=True):
                                            month=lkargs['month'][i],
                                            cadence=lkargs['cadence'][i])
             lc_col = tgt.download_all()
-            
+
         lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
         for i, lc in enumerate(lc_col[1:]):
             lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
@@ -267,33 +267,33 @@ class star():
         fit.run()
 
         self.asy_result = fit
-    
-    def make_main_plot(self, ax, sel, model, modeID, best, percs):        
-        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum', 
+
+    def make_main_plot(self, ax, sel, model, modeID, best, percs):
+        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
                 color='C0', alpha = 0.5)
-    
+
         ax.plot(self.f[sel], model, lw=3, color='C3', alpha=1)
-            
+
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
             ax.axvline(modeID['nu_mu'][i], color='C3',
                             ls=linestyles[modeID['ell'][i]], alpha=0.5)
-        
+
         for i in np.unique(modeID['ell']):
-            ax.plot([-100, -101], [-100, -101], ls=linestyles[i], 
+            ax.plot([-100, -101], [-100, -101], ls=linestyles[i],
                     color='C3', label=labels[i])
-        ax.plot([-100, -101], [-100, -101], label='Model', lw=3, 
+        ax.plot([-100, -101], [-100, -101], label='Model', lw=3,
                 color='C3')
         ax.axvline(best['numax'], color='k', alpha=0.75, lw=3,
                         label=r'$\nu_{\mathrm{max}}$')
-        
+
         ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(min(self.f[sel]), max(self.f[sel]))
         ax.legend()
-        
+
     def make_residual_plot(self, ax, mod_f):
         res = self.residual
         ax.plot(mod_f, res)
@@ -318,55 +318,55 @@ class star():
         ax.set_ylim(y[0], y[-1])
         ax.set_xlim(max([1e-4,xlim[0]]), 1.1)
         ax.set_yscale('log')
-        ax.set_xscale('log')           
+        ax.set_xscale('log')
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
 
 
     def make_Teff_plot(self, ax, gs, percs, prior):
-        
-        ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1], 
-                    yerr=gs['teff'][1], fmt='o', color='C1')        
-        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1], 
+
+        ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1],
+                    yerr=gs['teff'][1], fmt='o', color='C1')
+        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1],
                     xerr=np.diff(percs['dnu']).reshape(2,1),
                     yerr=np.diff(percs['teff']).reshape(2,1),
-                    fmt='o', color='C0')        
-        ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)        
+                    fmt='o', color='C0')
+        ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)
         ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
-        ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')        
+        ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')
         ax.yaxis.tick_right()
-        ax.yaxis.set_label_position("right")        
+        ax.yaxis.set_label_position("right")
         ax.set_xscale('log')
-        
+
     def make_epsilon_plot(self, ax, gs, percs, prior):
-        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1], 
+        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1],
                     xerr=np.diff(percs['dnu']).reshape(2,1),
                     yerr=np.diff(percs['eps']).reshape(2,1),
                     fmt='o', color='C0')
-        ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)           
-        ax.set_ylabel(r'$\epsilon$')        
-        ax.set_ylim(0.4, 1.6)                
-        ax.set_xscale('log')        
+        ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)
+        ax.set_ylabel(r'$\epsilon$')
+        ax.set_ylim(0.4, 1.6)
+        ax.set_xscale('log')
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
-    
+
     def make_numax_plot(self, ax, gs, percs, prior):
         ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0],
                       xerr=gs['dnu'][1], yerr=gs['numax'][1],
-                      fmt='o', color='C1')    
+                      fmt='o', color='C1')
         ax.errorbar(x=percs['dnu'][1], y=percs['numax'][1],
                     xerr=np.diff(percs['dnu']).reshape(2,1),
                     yerr=np.diff(percs['numax']).reshape(2,1),
                     fmt='o', color='C0')
         ax.scatter(prior['dnu'], prior['numax'], c='k', s=2, alpha=0.2)
-        ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')    
+        ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')
         ax.set_xscale('log')
-        ax.set_yscale('log')       
+        ax.set_yscale('log')
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
-        
+
     def plot_asyfit(self, model=None, fig=None, modeID=None):
         # Plot resulting spectrum model
         if not model:
@@ -375,7 +375,7 @@ class star():
             modeID = self.asy_result.modeID
         if not fig:
             fig = plt.figure(figsize=(12, 7))
-        
+
         prior = pd.read_csv('pbjam/data/prior_data.csv')
         fc = self.asy_result.flatchain
         smry = self.asy_result.summary
@@ -383,17 +383,17 @@ class star():
         sel = self.asy_result.sel
         best = smry.loc['best']
         percs = smry.loc[['16th', '50th', '84th']]
-        
+
         self.residual = self.s[sel]/model
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
         self.make_main_plot(ax_main, sel, model, modeID, best, percs)
-        
+
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
         self.make_residual_plot(ax_res, self.f[sel])
-               
+
         # KDE plot
         ax_kde = fig.add_axes([0.75, 0.07, 0.19, 0.15])
         self.make_residual_kde_plot(ax_kde, ax_res.get_ylim())
@@ -401,15 +401,15 @@ class star():
         # Teff plot
         ax_teff = fig.add_axes([0.75, 0.30, 0.19, 0.226])
         self.make_Teff_plot(ax_teff, gs, percs, prior)
-            
+
         # epsilon plot
         ax_eps = fig.add_axes([0.75, 0.53, 0.19, 0.226])
         self.make_epsilon_plot(ax_eps, gs, percs, prior)
-    
+
         # nu_max plot
         ax_numax = fig.add_axes([0.75, 0.76, 0.19, 0.23])
         self.make_numax_plot(ax_numax, gs, percs, prior)
-        
+
         return fig
 
 
@@ -461,7 +461,7 @@ class session():
         self.store_chains = store_chains
 
         lkwargs = kwargs.copy()  # prevents memory leak between sessions
-        
+
         listchk = all([ID, numax, dnu])
 
         lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
