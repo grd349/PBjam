@@ -49,6 +49,7 @@ class MyCentralWidget(QWidget):
         self.label = QLabel(self)
         self.my_widget = MyWidget(self.label, self.main_window.df, self.main_window.image_dir)
         # Place the buttons - HZ
+        hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(good_button)
         hbox.addWidget(bad_button)
