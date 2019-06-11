@@ -33,21 +33,22 @@ class MyCentralWidget(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
-        self.idx = 0
+        self.idx = -1
         self.initUI()
 
 
     def initUI(self):
-        good_button = QPushButton('Good', self)
+        good_button = QPushButton('&Good', self)
+        good_button.setShortcut('g')
         good_button.clicked.connect(self.on_good_button_clicked)
         bad_button = QPushButton('Bad', self)
+        bad_button.setShortcut('b')
         bad_button.clicked.connect(self.on_bad_button_clicked)
 
         # define label
         self.label = QLabel(self)
         self.my_widget = MyWidget(self.label, self.main_window.df, self.main_window.image_dir)
         # Place the buttons - HZ
-        hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(good_button)
         hbox.addWidget(bad_button)
@@ -57,20 +58,23 @@ class MyCentralWidget(QWidget):
         vbox.addWidget(self.label)
         vbox.addLayout(hbox)
         self.setLayout(vbox)
+        self.next_image()
+
+    def next_image(self):
+        self.idx += 1
+        while self.main_window.df.loc[self.idx].error_flag >= 0:
+            self.idx += 1
         self.my_widget.show_image(self.idx)
 
     def on_good_button_clicked(self):
         self.main_window.df.at[self.idx, 'error_flag'] = 0
         self.main_window.statusBar().showMessage('Last jam was good')
-        self.idx += 1
-        self.my_widget.show_image(self.idx)
+        self.next_image()
 
     def on_bad_button_clicked(self):
         self.main_window.df.at[self.idx, 'error_flag'] = 1
-        print(self.main_window.df.loc[self.idx])
         self.main_window.statusBar().showMessage('Last jam was Bad')
-        self.idx += 1
-        self.my_widget.show_image(self.idx)
+        self.next_image()
 
 class MyWidget():
     def __init__(self, label, df, image_dir):
@@ -84,6 +88,7 @@ class MyWidget():
         sfile = glob.glob(self.image_dir + os.sep + '*' + id + '*.png')
         pixmap = QPixmap(sfile[0])
         self.label.setPixmap(pixmap)
+        self.label.setScaledContents(True)
 
 def main(df, image_dir):
     '''
@@ -101,7 +106,8 @@ def main(df, image_dir):
 if __name__ == "__main__":
     if len(sys.argv) == 3:
         df = pd.read_csv(sys.argv[1])
-        df['error_flag'] = [-1 for n in range(len(df))]
+        if df.columns.contains('error_flag') == False:
+            df['error_flag'] = [-1 for n in range(len(df))]
         file_dir = sys.argv[2]
         main(df, file_dir)
     else:
