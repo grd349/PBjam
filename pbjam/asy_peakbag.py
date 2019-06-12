@@ -13,6 +13,9 @@ from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
 
+def env_width_pl(numax):
+    return 0.66 * numax ** 0.88
+
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
 
@@ -54,9 +57,13 @@ def get_enns(nmax, nrads):
             array of nrads radial orders (integers) around numax (nmax)
     """
 
-    below = np.floor(nmax - np.floor(nrads/2))
-    above = np.floor(nmax + np.ceil(nrads/2))
-    return np.arange(below, above).astype(int)
+    below = np.floor(nmax - np.floor(nrads/2)).astype(int)
+    above = np.floor(nmax + np.ceil(nrads/2)).astype(int)
+    if type(below) == np.int64:
+        return np.arange(below, above)
+    else:
+        return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1,nrads)    
+
 
 
 def asymptotic_relation(numax, dnu, eps, alpha, nrads):
@@ -85,8 +92,8 @@ def asymptotic_relation(numax, dnu, eps, alpha, nrads):
     """
     nmax = get_nmax(numax, dnu, eps)
     enns = get_enns(nmax, nrads)
-    return (enns + eps + alpha/2*(enns - nmax)**2) * dnu
-
+    return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
+    
 
 def P_envelope(nu, hmax, numax, width):
     """ Power of the p-mode envelope
@@ -380,7 +387,7 @@ class asymptotic_fit():
             List of initial guesses for the parameters in the asymptotic
             relation fit.
         """
-
+        
         if not self.guess['teff']:
             self.guess['teff'] = [4931, 4931]  # TODO - hardcode, bad!
 
@@ -402,7 +409,7 @@ class asymptotic_fit():
             self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
         if not self.guess['env_width']:
-            self.guess['env_width'] = [0.66 * self.guess['numax'][0]**0.88]
+            self.guess['env_width'] = [env_width_pl(self.guess['numax'][0])]
 
         if not self.guess['env_height']:
             df = np.median(np.diff(self.f))
@@ -458,27 +465,27 @@ class asymptotic_fit():
         return gaussian
            
     def get_modeIDs(self, fit, N):
-        # Get mode ID and frequency list
         # TODO - is there a better/neater way to do this?
-        nu0s = np.empty((fit.niter*fit.nwalkers, N))
         
-        flatchain = fit.chain.reshape(-1, fit.ndim)
-        
-        for j in range(fit.niter*fit.nwalkers):
-            nu0s[j, :] = asymptotic_relation(*flatchain[j, :4], N)
+        flatchain = fit.flatchain
 
-        nu2s = np.array([nu0s[:, i] - flatchain[:, 4] for i in range(len(nu0s[0, :]))]).T
+        nsamps = np.shape(flatchain)[0]
 
-        nus_mu = np.median(np.array([nu0s, nu2s]), axis=1)
-        nus_std = np.std(np.array([nu0s, nu2s]), axis=1)
+        nu0_samps, nu2_samps = np.empty((nsamps, N)), np.empty((nsamps, N))
 
-        ells = [0 if i % 2 else 2 for i in range(2*len(nus_mu[0, :]))]
+        nu0_samps = asymptotic_relation(*flatchain[:, :4].T, N)
+        nu2_samps = nu0_samps - flatchain[:, 4]
+                    
+        nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
+        nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
+
+        ells = [0 if i % 2 else 2 for i in range(2*N)]
 
         nus_mu_out = []
         nus_std_out = []
 
-        for i in range(len(nus_mu[0, :])):
-            nus_mu_out += [nus_mu[1, i], nus_mu[0, i]]
+        for i in range(N):
+            nus_mu_out += [nus_med[1, i], nus_med[0, i]]
             nus_std_out += [nus_std[1, i], nus_std[0, i]]
         
         modeID = pd.DataFrame({'ell': ells,
@@ -626,9 +633,6 @@ class Prior(pb.epsilon):
         if self.pbound(p) == -np.inf:
             return -np.inf
 
-        # Evaluate the prior, defined by a KDE
-        # log10(Dnu), log10(numax), log10(Teff), bp_rp, eps
-
         lp = np.log(self.kde.pdf([np.log10(p[1]), np.log10(p[0]), 
                                   np.log10(p[8]), p[9], p[3]]))
         lp += self.pgaussian(p)
@@ -708,7 +712,7 @@ class mcmc():
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
-    def __call__(self, niter=1000, nwalkers=50, burnin=2000, spread=0.01, 
+    def __call__(self, niter=10, nwalkers=50, burnin=20, spread=0.01, 
                  prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 

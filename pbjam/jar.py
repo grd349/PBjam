@@ -28,11 +28,9 @@ from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import warnings
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import os
-import glob
+import os, glob, warnings, sys
 
 from . import PACKAGEDIR
 
@@ -67,7 +65,7 @@ def check_list_lengths(X):
     assert lens[1:] == lens[:-1], "Provided inputs must be same length"
 
 
-def download_lc(ID, lkargs, use_cached=True):
+def get_lc(ID, lkargs, use_cached=True):
     """ Use Lightkurve to get snr
 
     Querries MAST using Lightkurve, based on the provided target ID(s) and
@@ -100,36 +98,54 @@ def download_lc(ID, lkargs, use_cached=True):
         lc = lc.remove_nans().normalize().flatten().remove_outliers()
         #lc.flux = (lc.flux-1)*1e6
         return lc
-
+    
+    def query_mast(i, id, lkargs):
+        search_result = lk.search_lightcurvefile(target=id,
+                                             quarter=lkargs['quarter'][i],
+                                             campaign=lkargs['campaign'][i],
+                                             sector=lkargs['sector'][i],
+                                             month=lkargs['month'][i],
+                                             cadence=lkargs['cadence'][i])
+        if len(search_result) == 0:
+            warnings.warn('LightKurve did not return %s cadence data for %s' % (lkargs['cadence'][i], id))
+            return []
+        else:
+            return search_result.download_all()
+        
+    lk_cache = os.path.join(*[os.path.expanduser('~'), 
+                              '.lightkurve-cache', 
+                              'mastDownload/*/'])
     lc_list = []
-    source_list = []
+#    source_list = []
     lc_col = []
-    for i, id in enumerate(ID):
-        if use_cached:
-            ddir = os.path.join(os.path.expanduser('~'), '.lightkurve-cache')
-            ddir += '/mastDownload/*/' + f'*{str(int(id))}*/*_llc.fits'
-            tgt = glob.glob(ddir)
-            lc_col = [lk.open(n) for n in tgt]
-
-        if use_cached == False or lc_col == []:
-            tgt = lk.search_lightcurvefile(target=id,
-                                           quarter=lkargs['quarter'][i],
-                                           campaign=lkargs['campaign'][i],
-                                           sector=lkargs['sector'][i],
-                                           month=lkargs['month'][i],
-                                           cadence=lkargs['cadence'][i])
-            lc_col = tgt.download_all()
+         
+    for i, id in enumerate(ID):                
+        if not lkargs['cadence'][i]:
+            lkargs['cadence'][i] = 'long'
+        
+        if lkargs['cadence'][i] == 'short':
+            tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_slc.fits')
+        elif lkargs['cadence'][i] == 'long':
+            tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_llc.fits')
+        else:
+            raise TypeError('Unrecognized cadence input for %s' % (id))  # TODO - don't make this a hard stop
+                
+        if (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
+            if ((len(tgtfiles) == 0) and use_cached):
+                warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkargs['cadence'][i], id))    
+            lc_col = query_mast(i, id, lkargs)
+            if len(lc_col) == 0:
+                raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkargs['cadence'][i], id)) # TODO - don't make this a hard stop
             
+        elif (use_cached and (len(tgtfiles) != 0)):
+            lc_col = [lk.open(n) for n in tgtfiles]
+
         lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
         for i, lc in enumerate(lc_col[1:]):
             lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
         lc_list.append(lc0)
-        try:
-            source_list.append(tgt.table['productFilename'][0])
-        except AttributeError:
-            source_list.append(tgt)
 
-    return lc_list, source_list
+    return lc_list#, source_list
 
 
 def get_psd(arr, arr_type):
@@ -169,7 +185,9 @@ def get_psd(arr, arr_type):
             elif A.__module__ == lk.lightcurve.__name__:
                 lk_lc = A
             else:
-                raise TypeError("Can't handle this type of time series object")
+                raise TypeError("Can't handle this type of time series object")            
+            sidx = np.argsort(lk_lc.time)
+            lk_lc.time, lk_lc.flux = lk_lc.time[sidx], lk_lc.flux[sidx]            
             lk_p = lk_lc.to_periodogram(freq_unit=units.microHertz,
                                         normalization='psd').flatten()
 
@@ -306,7 +324,7 @@ class star():
     def make_residual_kde_plot(self, ax, res_lims):
         res = self.residual
         res_kde = gaussian_kde(res)
-        ref_kde = gaussian_kde(np.random.exponential(scale=1, size=len(res)))
+        ref_kde = gaussian_kde(np.random.exponential(scale=1, size=max(2000,len(res))))
         y = np.linspace(res_lims[0], res_lims[1], 5000)
         xlim = [min([min(res_kde(y)), min(ref_kde(y))]),
                 max([max(res_kde(y)), max(ref_kde(y))])]
@@ -321,7 +339,6 @@ class star():
         ax.set_xscale('log')           
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
-
 
     def make_Teff_plot(self, ax, gs, percs, prior):
         
@@ -377,7 +394,6 @@ class star():
             fig = plt.figure(figsize=(12, 7))
         
         prior = pd.read_csv('pbjam/data/prior_data.csv')
-        fc = self.asy_result.flatchain
         smry = self.asy_result.summary
         gs = self.asy_result.guess
         sel = self.asy_result.sel
@@ -460,7 +476,7 @@ class session():
         self.nthreads = nthreads
         self.store_chains = store_chains
 
-        lkwargs = kwargs.copy()  # prevents memory leak between sessions
+        lkwargs = kwargs.copy()  # prevents memory leak between sessions?
         
         listchk = all([ID, numax, dnu])
 
@@ -484,8 +500,7 @@ class session():
                     lkwargs[key] = enforce_list(lkwargs[key])[0]
                 check_list_lengths(lkwargs)
 
-                lc_list, source_list = download_lc(ID, lkwargs,
-                                                   use_cached=use_cached)
+                lc_list = get_lc(ID, lkwargs, use_cached=use_cached)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
         # Given time series as lk object, tuple or path
@@ -536,10 +551,10 @@ class session():
             # if timeseries/psd columns exist, assume its a list of paths
             if 'timeseries' in df.keys():
                 PS_list = get_psd(list(df['timeseries']), arr_type='TS')
-                source_list = df['timeseries']
+#                source_list = df['timeseries']
             elif 'psd' in df.keys():
                 PS_list = get_psd(list(df['psd']), arr_type='PS')
-                source_list = df['psd']
+#                source_list = df['psd']
             else:  # Else try to get data from Lightkurve
                 if not any(x in df.keys() for x in lk_kws):
                     raise(KeyError, 'Must provide dataframe with observing season keywords and optionally cadence and/or month.')
@@ -551,8 +566,7 @@ class session():
                         kwargs[key] = [None]*len(ID)
                 check_list_lengths(kwargs)
 
-                lc_list, source_list = download_lc(ID, kwargs,
-                                                   use_cached=use_cached)
+                lc_list = get_lc(ID, kwargs, use_cached=use_cached)
                 PS_list = get_psd(lc_list, arr_type='TS')
 
         else:
@@ -561,9 +575,13 @@ class session():
         self.stars = [star(ID=ID[i], f=PS_list[i][0], s=PS_list[i][1],
                            numax=numax[i], dnu=dnu[i], teff=teff[i],
                            bp_rp=bp_rp[i], epsilon=epsilon[i],
-                           source=source_list[i], store_chains=self.store_chains,
+                           store_chains=self.store_chains,
                            nthreads=self.nthreads) for i in range(len(ID))]
 
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
+#            if (nu_lim < nyquist30) and (lkargs['cadence'][i] == 'short'): 
+#                warnings.warn('Target numax is well below the Nyquist frequency of long cadence data, consider setting session cadence keyword to long')
+#        
+ 
