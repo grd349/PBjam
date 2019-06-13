@@ -256,8 +256,14 @@ class star():
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
-        """ Called to perform mode ID using the asymptotic method
-
+        """ Perform mode ID using the asymptotic method.
+        
+        Calls the asymptotic_fit method from asy_peakbag and does an MCMC fit
+        of the asymptotic relation for l=2,0 pairs to the spectrum, with a
+        multivariate KDE as a prior on all the parameters. 
+        
+        Results are stored in the star.asy_result attribute.
+        
         Parameters
         ----------
         d02 : float, optional
@@ -266,8 +272,6 @@ class star():
         alpha : float, optional
             Initial guess for the scale of the second order frequency term in
             the asymptotic relation
-        seff : float, optional
-            Normalized Teff
         mode_width : float, optional
             Initial guess for the mode width (in log10!) for all the modes that
             are fit.
@@ -286,7 +290,7 @@ class star():
 
         self.asy_result = fit
     
-    def make_main_plot(self, ax, sel, model, modeID, best, percs):        
+    def make_spectrum_plot(self, ax, sel, model, modeID, best, percs):        
         ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum', 
                 color='C0', alpha = 0.5)
     
@@ -383,6 +387,33 @@ class star():
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
+
+#    def make_numax_plot(self, ax, gs, percs, prior):
+#        
+#        p = [1.28848407, 0.77089793]
+#        poly = lambda p, x: 10**np.polyval(p,np.log10(x))
+#        
+#        ygs = gs['numax'] / poly(p, gs['dnu'][0])
+#        ypercs = percs['numax'][1] / poly(p, percs['dnu'][1])
+#        ypercs_errs = np.diff(percs['numax']) / poly(p, percs['dnu'][1])
+#        yprior = prior['numax'] / poly(p, prior['dnu'])
+#        
+#        
+#        ax.errorbar(x=gs['dnu'][0], y=ygs[0],
+#                      xerr=gs['dnu'][1], yerr=ygs[1],
+#                      fmt='o', color='C1')    
+#        ax.errorbar(x=percs['dnu'][1], y=ypercs,
+#                    xerr=np.diff(percs['dnu']).reshape(2,1),
+#                    yerr=ypercs_errs.reshape(2,1),
+#                    fmt='o', color='C0')
+#        ax.scatter(prior['dnu'], yprior, c='k', s=2, alpha=0.2)
+#        ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')    
+#        ax.set_xscale('log')
+#        #ax.set_yscale('log')       
+#        ax.set_xticks([])
+#        ax.yaxis.tick_right()
+#        ax.yaxis.set_label_position("right")        
+
         
     def plot_asyfit(self, model=None, fig=None, modeID=None):
         # Plot resulting spectrum model
@@ -404,7 +435,7 @@ class star():
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
-        self.make_main_plot(ax_main, sel, model, modeID, best, percs)
+        self.make_spectrum_plot(ax_main, sel, model, modeID, best, percs)
         
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
