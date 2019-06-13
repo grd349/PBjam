@@ -68,14 +68,20 @@ class MyCentralWidget(QWidget):
         self.my_widget.show_image(self.idx)
 
     def on_good_button_clicked(self):
-        self.main_window.df.at[self.idx, 'error_flag'] = 0
-        self.main_window.statusBar().showMessage('Last jam was good')
-        self.next_image()
+        if self.idx < len(self.main_window.df):
+            self.main_window.df.at[self.idx, 'error_flag'] = 0
+            self.main_window.statusBar().showMessage('Last jam was good')
+            self.next_image()
+        else:
+            self.main_window.statusBar().showMessage('Finished')
 
     def on_bad_button_clicked(self):
-        self.main_window.df.at[self.idx, 'error_flag'] = 1
-        self.main_window.statusBar().showMessage('Last jam was Bad')
-        self.next_image()
+        if self.idx < len(self.main_window.df):
+            self.main_window.df.at[self.idx, 'error_flag'] = 1
+            self.main_window.statusBar().showMessage('Last jam was Bad')
+            self.next_image()
+        else:
+            self.main_window.statusBar().showMessage('Finished')
 
 class MyWidget():
     def __init__(self, label, df, image_dir):
@@ -85,7 +91,6 @@ class MyWidget():
 
     def show_image(self, idx):
         id = str(int(self.df.loc[idx].KIC))
-        print(id)
         sfile = glob.glob(self.image_dir + os.sep + '*' + id + '*.png')
         pixmap = QPixmap(sfile[0])
         self.label.setPixmap(pixmap)
