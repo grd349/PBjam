@@ -332,6 +332,13 @@ class peakbag():
             ax[1].scatter(self.n,
                           self.samples['ln_width2'][i, :], c='k', alpha=0.3)
 
+        ax[0].set_xlabel('normalised order')
+        ax[1].set_xlabel('normalised order')
+        ax[0].set_ylabel('ln line width')
+        ax[1].set_ylabel('ln line width')
+        ax[0].set_title('Radial modes')
+        ax[1].set_title('Quadrupole modes')
+
     def plot_height(self, thin=10):
         """
         TODO
