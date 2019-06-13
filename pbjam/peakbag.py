@@ -51,7 +51,7 @@ class peakbag():
         self.make_ladder()
         self.make_start()
         self.trim_ladder()
-        self.gp = []
+        self.gp0 = []
 
     def make_ladder(self):
         """
@@ -89,7 +89,6 @@ class peakbag():
                       'height0': height,
                       'height2': height*0.7,
                       'back': np.ones(len(l0))}
-        print(self.start)
 
     def trim_ladder(self):
         """
@@ -102,7 +101,6 @@ class peakbag():
                 if ((freq > np.min(self.ladder_f[j,:])) and
                     (freq < np.max(self.ladder_f[j,:]))):
                     orders.append(j)
-        print(orders)
         self.ladder_f = self.ladder_f[orders, :]
         self.ladder_p = self.ladder_p[orders, :]
 
@@ -237,7 +235,6 @@ class peakbag():
         dnu = self.asy_result.summary.loc['best'].dnu
         self.pm_model = pm.Model()
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
-        print(self.n)
         hfac = 10.0
         wfac = 1.0
         with self.pm_model:
@@ -250,7 +247,7 @@ class peakbag():
             c0 = pm.Normal('intercept0', 0, 10)
             sigma0 = pm.HalfNormal('sigma0', 1.0)
             mean_func0 = pm.gp.mean.Linear(coeffs=m0, intercept=c0)
-            cov_func0 = simga0 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            cov_func0 = sigma0 * pm.gp.cov.ExpQuad(1, ls=0.3)
             self.gp0 = pm.gp.Latent(cov_func=cov_func0,
                                    mean_func=mean_func0)
             ln_width0 = self.gp0.prior('ln_width0', X=self.n)
@@ -258,8 +255,9 @@ class peakbag():
             # and on the l=2 mode widths
             m2 = pm.Normal('gradient2', 0, 10)
             c2 = pm.Normal('intercept2', 0, 10)
+            sigma2 = pm.HalfNormal('sigma2', 1.0)
             mean_func2 = pm.gp.mean.Linear(coeffs=m2, intercept=c2)
-            cov_func2 = 1.0 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            cov_func2 = sigma2 * pm.gp.cov.ExpQuad(1, ls=0.3)
             self.gp2 = pm.gp.Latent(cov_func=cov_func2,
                                    mean_func=mean_func2)
             ln_width2 = self.gp2.prior('ln_width2', X=self.n)
@@ -269,7 +267,7 @@ class peakbag():
                                     shape=len(self.start['l2']))
             height2 = pm.HalfNormal('height2', hfac*self.start['height2'],
                                     shape=len(self.start['l2']))
-            back = pm.Normal('back', 1.0, 0.1,
+            back = pm.Normal('back', 1.0, 0.2,
                                     shape=len(self.start['l2']))
 
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
@@ -316,7 +314,7 @@ class peakbag():
         """
         fig, ax = plt.subplots(1, 2, figsize=[16,9])
 
-        if self.gp != []:
+        if self.gp0 != []:
             from pymc3.gp.util import plot_gp_dist
 
             n_new = np.linspace(-0.2, 1.2, 100)[:,None]
