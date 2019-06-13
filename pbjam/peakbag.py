@@ -1,11 +1,49 @@
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 
 import numpy as np
 import pymc3 as pm
 import matplotlib.pyplot as plt
 
 class peakbag():
+    """
+    Class for PBjam peakbagging.
+
+    This class allows for simple manipulation of the data, the fitting of a
+    pymc3 model to the data, and some plotting of results functionality.
+
+    Parameters
+    ----------
+    f : float, array
+        Array of frequency bins of the spectrum (muHz). Truncated to the range
+        around numax.
+    snr : float, array
+        Array of SNR values for the frequency bins in f (dimensionless).
+    asy_result : asy_result
+        The result from the asy_peakbag method.
+
+    Attributes
+    ----------
+    f : float, array
+        Array of frequency bins of the spectrum (muHz). Truncated to the range
+        around numax.
+    snr : float, array
+        Array of SNR values for the frequency bins in f (dimensionless).
+    asy_result : asy_result
+        The result from the asy_peakbag method.
+
+
+    Example useage:
+        from pbjam import star
+        from pbjam import peakbag
+        import pymc3 as pm
+
+        # ... define a star in the pbjam star class ...
+        star.asymptotic_modeid(norders = 7)
+        pb = peakbag.peakbag(star.f, star.s, star.asy_result)
+        pb.sample(model_type='width_gp', cores=4, tune=5000)
+        pm.summary(pb.samples)
+    """
     def __init__(self, f, snr, asy_result):
         self.f = f
         self.snr = snr
@@ -13,18 +51,31 @@ class peakbag():
         self.make_ladder()
         self.make_start()
         self.trim_ladder()
+        self.gp = []
 
     def make_ladder(self):
+        """
+        This function transforms the 1 dimensional data in self.f and
+        self.snr to two dimensional arrays called ladders.
+
+        The ladders are designed to contain the l=0 and l=2 modes and have
+        a width of dnu/2.
+        """
         dnu = self.asy_result.summary.loc['best'].dnu
         epsilon = self.asy_result.summary.loc['best'].eps
         bin_width = self.f[1] - self.f[0]
-        w = int(dnu / bin_width)
-        s = int(epsilon * dnu / bin_width * 0.8)
-        h = int(np.floor(len(self.snr[s:]) / w))
+        w = int(dnu / bin_width) # width in bins
+        s = int(epsilon * dnu / bin_width * 0.8) # epsilon offset
+        h = int(np.floor(len(self.snr[s:]) / w)) # n orders
         self.ladder_p = np.reshape(self.snr[s:h*w+s], [h, w])[:, :int(w/2)]
         self.ladder_f = np.reshape(self.f[s:h*w+s], [h, w])[:, :int(w/2)]
 
     def make_start(self):
+        """
+        Function uses the information in self.asy_result (the result of the
+        asymptotic peakbagging) and builds a disctionary of starting values
+        for the peakbagging methods.
+        """
         l0 = self.asy_result.modeID.loc[self.asy_result.modeID.ell == 0].nu_mu.values.flatten()
         l2 = self.asy_result.modeID.loc[self.asy_result.modeID.ell == 2].nu_mu.values.flatten()
         width = 10**(np.ones(len(l0)) * self.asy_result.summary.loc['best'].mode_width).flatten()
@@ -41,6 +92,10 @@ class peakbag():
         print(self.start)
 
     def trim_ladder(self):
+        """
+        This function selects only the orders in the ladders that have modes
+        that age to be fitted, i.e., it trims the ladder.
+        """
         orders = []
         for freq in self.start['l0']:
             for j in range(self.ladder_f.shape[0]):
@@ -52,17 +107,68 @@ class peakbag():
         self.ladder_p = self.ladder_p[orders, :]
 
     def lor(self, freq, w, h):
+        """
+        This function calculates a lorentzian for each rung of the frequency
+        ladder.  The ladder is a 2D array.  freq, w, and h should be 1D arrays
+        of length that matches the height of the ladder.  No checkes are made
+        for this so as to reduce overheads.
+
+         Parameters
+         ----------
+         freq : float, array
+            A length H array of Lorentzian central frequencies where H is the
+            height of self.ladder_f .
+         w : float, array
+            A length H array of Lorentzian widths.
+         h : float, array
+            A length H array of Lorentzian heights.
+
+        Returns
+        -------
+        lorentzians : float, ladder
+           A ladder containing one Lorentzian per rung.
+        """
         diff = (self.ladder_f.T - freq)**2
         norm = 1.0 + 4.0 / w**2 * diff
         return h / norm
 
     def model(self, l0, l2, width0, width2, height0, height2, back):
+        """
+        Calcuates a simple model of a flat backgroud plus two lorentzians
+        for each rung of self.ladder_f .
+
+        Parameters
+        ----------
+        l0 : float, array
+            A length H array of l=0 mode central frequencies where H is the
+            height of self.ladder_f .
+        l2 : float, array
+            A length H array of l=2 mode central frequencies.
+        width0 : float, array
+            A length H array of l=0 mode widths.
+        width2 : float, array
+            A length H array of l=2 mode widths.
+        height0 : float, array
+            A length H array of l=0 mode heights.
+        height2 : float, array
+            A length H array of l=2 mode heights.
+        back : float, array
+            A length H array of background values.
+
+        Returns
+        -------
+        mod : float, ladder
+            A ladder containing the calculted model.
+        """
         mod = np.ones(self.ladder_f.shape).T * back
         mod += self.lor(l0, width0, height0)
         mod += self.lor(l2, width2, height2)
         return mod.T
 
     def plot_start_model(self):
+        """
+        Plots the model generated from the starting parameters
+        """
         mod = self.model(self.start['l0'],
                          self.start['l2'],
                          self.start['width0'],
@@ -77,6 +183,31 @@ class peakbag():
             ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r')
 
     def simple(self):
+        """
+        Creates a simple peakbagging model in pymc3's self.pm_model which is
+        an instance of pm.Model().
+
+        The simple model has three parameters per mode (freq, w, h) and one
+        back parameter per rung of the frequency ladder.
+
+        All parameters are independent.  For a model with additional constraints
+        see model_gp.
+
+        Priors on parameters are defined as follows:
+            l0 ~ Normal(start[l0], dnu*0.1)
+            l2 ~ Normal(start[l2], dnu*0.1)
+            width0 ~ HalfNormal(wfac * start[width0])
+            width2 ~ HalfNormal(wfac * start[width2])
+            height0 ~ HalfNormal(hfac * start[height0])
+            height2 ~ HalfNormal(hfac * start[height2])
+            back ~ Normal(1, 0.2)
+
+        The likelihood function of the observed data is dealt with using a
+        Gamma distribution where alpha=1 and beta=1/limit where limit is the
+        model of the spectrum proposed.  Using this gamma distirbution is the
+        equivalent of stating that observed/model is distributed as chi squared
+        two degrees of freedom.
+        """
         dnu = self.asy_result.summary.loc['best'].dnu
         self.pm_model = pm.Model()
         hfac = 10.0
@@ -94,12 +225,15 @@ class peakbag():
                                     shape=len(self.start['l2']))
             height2 = pm.HalfNormal('height2', hfac*self.start['height2'],
                                     shape=len(self.start['l2']))
-            back = pm.Normal('back', 1.0, 0.1,
+            back = pm.Normal('back', 1.0, 0.2,
                                     shape=len(self.start['l2']))
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
 
-    def width_gp(self):
+    def model_gp(self):
+        """
+        TODO
+        """
         dnu = self.asy_result.summary.loc['best'].dnu
         self.pm_model = pm.Model()
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
@@ -112,12 +246,23 @@ class peakbag():
             l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
                               shape=len(self.start['l2']))
             # Place a GP over the l=0 mode widths ...
-            cov_func = 1.0 * pm.gp.cov.ExpQuad(1, ls=0.3)
-            gp = pm.gp.Latent(cov_func=cov_func)
-            ln_width0 = gp.prior('ln_width0', X=self.n)
+            m0 = pm.Normal('gradient0', 0, 10)
+            c0 = pm.Normal('intercept0', 0, 10)
+            sigma0 = pm.HalfNormal('sigma0', 1.0)
+            mean_func0 = pm.gp.mean.Linear(coeffs=m0, intercept=c0)
+            cov_func0 = simga0 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            self.gp0 = pm.gp.Latent(cov_func=cov_func0,
+                                   mean_func=mean_func0)
+            ln_width0 = self.gp0.prior('ln_width0', X=self.n)
             width0 = pm.Deterministic('width0', pm.math.exp(ln_width0))
             # and on the l=2 mode widths
-            ln_width2 = gp.prior('ln_width2', X=self.n)
+            m2 = pm.Normal('gradient2', 0, 10)
+            c2 = pm.Normal('intercept2', 0, 10)
+            mean_func2 = pm.gp.mean.Linear(coeffs=m2, intercept=c2)
+            cov_func2 = 1.0 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            self.gp2 = pm.gp.Latent(cov_func=cov_func2,
+                                   mean_func=mean_func2)
+            ln_width2 = self.gp2.prior('ln_width2', X=self.n)
             width2 = pm.Deterministic('width2', pm.math.exp(ln_width2))
             #Carry on
             height0 = pm.HalfNormal('height0', hfac*self.start['height0'],
@@ -133,29 +278,75 @@ class peakbag():
 
     def sample(self, model_type='simple',
                      tune=1000,
-                     target_accept=0.9,
+                     target_accept=0.8,
                      cores=1):
+        """
+        Function to perform the sampling of a defined model.
+
+        Parameters
+        ----------
+        model_type : str
+            Defaults to 'simple'.
+            Can be either 'simple' or 'model_gp' which sets the type of model
+            to be fitted to the data.
+        tune : int
+            Numer of tuning steps passed to pm.sample
+        target_accept : float
+            Target acceptance fraction passed to pm.sample
+        cores : int
+            Number of cores to use - passed to pm.sample
+
+        """
         if model_type == 'simple':
             self.simple()
-        elif model_type == 'width_gp':
-            self.width_gp()
+        elif model_type == 'model_gp':
+            self.model_gp()
+        else:
+            print('Model not defined ')
         with self.pm_model:
-            self.samples = pm.sample(tune=tune, start=self.start, cores=cores)
+            self.samples = pm.sample(tune=tune,
+                                     start=self.start,
+                                     cores=cores,
+                                     target_accept=target_accept)
         pm.traceplot(self.samples)
 
     def plot_linewidth(self, thin=10):
-        fig, ax = plt.subplots(figsize=[16,9])
+        """
+        TODO
+        """
+        fig, ax = plt.subplots(1, 2, figsize=[16,9])
+
+        if self.gp != []:
+            from pymc3.gp.util import plot_gp_dist
+
+            n_new = np.linspace(-0.2, 1.2, 100)[:,None]
+            with self.pm_model:
+                f_pred0 = self.gp0.conditional("f_pred0", n_new)
+                f_pred2 = self.gp2.conditional("f_pred2", n_new)
+                self.pred_samples = pm.sample_posterior_predictive(self.samples,
+                               vars=[f_pred0, f_pred2], samples=1000)
+            plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
+            plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
+
         for i in range(0, len(self.samples), thin):
-            ax.scatter(self.samples['l0'][i, :], self.samples['width0'][i, :])
-            ax.scatter(self.samples['l2'][i, :], self.samples['width2'][i, :])
+            ax[0].scatter(self.n,
+                          self.samples['ln_width0'][i, :], c='k', alpha=0.3)
+            ax[1].scatter(self.n,
+                          self.samples['ln_width2'][i, :], c='k', alpha=0.3)
 
     def plot_height(self, thin=10):
+        """
+        TODO
+        """
         fig, ax = plt.subplots(figsize=[16,9])
         for i in range(0, len(self.samples), thin):
             ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
             ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
 
     def plot_fit(self, thin=100, alpha=0.2):
+        """
+        TODO
+        """
         n = self.ladder_p.shape[0]
         fig, ax = plt.subplots(n, figsize=[16,9])
         for i in range(n):
