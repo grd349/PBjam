@@ -33,7 +33,7 @@ class peakbag():
                  self.asy_result.summary.loc['best'].env_width**2)).flatten()
         self.start = {'l0': l0,
                       'l2': l2,
-                      'width0': width,
+                      'width0': width * (1.0 + np.random.randn(len(l0)) * 0.1),
                       'width2': width,
                       'height0': height,
                       'height2': height*0.7,
@@ -76,12 +76,12 @@ class peakbag():
             ax[i].plot(self.ladder_f[i, :], self.ladder_p[i, :], c='k')
             ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r')
 
-    def sample(self):
+    def simple(self):
         dnu = self.asy_result.summary.loc['best'].dnu
-        model = pm.Model()
+        self.pm_model = pm.Model()
         hfac = 10.0
-        wfac = 2.0
-        with model:
+        wfac = 1.0
+        with self.pm_model:
             l0 = pm.Normal('l0', self.start['l0'], dnu*0.1,
                               shape=len(self.start['l0']))
             l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
@@ -99,7 +99,48 @@ class peakbag():
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
 
-            self.samples = pm.sample(start=self.start)
+    def width_gp(self):
+        dnu = self.asy_result.summary.loc['best'].dnu
+        self.pm_model = pm.Model()
+        self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
+        print(self.n)
+        hfac = 10.0
+        wfac = 1.0
+        with self.pm_model:
+            l0 = pm.Normal('l0', self.start['l0'], dnu*0.1,
+                              shape=len(self.start['l0']))
+            l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
+                              shape=len(self.start['l2']))
+            # Place a GP over the l=0 mode widths ...
+            cov_func = 1.0 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            gp = pm.gp.Latent(cov_func=cov_func)
+            ln_width0 = gp.prior('ln_width0', X=self.n)
+            width0 = pm.Deterministic('width0', pm.math.exp(ln_width0))
+            # and on the l=2 mode widths
+            ln_width2 = gp.prior('ln_width2', X=self.n)
+            width2 = pm.Deterministic('width2', pm.math.exp(ln_width2))
+            #Carry on
+            height0 = pm.HalfNormal('height0', hfac*self.start['height0'],
+                                    shape=len(self.start['l2']))
+            height2 = pm.HalfNormal('height2', hfac*self.start['height2'],
+                                    shape=len(self.start['l2']))
+            back = pm.Normal('back', 1.0, 0.1,
+                                    shape=len(self.start['l2']))
+
+            limit = self.model(l0, l2, width0, width2, height0, height2, back)
+            yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
+
+
+    def sample(self, model_type='simple',
+                     tune=1000,
+                     target_accept=0.9,
+                     cores=1):
+        if model_type == 'simple':
+            self.simple()
+        elif model_type == 'width_gp':
+            self.width_gp()
+        with self.pm_model:
+            self.samples = pm.sample(tune=tune, start=self.start, cores=cores)
         pm.traceplot(self.samples)
 
     def plot_linewidth(self, thin=10):
