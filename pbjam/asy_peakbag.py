@@ -388,30 +388,35 @@ class asymptotic_fit():
             relation fit.
         """
         
-        if not self.guess['teff']:
+        
+        for key in ['d02','alpha','mode_width','env_height','env_width']:
+            self.guess[key] = np.array([self.guess[key]])  # TODO - this is a hack
+        
+        if any(self.guess['teff'] == None):
             self.guess['teff'] = [4931, 4931]  # TODO - hardcode, bad!
 
-        if not self.guess['bp_rp']:
+        if any(self.guess['bp_rp'] == None):
             self.guess['bp_rp'] = [1.26, 1.26]  # TODO - hardcode, bad!
 
-        if not self.guess['eps']:
+        if any(self.guess['eps'] == None):
             ge = pb.epsilon(nthreads=self.nthreads)
             self.guess['eps'] = ge(self.guess['dnu'], 
                                    self.guess['numax'], 
                                    self.guess['teff'])  
-        if not self.guess['d02']:
+
+        if any(self.guess['d02'] == None):
             self.guess['d02'] = [0.14*self.guess['dnu'][0]]
 
-        if not self.guess['alpha']:
+        if any(self.guess['alpha'] == None):
             self.guess['alpha'] = [0.01]
 
-        if not self.guess['mode_width']:
+        if any(self.guess['mode_width'] == None):
             self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
-        if not self.guess['env_width']:
+        if any(self.guess['env_width'] == None):
             self.guess['env_width'] = [env_width_pl(self.guess['numax'][0])]
 
-        if not self.guess['env_height']:
+        if any(self.guess['env_height'] == None):
             df = np.median(np.diff(self.f))
             a = int(np.floor(self.guess['dnu'][0]/df))
             b = int(len(self.s) / a)
