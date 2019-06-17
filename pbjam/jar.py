@@ -30,351 +30,354 @@ import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import os, glob, warnings, sys
+import os, glob, warnings
 
 from . import PACKAGEDIR
 
 
-def organize_dataframe(H):
+def organize_sess_dataframe(H):
+    """ Takes input dataframe and organizes
+
+    Checks to see if required columns are present in the input dataframe,
+    and adds optional columns if they don't exists, containing None values.
+
+    Parameters
+    ----------
+    H : Pandas.DataFrame
+        Input dataframe
+    """
     keys = ['ID', 'numax', 'dnu', 'numax_error', 'dnu_error']
     if not any(x not in keys for x in H.keys()):
         raise(KeyError, 'Some of the required keywords were missing.')
-    
+
     N = len(H)
 
-    doubles = ['epsilon', 'teff', 'bp_rp']                
+    doubles = ['epsilon', 'teff', 'bp_rp']
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
-        
+
     for key in singles:
-        if not key in H.keys():
-            H[key] = np.array([None]*N)#.reshape((-1,1)).flatten()
-    
+        if key not in H.keys():
+            H[key] = np.array([None]*N)
+
     for key in doubles:
-        if not key in H.keys():
-            H[key] = np.array([None]*N)#.reshape((-1,1)).flatten()
-            H[key+'_error'] = np.array([None]*N)#.reshape((-1,1)).flatten()
-    
-    if not 'timeseries' in H.keys():
-        format_timeseries(H, None)
-    if not 'psd' in H.keys():
-        format_psd(H, None)
+        if key not in H.keys():
+            H[key] = np.array([None]*N)
+            H[key+'_error'] = np.array([None]*N)
 
-def organize_input(**X):
-        H = pd.DataFrame({'ID': np.array(X['ID']).reshape((-1,1)).flatten()})
-       
-        N = len(H)
-        doubles = ['numax', 'dnu', 'epsilon', 'teff', 'bp_rp']                
-        singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
-        
-        for key in singles:
-            if not X[key]:
-                H[key] = np.array([None]*N)#.reshape((-1,1)).flatten()
-    
-        for key in doubles:
-            if not X[key]:
-                H[key] = np.array([None]*N)
-                H[key+'_error'] = np.array([None]*N)
-            else:     
-                H[key] = np.array(X[key]).reshape((-1,2))[:,0].flatten()
-                H[key+'_error'] = np.array(X[key]).reshape((-1,2))[:,1].flatten()        
-        return H 
+    if 'timeseries' not in H.keys():
+        format_col(H, None, 'timeseries')
+    if 'psd' not in H.keys():
+        format_col(H, None, 'psd')
 
 
-def sort_lc(lk_lc):
-    sidx = np.argsort(lk_lc.time)
-    lk_lc.time = lk_lc.time[sidx]
-    lk_lc.flux = lk_lc.flux[sidx]
+def organize_sess_input(**X):
+    """ Takes input and organizes them in a dataframe
 
+    Checks to see if required inputs are present and inserts them into a
+    dataframe. Any optional columns that are not included in the input are
+    added as None columns.
 
-
-
-
-
-
-
-def get_var(var_key, error_key, df):
-    """ Get variable values and errors from dataframe
-    
     Parameters
     ----------
-    var_key : str
-        Dataframe key for a requested variable
-    error_key : str
-        Dataframe key for the corresponding variable error
-    df : pandas.DataFrame
-        Dataframe to look in
-    """
-    
-    N = len(df)
-    if (var_key in df.keys) and (error_key in df.keys):
-        x = [[df[var_key][i], df[error_key][i]] for i in range(N)]
-    elif (var_key in df.keys) and not (error_key in df.keys):
-        x = [[df[var_key][i]] for i in range(N)]
-    else:
-        x = [None for i in range(N)]    
-    return x
+    X : objects
+        Variable inputs to Session class to be arranged into a dataframe
 
-def multiplier(x, N):
-    """ Make list of None
-    
-    If a variable is not provided, replace with a list of None, of length
-    equal to the other parameters.
-    
-    Parameters
-    ----------
-    x : list
-        List of values for a particular variable, and its errors
-    N : int
-        Length that the list of None should be
-    """
-    
-    if not x[0]:
-        return [None]*N
-    else:
-        return x
+    Returns
+    -------
+    H : Pandas.DataFrame
+        Dataframe containing the inputs from Session class call.
 
-
-def enforce_list(*X):
-    """ Check that all elements of X are list-like, and if not, make them so
-    
-    Parameters
-    ----------
-    X : object
-        
-    
     """
-    print(X)
-    Y = []
-    for i, x in enumerate(X):
-        if not isinstance(x, (list, np.ndarray, tuple)):
-            Y.append([x])
+    H = pd.DataFrame({'ID': np.array(X['ID']).reshape((-1, 1)).flatten()})
+
+    N = len(H)
+    doubles = ['numax', 'dnu', 'epsilon', 'teff', 'bp_rp']
+    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
+
+    for key in singles:
+        if not X[key]:
+            H[key] = np.array([None]*N)
+
+    for key in doubles:
+        if not X[key]:
+            H[key] = np.array([None]*N)
+            H[key+'_error'] = np.array([None]*N)
         else:
-            Y.append(x)
-    print()
-    print(Y)
-    return Y
+            H[key] = np.array(X[key]).reshape((-1, 2))[:, 0].flatten()
+            H[key+'_error'] = np.array(X[key]).reshape((-1, 2))[:, 1].flatten()
+    return H
 
 
-def check_list_lengths(X):
-    lens = []
-    if type(X) == dict:
-        for key in X.keys():
-            lens.append(len(X[key]))
-    elif type(X) == list:
-        for i, x in enumerate(X):
-            lens.append(len(X[i]))
-    # Check that all elements of X are the same length
-    assert lens[1:] == lens[:-1], "Provided inputs must be same length"
+def query_mast(id, lkwargs):
+    """ Search for target on MAST server
 
-def query_mast(id, kwargs):
-        search_result = lk.search_lightcurvefile(target=id, **kwargs)
-        if len(search_result) == 0:
-            warnings.warn('LightKurve did not return %s cadence data for %s' % (kwargs['cadence'], id))
-            return []
-        else:
-            return search_result.download_all()
+    Get all the lightcurves available for a target id, using options in kwargs
+    dictionary.
+
+    Parameters
+    ----------
+    id : string
+        Target id, must be resolvable by LightKurve
+    lkwargs : dictionary containing keywords for the LightKurve search.
+        cadence, quarter, campaign, sector, month.
+
+    Returns
+    -------
+    search_results : list
+        List of fits files for the requested target
+    """
+
+    search_results = lk.search_lightcurvefile(target=id, **lkwargs)
+    if len(search_results) == 0:
+        warnings.warn('LightKurve did not return %s cadence data for %s' % (lkwargs['cadence'], id))
+        return []
+    else:
+        return search_results.download_all()
+
+
+def sort_lc(lc):
+    """ Sort a lightcurve in LightKurve object
+
+    LightKurve lightcurves are not necessarily sorted in time, which causes
+    an error in periodogram.
+
+    Parameters
+    ----------
+    lc : LightKurve.LightCurve instance
+        LightKurve object to be modified
+
+    Returns
+    -------
+    lc : LightKurve.LightCurve instance
+        The sorted LightKurve object
+
+    """
+
+    sidx = np.argsort(lc.time)
+    lc.time = lc.time[sidx]
+    lc.flux = lc.flux[sidx]
+    return lc
+
 
 def clean_lc(lc):
+    """ Perform LightKurve operations on object
+
+    Performes basic cleaning of a light curve, removing nans, outliers,
+    median filtering etc.
+
+    Parameters
+    ----------
+    lc : LightKurve.LightCurve instance
+        LightKurve object to be modified
+
+    Returns
+    -------
+    lc : LightKurve.LightCurve instance
+        The cleaned LightKurve object
+    """
+
     lc = lc.remove_nans().normalize().flatten().remove_outliers()
     return lc
 
-def query_lightkurve(id, D, use_cached):       
-        lk_cache = os.path.join(*[os.path.expanduser('~'), 
-                              '.lightkurve-cache', 
-                              'mastDownload/*/'])        
-        if not D['cadence']:
-            D['cadence'] = 'long'        
-        if D['cadence'] == 'short':
-            tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_slc.fits')
-        elif D['cadence'] == 'long':
-            tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_llc.fits')
-        else:
-            raise TypeError('Unrecognized cadence input for %s' % (id))  # TODO - don't make this a hard stop
-                
-        if (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
-            if ((len(tgtfiles) == 0) and use_cached):
-                warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (D['cadence'], id))
-            print('Querying MAST')
-            lc_col = query_mast(id, D)            
-            if len(lc_col) == 0:
-                raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (D['cadence'], id)) # TODO - don't make this a hard stop
-            
-        elif (use_cached and (len(tgtfiles) != 0)):
-            lc_col = [lk.open(n) for n in tgtfiles]
-        else:
-            raise ValueError('Unhandled Exception')
-        lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
-        for i, lc in enumerate(lc_col[1:]):
-            lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))    
-        return lc0
 
-def format_timeseries(H, timeseries):   
-    N = np.shape(H['ID'])[0]   
-    timeseries = np.array(timeseries, dtype = object)
-    # If dim = 0, it's either none or a string
-    if timeseries.ndim == 0:
-        if not timeseries:
-            # If none, then multiply up to length of ID
-            H['timeseries'] = np.array([None]*N)
-        else:
-            # If string, then single target
-            H['timeseries'] = np.array(timeseries).reshape((-1,1)).flatten()
-    
-    # If dim = 1, it's either a list of nones, strings or lightkurve objects
-    elif timeseries.ndim == 1:
-        H['timeseries'] = timeseries
-    
-    # if dim = 2, it's an array or tuple, with time and flux
-    elif timeseries.ndim == 2:
-        t = np.array(timeseries[0,:], dtype = float)
-        d = np.array(timeseries[1,:], dtype = float)
-        H['timeseries'] = np.array([lk.LightCurve(time=t, flux=d,
-                                                  targetid=H['ID'][0])])
-    # If dim = 3, it's a list of arrays or tuples
-    elif timeseries.ndim == 3:
-        temp = np.array([], dtype = object)
-        for i in range(N):
-            t = np.array(timeseries[i,0,:], dtype = float)
-            d = np.array(timeseries[i,1,:], dtype = float)
-            temp = np.append(temp, np.array([lk.LightCurve(time=t, flux=d,
-                                                           targetid=H.loc[i,'ID'])]))
-        H['timeseries'] = temp
-    else:
-        print('Unhandled exception')
+def query_lightkurve(id, lkwargs, use_cached):
+    """ Check cache for fits file, or download it
 
-def format_psd(H, psd):
-    N = np.shape(H['ID'])[0]
-    psd = np.array(psd, dtype = object)  
-    make_lk_p = lk.periodogram.Periodogram
-
-    # If dim = 0, it's either none or a string
-    if psd.ndim == 0:
-        if not psd:
-            # If none, then multiply up to length of ID
-            H['psd'] = np.array([None]*N)
-        else:
-            # If string, then single target
-            H['psd'] = np.array(psd).reshape((-1,1)).flatten()
-    
-    # If dim = 1, it's either a list of nones, strings or lightkurve objects
-    elif psd.ndim == 1:
-        H['psd'] = psd
-    
-    # if dim = 2, it's an array or tuple, with time and flux
-    elif psd.ndim == 2:
-        f = np.array(psd[0,:], dtype = float)
-        s = np.array(psd[1,:], dtype = float)
-        H['psd'] = np.array([make_lk_p(f*units.microhertz, 
-                                           units.Quantity(s, None),
-                                           targetid=H['ID'][0])])
-    # If dim = 3, it's a list of arrays or tuples
-    elif psd.ndim == 3:
-        temp = np.array([], dtype = object)
-        for i in range(N):
-            f = np.array(psd[i,0,:], dtype = float)
-            s = np.array(psd[i,1,:], dtype = float)
-            temp = np.append(temp, np.array([make_lk_p(f*units.microhertz, 
-                                                       units.Quantity(s, None),
-                                                       targetid=H.loc[i,'ID'])]))
-        H['psd'] = temp 
-    else:
-        print('Unhandled exception')
-
-
-
-
-def handle_lc(H, use_cached=True):
-    """ Use Lightkurve to get snr
-
-    Querries MAST using Lightkurve, based on the provided target ID(s) and
-    observing season number. Then computes the periodogram based on the
-    downloaded time series.
+    Based on use_cached flag, will look in the cache for fits file
+    corresponding to request id star. If nothing is found in cached it will be
+    downloaded from the MAST server.
 
     Parameters
     ----------
-    ID : str, list of strs
-        String or list of strings of target IDs that Lightkurve can resolve.
-        (KIC, TIC, EPIC).
-    lkargs : dict
-        Dictionary of keywords for Lightkurve to get the correct observing
-        season.
-        quarter : for Kepler targets
-        month : for Kepler targets, applies to short-cadence data
-        sector : for TESS targets
-        campaign : for K2 targets
-        cadence : long or short
+    id : string
+        Identifier for the requested star. Must be resolvable by LightKurve
+    lkwargs : dictionary containing keywords for the LightKurve search.
+        cadence, quarter, campaign, sector, month.
+    use_cached: bool
+        Whether or not to used data in the LightKurve cache.
 
+    Note:
+    -----
+    Prioritizes long cadence over short cadence unless otherwise specified.
+
+    """
+    lk_cache = os.path.join(*[os.path.expanduser('~'),
+                              '.lightkurve-cache',
+                              'mastDownload/*/'])
+    if not lkwargs['cadence']:
+        lkwargs['cadence'] = 'long'
+    if lkwargs['cadence'] == 'short':
+        tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_slc.fits')
+    elif lkwargs['cadence'] == 'long':
+        tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_llc.fits')
+    else:
+        raise TypeError('Unrecognized cadence input for %s' % (id))
+
+    if (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
+        if ((len(tgtfiles) == 0) and use_cached):
+            warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
+        print('Querying MAST')
+        lc_col = query_mast(id, lkwargs)
+        if len(lc_col) == 0:
+            raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
+
+    elif (use_cached and (len(tgtfiles) != 0)):
+        lc_col = [lk.open(n) for n in tgtfiles]
+    else:
+        raise ValueError('Unhandled Exception')
+    lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
+    for i, lc in enumerate(lc_col[1:]):
+        lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
+    return lc0
+
+
+def arr_to_lk(x, y, name, typ):
+    if typ == 'timeseries':
+        return lk.LightCurve(time=x, flux=y, targetid=name)
+    elif typ == 'psd':
+        return lk.periodogram.Periodogram(x*units.microhertz,
+                                          units.Quantity(y, None),
+                                          targetid=name)
+    else:
+        raise KeyError("Don't modify anything but psd and timeseries cols")
+
+
+def format_col(H, col, key):
+    """ Add timeseries or psd column to dataframe based on input
+
+    Based on the contents of col, will try to format col and add it as a column
+    to H with column name key. col can be many things, so the decision is based
+    mainly on the dimensionality of col. If dim = 0, it's assumed that col is
+    either None, or a string,  (for the latter it assumes there is then only
+    one target). If dim = 1, it's assumed that col is a list-like object,
+    consisting of either None or strings, these are passed along without
+    modification. If dim = 2, col is assumed to be either a time series or
+    power spectrum of shape (2,M), with time/frequency in 1st row and
+    flux/power in the second. If dim = 3, it is assumed to be list of (2,M)
+    arrays. In both of the latter cases col is converted to
+    LightKurve object(s).
+
+    Parameters
+    ----------
+    H : pandas.DataFrame instance
+        Pandas Dataframe instance to which either a timeseries or psd column
+        will be added.
+    col : object
+        Input from Session call, corresponding to key
+    key : name of column to add to H
+
+    """
+    N = np.shape(H['ID'])[0]
+
+    col = np.array(col, dtype=object)
+
+    # If dim = 0, it's either none or a string
+    if col.ndim == 0:
+        if not col:
+            # If none, then multiply up to length of ID
+            H[key] = np.array([None]*N)
+        else:
+            # If string, then single target
+            H[key] = np.array(col).reshape((-1, 1)).flatten()
+
+    # If dim = 1, it's either a list of nones, strings or lightkurve objects
+    elif col.ndim == 1:
+        H[key] = col
+
+    # if dim = 2, it's an array or tuple, with time and flux
+    elif col.ndim == 2:
+        x = np.array(col[0, :], dtype=float)
+        y = np.array(col[1, :], dtype=float)
+        H[key] = np.array([arr_to_lk(x, y, H['ID'][0])], key)
+
+    # If dim = 3, it's a list of arrays or tuples
+    elif col.ndim == 3:
+        temp = np.array([], dtype=object)
+        for i in range(N):
+            x = np.array(col[i, 0, :], dtype=float)
+            y = np.array(col[i, 1, :], dtype=float)
+            temp = np.append(temp,
+                             np.array([arr_to_lk(x, y, H.loc[i, 'ID'], key)]))
+        H[key] = temp
+    else:
+        print('Unhandled exception')
+
+
+def lc_to_lk(H, use_cached=True):
+    """ Convert time series column in dataframe to lk.LightCurve object
+
+    Goes through the timeseries column in the dataframe and tries to convert
+    it to a LightKurve.LightCurve object. If string, it's assumed to be a file
+    path name, if None, it will query the LightCurve cache locally or MAST if
+    nothing is found. Skips column entries which are already LightKurve objects
+    or if a psd for the star in question exists in the psd column.
+
+    Parameters
+    ----------
+    H : pandas.DataFrame instance
+        Dataframe containing a 'timeseries' column consisting of None, strings
+        or LightKurver.LightCurve objects.
     Returns
     -------
-    PS_list : list of tuples
-        List of tuples for each requested target. First column of a tuple is
-        frequency, second column is power.
-    source_list : list
-        List of fitsfile names for each target
+
     """
-    
-    tinyoffset = 1e-20  # to avoid cases LC median = 0 (lk doesn't like it)  
-        
+
+    tinyoffset = 1e-20  # to avoid cases LC median = 0 (lk doesn't like it)
+    key = 'timeseries'
     for i, id in enumerate(H['ID']):
-                
-        if isinstance(H.loc[i, 'timeseries'], str):
-            t,d = np.genfromtxt(H.loc[i, 'timeseries'], usecols=(0, 1)).T
+
+        if isinstance(H.loc[i, key], str):
+            t, d = np.genfromtxt(H.loc[i, key], usecols=(0, 1)).T
             d += tinyoffset
-            H.loc[i, 'timeseries'] = lk.LightCurve(time=t, 
-                                               flux=d,
-                                               targetid=H.loc[i,'ID'])
-        elif not H.loc[i, 'timeseries']:
+            H.loc[i, key] = arr_to_lk(t, d, H.loc[i, 'ID'], key)
+        elif not H.loc[i, key]:
             if H.loc[i, 'psd']:
                 pass
             else:
-                D = {x : H.loc[i, x] for x in ['cadence', 'month', 'sector', 'campaign', 'quarter']}
+                D = {x: H.loc[i, x] for x in ['cadence', 'month', 'sector',
+                                              'campaign', 'quarter']}
                 lk_lc = query_lightkurve(id, D, use_cached)
-                H.loc[i, 'timeseries'] = lk_lc
-        elif H.loc[i, 'timeseries'].__module__ == lk.lightcurve.__name__:
+                H.loc[i, key] = lk_lc
+        elif H.loc[i, key].__module__ == lk.lightcurve.__name__:
             pass
         else:
-            raise TypeError("Can't handle this type of time series object")                    
-        
-        if H.loc[i, 'timeseries']:
-            sort_lc(H.loc[i, 'timeseries'])
+            raise TypeError("Can't handle this type of time series object")
+
+        if H.loc[i, key]:
+            sort_lc(H.loc[i, key])
 
 
-def handle_psd(H):
-    """ Get psd from timeseries/psd arguments in session class
+def lk_to_pg(H):
+    """ Convert psd column in dataframe to lk periodgram object list
+
+    Takes whatever is in the psd column of a dataframe and tries to turn it
+    into a LightKurve.periodogram object. If column entry is a string, it
+    assumes it's a path name, if None, it will try to take what's in the
+    timeseries column and compute periodogram based on that. If a periodogram
+    obect is already present, it'll just flatten it (to be safe) and then
+    continue on.
 
     Parameters
     ----------
-    arr : list
-        List of either tuples of time/flux, tuples of frequency/power, file
-        paths, lightkurve.lightcurve objects, or lightkurve.periodogram
-        objects.
-    arr_type: str
-        Definition of the type of data in arr, TS for time series, PS for
-        power spectrum.
+    H : pandas.DataFrame instance
+        Dataframe containing a 'psd' column consisting of None, strings or
+        LightKurver.periodogram objects.
 
-    Returns
-    -------
-    PS_list : list
-        List of length 2 tuples, with frequency in first column and power in
-        second column, for each star in the session list.
     """
-    
-    make_lk_p = lk.periodogram.Periodogram
 
+    key = 'psd'
     for i, id in enumerate(H['ID']):
-        if isinstance(H.loc[i,'psd'], str):
-            f,s = np.genfromtxt(H.loc[i,'psd'], usecols=(0, 1)).T
-            H.loc[i,'psd'] = np.array([make_lk_p(f*units.microhertz, 
-                                        units.Quantity(s, None),
-                                        targetid=H.loc[i,'ID'])])
-        elif not H.loc[i,'psd']:
-            lk_lc = H.loc[i,'timeseries']
-            H.loc[i,'psd'] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
+        if isinstance(H.loc[i, key], str):
+            f, s = np.genfromtxt(H.loc[i, key], usecols=(0, 1)).T
+            H.loc[i, key] = arr_to_lk(f, s, H.loc[i, 'ID'], key)
+        elif not H.loc[i, key]:
+            lk_lc = H.loc[i, 'timeseries']
+            H.loc[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
 
-        elif H.loc[i,'psd'].__module__ == lk.periodogram.__name__:
-            H.loc[i,'psd'] = H.loc[i,'psd'].flatten()
+        elif H.loc[i, key].__module__ == lk.periodogram.__name__:
+            H.loc[i, key] = H.loc[i, key].flatten()
         else:
-            raise TypeError("Can't handle this type of time series object") 
+            raise TypeError("Can't handle this type of time series object")
 
 
 class session():
@@ -416,19 +419,16 @@ class session():
     seasons.
     """
 
-
-        
-    def __init__(self, ID=None, numax=None, dnu=None, 
-                 teff=None, bp_rp=None, epsilon=None, 
-                 timeseries=None, psd=None, dictlike=None, store_chains=False, 
-                 nthreads=1, use_cached=False, cadence = None, campaign = None,
-                 sector = None, month = None, quarter = None, kwargs={}):
+    def __init__(self, ID=None, numax=None, dnu=None,
+                 teff=None, bp_rp=None, epsilon=None,
+                 timeseries=None, psd=None, dictlike=None, store_chains=False,
+                 nthreads=1, use_cached=False, cadence=None, campaign=None,
+                 sector=None, month=None, quarter=None,  kwargs={}):
 
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.stars = []
 
-        # Given dataframe or dictionary
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
             try:
                 DF = pd.DataFrame.from_records(dictlike)
@@ -438,75 +438,35 @@ class session():
             if any([ID, numax, dnu, teff, bp_rp, epsilon]):
                 warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
 
-            organize_dataframe(DF)
-                
+            organize_sess_dataframe(DF)
+
         elif ID and numax and dnu:
-            DF = organize_input(ID=ID, numax=numax, dnu=dnu, teff=teff, 
-                                bp_rp=bp_rp, epsilon=epsilon, cadence=cadence,
-                                campaign=campaign, sector=sector, month=month,
-                                quarter=quarter)
-            format_timeseries(DF, timeseries)
-            format_psd(DF, psd)
-            
-        handle_lc(DF, use_cached=use_cached)
-        handle_psd(DF)
-            
- 
+            DF = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
+                                     bp_rp=bp_rp, epsilon=epsilon,
+                                     cadence=cadence, campaign=campaign,
+                                     sector=sector, month=month,
+                                     quarter=quarter)
+            format_col(DF, timeseries, 'timeseries')
+            format_col(DF, psd, 'psd')
 
+        lc_to_lk(DF, use_cached=use_cached)
+        lk_to_pg(DF)
 
-
-
-#        ID = list(df['ID'])
-#        numax = get_var('numax', 'numax_error', df, len(ID))
-#        dnu = get_var('dnu', 'dnu_error', df, len(ID))
-#        teff = get_var('teff', 'teff_error', df, len(ID))
-#        bp_rp = get_var('bp_rp', 'bp_rp_error', df, len(ID))
-#        epsilon = get_var('epsilon', 'epsilon_error', df, len(ID))
-            
-
-
-#            # if timeseries/psd columns exist, assume its a list of paths
-#            if 'timeseries' in df.keys():
-#                PS_list = get_psd(list(df['timeseries']), arr_type='TS')
-##                source_list = df['timeseries']
-#            elif 'psd' in df.keys():
-#                PS_list = get_psd(list(df['psd']), arr_type='PS')
-##                source_list = df['psd']
-#            else:  # Else try to get data from Lightkurve
-#                for key in lk_kws:
-#                    if key in df.keys():
-#                        kwargs[key] = list(df[key])
-#                    else:
-#                        kwargs[key] = [None]*len(ID)
-#                        
-#                check_list_lengths(kwargs)
-#
-#                lc_list = get_lc(ID, kwargs, use_cached=use_cached)
-#                PS_list = get_psd(lc_list, arr_type='TS')
-#
-#        else:
-#            raise NotImplementedError("Magic not implemented, please give PBjam some input")
-#
         for i in range(len(DF)):
-            self.stars.append(star(ID=DF.loc[i,'ID'], 
-                                   f=np.array(DF.loc[i,'psd'].frequency), 
-                                   s=np.array(DF.loc[i,'psd'].power),
-                                   numax=DF.loc[i,['numax','numax_error']].values, 
-                                   dnu=DF.loc[i,['dnu','dnu_error']].values,
-                                   teff=DF.loc[i,['teff','teff_error']].values,
-                                   bp_rp=DF.loc[i,['bp_rp','bp_rp_error']].values,
-                                   epsilon=DF.loc[i,['epsilon','epsilon_error']].values,
+            self.stars.append(star(ID=DF.loc[i, 'ID'],
+                                   f=np.array(DF.loc[i, 'psd'].frequency),
+                                   s=np.array(DF.loc[i, 'psd'].power),
+                                   numax=DF.loc[i,['numax', 'numax_error']].values,
+                                   dnu=DF.loc[i,['dnu', 'dnu_error']].values,
+                                   teff=DF.loc[i,['teff', 'teff_error']].values,
+                                   bp_rp=DF.loc[i,['bp_rp', 'bp_rp_error']].values,
+                                   epsilon=DF.loc[i,['epsilon', 'epsilon_error']].values,
                                    store_chains=self.store_chains,
                                    nthreads=self.nthreads))
-        
-        
+
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
-
-
-
-
 
 
 class star():
@@ -533,11 +493,11 @@ class star():
         Initial guess for the effective surface temperature (K), Teff, and its
         error.
     bp_rp : list of floats, length 2, optional
-        Initial guess for the Gaia Gbp-Grp color, and its error. Errors on 
+        Initial guess for the Gaia Gbp-Grp color, and its error. Errors on
         Gbp_Grp are not available in the Gaia archive. A coservative suggestion
-        is approximately 0.05-0.1. 
+        is approximately 0.05-0.1.
     epsilon : list of floats, length 2, optional
-        Initial guess for the scaling relation phase term, epsilon, and its 
+        Initial guess for the scaling relation phase term, epsilon, and its
         error.
     source : str, optional
         Pathname of the file used to make the star class instance (timeseries
@@ -545,12 +505,12 @@ class star():
         used.
     store_chains : bool
         Flag for storing all the chains of the MCMC walkers. Warning: if you
-        are running many stars in a single session this may cause memory 
+        are running many stars in a single session this may cause memory
         issues.
     nthreads : int
-        Number of multi-processing threads to use when doing the MCMC. Best to 
-        leave this at 1 for long cadence targets. 
-    
+        Number of multi-processing threads to use when doing the MCMC. Best to
+        leave this at 1 for long cadence targets.
+
     Attributes
     ----------
     data_file : str
@@ -572,19 +532,18 @@ class star():
         self.source = source
         self.nthreads = nthreads
         self.store_chains = store_chains
-        #self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
         """ Perform mode ID using the asymptotic method.
-        
+
         Calls the asymptotic_fit method from asy_peakbag and does an MCMC fit
         of the asymptotic relation for l=2,0 pairs to the spectrum, with a
-        multivariate KDE as a prior on all the parameters. 
-        
+        multivariate KDE as a prior on all the parameters.
+
         Results are stored in the star.asy_result attribute.
-        
+
         Parameters
         ----------
         d02 : float, optional
@@ -605,21 +564,21 @@ class star():
         """
 
         fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
-                             env_height, store_chains = self.store_chains,
-                             nthreads=self.nthreads, nrads = norders)
+                             env_height, store_chains=self.store_chains,
+                             nthreads=self.nthreads, nrads=norders)
         fit.run()
 
         self.asy_result = fit
-    
-    def make_spectrum_plot(self, ax, sel, model, modeID, best):   
+
+    def make_spectrum_plot(self, ax, sel, model, modeID, best):
         """ Plot the spectrum and model
-        
+
         Parameters
         ----------
         ax : matplotlib axis instance
             Axis instance to plot in.
         sel : boolean array
-            Used to select the range of frequency bins that the model is 
+            Used to select the range of frequency bins that the model is
             computed on.
         model : asy_peakbag.model.model instance
             Function for computing a spectrum model given a set of parameters.
@@ -627,44 +586,44 @@ class star():
             Dataframe containing the mode angular degree and frequency of the
             fit modes.
         best : list of floats
-            The parameters of the maximum likelihood estimate from the fit.            
+            The parameters of the maximum likelihood estimate from the fit.
         """
-        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum', 
-                color='C0', alpha = 0.5)
-    
+        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
+                color='C0', alpha=0.5)
+
         ax.plot(self.f[sel], model, lw=3, color='C3', alpha=1)
-            
+
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
             ax.axvline(modeID['nu_mu'][i], color='C3',
-                            ls=linestyles[modeID['ell'][i]], alpha=0.5)
-        
+                       ls=linestyles[modeID['ell'][i]], alpha=0.5)
+
         for i in np.unique(modeID['ell']):
-            ax.plot([-100, -101], [-100, -101], ls=linestyles[i], 
+            ax.plot([-100, -101], [-100, -101], ls=linestyles[i],
                     color='C3', label=labels[i])
-        ax.plot([-100, -101], [-100, -101], label='Model', lw=3, 
+        ax.plot([-100, -101], [-100, -101], label='Model', lw=3,
                 color='C3')
         ax.axvline(best['numax'], color='k', alpha=0.75, lw=3,
-                        label=r'$\nu_{\mathrm{max}}$')
-        
+                   label=r'$\nu_{\mathrm{max}}$')
+
         ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(min(self.f[sel]), max(self.f[sel]))
         ax.legend()
-        
+
     def make_residual_plot(self, ax, sel):
         """ Make residual plot
-        
+
         Plot the ratio (residual) of the spectrum and the best-fit model
-        
+
         Parameters
         ----------
         ax : matplotlib axis instance
             Axis instance to plot in.
         sel : boolean array
-            Used to select the range of frequency bins that the model is 
+            Used to select the range of frequency bins that the model is
             computed on.
         """
         ax.plot(self.f[sel], self.residual)
@@ -676,10 +635,10 @@ class star():
 
     def make_residual_kde_plot(self, ax, res_lims):
         """ Make residual kde plot
-        
-        Plot the KDE of the residual along with a reference KDE based on a 
+
+        Plot the KDE of the residual along with a reference KDE based on a
         samples drawn from a pure exponential distribution.
-        
+
         Parameters
         ----------
         ax : matplotlib axis instance
@@ -700,17 +659,17 @@ class star():
             ax.fill_betweenx(y, x2=xlim[0], x1=kde, color=cols[i], alpha=0.5)
         ax.plot(np.exp(-y), y, ls='dashed', color='k', lw=1)
         ax.set_ylim(y[0], y[-1])
-        ax.set_xlim(max([1e-4,xlim[0]]), 1.1)
+        ax.set_xlim(max([1e-4, xlim[0]]), 1.1)
         ax.set_yscale('log')
-        ax.set_xscale('log')           
+        ax.set_xscale('log')
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
 
     def make_Teff_plot(self, ax, gs, percs, prior):
         """ Plot Teff results
-        
+
         Plot the initial guess and best-fit Teff, with the prior as context.
-        
+
         Parameters
         ----------
         ax : matplotlib axis instance
@@ -718,29 +677,29 @@ class star():
         gs : dictionary
             Dictionary containing initial guess values for the fit
         percs : pandas.Series
-            Pandas series containing the percentile values of the marginalized 
+            Pandas series containing the percentile values of the marginalized
             posteriors from the fit.
         prior : pandas.DataFrame
-            Pandas DataFrame with the prior values on the the fit parameters. 
+            Pandas DataFrame with the prior values on the the fit parameters.
         """
-        ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1], 
-                    yerr=gs['teff'][1], fmt='o', color='C1')        
-        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1], 
-                    xerr=np.diff(percs['dnu']).reshape(2,1),
-                    yerr=np.diff(percs['teff']).reshape(2,1),
-                    fmt='o', color='C0')        
-        ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)        
+        ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1],
+                    yerr=gs['teff'][1], fmt='o', color='C1')
+        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1],
+                    xerr=np.diff(percs['dnu']).reshape(2, 1),
+                    yerr=np.diff(percs['teff']).reshape(2, 1),
+                    fmt='o', color='C0')
+        ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)
         ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
-        ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')        
+        ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')
         ax.yaxis.tick_right()
-        ax.yaxis.set_label_position("right")        
+        ax.yaxis.set_label_position("right")
         ax.set_xscale('log')
-        
+
     def make_epsilon_plot(self, ax, gs, percs, prior):
         """ Plot epsilon results
-        
+
         Plot the initial guess and best-fit epsilon, with the prior as context.
-        
+
         Parameters
         ----------
         ax : matplotlib axis instance
@@ -748,28 +707,28 @@ class star():
         gs : dictionary
             Dictionary containing initial guess values for the fit
         percs : pandas.Series
-            Pandas series containing the percentile values of the marginalized 
+            Pandas series containing the percentile values of the marginalized
             posteriors from the fit.
         prior : pandas.DataFrame
-            Pandas DataFrame with the prior values on the the fit parameters. 
+            Pandas DataFrame with the prior values on the the fit parameters.
         """
-        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1], 
-                    xerr=np.diff(percs['dnu']).reshape(2,1),
-                    yerr=np.diff(percs['eps']).reshape(2,1),
+        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1],
+                    xerr=np.diff(percs['dnu']).reshape(2, 1),
+                    yerr=np.diff(percs['eps']).reshape(2, 1),
                     fmt='o', color='C0')
-        ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)           
-        ax.set_ylabel(r'$\epsilon$')        
-        ax.set_ylim(0.4, 1.6)                
-        ax.set_xscale('log')        
+        ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)
+        ax.set_ylabel(r'$\epsilon$')
+        ax.set_ylim(0.4, 1.6)
+        ax.set_xscale('log')
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
-    
+
     def make_numax_plot(self, ax, gs, percs, prior):
         """ Plot numax results
-        
+
         Plot the initial guess and best-fit numax, with the prior as context.
-        
+
         Parameters
         ----------
         ax : matplotlib axis instance
@@ -777,68 +736,67 @@ class star():
         gs : dictionary
             Dictionary containing initial guess values for the fit
         percs : pandas.Series
-            Pandas series containing the percentile values of the marginalized 
+            Pandas series containing the percentile values of the marginalized
             posteriors from the fit.
         prior : pandas.DataFrame
-            Pandas DataFrame with the prior values on the the fit parameters. 
+            Pandas DataFrame with the prior values on the the fit parameters.
         """
-        
-        ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0],
-                      xerr=gs['dnu'][1], yerr=gs['numax'][1],
-                      fmt='o', color='C1')    
+
+        ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0], xerr=gs['dnu'][1],
+                    yerr=gs['numax'][1], fmt='o', color='C1')
         ax.errorbar(x=percs['dnu'][1], y=percs['numax'][1],
-                    xerr=np.diff(percs['dnu']).reshape(2,1),
-                    yerr=np.diff(percs['numax']).reshape(2,1),
+                    xerr=np.diff(percs['dnu']).reshape(2, 1),
+                    yerr=np.diff(percs['numax']).reshape(2, 1),
                     fmt='o', color='C0')
         ax.scatter(prior['dnu'], prior['numax'], c='k', s=2, alpha=0.2)
-        ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')    
+        ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')
         ax.set_xscale('log')
-        ax.set_yscale('log')       
+        ax.set_yscale('log')
         ax.set_xticks([])
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
-        
+
     def plot_asyfit(self, fig=None, model=None, modeID=None):
         """ Make diagnostic plot of the fit.
-        
+
         Plot various diagnostics of a fit, including the best-fit model,
         spectrum residuals, residual histogram (KDE), and numax, epsilon, Teff
         context plots.
-        
+
         Parameters
         ----------
         fig : matplotlib figure instance
             Figure instance to plot in.
         model : array of floats
             Spectrum model to overplot. By default this is the best-fit model
-            from the latest fit. 
+            from the latest fit.
         modeID : pandas.DataFrame
             Dataframe of angular degrees and frequencies from the fit
         """
-        
+
         if not model:
             model = self.asy_result.best_model
         if not modeID:
             modeID = self.asy_result.modeID
         if not fig:
             fig = plt.figure(figsize=(12, 7))
-        
+
         prior = pd.read_csv('pbjam/data/prior_data.csv')
         smry = self.asy_result.summary
         gs = self.asy_result.guess
         sel = self.asy_result.sel
         percs = smry.loc[['16th', '50th', '84th']]
-        
+
         self.residual = self.s[sel]/model
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
         self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['best'])
-        
+
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
         self.make_residual_plot(ax_res, sel)
-               
+
         # KDE plot
         ax_kde = fig.add_axes([0.75, 0.07, 0.19, 0.15])
         self.make_residual_kde_plot(ax_kde, ax_res.get_ylim())
@@ -846,68 +804,21 @@ class star():
         # Teff plot
         ax_teff = fig.add_axes([0.75, 0.30, 0.19, 0.226])
         self.make_Teff_plot(ax_teff, gs, percs, prior)
-            
+
         # epsilon plot
         ax_eps = fig.add_axes([0.75, 0.53, 0.19, 0.226])
         self.make_epsilon_plot(ax_eps, gs, percs, prior)
-    
+
         # nu_max plot
         ax_numax = fig.add_axes([0.75, 0.76, 0.19, 0.23])
         self.make_numax_plot(ax_numax, gs, percs, prior)
-        
+
         return fig
 
-#           lkwargs = kwargs.copy()  # prevents memory leak between sessions?
-#        
-#        listchk = all([ID, numax, dnu])
-#
-#        lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
-#
-#        # Given ID will use LK to download
-#        if listchk:
-#            ID, numax, dnu, teff, bp_rp, epsilon = enforce_list(ID, numax, dnu,
-#                                                                teff, bp_rp,
-#                                                                epsilon)
-#            teff = multiplier(teff, len(ID))
-#            bp_rp = multiplier(bp_rp, len(ID))
-#            epsilon = multiplier(epsilon, len(ID))
-#
-#            check_list_lengths([ID, numax, dnu, teff, bp_rp, epsilon])
-#
-#            if not timeseries and not psd:
-#                for key in lk_kws:
-#                    if key not in lkwargs:
-#                        lkwargs[key] = [None]*len(ID)
-#                    lkwargs[key] = enforce_list(lkwargs[key])[0]
-#                check_list_lengths(lkwargs)
-#
-#                lc_list = get_lc(ID, lkwargs, use_cached=use_cached)
-#                PS_list = get_psd(lc_list, arr_type='TS')
-#
-#        # Given time series as lk object, tuple or path
-#            elif timeseries:
-#                timeseries = enforce_list(timeseries)[0]
-#                check_list_lengths([timeseries])
-#                PS_list = get_psd(timeseries, arr_type='TS')
-#                source_list = [x if type(x) == str else None for x in timeseries]
-#
-#        # Given power spectrum as lk object, tuple or path
-#            elif psd:
-#                psd = enforce_list(psd)[0]
-#                check_list_lengths([psd])
-#                PS_list = get_psd(psd, arr_type='PS')
-#                source_list = [x if type(x) == str else None for x in psd]
+    def corner(self):
+        import corner
         
-    
-    
-#            numax = [[df['numax'][i], df['numax_error'][i]] for i in range(len(ID))]
-#            dnu = [[df['dnu'][i], df['dnu_error'][i]] for i in range(len(ID))]
-#            if ('teff' in df.keys) and ('teff_error' in df.keys):
-#                teff = [[df['teff'][i], df['teff_error'][i]] for i in range(len(ID))]
-#            else:
-#                teff = [None for i in range(len(ID))]
-#
-#            if ('bp_rp' in df.keys):  # No provided errors on bp_rp
-#                bp_rp = [[df['bp_rp'][i]] for i in range(len(ID))]
-#            else:
-#                bp_rp = [None for i in range(len(ID))]
+        xs = self.asy_result.flatchain
+        labels = self.asy_result.pars_names
+
+        return corner.corner(xs = xs, labels = labels, plot_density = False)
