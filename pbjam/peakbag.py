@@ -89,6 +89,7 @@ class peakbag():
                       'height0': height,
                       'height2': height*0.7,
                       'back': np.ones(len(l0))}
+        self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
     def trim_ladder(self):
         """
@@ -234,7 +235,7 @@ class peakbag():
         """
         dnu = self.asy_result.summary.loc['best'].dnu
         self.pm_model = pm.Model()
-        self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
+
         hfac = 10.0
         wfac = 1.0
         with self.pm_model:
@@ -326,11 +327,19 @@ class peakbag():
             plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
             plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
 
-        for i in range(0, len(self.samples), thin):
-            ax[0].scatter(self.n,
-                          self.samples['ln_width0'][i, :], c='k', alpha=0.3)
-            ax[1].scatter(self.n,
-                          self.samples['ln_width2'][i, :], c='k', alpha=0.3)
+            for i in range(0, len(self.samples), thin):
+                ax[0].scatter(self.n,
+                              self.samples['ln_width0'][i, :], c='k', alpha=0.3)
+                ax[1].scatter(self.n,
+                              self.samples['ln_width2'][i, :], c='k', alpha=0.3)
+
+
+        else:
+            for i in range(0, len(self.samples), thin):
+                ax[0].scatter(self.n,
+                              np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
+                ax[1].scatter(self.n,
+                              np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
 
         ax[0].set_xlabel('normalised order')
         ax[1].set_xlabel('normalised order')
