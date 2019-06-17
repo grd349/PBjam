@@ -65,10 +65,16 @@ class MyCentralWidget(QWidget):
         self.idx += 1
         while self.main_window.df.loc[self.idx].error_flag >= 0:
             self.idx += 1
-        self.my_widget.show_image(self.idx)
-
+        try:
+            self.my_widget.show_image(self.idx)
+        except:
+            self.main_window.statusBar().showMessage(
+                        f'Failed on {self.main_window.df.loc[self.idx].ID}')
+                        
     def on_good_button_clicked(self):
-        if self.idx < len(self.main_window.df):
+        self.main_window.df.at[self.idx, 'error_flag'] = 0
+        self.main_window.statusBar().showMessage('Last jam was good')
+        if self.idx < len(self.main_window.df) - 1:
             self.main_window.df.at[self.idx, 'error_flag'] = 0
             self.main_window.statusBar().showMessage('Last jam was good')
             self.next_image()
@@ -76,9 +82,9 @@ class MyCentralWidget(QWidget):
             self.main_window.statusBar().showMessage('Finished')
 
     def on_bad_button_clicked(self):
-        if self.idx < len(self.main_window.df):
-            self.main_window.df.at[self.idx, 'error_flag'] = 1
-            self.main_window.statusBar().showMessage('Last jam was Bad')
+        self.main_window.df.at[self.idx, 'error_flag'] = 1
+        self.main_window.statusBar().showMessage('Last jam was Bad')
+        if self.idx < len(self.main_window.df) - 1:
             self.next_image()
         else:
             self.main_window.statusBar().showMessage('Finished')
