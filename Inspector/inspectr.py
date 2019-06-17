@@ -69,7 +69,7 @@ class MyCentralWidget(QWidget):
             self.my_widget.show_image(self.idx)
         except:
             self.main_window.statusBar().showMessage(
-                        f'Failed on {self.main_window.df.loc[self.idx].ID}')
+                        f'Failed on {self.main_window.df.loc[self.idx].KIC}')
 
     def on_good_button_clicked(self):
         self.main_window.df.at[self.idx, 'error_flag'] = 0
