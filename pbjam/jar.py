@@ -423,7 +423,7 @@ class session():
                  teff=None, bp_rp=None, epsilon=None,
                  timeseries=None, psd=None, dictlike=None, store_chains=False,
                  nthreads=1, use_cached=False, cadence=None, campaign=None,
-                 sector=None, month=None, quarter=None, kwargs={}):
+                 sector=None, month=None, quarter=None,  kwargs={}):
 
         self.nthreads = nthreads
         self.store_chains = store_chains
@@ -814,3 +814,11 @@ class star():
         self.make_numax_plot(ax_numax, gs, percs, prior)
 
         return fig
+
+    def corner(self):
+        import corner
+        
+        xs = self.asy_result.flatchain
+        labels = self.asy_result.pars_names
+
+        return corner.corner(xs = xs, labels = labels, plot_density = False)
