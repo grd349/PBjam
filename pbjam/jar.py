@@ -46,13 +46,13 @@ def organize_sess_dataframe(H):
     H : Pandas.DataFrame
         Input dataframe
     """
-    keys = ['ID', 'numax', 'dnu', 'numax_error', 'dnu_error']
+    keys = ['ID', 'numax', 'dnu', 'numax_err', 'dnu_err']
     if not any(x not in keys for x in H.keys()):
         raise(KeyError, 'Some of the required keywords were missing.')
 
     N = len(H)
 
-    doubles = ['epsilon', 'teff', 'bp_rp']
+    doubles = ['eps', 'teff', 'bp_rp']
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
 
     for key in singles:
@@ -62,7 +62,7 @@ def organize_sess_dataframe(H):
     for key in doubles:
         if key not in H.keys():
             H[key] = np.array([None]*N)
-            H[key+'_error'] = np.array([None]*N)
+            H[key+'_err'] = np.array([None]*N)
 
     if 'timeseries' not in H.keys():
         format_col(H, None, 'timeseries')
@@ -91,7 +91,7 @@ def organize_sess_input(**X):
     H = pd.DataFrame({'ID': np.array(X['ID']).reshape((-1, 1)).flatten()})
 
     N = len(H)
-    doubles = ['numax', 'dnu', 'epsilon', 'teff', 'bp_rp']
+    doubles = ['numax', 'dnu', 'eps', 'teff', 'bp_rp']
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
 
     for key in singles:
@@ -103,10 +103,10 @@ def organize_sess_input(**X):
     for key in doubles:
         if not X[key]:
             H[key] = np.array([None]*N)
-            H[key+'_error'] = np.array([None]*N)
+            H[key+'_err'] = np.array([None]*N)
         else:
             H[key] = np.array(X[key]).reshape((-1, 2))[:, 0].flatten()
-            H[key+'_error'] = np.array(X[key]).reshape((-1, 2))[:, 1].flatten()
+            H[key+'_err'] = np.array(X[key]).reshape((-1, 2))[:, 1].flatten()
     return H
 
 
@@ -453,23 +453,66 @@ class session():
 
         lc_to_lk(DF, use_cached=use_cached)
         lk_to_pg(DF)
-
+        
         for i in range(len(DF)):
             self.stars.append(star(ID=DF.loc[i, 'ID'],
                                    f=np.array(DF.loc[i, 'psd'].frequency),
                                    s=np.array(DF.loc[i, 'psd'].power),
-                                   numax=DF.loc[i,['numax', 'numax_error']].values,
-                                   dnu=DF.loc[i,['dnu', 'dnu_error']].values,
-                                   teff=DF.loc[i,['teff', 'teff_error']].values,
-                                   bp_rp=DF.loc[i,['bp_rp', 'bp_rp_error']].values,
-                                   epsilon=DF.loc[i,['epsilon', 'epsilon_error']].values,
+                                   numax=DF.loc[i, ['numax', 'numax_err']].values,
+                                   dnu=DF.loc[i, ['dnu', 'dnu_err']].values,
+                                   teff=DF.loc[i, ['teff', 'teff_err']].values,
+                                   bp_rp=DF.loc[i, ['bp_rp', 'bp_rp_err']].values,
+                                   epsilon=DF.loc[i, ['eps', 'eps_err']].values,
                                    store_chains=self.store_chains,
                                    nthreads=self.nthreads))
 
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
+                
+    def __call__(self, ID = None, step = None, norders = 8, plots = True):
+        
+        from tqdm import tqdm
+        
+        # TODO - multiprocessing here?
+        
+        #if not ID:
+            #ID = [star for star in self.stars]
+        
+        for star in tqdm(self.stars):
+            
+            if not step or (step == 'modeID'):
+                star.asymptotic_modeid(norders = 9)
+            
+            if not step or (step == 'peakbag'):
+                pass  # TODO - add peakbagging option
+                
+            if not step or plots:
+                star.plot_asyfit(inloop = True)
+                if np.shape(star.asy_result.flatchain)[0] > 200: 
+                    star.corner()
+                
+            
+    def record(self, path = None):
+        
+        import pickle
+        
+        if not path:  # TODO - make this smarter
+            raise ValueError('Specify path for recording your session')
+        
+        for star in self.stars:
+            
+            for key in star.figures.keys():
+                fig = star.figures[key]
+                fig.savefig(f'{path}/{star.ID}_{key}.png')
 
+            star.figures = None  # TODO - can't pickle fig instances?
+            
+            with open(f'{path}/{star.ID}.p', "wb") as f: 
+                pickle.dump(star, f)
+            
+            star.asy_result.modeID.to_csv(f'{path}/{star.ID}_modeID.csv')
+            star.asy_result.summary.to_csv(f'{path}/{star.ID}_summary.csv')
 
 class star():
     """ Class for each star to be peakbagged
@@ -535,6 +578,7 @@ class star():
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+        self.figures = {}
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
@@ -690,7 +734,7 @@ class star():
                     xerr=np.diff(percs['dnu']).reshape(2, 1),
                     yerr=np.diff(percs['teff']).reshape(2, 1),
                     fmt='o', color='C0')
-        ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)
+        ax.scatter(prior['dnu'], prior['teff'], c='k', s=2, alpha=0.2)
         ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
         ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')
         ax.yaxis.tick_right()
@@ -758,7 +802,7 @@ class star():
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
 
-    def plot_asyfit(self, fig=None, model=None, modeID=None):
+    def plot_asyfit(self, fig=None, model=None, modeID=None, inloop = False):
         """ Make diagnostic plot of the fit.
 
         Plot various diagnostics of a fit, including the best-fit model,
@@ -815,7 +859,10 @@ class star():
         ax_numax = fig.add_axes([0.75, 0.76, 0.19, 0.23])
         self.make_numax_plot(ax_numax, gs, percs, prior)
 
-        return fig
+        self.figures['summary'] = fig
+        
+        if not inloop:
+            return fig
 
     def corner(self):
         import corner
@@ -823,4 +870,8 @@ class star():
         xs = self.asy_result.flatchain
         labels = self.asy_result.pars_names
 
-        return corner.corner(xs = xs, labels = labels, plot_density = False)
+        fig = corner.corner(xs = xs, labels = labels, plot_density = False)
+
+        self.figures['corner'] = fig
+
+        return fig 

@@ -514,6 +514,7 @@ class asymptotic_fit():
             Pandas dataframe of the radial order, angular degree and mode
             frequency and error for the modes fit in the asymptotic relation.
         """    
+
         fit = mcmc(self.f[self.sel], self.s[self.sel], self.model, self.guess, 
                    self.pars_names, self.bounds, self.gaussian, nthreads=self.nthreads)
 
@@ -530,8 +531,6 @@ class asymptotic_fit():
             self.flatchain = fit.chain[:,-1,:]
             self.lnlike_fin = np.array([fit.likelihood(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
             self.lnprior_fin = np.array([fit.lp(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
-
-
 
         return self.modeID
 
@@ -748,9 +747,6 @@ class mcmc():
 
         import emcee
 
-#        mus    = [self.guess[key][0] for key in self.pars_names]
-#        sigmas = [self.guess[key][1] for key in self.pars_names]
-
         # Start walkers in a tight random ball
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0],
                                               self.guess[key][0]*(1-spread)),
@@ -759,11 +755,15 @@ class mcmc():
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)
-        print('Burningham')
-        pos, prob, state = sampler.run_mcmc(p0, self.burnin)
+        
+        pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
         sampler.reset()
-        print('Sampling')
-        sampler.run_mcmc(pos, self.niter)
+        
+        converged = False
+        while not converged:
+            pos, prob, state = sampler.run_mcmc(pos, self.niter) # Sampling
+            converged = True # TODO - insert convergence tester here
+        
         self.chain = sampler.chain.copy()
         self.flatchain = sampler.flatchain
         self.lnlike = sampler.lnprobability
