@@ -97,6 +97,8 @@ def organize_sess_input(**X):
     for key in singles:
         if not X[key]:
             H[key] = np.array([None]*N)
+        else:
+            H[key] = X[key]
 
     for key in doubles:
         if not X[key]:
@@ -817,7 +819,7 @@ class star():
 
     def corner(self):
         import corner
-        
+
         xs = self.asy_result.flatchain
         labels = self.asy_result.pars_names
 
