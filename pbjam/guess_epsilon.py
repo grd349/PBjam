@@ -45,7 +45,7 @@ class epsilon():
         self.prior_data = self.prior_data.dropna()
         self.prior_data['log_dnu'] = np.log10(self.prior_data.dnu)
         self.prior_data['log_numax'] = np.log10(self.prior_data.numax)
-        self.prior_data['log_Teff'] = np.log10(self.prior_data.Teff)
+        self.prior_data['log_Teff'] = np.log10(self.prior_data.teff)
 
     def make_kde(self):
         ''' Takes the prior data and constructs a KDE function
