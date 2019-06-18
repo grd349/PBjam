@@ -14,7 +14,6 @@ This provides precise initial estimates and mode IDs for further detailed peakba
 
 ## Getting Started
 
-Clone repo from GitHub or pip install
 
 ### Prerequisites
 
@@ -28,11 +27,19 @@ Clone repo from GitHub or pip install
 
 ### Installing
 
-Start Jupyter Notebook (see Examply.ipynb)
+Clone repo from GitHub or pip install
+
+### Quickstart
+
+See working examples in the [Examples Notebook](https://github.com/grd349/PBjam/blob/master/Example.ipynb))
 
 ## Contributing
 
 Please read [CONTRIBUTING.md](https://gist.github.com/PurpleBooth/b24679402957c63ec426) for details on our code of conduct, and the process for submitting pull requests to us.
+
+## Citing
+
+Please cite us
 
 ## Authors
 
