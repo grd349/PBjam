@@ -717,7 +717,7 @@ class mcmc():
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
 
-    def __call__(self, niter=1000, nwalkers=50, burnin=2000, spread=0.01, 
+    def __call__(self, niter=1000, nwalkers=50, burnin=6000, spread=0.01, 
                  prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 
