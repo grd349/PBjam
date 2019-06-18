@@ -8,7 +8,7 @@ $ sudo mount -t cifs -o vers=3.0 -o domain=ADF -o username=USERNAME -o uid=USERN
 
 # PBjam
 
-PBjam is toolbox for peakbagging solar-like oscillators. This process involves identifying the modes of interest and then modeling the surounding to accurately measure their frequencies. Currently, the mode identification is based on fitting the asymptotic relation to the l=20 pairs, relying on the cumulative sum of prior knowledge gained from Kepler to inform the fitting process. PBjam is meant to be modular, allowing for different approaches to this. 
+PBjam is toolbox for peakbagging solar-like oscillators. This process involves identifying the modes of interest and then modeling the surrounding to accurately measure their frequencies. Currently, the mode identification is based on fitting the asymptotic relation to the l=20 pairs, relying on the cumulative sum of prior knowledge gained from Kepler to inform the fitting process. PBjam is meant to be modular, allowing for different approaches to this. 
 
 This provides precise initial estimates and mode IDs for further detailed peakbagging. 
 
