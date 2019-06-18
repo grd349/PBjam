@@ -444,7 +444,7 @@ class session():
 
         elif ID and numax and dnu:
             DF = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                     bp_rp=bp_rp, epsilon=epsilon,
+                                     bp_rp=bp_rp, eps=epsilon,
                                      cadence=cadence, campaign=campaign,
                                      sector=sector, month=month,
                                      quarter=quarter)
