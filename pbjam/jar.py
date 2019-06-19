@@ -568,18 +568,29 @@ class session():
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
                 
-    def __call__(self, ID = None, step = None, norders = 8, plots = True):
+    def __call__(self, step = None, norders = 8, plots = True):
+        """ The doitall script
         
+        Calling session will by default do asymptotic mode ID and peakbagging
+        for all stars in the session.
+        
+        Parameters
+        ----------
+        step : string
+            Which step to perform. Can currently be 'asymptotic_modeid' and 
+            'peakbag'. asymptotic_modeid must be run before peakbag. 
+        norders : int
+            Number of orders to include in the fits
+        plots : bool
+            Flag for whether or not to generate plots too. By default PBjam 
+            will only plot the summary figure, but if flatchain is large, it
+            will also try to make a corner plot.
+        """
         from tqdm import tqdm
-        
-        # TODO - multiprocessing here?
-        
-        #if not ID:
-            #ID = [star for star in self.stars]
-        
+                
         for star in tqdm(self.stars):
             
-            if not step or (step == 'modeID'):
+            if not step or (step == 'asymptotic_modeid'):
                 star.asymptotic_modeid(norders = 9)
             
             if not step or (step == 'peakbag'):
@@ -592,6 +603,18 @@ class session():
                 
             
     def record(self, path = None):
+        """ The recordall script
+        
+        Stores the various results for all the star class instances in the 
+        session. These include figures, a csv with the mode ID, a csv with
+        the summary statistics of the marginalized posterior distributions, and
+        a pickles of the star class instances. 
+        
+        Parameters
+        ----------
+        path : str
+            Dictory pathname to place the results        
+        """
         
         import pickle
         
