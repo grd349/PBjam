@@ -475,8 +475,9 @@ class session():
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
     dictlike : pandas.DataFrame or dictionary, optional
-        DataFrame or dictionary with a list of targets, and their properties.
-        Specify timeseries and psd columns with filepaths to use manually 
+        DataFrame, dictionary, record array with a list of targets, and their 
+        properties. If string, PBjam will assume it's a pathname to a csv file.
+        Specify timeseries and psd columns with file pathnames to use manually 
         reduced data. 
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run. 
@@ -525,11 +526,14 @@ class session():
         self.store_chains = store_chains
         self.stars = []
 
-        if isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
-            try:
-                vardf = pd.DataFrame.from_records(dictlike)
-            except TypeError:
-                print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+        if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
+            if isinstance(dictlike, str):    
+                vardf = pd.read_csv(dictlike)
+            else:                
+                try:
+                    vardf = pd.DataFrame.from_records(dictlike)
+                except TypeError:
+                    print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
 
             if any([ID, numax, dnu, teff, bp_rp, epsilon]):
                 warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
