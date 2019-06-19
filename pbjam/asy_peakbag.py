@@ -13,22 +13,21 @@ from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
 
-def env_width_pl(numax):
-    return 0.66 * numax ** 0.88
 
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
 
-    Note this is not necessarily integer
+    Compute the radial order at numax, which in this implimentation of the 
+    asymptotic relation is not necessarily integer.
 
     Parameters
     ----------
     numax : float
-        Frequency of maximum power of the p-mode envelope
+        Frequency of maximum power of the p-mode envelope (muHz).
     dnu : float
-        Large separation of l=0 modes
+        Large separation of l=0 modes (muHz).
     eps : float
-        Epsilon phase term in asymptotic relation
+        Epsilon phase term in asymptotic relation (muHz).
 
     Returns
         nmax : float
@@ -39,59 +38,60 @@ def get_nmax(numax, dnu, eps):
     return numax / dnu - eps
 
 
-def get_enns(nmax, nrads):
-    """Compute radial orders to include in asymptotic relation.
+def get_enns(nmax, norders):
+    """Compute radial order numbers.
 
-    These are all integer
+    Get the enns that will be included in the asymptotic relation fit. These
+    are all integer.
 
     Parameters
     ----------
     nmax : float
         Frequency of maximum power of the p-mode envelope
-    nrads : int
+    norders : int
         Total number of radial orders to consider
 
     Returns
     -------
     enns : array
-            array of nrads radial orders (integers) around numax (nmax)
+            Numpy array of norders radial orders (integers) around numax (nmax).
     """
 
-    below = np.floor(nmax - np.floor(nrads/2)).astype(int)
-    above = np.floor(nmax + np.ceil(nrads/2)).astype(int)
+    below = np.floor(nmax - np.floor(norders/2)).astype(int)
+    above = np.floor(nmax + np.ceil(norders/2)).astype(int)
     if type(below) == np.int64:
         return np.arange(below, above)
     else:
-        return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1,nrads)    
+        return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)    
 
 
 
-def asymptotic_relation(numax, dnu, eps, alpha, nrads):
+def asymptotic_relation(numax, dnu, eps, alpha, norders):
     """ Compute the l=0 mode frequencies from the asymptotic relation for
     p-modes
 
     Parameters
     ----------
     numax : float
-        Frequency of maximum power of the p-mode envelope.
+        Frequency of maximum power of the p-mode envelope (muHz).
     dnu : float
-        Large separation of l=0 modes.
+        Large separation of l=0 modes (muHz).
     eps : float
-        Epsilon phase term in asymptotic relation.
+        Epsilon phase term in asymptotic relation (unitless).
     alpha : float
-        Curvature factor of l=0 ridge (second order term).
-    nrads : int
+        Curvature factor of l=0 ridge (second order term, unitless).
+    norders : int
         Number of desired radial orders to calculate frequncies for, centered
         around numax.
 
     Returns
     -------
     nu0s : array()
-        Array of l=0 mode frequencies from the asymptotic relation
+        Array of l=0 mode frequencies from the asymptotic relation (muHz).
 
     """
     nmax = get_nmax(numax, dnu, eps)
-    enns = get_enns(nmax, nrads)
+    enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
     
 
@@ -104,43 +104,67 @@ def P_envelope(nu, hmax, numax, width):
     Parameters
     ----------
     nu : float
-        Frequency
+        Frequency (muHz).
     hmax : float
-        Height of p-mode envelope
+        Height of p-mode envelope (SNR).
     numax : float
-        Frequency of maximum power of the p-mode envelope.
+        Frequency of maximum power of the p-mode envelope (muHz). 
     width : float
-        Width of the p-mode envelope
+        Width of the p-mode envelope (muHz).
 
     Returns
     -------
     h : float
-        Power at frequency nu
+        Power at frequency nu (SNR)
     """
 
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
 def get_summary_stats(fit, model, pnames):
-        summary = pd.DataFrame()
-        smry_stats = ['best','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
-                      '97th']
-        idx = np.argmax(fit.flatlnlike)       
-        means = np.mean(fit.flatchain, axis = 0)
-        stds = np.std(fit.flatchain, axis = 0)
-        skewness = scist.skew(fit.flatchain, axis = 0)
-        pars_percs = np.percentile(fit.flatchain, [0.50-0.954499736104/2,
-                                                 0.50-0.682689492137/2,
-                                                 0.50,
-                                                 0.50+0.682689492137/2,
-                                                 0.50+0.954499736104/2], axis=0)
-        best = fit.flatchain[idx,:]
-        for i, par in enumerate(pnames):
-            z = [best[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
-                 pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], pars_percs[4,i]]
-            A = {key: z[i] for i, key in enumerate(smry_stats)}
-            summary[par] = pd.Series(A)
-        best_model = model(best)
-        return summary, best_model
+    """ Make dataframe with fit summary statistics
+    
+    Creates a dataframe that contains various quantities that summarize the
+    fit. Note, these are predominantly derived from the marginalized posteriors.
+    
+    Parameters
+    ----------
+    fit : asy_peakbag.mcmc instance
+        asy_peakbag.mcmc that was used to fit the spectrum, containing the 
+        log-likelihoods and MCMC chains.
+    model : the asymp_spec_model.model instance that defines the model used to
+        fit the spectrum.
+    pnames : list
+       List of names of each of the parameters in the fit.
+       
+    Returns
+    -------
+    summary : pandas.DataFrame 
+        Dataframe with the summary statistics.
+    best_model : 1d array
+        Numpy array with the model spectrum corresponding to the maximum 
+        likelihood solution.
+    """
+    
+    summary = pd.DataFrame()
+    smry_stats = ['best','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
+                  '97th']
+    idx = np.argmax(fit.flatlnlike)       
+    means = np.mean(fit.flatchain, axis = 0)
+    stds = np.std(fit.flatchain, axis = 0)
+    skewness = scist.skew(fit.flatchain, axis = 0)
+    pars_percs = np.percentile(fit.flatchain, [0.50-0.954499736104/2,
+                                               0.50-0.682689492137/2,
+                                               0.50,
+                                               0.50+0.682689492137/2,
+                                               0.50+0.954499736104/2], axis=0)
+    best = fit.flatchain[idx,:]
+    for i, par in enumerate(pnames):
+        z = [best[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
+             pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], pars_percs[4,i]]
+        A = {key: z[i] for i, key in enumerate(smry_stats)}
+        summary[par] = pd.Series(A)
+    best_model = model(best)
+    return summary, best_model
 
 
 class asymp_spec_model():
@@ -151,7 +175,7 @@ class asymp_spec_model():
     f : float, array
         Array of frequency bins of the spectrum (muHz). Truncated to the range
         around numax.
-    nrads : int
+    norders : int
         Number of radial order to fit
 
     Attributes
@@ -159,13 +183,13 @@ class asymp_spec_model():
     f : float, array
         Array of frequency bins of the spectrum (muHz). Truncated to the range
         around numax.
-    nrads : int
+    norders : int
         Number of radial order to fit
     """
 
-    def __init__(self, f, nrads):
+    def __init__(self, f, norders):
         self.f = f
-        self.nrads = nrads
+        self.norders = norders
 
     def lor(self, freq, h, w):
         """ Lorentzian to describe a mode.
@@ -223,11 +247,13 @@ class asymp_spec_model():
               *args):
         """ Constructs a spectrum model from the asymptotic relation
 
-        The asymptotic relation for p-modes in red giants is defined as:
-        nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu
-        where,
-        nmax = numax / dnu - eps.
-        We separate the l=0 and l=2 modes by d02*dnu.
+        The asymptotic relation for p-modes with angular degree, l=0, is 
+        defined as:
+        nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu, 
+        
+        where nmax = numax / dnu - eps.
+        
+        We separate the l=0 and l=2 modes by d02.
 
         Parameters
         ----------
@@ -240,7 +266,7 @@ class asymp_spec_model():
         alpha : float
             Curvature of the asymptotic relation (unitless)
         d02 : float
-            Small separation (units of dnu)
+            Small separation (muHz)
         hmax : float
             Gaussian height of p-mode envelope (SNR)
         envwidth : float
@@ -258,7 +284,7 @@ class asymp_spec_model():
             spectrum model around the p-mode envelope
         """
 
-        f0s = asymptotic_relation(numax, dnu, eps, alpha, self.nrads)
+        f0s = asymptotic_relation(numax, dnu, eps, alpha, self.norders)
         Hs = P_envelope(f0s, hmax, numax, envwidth)
         mod = np.ones(len(self.f))
         for n in range(len(f0s)):
@@ -286,108 +312,91 @@ class asymptotic_fit():
     """ Class for fitting a spectrum based on the asymptotic relation
 
     Parameters
-    ---------_
+    ----------
     star : class instance
         Star class instance to perform the fit on. This contains the required
         attributes for the fit, f, s, numax, dnu, teff. All others are derived
         from these, or can optionally be set.
     d02 : float, optional
         Initial guess for the small frequency separation (in muHz) between
-        l=0 and l=2.
+        l=0 and l=2 (muHz). 
     alpha : float, optional
         Initial guess for the scale of the second order frequency term in the
-        asymptotic relation
-    seff : float, optional
-        Normalized Teff
+        asymptotic relation (unitless).
     mode_width : float, optional
         Initial guess for the mode width (in log10!) for all the modes that are
-        fit.
+        fit. (log10(muHz))
     env_width : float, optional
         Initial guess for the p-mode envelope width (muHz)
     env_height : float, optional
-        Initial guess for the p-mode envelope height
+        Initial guess for the p-mode envelope height (SNR)       
+    store_chains : bool, optional
+        Flag for storing all the full set of samples from the MCMC run. 
+        Warning, if running multiple targets, make sure you have enough memory.
+    nthreads : int, optional
+        Number of multiprocessing threads to use to perform the fit. For long
+        cadence data 1 is best, more will just add parallelization overhead. 
+        Untested on short cadence. 
+    norders : int, optional
+        Number of radial orders to fit
 
     Attributes
     ----------
     f : array
-            Array of frequency bins of the spectrum (muHz)
+        Numpy array of frequency bins of the spectrum (muHz).
     s : array
-        The power at frequencies f
-    numax : float
-        Initial guess for numax. Frequency of maximum power of the p-mode
-        envelope
-    dnu : float
-        Initial guess for dnu. Large separation of l=0 modes
-    eps : float
-        Initial guess for epsilon. Epsilon phase term in asymptotic relation
-    d02 : float, optional
-        Initial guess for the small frequency separation (in muHz) between
-        l=0 and l=2.
-    alpha : float, optional
-        Initial guess for the scale of the second order frequency term in the
-        asymptotic relation
-    seff : float, optional
-        Normalized Teff
-    mode_width : float, optional
-        Initial guess for the mode width (in log10!) for all the modes that are
-        fit.
-    env_width : float, optional
-        Initial guess for the p-mode envelope width (muHz)
-    env_height : float, optional
-        Initial guess for the p-mode envelope height
-    mode_ID : dataframe
-        Pandas dataframe of the radial order, angular degree and mode frequency
-        and error for the modes fit in the asymptotic relation.
-    model : tuple
-        Tuple containing the frequency (first column) and best-fit spectrum
-        model (second colunm). Frequency is truncated to a range around numax
-        that contains the requested number of radial orders.
+        Numpy array of power in each frequency bin (SNR).
+    parse_names : list
+        List of parameter names used in the asymptotic relation fit.
+    guess : dictionary
+        Dictionary for organizing the initial guess for the asymptotic fir 
+        parameters.
+    sel : array, bool
+        Numpy array of boolean values specifying the frequency range to be 
+        considered in the asymptotic relation fit.
+    model : asy_peakbag.model.model instance
+        Function for computing a spectrum model given a set of parameters.
+    bounds : array
+        Numpy array of upper and lower boundaries for the asymptotic relation
+        fit. These limits truncate the likelihood function.
+    gaussian : array
+        Numpy array of tuples of mean and sigma for Gaussian
+        priors on each of the fit parameters (To be removed when full
+        KDE is implimented).
     """
 
     def __init__(self, star, d02, alpha, mode_width, env_width, env_height, 
-                 store_chains = False, nthreads=1, verbose=False, nrads = 8):
+                 store_chains = False, nthreads=1, norders = 8):
         
-        pars = [star.numax, star.dnu, star.epsilon, alpha, d02, env_height,
-                env_width, mode_width, star.teff, star.bp_rp,]
         
+        self.store_chains = store_chains        
         self.nthreads = nthreads
-        self.verbose = verbose
-        self.nrads = nrads
+        self.norders = norders
         self.f = star.f
         self.s = star.s
+        
         self.pars_names = ['numax', 'dnu', 'eps', 'alpha', 'd02', 'env_height',
                            'env_width', 'mode_width', 'teff', 'bp_rp']
+        pars = [star.numax, star.dnu, star.epsilon, alpha, d02, env_height,
+                env_width, mode_width, star.teff, star.bp_rp,]
         self.guess = OrderedDict({pars_names: pars for pars_names, pars in zip(self.pars_names, pars)})
         self.parse_asy_pars() # interpret inputs and/or guess missing vals        
-        self.sel = np.where(np.abs(self.f - self.guess['numax'][0]) < self.nrads/1.5*self.guess['dnu'][0])
-        self.model = asymp_spec_model(self.f[self.sel], self.nrads)
+        
+        self.sel = np.where(np.abs(self.f - self.guess['numax'][0]) < self.norders/1.5*self.guess['dnu'][0])
+        self.model = asymp_spec_model(self.f[self.sel], self.norders)
         self.bounds = self.set_bounds()
         self.gaussian = self.set_gaussian_pars()
         
-        self.store_chains = store_chains        
         self.modeID = None
         self.summary = None
-        self.flatchains = None
+        self.flatchain = None
         self.lnlike_fin = None
         self.lnprior_fin = None
         self.best_model = None
         
-    def parse_asy_pars(self, verbose=False):
-        """ Parse input and initial guesses for the asymptotic relation fit
-
-        Parameters
-        ----------
-        verbose : bool
-            Print the values of the initial guesses that will be used in the
-            asymptotic relation fit.
-
-        Returns
-        -------
-        pars : list
-            List of initial guesses for the parameters in the asymptotic
-            relation fit.
+    def parse_asy_pars(self):
+        """ Organize initial guesses for the asymptotic relation fit
         """
-        
         
         for key in ['d02','alpha','mode_width','env_height','env_width']:
             self.guess[key] = np.array([self.guess[key]])  # TODO - this is a hack
@@ -413,8 +422,8 @@ class asymptotic_fit():
         if any(self.guess['mode_width'] == None):
             self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
-        if any(self.guess['env_width'] == None):
-            self.guess['env_width'] = [env_width_pl(self.guess['numax'][0])]
+        if any(self.guess['env_width'] == None): 
+            self.guess['env_width'] = [0.66 * self.guess['numax'][0] ** 0.88]
 
         if any(self.guess['env_height'] == None):
             df = np.median(np.diff(self.f))
@@ -422,12 +431,23 @@ class asymptotic_fit():
             b = int(len(self.s) / a)
             smoo = self.s[:a*b].reshape((b, a)).mean(1)
             self.guess['env_height'] = [max(smoo)]
-
-        if verbose or self.verbose:
-            for key in self.pars_names:
-                print('%s: %f' % (key, self.guess[key]))
                 
     def set_bounds(self, nsig = 5):
+        """ Set parameter bounds for asymptotic relation fit
+        
+        Parameters
+        ----------
+        nsig : int
+            Multiple of the input value errors to define the upper and lower
+            bounds on some of the fit parameters. 
+        
+        Returns
+        -------
+        bounds : array
+            Numpy array of upper and lower boundaries for the asymptotic relation
+            fit. These limits truncate the likelihood function.
+        """
+        
         bounds = [[max(1e-20, self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
                    self.guess['numax'][0]+nsig*self.guess['numax'][1]],
 
@@ -456,6 +476,22 @@ class asymptotic_fit():
         return bounds
 
     def set_gaussian_pars(self):
+        """ Parameters of the Gaussian priors
+        
+        Used to define the mean and standard deviation of the Gaussian priors
+        on each of the parameters.
+
+        This will be deprecated in forthcoming versions of PBjam. To be 
+        replaced by a full KDE on all fit parameters.
+        
+        Returns
+        -------
+        gaussian : array
+            Numpy array of tuples of mean and sigma for Gaussian
+            priors on each of the fit parameters (To be removed when full
+            KDE is implimented).
+        """
+        
         gaussian = [(0, 0),  # numax
                     (0, 0),  # Dnu
                     (0, 0),  # eps
@@ -470,6 +506,27 @@ class asymptotic_fit():
         return gaussian
            
     def get_modeIDs(self, fit, N):
+        """ Set mode ID in a dataframe
+        
+        Evaluates the asymptotic relation for each walker position from the
+        MCMC fit. The median values of the resulting set of frequencies are
+        then returned in a pandas.DataFrame
+        
+        Parameters
+        ----------
+        fit : asy_peakbag.mcmc class instance
+            mcmc class instances used in the fit
+        N : int
+            Number of radial orders to output. Note that doesn't have to be 
+            the same as that used int he fit itself.
+        
+        Returns
+        -------
+        modeID : pandas.DataFrame
+            Dataframe of radial order, n (best guess), angular degree, l, 
+            frequency and frequency error.    
+        """
+        
         # TODO - is there a better/neater way to do this?
         
         flatchain = fit.flatchain
@@ -503,16 +560,11 @@ class asymptotic_fit():
     def run(self):
         """ Setup, run and parse the asymptotic relation fit using EMCEE
 
-        Parameters
-        ----------
-        N : int
-            Number of radial orders to fit
-
         Returns
         -------
-        mode_ID : dataframe
-            Pandas dataframe of the radial order, angular degree and mode
-            frequency and error for the modes fit in the asymptotic relation.
+        modeID : pandas.DataFrame
+            Dataframe of radial order, n (best guess), angular degree, l, 
+            frequency and frequency error. 
         """    
 
         fit = mcmc(self.f[self.sel], self.s[self.sel], self.model, self.guess, 
@@ -520,7 +572,7 @@ class asymptotic_fit():
 
         fit()  # do the fit with default settings
 
-        self.modeID = self.get_modeIDs(fit, self.nrads)
+        self.modeID = self.get_modeIDs(fit, self.norders)
 
         self.summary, self.best_model = get_summary_stats(fit, self.model, self.pars_names)
 
@@ -538,34 +590,30 @@ class asymptotic_fit():
 class Prior(pb.epsilon):
     """ Evaluate the proirs on the provided model parameters
 
-    Attributes
-    ----------
-    bounds : array
-        Boundary values for model parameters, beyond which the likelihood
-        is -inf
-    gaussian : ???
-    data_file : str
-        File containing stellar parameters for make the prior KDE
-    seff_offset : int
-        Normalized Teff so that the KDE can have roughly
-        the same bandwidth along each axis.
-    read_prior_data : function
-        Function to read the prior data file. Inherited from epsilon
-    make_kde : function
-        Function to get a KDE from the prior data file. Inherited from epsilon
-
     Parameters
     ----------
-    bounds : list
-        list of upper and lower bounds for the priors on the model parameters
-    gaussian : ??? # TODO ... if at all
-        ???
+    bounds : array
+        Numpy array of upper and lower boundaries for the asymptotic relation
+        fit. These limits truncate the likelihood function.
+    gaussian : array
+        Numpy array of tuples of mean and sigma for Gaussian
+        priors on each of the fit parameters (To be removed when full
+        KDE is implimented)
+        
+    Attributes
+    ----------
+    data_file : str
+        Pathname to the file containing stellar parameters to make the KDE 
+        prior.
+    prior_data : pandas.DataFrame instance
+        Dataframe with all the prior data. Read from prior_data.csv.
+    kde : sm.nonparametric.KDEMultivariate instance
+        KDE based on the prior data file. 
     """
 
-    def __init__(self, bounds, gaussian, verbose=False):
+    def __init__(self, bounds, gaussian):
         self.bounds = bounds
         self.gaussian = gaussian
-        self.verbose = verbose
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
         self.read_prior_data()  # Inherited from epsilon
         self.make_kde()  # Inherited from epsilon
@@ -593,14 +641,14 @@ class Prior(pb.epsilon):
         return 0
 
     def pgaussian(self, p):
-        """ Guassian priors - not yet implemented!!!
+        """ Guassian priors 
 
-        Function for setting Gaussian priors (???)
+        Function for setting Gaussian priors
 
         Parameters
         ----------
         p : array
-            Array containing mcmc proposal
+            Array containing mcmc proposals
 
         Returns
         -------
@@ -619,14 +667,17 @@ class Prior(pb.epsilon):
         """ Evaluate the priors for a set of parameters
 
         The prior is estimated by a KDE of a set of previous Kepler
-        observations.
+        observations. This is truncated at some reasonable values to keep
+        the MCMC sampler in check. 
+        
+        Currently a Gaussian prior is added to some of the variables that are
+        not included in the current version of the KDE. In future the KDE will
+        be extended to include all the fit variables.
 
         Parameters
         ----------
         p : array
             Array of model parameters
-        Teff: float
-        bp_rp: float
 
         Returns
         -------
@@ -653,27 +704,54 @@ class mcmc():
         Array of frequency bins of the spectrum (muHz)
     s : array
         The power at frequencies f
-    model: class instance
-        Initialized instance of the model class to use in the fit
-    x0 : array
-        Initial positions for the MCMC walkers
-    bounds: array
-        Array of shape (len(x0), 2) of boundary values to use in the fit. Lower
-        and upper limits are in the first and second columns respectively. This
-        enforces a log-likelihood = -inf if any parameter exceeds these limits.
-
+    model : asy_peakbag.model.model instance
+        Function for computing a spectrum model given a set of parameters.
+    pars_names : list
+        List of parameter names in the asymptotic fit
+    guess : dictionary
+        Dictionary for organizing the initial guess for the asymptotic fir 
+        parameters.
+    bounds : array
+        Numpy array of upper and lower boundaries for the asymptotic relation
+        fit. These limits truncate the likelihood function.
+    gaussian : array
+        Numpy array of tuples of mean and sigma for Gaussian
+        priors on each of the fit parameters (To be removed when full
+        KDE is implimented)
+    nthreads : int, optional
+        Number of multiprocessing threads to use to perform the fit. For long
+        cadence data 1 is best, more will just add parallelization overhead.
+        
     Attributes
     ----------
-    f : array
-        Array of frequency bins of the spectrum (muHz)
-    s : array
-        The power at frequencies f
-    model : class instance
-        Initialized instance of the model class to use in the fit
-    x0 : array
-        Initial positions for the MCMC walkers
-    lp : class instance
-        Prior class initialized using model parameter limits
+    ndim : int
+        Number of fit variables
+    lp : Prior class instance
+        Prior class initialized using model parameter limits, Gaussian 
+        paramaters, and the KDE
+    burnin : int       
+        Number of steps to take as the burn-in phase. These are discarded at 
+        the end of the MCMC run.
+    niter : int
+        Number of steps to take after the burn-in phase. These will be tested
+        for convergence. Once the test is satisfied these steps will will be
+        assumed to be samples of the posterior distribution. 
+    nwalkers : int
+        Number of walkers to use in the MCMC fit
+    prior_only : bool
+        Flag for whether or not to just sample the prior, or to sample both
+        sum of the prior and likelihood function. Use to draw initial positions
+        for the walkers.
+    chain : array
+        Numpy array of shape (niter, nwalkers, ndim) with all the MCMC samples
+        drawn after the burn-in phase.
+    flatchain : array
+        A flattened version of the chain array of shape (niter*nwalkers, ndim).
+    lnlike : array
+        Numpy array of shape (niter, nwalkers) of the likelihood at each step
+        of each walker.
+    flatlnlike : array
+        A flattened version of the lnlike array of shape (niter*walkers)
     """
 
     def __init__(self, f, s, model, guess, pars_names, bounds, gaussian, 
@@ -681,15 +759,22 @@ class mcmc():
         self.f = f
         self.s = s
         self.model = model
-        self.ndim = len(pars_names)
         self.pars_names = pars_names
         self.guess = guess
         self.bounds = bounds
         self.gaussian = gaussian
+        self.nthreads = nthreads
+        self.ndim = len(pars_names)
         self.lp = Prior(self.bounds, self.gaussian)
-        self.nthreads = nthreads        
-        self.chains = None
-
+        
+        self.niter = None
+        self.nwalkers = None
+        self.burnin = None       
+        self.prior_only = None
+        self.chain = None
+        self.flatchain = None
+        self.lnlike = None
+        self.flatlnlike = None
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -715,6 +800,11 @@ class mcmc():
         mod = self.model(p)
         like = -1.0 * np.sum(np.log(mod) + self.s / mod)
         return like + logp
+
+    def convergence_test(self):
+        """ TBD
+        """
+        return True
 
     def __call__(self, niter=1000, nwalkers=50, burnin=6000, spread=0.01, 
                  prior_only = False):
@@ -762,7 +852,7 @@ class mcmc():
         converged = False
         while not converged:
             pos, prob, state = sampler.run_mcmc(pos, self.niter) # Sampling
-            converged = True # TODO - insert convergence tester here
+            converged = self.convergence_test() 
         
         self.chain = sampler.chain.copy()
         self.flatchain = sampler.flatchain
