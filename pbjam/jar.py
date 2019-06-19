@@ -1,26 +1,45 @@
 """ Setup jam sessions and perform mode ID and peakbagging
 
 This jar contains the input layer for setting up jam sessions for peakbagging
-solar-like oscillators.
+solar-like oscillators. This is the easiest way to handle targets in PBjam.
+
+It's possible to manually initiate star class instances and do all the fitting
+that way, but it's simpler to just use the session class, which handles 
+everything, including formatting of the inputs.
 
 A jam session is started by initializing the session class instance with a
-target ID, numax, large separation, and effective temperature, or lists of
-these if you are working on multiple targets. Alternatively a dataframe or
-dictionary can also be provided, with columns corresponding to the above
-keywords.
+target ID, numax, and a large separation. Additional parameters like the 
+effective surface temperature of the star, are optional but help convergence. 
 
-Specific quarters, campgains or sectors can be requested in a kwargs dictionary
-with the relevant keyword (i.e., 'quarter' for KIC, etc.)
+Lists of the above can be provided for multiple targets, but it's often simpler
+to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv
+for a template.
+
+Custom timeseries or periodogram can be provided as either file pathnames,
+numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If 
+nothing is provided PBjam will download the data automatically.
+
+Specific quarters, campgains or sectors can be requested with the relevant 
+keyword (i.e., 'quarter' for KIC, etc.). If none of these are provided, PBjam
+will download all available data, picking the long cadence versions by default.
 
 Once initialized, the session class contains a list of star class instances
-for each requested target, with corresponding spectra for each.
+for each requested target, with associated spectra for each.
 
 The next step is to perform a mode ID on the spectra. At the moment PBjam
 only supports use of the asymptotic relation mode ID method.
 
+Finally the peakbagging method takes the output from the modeID and performs
+a proper HMC peakbagging run.
+
+Plotting the results of each stage is also possible.
+
 Note
 ----
 Target IDs must be resolvable by Lightkurve
+
+For automatic download the long cadence data set is used by default, so set
+the cadence to 'short' for main-sequence targets.
 """
 
 import lightkurve as lk
