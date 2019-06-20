@@ -172,13 +172,13 @@ def get_summary_stats(fit, model, pnames):
     -------
     summary : pandas.DataFrame 
         Dataframe with the summary statistics.
-    best_model : 1d array
+    mle_model : 1d array
         Numpy array with the model spectrum corresponding to the maximum 
         likelihood solution.
     """
     
     summary = pd.DataFrame()
-    smry_stats = ['best','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
+    smry_stats = ['mle','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
                   '97th', 'MAD']
     idx = np.argmax(fit.flatlnlike)       
     means = np.mean(fit.flatchain, axis = 0)
@@ -190,15 +190,15 @@ def get_summary_stats(fit, model, pnames):
                                                0.50+0.682689492137/2,
                                                0.50+0.954499736104/2], axis=0)
     mads =  mad(fit.flatchain, axis=0)
-    best = fit.flatchain[idx,:]
+    mle = fit.flatchain[idx,:]
     for i, par in enumerate(pnames):
-        z = [best[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
+        z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
              pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], 
              pars_percs[4,i], mads[i]]
         A = {key: z[i] for i, key in enumerate(smry_stats)}
         summary[par] = pd.Series(A)
-    best_model = model(best)
-    return summary, best_model
+    mle_model = model(mle)
+    return summary, mle_model
 
 
 class asymp_spec_model():
@@ -426,7 +426,7 @@ class asymptotic_fit():
         self.flatchain = None
         self.lnlike_fin = None
         self.lnprior_fin = None
-        self.best_model = None
+        self.mle_model = None
         
     def parse_asy_pars(self):
         """ Organize initial guesses for the asymptotic relation fit
@@ -610,7 +610,7 @@ class asymptotic_fit():
 
         self.modeID = self.get_modeIDs(fit, self.norders)
 
-        self.summary, self.best_model = get_summary_stats(fit, self.model, self.pars_names)
+        self.summary, self.mle_model = get_summary_stats(fit, self.model, self.pars_names)
 
         if self.store_chains:
             self.flatchain = fit.flatchain
@@ -842,7 +842,7 @@ class mcmc():
         """
         return True
 
-    def __call__(self, niter=1000, nwalkers=50, burnin=6000, spread=0.01, 
+    def __call__(self, niter=10, nwalkers=50, burnin=60, spread=0.01, 
                  prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 
