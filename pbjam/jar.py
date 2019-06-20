@@ -1077,10 +1077,16 @@ class star():
         fig = corner.corner(xs = chains, labels = labels, plot_density = False,
                             quiet = True)
 
-        if kdehist:
-            ndim = np.shape(chains)[1]
-            axes = np.array(fig.axes).reshape(ndim, ndim)
-            for i in range(ndim):   
+        
+        ndim = np.shape(chains)[1]
+        axes = np.array(fig.axes).reshape(ndim, ndim)
+
+        for i in range(ndim):   
+            bounds = self.asy_result.bounds[i]
+            axes[i,i].axvline(bounds[0], color = 'C3', lw = 10)
+            axes[i,i].axvline(bounds[1], color = 'C3', lw = 10)
+            
+            if kdehist:               
                 xlim = axes[i,i].get_xlim()   
                 xrange = np.linspace(xlim[0],xlim[1],100)
                 kde = gaussian_kde(self.asy_result.flatchain[:,i])   
@@ -1088,9 +1094,6 @@ class star():
                 axes[i,i].plot(xrange,kde(xrange), color = 'k')
                 axes[i,i].fill_between(xrange, kde(xrange), color = 'k', alpha = 0.1)
                 
-                bounds = self.asy_result.bounds[i]
-                axes[i,i].axvline(bounds[0], color = 'C3', lw = 10)
-                axes[i,i].axvline(bounds[1], color = 'C3', lw = 10)
                                 
                 axes[i,i].set_xlim(xlim)
                 axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
