@@ -43,12 +43,12 @@ Please cite us
 ## Authors
 
 ### Main Contributors
-Guy Davies
-Oliver Hall
-Martin Nielsen
+- Guy Davies
+- Oliver Hall
+- Martin Nielsen
 
 ### Chaos Engineers
-Warrick Ball
+- Warrick Ball
 
 ## License
 
