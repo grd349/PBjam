@@ -39,8 +39,6 @@ class epsilon():
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
-        if self.verbose:
-            print('Reading in prior data')
         self.prior_data = pd.read_csv(self.data_file)
         self.prior_data = self.prior_data.dropna()
         self.prior_data['log_dnu'] = np.log10(self.prior_data.dnu)
@@ -60,8 +58,6 @@ class epsilon():
         likelihood estimate.
 
         '''
-        if self.verbose:
-            print('Building KDE')
         self.cols = ['log_dnu', 'log_numax', 'log_Teff', 'bp_rp', 'eps']
         import statsmodels.api as sm
         # bw set using CV ML but times two.
