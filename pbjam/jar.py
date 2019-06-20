@@ -1,26 +1,45 @@
 """ Setup jam sessions and perform mode ID and peakbagging
 
 This jar contains the input layer for setting up jam sessions for peakbagging
-solar-like oscillators.
+solar-like oscillators. This is the easiest way to handle targets in PBjam.
+
+It's possible to manually initiate star class instances and do all the fitting
+that way, but it's simpler to just use the session class, which handles 
+everything, including formatting of the inputs.
 
 A jam session is started by initializing the session class instance with a
-target ID, numax, large separation, and effective temperature, or lists of
-these if you are working on multiple targets. Alternatively a dataframe or
-dictionary can also be provided, with columns corresponding to the above
-keywords.
+target ID, numax, and a large separation. Additional parameters like the 
+effective surface temperature of the star, are optional but help convergence. 
 
-Specific quarters, campgains or sectors can be requested in a kwargs dictionary
-with the relevant keyword (i.e., 'quarter' for KIC, etc.)
+Lists of the above can be provided for multiple targets, but it's often simpler
+to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv
+for a template.
+
+Custom timeseries or periodogram can be provided as either file pathnames,
+numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If 
+nothing is provided PBjam will download the data automatically.
+
+Specific quarters, campgains or sectors can be requested with the relevant 
+keyword (i.e., 'quarter' for KIC, etc.). If none of these are provided, PBjam
+will download all available data, picking the long cadence versions by default.
 
 Once initialized, the session class contains a list of star class instances
-for each requested target, with corresponding spectra for each.
+for each requested target, with associated spectra for each.
 
 The next step is to perform a mode ID on the spectra. At the moment PBjam
 only supports use of the asymptotic relation mode ID method.
 
+Finally the peakbagging method takes the output from the modeID and performs
+a proper HMC peakbagging run.
+
+Plotting the results of each stage is also possible.
+
 Note
 ----
 Target IDs must be resolvable by Lightkurve
+
+For automatic download the long cadence data set is used by default, so set
+the cadence to 'short' for main-sequence targets.
 """
 
 import lightkurve as lk
@@ -30,12 +49,12 @@ import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import os, glob, warnings
+import os, glob, warnings, psutil
 
 from . import PACKAGEDIR
 
 
-def organize_sess_dataframe(H):
+def organize_sess_dataframe(vardf):
     """ Takes input dataframe and organizes
 
     Checks to see if required columns are present in the input dataframe,
@@ -43,34 +62,34 @@ def organize_sess_dataframe(H):
 
     Parameters
     ----------
-    H : Pandas.DataFrame
+    vardf : Pandas.DataFrame
         Input dataframe
     """
     keys = ['ID', 'numax', 'dnu', 'numax_err', 'dnu_err']
-    if not any(x not in keys for x in H.keys()):
+    if not any(x not in keys for x in vardf.keys()):
         raise(KeyError, 'Some of the required keywords were missing.')
 
-    N = len(H)
+    N = len(vardf)
 
-    doubles = ['eps', 'teff', 'bp_rp']
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
+    doubles = ['eps', 'teff', 'bp_rp']
 
     for key in singles:
-        if key not in H.keys():
-            H[key] = np.array([None]*N)
+        if key not in vardf.keys():
+            vardf[key] = np.array([None]*N)
 
     for key in doubles:
-        if key not in H.keys():
-            H[key] = np.array([None]*N)
-            H[key+'_err'] = np.array([None]*N)
+        if key not in vardf.keys():
+            vardf[key] = np.array([None]*N)
+            vardf[key+'_err'] = np.array([None]*N)
 
-    if 'timeseries' not in H.keys():
-        format_col(H, None, 'timeseries')
-    if 'psd' not in H.keys():
-        format_col(H, None, 'psd')
+    if 'timeseries' not in vardf.keys():
+        format_col(vardf, None, 'timeseries')
+    if 'psd' not in vardf.keys():
+        format_col(vardf, None, 'psd')
 
 
-def organize_sess_input(**X):
+def organize_sess_input(**vardct):
     """ Takes input and organizes them in a dataframe
 
     Checks to see if required inputs are present and inserts them into a
@@ -79,35 +98,35 @@ def organize_sess_input(**X):
 
     Parameters
     ----------
-    X : objects
+    vardct : objects
         Variable inputs to Session class to be arranged into a dataframe
 
     Returns
     -------
-    H : Pandas.DataFrame
+    vardf : Pandas.DataFrame
         Dataframe containing the inputs from Session class call.
 
     """
-    H = pd.DataFrame({'ID': np.array(X['ID']).reshape((-1, 1)).flatten()})
+    vardf = pd.DataFrame({'ID': np.array(vardct['ID']).reshape((-1, 1)).flatten()})
 
-    N = len(H)
+    N = len(vardf)
     doubles = ['numax', 'dnu', 'eps', 'teff', 'bp_rp']
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
 
     for key in singles:
-        if not X[key]:
-            H[key] = np.array([None]*N)
+        if not vardct[key]:
+            vardf[key] = np.array([None]*N)
         else:
-            H[key] = X[key]
+            vardf[key] = vardct[key]
 
     for key in doubles:
-        if not X[key]:
-            H[key] = np.array([None]*N)
-            H[key+'_err'] = np.array([None]*N)
+        if not vardct[key]:
+            vardf[key] = np.array([None]*N)
+            vardf[key+'_err'] = np.array([None]*N)
         else:
-            H[key] = np.array(X[key]).reshape((-1, 2))[:, 0].flatten()
-            H[key+'_err'] = np.array(X[key]).reshape((-1, 2))[:, 1].flatten()
-    return H
+            vardf[key] = np.array(vardct[key]).reshape((-1, 2))[:, 0].flatten()
+            vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
+    return vardf
 
 
 def query_mast(id, lkwargs):
@@ -170,7 +189,7 @@ def clean_lc(lc):
     Parameters
     ----------
     lc : LightKurve.LightCurve instance
-        LightKurve object to be modified
+        LightKurve object to be cleaned
 
     Returns
     -------
@@ -234,6 +253,29 @@ def query_lightkurve(id, lkwargs, use_cached):
 
 
 def arr_to_lk(x, y, name, typ):
+    """ LightKurve object from input
+    
+    Creates either a lightkurve.LightCurve or lightkurve.periodogram object 
+    from the input arrays.
+    
+    Parameters
+    ----------
+    x : list-like
+        First column of timeseries or periodogram (time/frequency).
+    y : list-like
+        Second column of timeseries or periodogram (flux/power).
+    name : string
+        Target ID
+    typ : string
+        Either timeseries or periodogram.
+    
+    Returns
+    -------
+    lkobj : object
+        Either lightkurve.LightCurve or lightkurve.periodogram object  
+        depending on typ.
+    
+    """
     if typ == 'timeseries':
         return lk.LightCurve(time=x, flux=y, targetid=name)
     elif typ == 'psd':
@@ -244,24 +286,30 @@ def arr_to_lk(x, y, name, typ):
         raise KeyError("Don't modify anything but psd and timeseries cols")
 
 
-def format_col(H, col, key):
+def format_col(vardf, col, key):
     """ Add timeseries or psd column to dataframe based on input
 
     Based on the contents of col, will try to format col and add it as a column
-    to H with column name key. col can be many things, so the decision is based
-    mainly on the dimensionality of col. If dim = 0, it's assumed that col is
-    either None, or a string,  (for the latter it assumes there is then only
-    one target). If dim = 1, it's assumed that col is a list-like object,
-    consisting of either None or strings, these are passed along without
-    modification. If dim = 2, col is assumed to be either a time series or
-    power spectrum of shape (2,M), with time/frequency in 1st row and
-    flux/power in the second. If dim = 3, it is assumed to be list of (2,M)
-    arrays. In both of the latter cases col is converted to
-    LightKurve object(s).
+    to vardf with column name key. col can be many things, so the decision is 
+    based mainly on the dimensionality of col. 
+    
+    If dim = 0, it's assumed that col is either None, or a string, (for the 
+    latter it assumes there is then only one target). 
+    
+    If dim = 1, it's assumed that col is a list-like object, consisting of 
+    either None or strings, these are passed along without modification. 
+    
+    If dim = 2, col is assumed to be either a time series or power spectrum 
+    of shape (2,M), with time/frequency in 1st row and flux/power in the 
+    second. 
+    
+    If dim = 3, it is assumed to be list of (2,M) arrays. 
+    
+    In both of the latter cases col is converted to LightKurve object(s).
 
     Parameters
     ----------
-    H : pandas.DataFrame instance
+    vardf : pandas.DataFrame instance
         Pandas Dataframe instance to which either a timeseries or psd column
         will be added.
     col : object
@@ -269,7 +317,7 @@ def format_col(H, col, key):
     key : name of column to add to H
 
     """
-    N = np.shape(H['ID'])[0]
+    N = np.shape(vardf['ID'])[0]
 
     col = np.array(col, dtype=object)
 
@@ -277,20 +325,20 @@ def format_col(H, col, key):
     if col.ndim == 0:
         if not col:
             # If none, then multiply up to length of ID
-            H[key] = np.array([None]*N)
+            vardf[key] = np.array([None]*N)
         else:
             # If string, then single target
-            H[key] = np.array(col).reshape((-1, 1)).flatten()
+            vardf[key] = np.array(col).reshape((-1, 1)).flatten()
 
     # If dim = 1, it's either a list of nones, strings or lightkurve objects
     elif col.ndim == 1:
-        H[key] = col
+        vardf[key] = col
 
     # if dim = 2, it's an array or tuple, with time and flux
     elif col.ndim == 2:
         x = np.array(col[0, :], dtype=float)
         y = np.array(col[1, :], dtype=float)
-        H[key] = np.array([arr_to_lk(x, y, H['ID'][0])], key)
+        vardf[key] = np.array([arr_to_lk(x, y, vardf['ID'][0])], key)
 
     # If dim = 3, it's a list of arrays or tuples
     elif col.ndim == 3:
@@ -299,13 +347,13 @@ def format_col(H, col, key):
             x = np.array(col[i, 0, :], dtype=float)
             y = np.array(col[i, 1, :], dtype=float)
             temp = np.append(temp,
-                             np.array([arr_to_lk(x, y, H.loc[i, 'ID'], key)]))
-        H[key] = temp
+                             np.array([arr_to_lk(x, y, vardf.loc[i, 'ID'], key)]))
+        vardf[key] = temp
     else:
         print('Unhandled exception')
 
 
-def lc_to_lk(H, use_cached=True):
+def lc_to_lk(vardf, use_cached=True):
     """ Convert time series column in dataframe to lk.LightCurve object
 
     Goes through the timeseries column in the dataframe and tries to convert
@@ -316,7 +364,7 @@ def lc_to_lk(H, use_cached=True):
 
     Parameters
     ----------
-    H : pandas.DataFrame instance
+    vardf : pandas.DataFrame instance
         Dataframe containing a 'timeseries' column consisting of None, strings
         or LightKurver.LightCurve objects.
     Returns
@@ -326,143 +374,222 @@ def lc_to_lk(H, use_cached=True):
 
     tinyoffset = 1e-20  # to avoid cases LC median = 0 (lk doesn't like it)
     key = 'timeseries'
-    for i, id in enumerate(H['ID']):
+    for i, id in enumerate(vardf['ID']):
 
-        if isinstance(H.loc[i, key], str):
-            t, d = np.genfromtxt(H.loc[i, key], usecols=(0, 1)).T
+        if isinstance(vardf.loc[i, key], str):
+            t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
             d += tinyoffset
-            H.loc[i, key] = arr_to_lk(t, d, H.loc[i, 'ID'], key)
-        elif not H.loc[i, key]:
-            if H.loc[i, 'psd']:
+            vardf.loc[i, key] = arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
+        elif not vardf.loc[i, key]:
+            if vardf.loc[i, 'psd']:
                 pass
             else:
-                D = {x: H.loc[i, x] for x in ['cadence', 'month', 'sector',
+                D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
                                               'campaign', 'quarter']}
                 lk_lc = query_lightkurve(id, D, use_cached)
-                H.loc[i, key] = lk_lc
-        elif H.loc[i, key].__module__ == lk.lightcurve.__name__:
+                vardf.loc[i, key] = lk_lc
+        elif vardf.loc[i, key].__module__ == lk.lightcurve.__name__:
             pass
         else:
             raise TypeError("Can't handle this type of time series object")
 
-        if H.loc[i, key]:
-            sort_lc(H.loc[i, key])
+        if vardf.loc[i, key]:
+            sort_lc(vardf.loc[i, key])
 
 
-def lk_to_pg(H):
+def lk_to_pg(vardf):
     """ Convert psd column in dataframe to lk periodgram object list
 
     Takes whatever is in the psd column of a dataframe and tries to turn it
     into a LightKurve.periodogram object. If column entry is a string, it
     assumes it's a path name, if None, it will try to take what's in the
     timeseries column and compute periodogram based on that. If a periodogram
-    obect is already present, it'll just flatten it (to be safe) and then
+    object is already present, it'll just flatten it (to be safe) and then
     continue on.
 
     Parameters
     ----------
-    H : pandas.DataFrame instance
+    vardf : pandas.DataFrame instance
         Dataframe containing a 'psd' column consisting of None, strings or
         LightKurver.periodogram objects.
 
     """
 
     key = 'psd'
-    for i, id in enumerate(H['ID']):
-        if isinstance(H.loc[i, key], str):
-            f, s = np.genfromtxt(H.loc[i, key], usecols=(0, 1)).T
-            H.loc[i, key] = arr_to_lk(f, s, H.loc[i, 'ID'], key)
-        elif not H.loc[i, key]:
-            lk_lc = H.loc[i, 'timeseries']
-            H.loc[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
+    for i, id in enumerate(vardf['ID']):
+        if isinstance(vardf.loc[i, key], str):
+            f, s = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
+            vardf.loc[i, key] = arr_to_lk(f, s, vardf.loc[i, 'ID'], key)
+        elif not vardf.loc[i, key]:
+            lk_lc = vardf.loc[i, 'timeseries']
+            vardf.loc[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
 
-        elif H.loc[i, key].__module__ == lk.periodogram.__name__:
-            H.loc[i, key] = H.loc[i, key].flatten()
+        elif vardf.loc[i, key].__module__ == lk.periodogram.__name__:
+            vardf.loc[i, key] = vardf.loc[i, key].flatten()
         else:
             raise TypeError("Can't handle this type of time series object")
+
+def print_memusage(pre='', post=''):
+    process = psutil.Process(os.getpid())
+    print(pre, process.memory_info().rss, 'bytes', post)  # in bytes 
 
 
 class session():
     """ Main class used to initiate peakbagging.
 
-    Use this class to initialize the star class instance(s) based on the
-    provided input. Data can be provided as ascii files, or will automatically
-    be downloaded from MAST using Lightkurve.
+    Use this class to initialize a star class instance for one or more targets.
+    
+    Once initialized, calling this class instance will execute a complete
+    peakbagging run. 
 
-    Note
-    ----
+    Data can be provided in multiple different ways, the simplest of which is
+    just to let PBjam query the MAST server. Otherwise arrays of 
+    timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram, 
+    or just path names as strings, is also possible.
+
     The physical parameters, numax, dnu, teff, must each be provided at least
-    as a list of length 2 for each star. This should containg the parameter
-    value and it's error. Setting the error to zero will effectively fix the
-    corresponding parameter in the fit.
+    as a list of length 2 for each star. This should contain the parameter
+    value and it's error. 
+
+    For multiple target all the above can be provided as lists, but the 
+    easiest way is to simply provide a dataframe from csv file.
 
     Examples
     --------
-    Single target, no ascii files. In this case PBjam will attempt to download
-    the time series from MAST, using Lightkurve. In this case kwargs must be
-    a dictionary with the required observing season number, e.g.
-    kwargs = {'quarter': 5} for Kepler quarter 5. Cadence and quarter month
-    keywords can also be passed to Lightkurve through kwargs.
-
-    Multiple targets, no ascii files. Similar to the single target case, except
-    all arguments must be in a list. kwargs must now be a dictionary of lists.
-
-    Single or multiple targets, with ascii files. Similar to above each target
-    must have an ID and associated physical parameters. Here the timeseries
-    or power spectrum can be passed to the PBjam session as either a tuple
-    or a local path to the ascii file, or a list of either. Note that if both
-    a timeseries and spectrum are passed, the timeseries will be ignored.
-
-    Dictionary or dataframe of targets. In this case, use the provided
-    template .csv or pickled .dict file. Similar to above, a path can be
-    provided, or just a target ID. In the latter case, the observing season
-    must be provided in the relevant column as either an integer, or a string
-    of zeros with 1 in the bit number equivalent to the requested observing
-    seasons.
+    Peakbagging run for a single target: 
+   
+    jam_sess = pbjam.session(ID =  '4448777',  numax = [220.0, 3.0],
+                             dnu = [16.97, 0.01], teff = [4750, 100],
+                             bp_rp = [1.34, 0.01], cadence = 'short')
+    jam_sess()
+    
+    Peakbagging run for multiple targets:
+    jam_sess = pbjam.session(dictlike = mydataframe)
+    jam_sess()    
+    
+    By default, PBjam will download all the available data, favoring long 
+    cadence. Cadence and specific observing seasons (quarter, month, campagin,
+    sector) can be specified for more detailed control.
+    
+    Parameters
+    ----------
+    ID : string, int
+        Target identifier, if custom timeseries/periodogram is provided, it 
+        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
+    numax : list
+        List of the form [numax, numax_error], list of lists for multiple 
+        targets 
+    dnu : list
+        List of the form [dnu, dnu_error], list of lists for multiple targets
+    teff : list, optional
+        List of the form [teff, teff_error], list of lists for multiple targets
+    bp_rp : list, optional
+        List of the form [bp_rp, bp_rp_error], list of lists for multiple 
+        targets
+    epsilon : list, optional
+        List of the form [epsilon, epsilon_error], list of lists for multiple 
+        targets
+    timeseries : object, optional
+        Timeseries input. Leave as None for PBjam to download it automatically.
+        Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
+        strings for pathnames are accepted.
+    psd : object, optional
+        Periodogram input. Leave as None for PBjam to use Timeseries to compute
+        it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
+        objects, or strings for pathnames are accepted.
+    dictlike : pandas.DataFrame or dictionary, optional
+        DataFrame, dictionary, record array with a list of targets, and their 
+        properties. If string, PBjam will assume it's a pathname to a csv file.
+        Specify timeseries and psd columns with file pathnames to use manually 
+        reduced data. 
+    store_chains : bool, optional
+        Flag for storing all the full set of samples from the MCMC run. 
+        Warning, if running multiple targets, make sure you have enough memory.
+    nthreads : int, optional
+        Number of multiprocessing threads to use to perform the fit. For long
+        cadence data 1 is best, more will just add parallelization overhead. 
+        Untested on short cadence. 
+    use_cached : bool
+        Flag for using cached data. If fitting the same targets multiple times,
+        use to this to not download the data every time.
+    cadence : string
+        Argument for lightkurve to download correct data type. Can be 'short' 
+        or 'long'. 'long' is default setting, so if you're looking at main
+        sequence stars, make sure to manually set 'short'.
+    month : int
+        Argument for lightkurve when requesting Kepler short cadence data.
+    quarter : int
+        Argument for lightkurve when requesting Kepler data.
+    campaign : int
+        Argument for lightkurve when requesting K2 data. 
+    sector : int
+        Argument for lightkurve when requesting TESS data.
+    
+    Attributes
+    ----------
+    nthreads : int, optional
+        Number of multiprocessing threads to use to perform the fit. For long
+        cadence data 1 is best, more will just add parallelization overhead. 
+        Untested on short cadence. 
+    store_chains : bool, optional
+        Flag for storing all the full set of samples from the MCMC run. 
+        Warning, if running multiple targets, make sure you have enough memory.
+    stars : list
+        Session will store star class instances in this list, based on the 
+        requested targets.
     """
 
     def __init__(self, ID=None, numax=None, dnu=None,
                  teff=None, bp_rp=None, epsilon=None,
                  timeseries=None, psd=None, dictlike=None, store_chains=False,
                  nthreads=1, use_cached=False, cadence=None, campaign=None,
-                 sector=None, month=None, quarter=None,  kwargs={}):
+                 sector=None, month=None, quarter=None):
 
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.stars = []
+        
+        #print_memusage(pre = 'Session init start')
 
-        if isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
-            try:
-                DF = pd.DataFrame.from_records(dictlike)
-            except TypeError:
-                print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+        if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
+            if isinstance(dictlike, str):    
+                vardf = pd.read_csv(dictlike)
+            else:                
+                try:
+                    vardf = pd.DataFrame.from_records(dictlike)
+                except TypeError:
+                    print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
 
             if any([ID, numax, dnu, teff, bp_rp, epsilon]):
                 warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
 
-            organize_sess_dataframe(DF)
+            organize_sess_dataframe(vardf)
 
         elif ID and numax and dnu:
-            DF = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                     bp_rp=bp_rp, eps=epsilon,
-                                     cadence=cadence, campaign=campaign,
-                                     sector=sector, month=month,
-                                     quarter=quarter)
-            format_col(DF, timeseries, 'timeseries')
-            format_col(DF, psd, 'psd')
+            vardf = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
+                                        bp_rp=bp_rp, eps=epsilon,
+                                        cadence=cadence, campaign=campaign,
+                                        sector=sector, month=month,
+                                        quarter=quarter)
+            format_col(vardf, timeseries, 'timeseries')
+            format_col(vardf, psd, 'psd')
 
-        lc_to_lk(DF, use_cached=use_cached)
-        lk_to_pg(DF)
+        lc_to_lk(vardf, use_cached=use_cached)
+        lk_to_pg(vardf)
         
-        for i in range(len(DF)):
-            self.stars.append(star(ID=DF.loc[i, 'ID'],
-                                   f=np.array(DF.loc[i, 'psd'].frequency),
-                                   s=np.array(DF.loc[i, 'psd'].power),
-                                   numax=DF.loc[i, ['numax', 'numax_err']].values,
-                                   dnu=DF.loc[i, ['dnu', 'dnu_err']].values,
-                                   teff=DF.loc[i, ['teff', 'teff_err']].values,
-                                   bp_rp=DF.loc[i, ['bp_rp', 'bp_rp_err']].values,
-                                   epsilon=DF.loc[i, ['eps', 'eps_err']].values,
+        #print_memusage(pre = 'df setup')
+        
+        for i in range(len(vardf)):
+            #print_memusage(pre = f'Initializing star {i}')
+
+            self.stars.append(star(ID=vardf.loc[i, 'ID'],
+                                   f=np.array(vardf.loc[i, 'psd'].frequency),
+                                   s=np.array(vardf.loc[i, 'psd'].power),
+                                   numax=vardf.loc[i, ['numax', 'numax_err']].values,
+                                   dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
+                                   teff=vardf.loc[i, ['teff', 'teff_err']].values,
+                                   bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
+                                   epsilon=vardf.loc[i, ['eps', 'eps_err']].values,
                                    store_chains=self.store_chains,
                                    nthreads=self.nthreads))
 
@@ -470,50 +597,84 @@ class session():
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
                 
-    def __call__(self, ID = None, step = None, norders = 8, plots = True):
+    def __call__(self, step = None, norders = 8, plots = True):
+        """ The doitall script
         
+        Calling session will by default do asymptotic mode ID and peakbagging
+        for all stars in the session.
+        
+        Parameters
+        ----------
+        step : string
+            Which step to perform. Can currently be 'asymptotic_modeid' and 
+            'peakbag'. asymptotic_modeid must be run before peakbag. 
+        norders : int
+            Number of orders to include in the fits
+        plots : bool
+            Flag for whether or not to generate plots too. By default PBjam 
+            will only plot the summary figure, but if flatchain is large, it
+            will also try to make a corner plot.
+        """
         from tqdm import tqdm
         
-        # TODO - multiprocessing here?
-        
-        #if not ID:
-            #ID = [star for star in self.stars]
+        #print_memusage(pre = f'Call do it all')
         
         for star in tqdm(self.stars):
             
-            if not step or (step == 'modeID'):
+            if not step or (step == 'asymptotic_modeid'):
                 star.asymptotic_modeid(norders = 9)
             
             if not step or (step == 'peakbag'):
                 pass  # TODO - add peakbagging option
                 
             if not step or plots:
-                star.plot_asyfit(inloop = True)
+                star.plot_asyfit()
                 if np.shape(star.asy_result.flatchain)[0] > 200: 
                     star.corner()
-                
+            
+            #print_memusage(pre = f'Star {star.ID} finished')
+
             
     def record(self, path = None):
+        """ The recordall script
+        
+        Stores the various results for all the star class instances in the 
+        session. These include figures, a csv with the mode ID, a csv with
+        the summary statistics of the marginalized posterior distributions, and
+        a pickles of the star class instances. 
+        
+        Parameters
+        ----------
+        path : str
+            Dictory pathname to place the results        
+        """
         
         import pickle
         
-        if not path:  # TODO - make this smarter
+        if not path:
             raise ValueError('Specify path for recording your session')
         
         for star in self.stars:
             
-            for key in star.figures.keys():
-                fig = star.figures[key]
-                fig.savefig(f'{path}/{star.ID}_{key}.png')
-
-            star.figures = None  # TODO - can't pickle fig instances?
+            if not star.recorded:
             
-            with open(f'{path}/{star.ID}.p', "wb") as f: 
-                pickle.dump(star, f)
+                if isinstance(star.figures, dict):
+                    for key in star.figures.keys():
+                        fig = star.figures[key]                   
+                        fig.savefig(os.path.join(*[path, f'{star.ID}_{key}.png']))
+                star.figures = None  # TODO - can't pickle fig instances?
+                                
+                with open(os.path.join(*[path, f'{star.ID}.p']), "wb") as f: 
+                    pickle.dump(star, f)
+                
+                star.asy_result.modeID.to_csv(os.path.join(*[path, f'{star.ID}_modeID.csv']))
+                star.asy_result.summary.to_csv(os.path.join(*[path, f'{star.ID}_summary.csv']))
             
-            star.asy_result.modeID.to_csv(f'{path}/{star.ID}_modeID.csv')
-            star.asy_result.summary.to_csv(f'{path}/{star.ID}_summary.csv')
-
+                star.recorded = True
+            elif star.recorded:
+                print(f'{star.ID} has already been recorded.')
+            else:
+                raise ValueError('Unrecognized value in star.recorded.')
 class star():
     """ Class for each star to be peakbagged
 
@@ -521,46 +682,45 @@ class star():
 
     Parameters
     ----------
-    ID : str
-        Identifier of the target. If no timeseries or powerspectrum files are
-        provided the lightcurve will be downloaded by Lightkurve. ID must
-        therefore be resolvable by Lightkurve.
+    ID : string, int
+        Target identifier, if custom timeseries/periodogram is provided, it 
+        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
     f : float, array
         Array of frequency bins of the spectrum (muHz)
     s : array
         The power at frequencies f
-    numax : list of floats, length 2
-        Initial guess for the frequency of maximum power (muHz), numax, and its
-    dnu : list of floats, length 2
-        Initial guess for the large freqeuncy separation (muHz), dnu, and its
-        error.
-    teff : list of floats, length 2, optional
-        Initial guess for the effective surface temperature (K), Teff, and its
-        error.
-    bp_rp : list of floats, length 2, optional
-        Initial guess for the Gaia Gbp-Grp color, and its error. Errors on
-        Gbp_Grp are not available in the Gaia archive. A coservative suggestion
-        is approximately 0.05-0.1.
-    epsilon : list of floats, length 2, optional
-        Initial guess for the scaling relation phase term, epsilon, and its
-        error.
-    source : str, optional
-        Pathname of the file used to make the star class instance (timeseries
-        or psd). If data is downloaded via Lightkurve the fits file name is
-        used.
-    store_chains : bool
-        Flag for storing all the chains of the MCMC walkers. Warning: if you
-        are running many stars in a single session this may cause memory
-        issues.
-    nthreads : int
-        Number of multi-processing threads to use when doing the MCMC. Best to
-        leave this at 1 for long cadence targets.
+    numax : list
+        List of the form [numax, numax_error], list of lists for multiple 
+        targets 
+    dnu : list
+        List of the form [dnu, dnu_error], list of lists for multiple targets
+    teff : list, optional
+        List of the form [teff, teff_error], list of lists for multiple targets
+    bp_rp : list, optional
+        List of the form [bp_rp, bp_rp_error], list of lists for multiple 
+        targets
+    epsilon : list, optional
+        List of the form [epsilon, epsilon_error], list of lists for multiple 
+        targets   
+    store_chains : bool, optional
+        Flag for storing all the full set of samples from the MCMC run. 
+        Warning, if running multiple targets, make sure you have enough memory.
+    nthreads : int, optional
+        Number of multiprocessing threads to use to perform the fit. For long
+        cadence data 1 is best, more will just add parallelization overhead. 
+        Untested on short cadence. 
 
     Attributes
     ----------
     data_file : str
         Filepath to file containing prior data on the fit parameters, either
         from literature or previous fits.
+    figures : list
+        List of figures objects that are created if plotting fit outputs. These
+        will be saved if session.record is called.
+    asy_result : pbjam.asy_peakbag.asymptotic_fit class instance
+        Contains the result of the modeID stage of the peakbagging process from
+        fitting the asymptotic relation to the provided data.
     """
 
     def __init__(self, ID, f, s, numax, dnu, teff=None, bp_rp=None,
@@ -579,13 +739,14 @@ class star():
         self.store_chains = store_chains
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
         self.figures = {}
+        self.recorded = False
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
         """ Perform mode ID using the asymptotic method.
 
         Calls the asymptotic_fit method from asy_peakbag and does an MCMC fit
-        of the asymptotic relation for l=2,0 pairs to the spectrum, with a
+        to the asymptotic relation for l=2,0 pairs in the spectrum, with a
         multivariate KDE as a prior on all the parameters.
 
         Results are stored in the star.asy_result attribute.
@@ -607,11 +768,19 @@ class star():
             Initial guess for the p-mode envelope height
         norders : int, optional
             Number of radial orders to fit
+        store_chains : bool, optional
+            Flag for storing all the full set of samples from the MCMC run. 
+            Warning, if running multiple targets, make sure you have enough 
+            memory.
+        nthreads : int, optional
+            Number of multiprocessing threads to use to perform the fit. For 
+            long cadence data 1 is best, more will just add parallelization 
+            overhead. Untested on short cadence. 
         """
 
         fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
                              env_height, store_chains=self.store_chains,
-                             nthreads=self.nthreads, nrads=norders)
+                             nthreads=self.nthreads, norders=norders)
         fit.run()
 
         self.asy_result = fit
@@ -656,7 +825,7 @@ class star():
         ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
-        ax.set_xlim(min(self.f[sel]), max(self.f[sel]))
+        ax.set_xlim(self.f[sel][0],self.f[sel][-1])
         ax.legend()
 
     def make_residual_plot(self, ax, sel):
@@ -802,7 +971,7 @@ class star():
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
 
-    def plot_asyfit(self, fig=None, model=None, modeID=None, inloop = False):
+    def plot_asyfit(self, fig=None, model=None, modeID=None):
         """ Make diagnostic plot of the fit.
 
         Plot various diagnostics of a fit, including the best-fit model,
@@ -861,16 +1030,26 @@ class star():
 
         self.figures['summary'] = fig
         
-        if not inloop:
-            return fig
+        return fig
 
-    def corner(self):
+    def corner(self, chains = None, labels = None):
+        """ Make a corner plot for the MCMC chains
+        
+        Returns
+        -------
+        fig : matplotlib figure instance
+            Figure instance with corner plot
+        
+        """
+        
         import corner
+        
+        if not chains:
+            chains = self.asy_result.flatchain
+        if not labels:
+            labels = self.asy_result.pars_names
 
-        xs = self.asy_result.flatchain
-        labels = self.asy_result.pars_names
-
-        fig = corner.corner(xs = xs, labels = labels, plot_density = False)
+        fig = corner.corner(xs = chains, labels = labels, plot_density = False)
 
         self.figures['corner'] = fig
 
