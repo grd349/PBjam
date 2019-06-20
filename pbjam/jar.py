@@ -809,7 +809,7 @@ class star():
 
         self.asy_result = fit
 
-    def make_spectrum_plot(self, ax, sel, model, modeID, best):
+    def make_spectrum_plot(self, ax, sel, model, modeID, mle):
         """ Plot the spectrum and model
 
         Parameters
@@ -824,7 +824,7 @@ class star():
         modeID : pandas.DataFrame instance
             Dataframe containing the mode angular degree and frequency of the
             fit modes.
-        best : list of floats
+        mle : list of floats
             The parameters of the maximum likelihood estimate from the fit.
         """
         ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
@@ -843,10 +843,10 @@ class star():
                     color='C3', label=labels[i])
         ax.plot([-100, -101], [-100, -101], label='Model', lw=3,
                 color='C3')
-        ax.axvline(best['numax'], color='k', alpha=0.75, lw=3,
+        ax.axvline(mle['numax'], color='k', alpha=0.75, lw=3,
                    label=r'$\nu_{\mathrm{max}}$')
 
-        ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
+        ax.set_ylim(0, min([mle['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(self.f[sel][0],self.f[sel][-1])
@@ -855,7 +855,7 @@ class star():
     def make_residual_plot(self, ax, sel):
         """ Make residual plot
 
-        Plot the ratio (residual) of the spectrum and the best-fit model
+        Plot the ratio (residual) of the spectrum and the MLE model
 
         Parameters
         ----------
@@ -998,7 +998,7 @@ class star():
     def plot_asyfit(self, fig=None, model=None, modeID=None):
         """ Make diagnostic plot of the fit.
 
-        Plot various diagnostics of a fit, including the best-fit model,
+        Plot various diagnostics of a fit, including the MLE model,
         spectrum residuals, residual histogram (KDE), and numax, epsilon, Teff
         context plots.
 
@@ -1007,14 +1007,14 @@ class star():
         fig : matplotlib figure instance
             Figure instance to plot in.
         model : array of floats
-            Spectrum model to overplot. By default this is the best-fit model
+            Spectrum model to overplot. By default this is the MLE model
             from the latest fit.
         modeID : pandas.DataFrame
             Dataframe of angular degrees and frequencies from the fit
         """
 
         if not model:
-            model = self.asy_result.best_model
+            model = self.asy_result.mle_model
         if not modeID:
             modeID = self.asy_result.modeID
         if not fig:
@@ -1030,7 +1030,7 @@ class star():
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
-        self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['best'])
+        self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['mle'])
 
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
@@ -1056,7 +1056,7 @@ class star():
         
         return fig
 
-    def corner(self, chains = None, labels = None):
+    def corner(self, chains = None, labels = None, kdehist = True):
         """ Make a corner plot for the MCMC chains
         
         Returns
@@ -1073,21 +1073,31 @@ class star():
         if not labels:
             labels = self.asy_result.pars_names
 
-        ndim = np.shape(chains)[1]
 
         fig = corner.corner(xs = chains, labels = labels, plot_density = False,
                             quiet = True)
 
-        axes = np.array(fig.axes).reshape(ndim, ndim)
-        for i in range(ndim):   
-            xlim = axes[i,i].get_xlim()   
-            xrange = np.linspace(xlim[0],xlim[1],100)
-            kde = gaussian_kde(self.asy_result.flatchain[:,i])   
-            axes[i,i].clear()
-            axes[i,i].plot(xrange,kde(xrange), color = 'C0')
-            axes[i,i].fill_between(xrange, kde(xrange), color = 'C0', alpha = 0.25)
-            axes[i,i].set_xlim(xlim)
-            axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
+        if kdehist:
+            ndim = np.shape(chains)[1]
+            axes = np.array(fig.axes).reshape(ndim, ndim)
+            for i in range(ndim):   
+                xlim = axes[i,i].get_xlim()   
+                xrange = np.linspace(xlim[0],xlim[1],100)
+                kde = gaussian_kde(self.asy_result.flatchain[:,i])   
+                axes[i,i].clear()
+                axes[i,i].plot(xrange,kde(xrange), color = 'k')
+                axes[i,i].fill_between(xrange, kde(xrange), color = 'k', alpha = 0.1)
+                
+                bounds = self.asy_result.bounds[i]
+                axes[i,i].axvline(bounds[0], color = 'C3', lw = 10)
+                axes[i,i].axvline(bounds[1], color = 'C3', lw = 10)
+                                
+                axes[i,i].set_xlim(xlim)
+                axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
+                axes[i,i].set_yticks([])
+                
+                if i < ndim - 2:
+                    axes[i,i].set_xticks([])
 
         self.figures['corner'] = fig
 
