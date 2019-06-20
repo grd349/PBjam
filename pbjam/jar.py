@@ -49,7 +49,7 @@ import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import os, glob, warnings
+import os, glob, warnings, psutil
 
 from . import PACKAGEDIR
 
@@ -429,6 +429,10 @@ def lk_to_pg(vardf):
         else:
             raise TypeError("Can't handle this type of time series object")
 
+def print_memusage(pre='', post=''):
+    process = psutil.Process(os.getpid())
+    print(pre, process.memory_info().rss, 'bytes', post)  # in bytes 
+
 
 class session():
     """ Main class used to initiate peakbagging.
@@ -544,6 +548,8 @@ class session():
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.stars = []
+        
+        #print_memusage(pre = 'Session init start')
 
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
             if isinstance(dictlike, str):    
@@ -571,7 +577,11 @@ class session():
         lc_to_lk(vardf, use_cached=use_cached)
         lk_to_pg(vardf)
         
+        #print_memusage(pre = 'df setup')
+        
         for i in range(len(vardf)):
+            #print_memusage(pre = f'Initializing star {i}')
+
             self.stars.append(star(ID=vardf.loc[i, 'ID'],
                                    f=np.array(vardf.loc[i, 'psd'].frequency),
                                    s=np.array(vardf.loc[i, 'psd'].power),
@@ -606,7 +616,9 @@ class session():
             will also try to make a corner plot.
         """
         from tqdm import tqdm
-                
+        
+        #print_memusage(pre = f'Call do it all')
+        
         for star in tqdm(self.stars):
             
             if not step or (step == 'asymptotic_modeid'):
@@ -619,7 +631,9 @@ class session():
                 star.plot_asyfit()
                 if np.shape(star.asy_result.flatchain)[0] > 200: 
                     star.corner()
-                
+            
+            #print_memusage(pre = f'Star {star.ID} finished')
+
             
     def record(self, path = None):
         """ The recordall script
@@ -642,18 +656,25 @@ class session():
         
         for star in self.stars:
             
-            for key in star.figures.keys():
-                fig = star.figures[key]
-                fig.savefig(f'{path}/{star.ID}_{key}.png')
-
-            star.figures = None  # TODO - can't pickle fig instances?
+            if not star.recorded:
             
-            with open(f'{path}/{star.ID}.p', "wb") as f: 
-                pickle.dump(star, f)
+                if isinstance(star.figures, dict):
+                    for key in star.figures.keys():
+                        fig = star.figures[key]                   
+                        fig.savefig(os.path.join(*[path, f'{star.ID}_{key}.png']))
+                star.figures = None  # TODO - can't pickle fig instances?
+                                
+                with open(os.path.join(*[path, f'{star.ID}.p']), "wb") as f: 
+                    pickle.dump(star, f)
+                
+                star.asy_result.modeID.to_csv(os.path.join(*[path, f'{star.ID}_modeID.csv']))
+                star.asy_result.summary.to_csv(os.path.join(*[path, f'{star.ID}_summary.csv']))
             
-            star.asy_result.modeID.to_csv(f'{path}/{star.ID}_modeID.csv')
-            star.asy_result.summary.to_csv(f'{path}/{star.ID}_summary.csv')
-
+                star.recorded = True
+            elif star.recorded:
+                print(f'{star.ID} has already been recorded.')
+            else:
+                raise ValueError('Unrecognized value in star.recorded.')
 class star():
     """ Class for each star to be peakbagged
 
@@ -718,6 +739,7 @@ class star():
         self.store_chains = store_chains
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
         self.figures = {}
+        self.recorded = False
 
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
@@ -758,7 +780,7 @@ class star():
 
         fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
                              env_height, store_chains=self.store_chains,
-                             nthreads=self.nthreads, nrads=norders)
+                             nthreads=self.nthreads, norders=norders)
         fit.run()
 
         self.asy_result = fit
@@ -803,8 +825,7 @@ class star():
         ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
-        xr = max(np.diff(self.f[sel][0], best['numax'], self.f[sel][-1]))
-        ax.set_xlim(best['numax'] - xr, best['numax'] + xr)
+        ax.set_xlim(self.f[sel][0],self.f[sel][-1])
         ax.legend()
 
     def make_residual_plot(self, ax, sel):
