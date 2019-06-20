@@ -49,7 +49,7 @@ import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import os, glob, warnings, psutil
+import os, glob, warnings, psutil, pickle
 
 from . import PACKAGEDIR
 
@@ -648,33 +648,16 @@ class session():
         path : str
             Dictory pathname to place the results        
         """
-        
-        import pickle
-        
+                
         if not path:
             raise ValueError('Specify path for recording your session')
         
-        for star in self.stars:
-            
-            if not star.recorded:
-            
-                if isinstance(star.figures, dict):
-                    for key in star.figures.keys():
-                        fig = star.figures[key]                   
-                        fig.savefig(os.path.join(*[path, f'{star.ID}_{key}.png']))
-                star.figures = None  # TODO - can't pickle fig instances?
-                                
-                with open(os.path.join(*[path, f'{star.ID}.p']), "wb") as f: 
-                    pickle.dump(star, f)
+        if len(self.stars) == 0:
+            print('No stars left in session, they may already have be recorded and deleted')
+        else:
+            for star in self.stars:            
+                star.record(path)
                 
-                star.asy_result.modeID.to_csv(os.path.join(*[path, f'{star.ID}_modeID.csv']))
-                star.asy_result.summary.to_csv(os.path.join(*[path, f'{star.ID}_summary.csv']))
-            
-                star.recorded = True
-            elif star.recorded:
-                print(f'{star.ID} has already been recorded.')
-            else:
-                raise ValueError('Unrecognized value in star.recorded.')
 class star():
     """ Class for each star to be peakbagged
 
@@ -741,6 +724,47 @@ class star():
         self.figures = {}
         self.recorded = False
 
+    def record(self, path=None):
+        """ The record star script
+        
+        Stores the various results in the star class instance. These include 
+        figures, a csv with the mode ID, a csv with the summary statistics of 
+        the marginalized posterior distributions, and a pickles of the star 
+        class instances. 
+        
+        Parameters
+        ----------
+        path : str
+            Dictory pathname to place the results        
+        """
+        if path is None:
+            raise ValueError('Specify path for recording star.')
+        
+        bpath = os.path.join(*[path, f'{self.ID}'])
+        
+        if not self.recorded:    
+            if isinstance(self.figures, dict):
+                for key in self.figures.keys():
+                    fig = self.figures[key]                   
+                    try:
+                        fig.savefig(bpath+'_{key}.png')
+                        self.figures[key] = None # On successful save, delete fig
+                    except:
+                        print('Could not use savefig on contents of star.figures')
+                                              
+                with open(bpath+'.p', "wb") as f: 
+                    pickle.dump(self, f)
+                
+                if self.asy_result is not None:
+                    self.asy_result.modeID.to_csv(bpath+'_modeID.csv')
+                    self.asy_result.summary.to_csv(bpath+'_summary.csv')
+                
+                    self.recorded = True
+        elif self.recorded:
+            print(f'{self.ID} has already been recorded.')
+        else:
+            raise ValueError('Unrecognized value in star.recorded.')
+            
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
         """ Perform mode ID using the asymptotic method.
