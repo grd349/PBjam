@@ -747,7 +747,7 @@ class star():
                 for key in self.figures.keys():
                     fig = self.figures[key]                   
                     try:
-                        fig.savefig(bpath+'_{key}.png')
+                        fig.savefig(bpath+f'_{key}.png')
                         self.figures[key] = None # On successful save, delete fig
                     except:
                         print('Could not use savefig on contents of star.figures')
@@ -1073,7 +1073,21 @@ class star():
         if not labels:
             labels = self.asy_result.pars_names
 
-        fig = corner.corner(xs = chains, labels = labels, plot_density = False)
+        ndim = np.shape(chains)[1]
+
+        fig = corner.corner(xs = chains, labels = labels, plot_density = False,
+                            quiet = True)
+
+        axes = np.array(fig.axes).reshape(ndim, ndim)
+        for i in range(ndim):   
+            xlim = axes[i,i].get_xlim()   
+            xrange = np.linspace(xlim[0],xlim[1],100)
+            kde = gaussian_kde(self.asy_result.flatchain[:,i])   
+            axes[i,i].clear()
+            axes[i,i].plot(xrange,kde(xrange), color = 'C0')
+            axes[i,i].fill_between(xrange, kde(xrange), color = 'C0', alpha = 0.25)
+            axes[i,i].set_xlim(xlim)
+            axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
 
         self.figures['corner'] = fig
 

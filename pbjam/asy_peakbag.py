@@ -13,6 +13,38 @@ from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
 
+def mad(x, axis=0, scale=1.4826):
+    """ Compute median absolute deviation
+    
+    Grabbed from Scipy version 1.3.0.
+    
+    TODO - To be removed once PBjam works with Scipy v > 1.2.0 and replaced 
+    with scipy.stats.median_absolute_deviation.
+    
+    Parameters
+    ----------
+    x : array
+        Array to compute the mad for.
+    axis : int
+        Axis to compute the mad over
+    scale : float
+        Scale factor for the MAD, 1.4826 to match standard deviation for 
+        Gaussian.
+        
+    Returns
+    -------
+    mad : float
+        The median absolute deviation(s) of the array
+    """
+    
+    x = np.asarray(x)
+    if axis is None:
+        med = np.median(x)
+        mabsdev = np.median(np.abs(x - med))
+    else:
+        med = np.apply_over_axes(np.median, x, axis)
+        mabsdev = np.median(np.abs(x - med), axis=axis)
+    return scale * mabsdev
 
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
@@ -147,7 +179,7 @@ def get_summary_stats(fit, model, pnames):
     
     summary = pd.DataFrame()
     smry_stats = ['best','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
-                  '97th']
+                  '97th', 'MAD']
     idx = np.argmax(fit.flatlnlike)       
     means = np.mean(fit.flatchain, axis = 0)
     stds = np.std(fit.flatchain, axis = 0)
@@ -157,10 +189,12 @@ def get_summary_stats(fit, model, pnames):
                                                0.50,
                                                0.50+0.682689492137/2,
                                                0.50+0.954499736104/2], axis=0)
+    mads =  mad(fit.flatchain, axis=0)
     best = fit.flatchain[idx,:]
     for i, par in enumerate(pnames):
         z = [best[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
-             pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], pars_percs[4,i]]
+             pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], 
+             pars_percs[4,i], mads[i]]
         A = {key: z[i] for i, key in enumerate(smry_stats)}
         summary[par] = pd.Series(A)
     best_model = model(best)
@@ -537,22 +571,24 @@ class asymptotic_fit():
 
         nu0_samps = asymptotic_relation(*flatchain[:, :4].T, N)
         nu2_samps = nu0_samps - flatchain[:, 4]
-                    
+                   
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
-        nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
+        nus_mad = mad(np.array([nu0_samps, nu2_samps]), axis=2)
+
+        #nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
 
         ells = [0 if i % 2 else 2 for i in range(2*N)]
 
-        nus_mu_out = []
-        nus_std_out = []
+        nus_med_out = []
+        nus_mad_out = []
 
         for i in range(N):
-            nus_mu_out += [nus_med[1, i], nus_med[0, i]]
-            nus_std_out += [nus_std[1, i], nus_std[0, i]]
+            nus_med_out += [nus_med[1, i], nus_med[0, i]]
+            nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
         
         modeID = pd.DataFrame({'ell': ells,
-                               'nu_mu': nus_mu_out,
-                               'nu_std': nus_std_out})
+                               'nu_mu': nus_med_out,
+                               'nu_std': nus_mad_out})
         return modeID
     
 
