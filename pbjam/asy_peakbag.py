@@ -13,6 +13,38 @@ from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
 
+def mad(x, axis=0, scale=1.4826):
+    """ Compute median absolute deviation
+    
+    Grabbed from Scipy version 1.3.0.
+    
+    TODO - To be removed once PBjam works with Scipy v > 1.2.0 and replaced 
+    with scipy.stats.median_absolute_deviation.
+    
+    Parameters
+    ----------
+    x : array
+        Array to compute the mad for.
+    axis : int
+        Axis to compute the mad over
+    scale : float
+        Scale factor for the MAD, 1.4826 to match standard deviation for 
+        Gaussian.
+        
+    Returns
+    -------
+    mad : float
+        The median absolute deviation(s) of the array
+    """
+    
+    x = np.asarray(x)
+    if axis is None:
+        med = np.median(x)
+        mabsdev = np.median(np.abs(x - med))
+    else:
+        med = np.apply_over_axes(np.median, x, axis)
+        mabsdev = np.median(np.abs(x - med), axis=axis)
+    return scale * mabsdev
 
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
@@ -117,7 +149,8 @@ def P_envelope(nu, hmax, numax, width):
     h : float
         Power at frequency nu (SNR)
     """
-
+    hmax = 10**hmax
+    width = 10**width
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
 def get_summary_stats(fit, model, pnames):
@@ -140,31 +173,33 @@ def get_summary_stats(fit, model, pnames):
     -------
     summary : pandas.DataFrame 
         Dataframe with the summary statistics.
-    best_model : 1d array
+    mle_model : 1d array
         Numpy array with the model spectrum corresponding to the maximum 
         likelihood solution.
     """
     
     summary = pd.DataFrame()
-    smry_stats = ['best','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
-                  '97th']
+    smry_stats = ['mle','mean','std', 'skew', '2nd', '16th', '50th', '84th', 
+                  '97th', 'MAD']
     idx = np.argmax(fit.flatlnlike)       
     means = np.mean(fit.flatchain, axis = 0)
     stds = np.std(fit.flatchain, axis = 0)
     skewness = scist.skew(fit.flatchain, axis = 0)
-    pars_percs = np.percentile(fit.flatchain, [0.50-0.954499736104/2,
-                                               0.50-0.682689492137/2,
-                                               0.50,
-                                               0.50+0.682689492137/2,
-                                               0.50+0.954499736104/2], axis=0)
-    best = fit.flatchain[idx,:]
+    pars_percs = np.percentile(fit.flatchain, [50-95.4499736104/2,
+                                               50-68.2689492137/2,
+                                               50,
+                                               50+68.2689492137/2,
+                                               50+95.4499736104/2], axis=0)
+    mads =  mad(fit.flatchain, axis=0)
+    mle = fit.flatchain[idx,:]
     for i, par in enumerate(pnames):
-        z = [best[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
-             pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], pars_percs[4,i]]
+        z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
+             pars_percs[1,i], pars_percs[2,i], pars_percs[3,i], 
+             pars_percs[4,i], mads[i]]
         A = {key: z[i] for i, key in enumerate(smry_stats)}
         summary[par] = pd.Series(A)
-    best_model = model(best)
-    return summary, best_model
+    mle_model = model(mle)
+    return summary, mle_model
 
 
 class asymp_spec_model():
@@ -272,7 +307,7 @@ class asymp_spec_model():
         envwidth : float
             Gaussian width of the p-mode envelope (muHz)
         modewidth : float
-            Width of the modes (log_10(muHz))
+            Width of the modes (log10(muHz))
         *args : array-like
             List of additional parameters (Teff, bp_rp) that aren't actually
             used to construct the spectrum model, but just for evaluating the
@@ -307,6 +342,9 @@ class asymp_spec_model():
 
         return self.model(*p)
 
+
+def envelope_width(numax):
+    return 0.66 * numax ** 0.88
 
 class asymptotic_fit():
     """ Class for fitting a spectrum based on the asymptotic relation
@@ -392,7 +430,9 @@ class asymptotic_fit():
         self.flatchain = None
         self.lnlike_fin = None
         self.lnprior_fin = None
-        self.best_model = None
+        self.mle_model = None
+        self.acceptance = None
+
         
     def parse_asy_pars(self):
         """ Organize initial guesses for the asymptotic relation fit
@@ -423,16 +463,16 @@ class asymptotic_fit():
             self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
         if any(self.guess['env_width'] == None): 
-            self.guess['env_width'] = [0.66 * self.guess['numax'][0] ** 0.88]
+            self.guess['env_width'] = [np.log10(envelope_width(self.guess['numax'][0]))]
 
         if any(self.guess['env_height'] == None):
             df = np.median(np.diff(self.f))
             a = int(np.floor(self.guess['dnu'][0]/df))
             b = int(len(self.s) / a)
             smoo = self.s[:a*b].reshape((b, a)).mean(1)
-            self.guess['env_height'] = [max(smoo)]
+            self.guess['env_height'] = [np.log10(max(smoo))]
                 
-    def set_bounds(self, nsig = 5):
+    def set_bounds(self, nsig = 20):
         """ Set parameter bounds for asymptotic relation fit
         
         Parameters
@@ -448,22 +488,21 @@ class asymptotic_fit():
             fit. These limits truncate the likelihood function.
         """
         
-        bounds = [[max(1e-20, self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
-                   self.guess['numax'][0]+nsig*self.guess['numax'][1]],
+        bounds = [[max(self.f[0], self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
+                   min(self.f[-1], self.guess['numax'][0]+nsig*self.guess['numax'][1])],
 
                   [max(1e-20, self.guess['dnu'][0]-nsig*self.guess['dnu'][1]),  # Dnu
                    self.guess['dnu'][0]+nsig*self.guess['dnu'][1]],
 
-                  [max(0.4, self.guess['eps'][0]-nsig*self.guess['eps'][1]),  # eps
-                   min(1.6, self.guess['eps'][0]+nsig*self.guess['eps'][1])],
+                  [0.4 , 1.6],  #eps
 
                   [1e-20, 0.1],  # alpha
 
                   [0.05*self.guess['dnu'][0], 0.25*self.guess['dnu'][0]],  # d02
 
-                  [self.guess['env_height'][0]*0.5, self.guess['env_height'][0]*1.5],  # hmax
+                  [-20, 2 + np.log10(max(self.s))],  # hmax
 
-                  [self.guess['env_width'][0]*0.75, self.guess['env_width'][0]*1.25],  # Ewidth
+                  [-20, 10 + self.guess['env_width'][0]],  # Ewidth
 
                   [-2, 1.2],  # mode width (log10)
 
@@ -497,8 +536,8 @@ class asymptotic_fit():
                     (0, 0),  # eps
                     (0.015*self.guess['dnu'][0]**-0.32, 0.01),  # alpha
                     (0.14*self.guess['dnu'][0], 0.3*self.guess['dnu'][0]),  # d02
-                    (0, 0),  # hmax
-                    (0, 0),  # Ewidth
+                    (0, 0),  # env_height
+                    (0, 0),  # env_width
                     (np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17), 0.2),  # mode width (log10)
                     (self.guess['teff'][0], self.guess['teff'][1]),  # Teff
                     (self.guess['bp_rp'][0], self.guess['bp_rp'][1]),  # Gaia bp-rp
@@ -537,22 +576,24 @@ class asymptotic_fit():
 
         nu0_samps = asymptotic_relation(*flatchain[:, :4].T, N)
         nu2_samps = nu0_samps - flatchain[:, 4]
-                    
+                   
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
-        nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
+        nus_mad = mad(np.array([nu0_samps, nu2_samps]), axis=2)
+
+        #nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
 
         ells = [0 if i % 2 else 2 for i in range(2*N)]
 
-        nus_mu_out = []
-        nus_std_out = []
+        nus_med_out = []
+        nus_mad_out = []
 
         for i in range(N):
-            nus_mu_out += [nus_med[1, i], nus_med[0, i]]
-            nus_std_out += [nus_std[1, i], nus_std[0, i]]
+            nus_med_out += [nus_med[1, i], nus_med[0, i]]
+            nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
         
         modeID = pd.DataFrame({'ell': ells,
-                               'nu_mu': nus_mu_out,
-                               'nu_std': nus_std_out})
+                               'nu_med': nus_med_out,
+                               'nu_mad': nus_mad_out})
         return modeID
     
 
@@ -574,7 +615,7 @@ class asymptotic_fit():
 
         self.modeID = self.get_modeIDs(fit, self.norders)
 
-        self.summary, self.best_model = get_summary_stats(fit, self.model, self.pars_names)
+        self.summary, self.mle_model = get_summary_stats(fit, self.model, self.pars_names)
 
         if self.store_chains:
             self.flatchain = fit.flatchain
@@ -584,6 +625,7 @@ class asymptotic_fit():
             self.lnlike_fin = np.array([fit.likelihood(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
             self.lnprior_fin = np.array([fit.lp(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
 
+        self.acceptance = fit.acceptance
         return self.modeID
 
 
@@ -775,6 +817,8 @@ class mcmc():
         self.flatchain = None
         self.lnlike = None
         self.flatlnlike = None
+        self.acceptance = None
+
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -839,14 +883,15 @@ class mcmc():
 
         # Start walkers in a tight random ball
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0],
-                                              self.guess[key][0]*(1-spread)),
-                                          min(self.bounds[i][1],
-                                              self.guess[key][0]*(1+spread))) for i, key in enumerate(self.guess.keys())] for i in range(nwalkers)])
+                                         self.guess[key][0]*(1-spread)),
+                                     min(self.bounds[i][1],
+                                         self.guess[key][0]*(1+spread))) for i, key in enumerate(self.guess.keys())] for i in range(nwalkers)])
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)
         
         pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
+        pos = self.fold(sampler, pos, spread)
         sampler.reset()
         
         converged = False
@@ -858,6 +903,42 @@ class mcmc():
         self.flatchain = sampler.flatchain
         self.lnlike = sampler.lnprobability
         self.flatlnlike = sampler.flatlnprobability
+        self.acceptance = sampler.acceptance_fraction
+        
         sampler.reset()  # This hopefully minimizes emcee memory leak
         
         
+    def fold(self, sampler, pos, spread, accept_lim = 0.2):
+        """ Fold low acceptance walkers into main distribution
+        
+        At the end of the burn-in, some walkers appear stuck with low
+        acceptance fraction. These can be selected using a threshold, and
+        folded back into the main distribution, estimated based on the median
+        of the walkers with an acceptance fraction above the threshold.
+        
+        The stuck walkers are relocated with multivariate Gaussian, with mean
+        equal to the median of the high acceptancew walkers, and a standard
+        deviation equal to the median absolute deviation of these, with a 
+        small scaling factor.
+        
+        Parameters
+        ----------
+        sampler : emcee sampler object
+            The sampler used in the fit
+        pos : array
+            The final position of the walkers after the burn-in phase
+        spread : float
+            The factor to apply to the walkers that are adjusted
+        
+        """        
+        idx = sampler.acceptance_fraction < accept_lim
+        nbad = np.shape(pos[idx, :])[0]
+        if nbad > 0:
+            flatchains = sampler.chain[~idx, :, :].reshape((-1, self.ndim)) 
+            good_med = np.median(flatchains, axis = 0)
+            good_mad = mad(flatchains, axis = 0) * spread
+            pos[idx, :] = np.array([[np.random.uniform(max(self.bounds[j][0], good_med[j]-good_mad[j]),
+                                                       min(self.bounds[j][1], good_med[j]+good_mad[j]) 
+                                                       ) for j in range(self.ndim)] for n in range(nbad)])
+        return pos
+    

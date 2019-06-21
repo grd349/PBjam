@@ -43,14 +43,13 @@ the cadence to 'short' for main-sequence targets.
 """
 
 import lightkurve as lk
-from pbjam.asy_peakbag import asymptotic_fit
+from pbjam.asy_peakbag import asymptotic_fit, envelope_width
 import numpy as np
 import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
-import os, glob, warnings, psutil
-
+import os, glob, warnings, psutil, pickle
 from . import PACKAGEDIR
 
 
@@ -648,33 +647,16 @@ class session():
         path : str
             Dictory pathname to place the results        
         """
-        
-        import pickle
-        
+                
         if not path:
             raise ValueError('Specify path for recording your session')
         
-        for star in self.stars:
-            
-            if not star.recorded:
-            
-                if isinstance(star.figures, dict):
-                    for key in star.figures.keys():
-                        fig = star.figures[key]                   
-                        fig.savefig(os.path.join(*[path, f'{star.ID}_{key}.png']))
-                star.figures = None  # TODO - can't pickle fig instances?
-                                
-                with open(os.path.join(*[path, f'{star.ID}.p']), "wb") as f: 
-                    pickle.dump(star, f)
+        if len(self.stars) == 0:
+            print('No stars left in session, they may already have be recorded and deleted')
+        else:
+            for star in self.stars:            
+                star.record(path)
                 
-                star.asy_result.modeID.to_csv(os.path.join(*[path, f'{star.ID}_modeID.csv']))
-                star.asy_result.summary.to_csv(os.path.join(*[path, f'{star.ID}_summary.csv']))
-            
-                star.recorded = True
-            elif star.recorded:
-                print(f'{star.ID} has already been recorded.')
-            else:
-                raise ValueError('Unrecognized value in star.recorded.')
 class star():
     """ Class for each star to be peakbagged
 
@@ -741,6 +723,47 @@ class star():
         self.figures = {}
         self.recorded = False
 
+    def record(self, path=None):
+        """ The record star script
+        
+        Stores the various results in the star class instance. These include 
+        figures, a csv with the mode ID, a csv with the summary statistics of 
+        the marginalized posterior distributions, and a pickles of the star 
+        class instances. 
+        
+        Parameters
+        ----------
+        path : str
+            Dictory pathname to place the results        
+        """
+        if path is None:
+            raise ValueError('Specify path for recording star.')
+        
+        bpath = os.path.join(*[path, f'{self.ID}'])
+        
+        if not self.recorded:    
+            if isinstance(self.figures, dict):
+                for key in self.figures.keys():
+                    fig = self.figures[key]                   
+                    try:
+                        fig.savefig(bpath+f'_{key}.png')
+                        self.figures[key] = None # On successful save, delete fig
+                    except:
+                        print('Could not use savefig on contents of star.figures')
+                                              
+                with open(bpath+'.p', "wb") as f: 
+                    pickle.dump(self, f)
+                
+                if self.asy_result is not None:
+                    self.asy_result.modeID.to_csv(bpath+'_modeID.csv')
+                    self.asy_result.summary.to_csv(bpath+'_summary.csv')
+                
+                    self.recorded = True
+        elif self.recorded:
+            print(f'{self.ID} has already been recorded.')
+        else:
+            raise ValueError('Unrecognized value in star.recorded.')
+            
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
         """ Perform mode ID using the asymptotic method.
@@ -785,7 +808,7 @@ class star():
 
         self.asy_result = fit
 
-    def make_spectrum_plot(self, ax, sel, model, modeID, best):
+    def make_spectrum_plot(self, ax, sel, model, modeID, mle):
         """ Plot the spectrum and model
 
         Parameters
@@ -800,7 +823,7 @@ class star():
         modeID : pandas.DataFrame instance
             Dataframe containing the mode angular degree and frequency of the
             fit modes.
-        best : list of floats
+        mle : list of floats
             The parameters of the maximum likelihood estimate from the fit.
         """
         ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
@@ -811,7 +834,7 @@ class star():
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
-            ax.axvline(modeID['nu_mu'][i], color='C3',
+            ax.axvline(modeID['nu_med'][i], color='C3',
                        ls=linestyles[modeID['ell'][i]], alpha=0.5)
 
         for i in np.unique(modeID['ell']):
@@ -819,10 +842,10 @@ class star():
                     color='C3', label=labels[i])
         ax.plot([-100, -101], [-100, -101], label='Model', lw=3,
                 color='C3')
-        ax.axvline(best['numax'], color='k', alpha=0.75, lw=3,
+        ax.axvline(mle['numax'], color='k', alpha=0.75, lw=3,
                    label=r'$\nu_{\mathrm{max}}$')
 
-        ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
+        ax.set_ylim(0, min([10**mle['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(self.f[sel][0],self.f[sel][-1])
@@ -831,7 +854,7 @@ class star():
     def make_residual_plot(self, ax, sel):
         """ Make residual plot
 
-        Plot the ratio (residual) of the spectrum and the best-fit model
+        Plot the ratio (residual) of the spectrum and the MLE model
 
         Parameters
         ----------
@@ -974,7 +997,7 @@ class star():
     def plot_asyfit(self, fig=None, model=None, modeID=None):
         """ Make diagnostic plot of the fit.
 
-        Plot various diagnostics of a fit, including the best-fit model,
+        Plot various diagnostics of a fit, including the MLE model,
         spectrum residuals, residual histogram (KDE), and numax, epsilon, Teff
         context plots.
 
@@ -983,14 +1006,14 @@ class star():
         fig : matplotlib figure instance
             Figure instance to plot in.
         model : array of floats
-            Spectrum model to overplot. By default this is the best-fit model
+            Spectrum model to overplot. By default this is the MLE model
             from the latest fit.
         modeID : pandas.DataFrame
             Dataframe of angular degrees and frequencies from the fit
         """
 
         if not model:
-            model = self.asy_result.best_model
+            model = self.asy_result.mle_model
         if not modeID:
             modeID = self.asy_result.modeID
         if not fig:
@@ -1006,7 +1029,7 @@ class star():
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
-        self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['best'])
+        self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['mle'])
 
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
@@ -1032,7 +1055,7 @@ class star():
         
         return fig
 
-    def corner(self, chains = None, labels = None):
+    def corner(self, chains = None, labels = None, kdehist = True):
         """ Make a corner plot for the MCMC chains
         
         Returns
@@ -1049,8 +1072,165 @@ class star():
         if not labels:
             labels = self.asy_result.pars_names
 
-        fig = corner.corner(xs = chains, labels = labels, plot_density = False)
 
+        fig = corner.corner(xs = chains, labels = labels, plot_density = False,
+                            quiet = True)
+     
+        ndim = np.shape(chains)[1]
+        axes = np.array(fig.axes).reshape(ndim, ndim)
+
+        for i in range(ndim):   
+            bounds = self.asy_result.bounds[i]
+            axes[i,i].axvline(bounds[0], color = 'C3', lw = 15)
+            axes[i,i].axvline(bounds[1], color = 'C3', lw = 15)
+            
+            if kdehist:               
+                xlim = axes[i,i].get_xlim()   
+                xrange = np.linspace(xlim[0],xlim[1],100)
+                kde = gaussian_kde(self.asy_result.flatchain[:,i])   
+                axes[i,i].clear()
+                axes[i,i].plot(xrange,kde(xrange), color = 'k')
+                axes[i,i].fill_between(xrange, kde(xrange), color = 'k', alpha = 0.1)
+                
+                                
+                axes[i,i].set_xlim(xlim)
+                axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
+                axes[i,i].set_yticks([])
+                
+                if i < ndim - 2:
+                    axes[i,i].set_xticks([])
+                    
+        axes[-1,-1].set_xlabel(labels[-1])
+        
         self.figures['corner'] = fig
 
         return fig 
+    
+#    def echelle(self, numax = None, dnu=None, eps = None, fmin=None, fmax=None, 
+#                scale='linear', cmap='Blues'):
+#        """ Plot echelle diagram
+#        
+#        Plots an echelle diagram of the periodogram by stacking the
+#        periodogram in slices of dnu. Modes of equal radial degree should
+#        appear approximately vertically aligned. If no structure is present,
+#        you are likely dealing with a faulty dnu value or a low signal to noise
+#        case. This method is adapted from lightkurve.periodogram (original
+#        author O. J. Hall).
+#        
+#        Parameters
+#        ----------
+#        dnu : float
+#            Value for the large frequency separation of the seismic mode
+#            frequencies in the periodogram. Assumed to have the same units as
+#            tthe frequency axis of the spectrum.
+#        fmin : float
+#            The minimum frequency at which to display the echelle. Is assumed 
+#            to be in the same units as dnu and the frequency axis of the
+#            spectrum.
+#        fmax : float
+#            The maximum frequency at which to display the echelle. Is assumed 
+#            to be in the same units as dnu and the frequency axis of the
+#            spectrum.
+#        scale: str
+#            Set z axis to be "linear" or "log". Default is linear.
+#        cmap : str
+#            The name of the matplotlib colourmap to use in the echelle diagram.
+#        
+#        Returns
+#        -------
+#        ax : matplotlib.axes._subplots.AxesSubplot
+#            The matplotlib axes object.
+#        """
+#
+#        w = envelope_width(self.numax[0])
+#
+#        if numax is None:
+#            if self.asy_result is not None:
+#                numax = self.asy_result.summary.loc['50th', 'dnu']
+#            elif self.dnu[0] is not None:
+#                numax = self.numax[0]
+#            elif (fmin is not None) and (fmax is not None):
+#                pass
+#            else:
+#                raise ValueError('Must have either numax or a frequency range to make an echelle')
+#            
+#        if dnu is None:
+#            if self.asy_result is not None:
+#                dnu = self.asy_result.summary.loc['50th', 'dnu']
+#            elif self.dnu[0] is not None:
+#                dnu = self.dnu[0]
+#            else:
+#                raise ValueError('Must have a dnu to make an echelle')
+#                
+#        if eps is None:
+#            if self.asy_result is not None:
+#                eps = self.asy_result.summary.loc['50th', 'eps']
+#            elif self.eps is not None:
+#                eps = self.eps[0]
+#            else:
+#                eps = 0      
+#        pseud_eps = eps + 0 # eps + a fudge factor to make echelles nice
+#            
+#
+#        
+#        if (fmin is not None):
+#            fmin = max([fmin, self.f[0]])
+#            if fmin >= self.f[-1]:
+#                fmin = max([self.numax[0] - 2*w, self.f[0]]) 
+#                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
+#        elif (self.asy_result is not None):
+#            fmin = self.asy_result.f[self.asy_result.sel][0]
+#        else:
+#            fmin = max([self.numax[0] - 2*w, self.f[0]])
+#
+#
+#
+#
+#        if (fmax is not None):
+#            fmax = min([fmax, self.f[-1]])
+#            if fmax <= self.f[0]:
+#                fmax = fmax = min([self.numax[0] + 2*w, self.f[-1]])
+#                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
+#        elif (self.asy_result is not None):
+#            fmax = self.asy_result.f[self.asy_result.sel][-1]
+#        else:
+#            fmax = min([self.numax[0] + 2*w, self.f[-1]])
+#
+#        # Add on 1x Dnu so we don't miss any important range due to rounding
+#        if fmax < self.f[-1] - 1.5*dnu:
+#            fmax += dnu
+#
+#        df = np.median(np.diff(self.f))
+#
+#        ff = self.f[int(fmin/df):int(fmax/df)] + pseud_eps*dnu  #The the selected frequency range
+#        pp = self.s[int(fmin/df):int(fmax/df)]   #The selected power range
+#
+#        n_rows = int((ff[-1]-ff[0])/dnu)     #The number of stacks to use
+#        n_columns = int(dnu/df)               #The number of elements in each stack
+#
+#        #Reshape the power into n_rowss of n_columnss
+#        ep = np.reshape(pp[:(n_rows*n_columns)], (n_rows, n_columns))
+#
+#        if scale=='log':
+#            ep = np.log10(ep)
+#
+#        #Reshape the freq into n_rowss of n_columnss & create arays
+#        ef = np.reshape(ff[:(n_rows*n_columns)], (n_rows, n_columns))
+#        x_f = ((ef[0, :]-ef[0, 0]) % dnu)
+#        y_f = (ef[:, 0])
+#
+#        #Plot the echelle diagram
+#        fig, ax = plt.subplots()
+#
+#        extent = (x_f[0], x_f[-1], y_f[0], y_f[-1])
+#        figsize = plt.rcParams['figure.figsize']
+#        a = figsize[1] / figsize[0]
+#        b = (extent[3] - extent[2]) / extent[1]
+#
+#        ax.imshow(ep, cmap=cmap, aspect=a/b, origin='lower', extent=extent)
+#
+#        ax.set_xlabel(r'Frequency mod. %.2f [%s]' % (dnu, '$\mu$Hz'))
+#        ax.set_ylabel(r'Frequency [%s]' % ('$\mu$Hz'))
+#        
+#        self.figures['eschelle'] = fig
+#        return ax
