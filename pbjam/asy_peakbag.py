@@ -343,6 +343,9 @@ class asymp_spec_model():
         return self.model(*p)
 
 
+def envelope_width(numax):
+    return 0.66 * numax ** 0.88
+
 class asymptotic_fit():
     """ Class for fitting a spectrum based on the asymptotic relation
 
@@ -428,6 +431,8 @@ class asymptotic_fit():
         self.lnlike_fin = None
         self.lnprior_fin = None
         self.mle_model = None
+        self.acceptance = None
+
         
     def parse_asy_pars(self):
         """ Organize initial guesses for the asymptotic relation fit
@@ -458,7 +463,7 @@ class asymptotic_fit():
             self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
         if any(self.guess['env_width'] == None): 
-            self.guess['env_width'] = [np.log10(0.66 * self.guess['numax'][0] ** 0.88)]
+            self.guess['env_width'] = [np.log10(envelope_width(self.guess['numax'][0]))]
 
         if any(self.guess['env_height'] == None):
             df = np.median(np.diff(self.f))
@@ -497,7 +502,7 @@ class asymptotic_fit():
 
                   [-20, 2 + np.log10(max(self.s))],  # hmax
 
-                  [-20, 10 + np.log10(self.guess['env_width'])],  # Ewidth
+                  [-20, 10 + self.guess['env_width'][0]],  # Ewidth
 
                   [-2, 1.2],  # mode width (log10)
 
@@ -620,6 +625,7 @@ class asymptotic_fit():
             self.lnlike_fin = np.array([fit.likelihood(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
             self.lnprior_fin = np.array([fit.lp(fit.chain[i,-1,:]) for i in range(fit.nwalkers)])
 
+        self.acceptance = fit.acceptance
         return self.modeID
 
 
@@ -811,6 +817,8 @@ class mcmc():
         self.flatchain = None
         self.lnlike = None
         self.flatlnlike = None
+        self.acceptance = None
+
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -842,7 +850,7 @@ class mcmc():
         """
         return True
 
-    def __call__(self, niter=1000, nwalkers=100, burnin=2000, spread=0.01, 
+    def __call__(self, niter=1000, nwalkers=50, burnin=6000, spread=0.01, 
                  prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 
@@ -875,14 +883,15 @@ class mcmc():
 
         # Start walkers in a tight random ball
         p0 = np.array([[np.random.uniform(max(self.bounds[i][0],
-                                              self.guess[key][0]*(1-spread)),
-                                          min(self.bounds[i][1],
-                                              self.guess[key][0]*(1+spread))) for i, key in enumerate(self.guess.keys())] for i in range(nwalkers)])
+                                         self.guess[key][0]*(1-spread)),
+                                     min(self.bounds[i][1],
+                                         self.guess[key][0]*(1+spread))) for i, key in enumerate(self.guess.keys())] for i in range(nwalkers)])
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)
         
         pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
+        pos = self.fold(sampler, pos, spread)
         sampler.reset()
         
         converged = False
@@ -894,6 +903,46 @@ class mcmc():
         self.flatchain = sampler.flatchain
         self.lnlike = sampler.lnprobability
         self.flatlnlike = sampler.flatlnprobability
+        self.acceptance = sampler.acceptance_fraction
+        
         sampler.reset()  # This hopefully minimizes emcee memory leak
         
         
+    def fold(self, sampler, pos, spread, accept_lim = 0.2):
+        """ Fold low acceptance walkers into main distribution
+        
+        At the end of the burn-in, some walkers appear stuck with low
+        acceptance fraction. These can be selected using a threshold, and
+        folded back into the main distribution, estimated based on the median
+        of the walkers with an acceptance fraction above the threshold.
+        
+        The stuck walkers are relocated with multivariate Gaussian, with mean
+        equal to the median of the high acceptancew walkers, and a standard
+        deviation equal to the median absolute deviation of these, with a 
+        small scaling factor.
+        
+        Parameters
+        ----------
+        sampler : emcee sampler object
+            The sampler used in the fit
+        pos : array
+            The final position of the walkers after the burn-in phase
+        spread : float
+            The factor to apply to the walkers that are adjusted
+        
+        """        
+        idx = sampler.acceptance_fraction < accept_lim
+        nbad = np.shape(pos[idx, :])[0]
+        
+        flatchains = sampler.chain[~idx, :, :].reshape((-1, self.ndim)) 
+        good_med = np.median(flatchains, axis = 0)
+        good_mad = mad(flatchains, axis = 0) * spread
+        #cov = np.diag(good_mad)
+        #pos[idx, :] = np.random.multivariate_normal(good_med, cov, size=nbad)
+        
+        pos[idx, :] = np.array([[np.random.uniform(max(self.bounds[j][0], good_med[j]-good_mad[j]),
+                                                   min(self.bounds[j][1], good_med[j]+good_mad[j]) 
+                                                   ) for j in range(self.ndim)] for n in range(nbad)])
+    
+        return pos
+    

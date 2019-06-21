@@ -43,14 +43,13 @@ the cadence to 'short' for main-sequence targets.
 """
 
 import lightkurve as lk
-from pbjam.asy_peakbag import asymptotic_fit
+from pbjam.asy_peakbag import asymptotic_fit, envelope_width
 import numpy as np
 import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import gaussian_kde
 import os, glob, warnings, psutil, pickle
-
 from . import PACKAGEDIR
 
 
@@ -1076,15 +1075,14 @@ class star():
 
         fig = corner.corner(xs = chains, labels = labels, plot_density = False,
                             quiet = True)
-
-        
+     
         ndim = np.shape(chains)[1]
         axes = np.array(fig.axes).reshape(ndim, ndim)
 
         for i in range(ndim):   
             bounds = self.asy_result.bounds[i]
-            axes[i,i].axvline(bounds[0], color = 'C3', lw = 10)
-            axes[i,i].axvline(bounds[1], color = 'C3', lw = 10)
+            axes[i,i].axvline(bounds[0], color = 'C3', lw = 15)
+            axes[i,i].axvline(bounds[1], color = 'C3', lw = 15)
             
             if kdehist:               
                 xlim = axes[i,i].get_xlim()   
@@ -1101,7 +1099,118 @@ class star():
                 
                 if i < ndim - 2:
                     axes[i,i].set_xticks([])
-
+                    
+        axes[-1,-1].set_xlabel(labels[-1])
+        
         self.figures['corner'] = fig
 
         return fig 
+    
+#    def echelle(self, dnu=None, fmin=None, fmax=None, scale='linear', cmap='Blues'):
+#        """ Plot echelle diagram
+#        
+#        Plots an echelle diagram of the periodogram by stacking the
+#        periodogram in slices of dnu. Modes of equal radial degree should
+#        appear approximately vertically aligned. If no structure is present,
+#        you are likely dealing with a faulty dnu value or a low signal to noise
+#        case. This method is adapted from lightkurve.periodogram (original
+#        author O. J. Hall).
+#        
+#        Parameters
+#        ----------
+#        dnu : float
+#            Value for the large frequency separation of the seismic mode
+#            frequencies in the periodogram. Assumed to have the same units as
+#            tthe frequency axis of the spectrum.
+#        fmin : float
+#            The minimum frequency at which to display the echelle. Is assumed 
+#            to be in the same units as dnu and the frequency axis of the
+#            spectrum.
+#        fmax : float
+#            The maximum frequency at which to display the echelle. Is assumed 
+#            to be in the same units as dnu and the frequency axis of the
+#            spectrum.
+#        scale: str
+#            Set z axis to be "linear" or "log". Default is linear.
+#        cmap : str
+#            The name of the matplotlib colourmap to use in the echelle diagram.
+#        
+#        Returns
+#        -------
+#        ax : matplotlib.axes._subplots.AxesSubplot
+#            The matplotlib axes object.
+#        """
+#
+#        w = envelope_width(self.numax[0])
+#
+#        if self.asy_result is not None:
+#            eps = self.asy_result.summary.loc['50th', 'eps']
+#        elif self.eps is not None:
+#            eps = self.eps
+#        else:
+#            eps = 0
+#            
+#        
+#            
+##        elif self.asy_result is not None:
+##            eps = self.asy_result.summary.loc['50th', 'eps']
+##        else:
+##            eps = 0    
+#        
+#
+#        if (fmin is not None):
+#            fmin = max([fmin, self.f[0]])
+#            if fmin >= self.f[-1]:
+#                fmin = max([self.numax[0] - 2*w, self.f[0]])
+#                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
+#
+#            fmax = min([fmax, self.f[-1]])
+#            if fmax <= self.f[0]:
+#                fmax = fmax = min([self.numax[0] + 2*w, self.f[-1]])
+#                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
+#
+#        elif (self.asy_result is not None):
+#                fmin = self.asy_result.f[self.asy_result.sel][0]
+#                fmax = self.asy_result.f[self.asy_result.sel][-1]
+#        else:
+#            fmin = max([self.numax[0] - 2*w, self.f[0]])
+#            fmax = min([self.numax[0] + 2*w, self.f[-1]])
+#
+#        # Add on 1x Dnu so we don't miss any important range due to rounding
+#        if fmax < self.f[-1] - 1.5*dnu:
+#            fmax += dnu
+#
+#        df = np.median(np.diff(self.f))
+#
+#        ff = self.f[int(fmin/df):int(fmax/df)]   #The the selected frequency range
+#        pp = self.s[int(fmin/df):int(fmax/df)]   #The selected power range
+#
+#        n_rows = int((ff[-1]-ff[0])/dnu)     #The number of stacks to use
+#        n_columns = int(dnu/df)               #The number of elements in each stack
+#
+#        #Reshape the power into n_rowss of n_columnss
+#        ep = np.reshape(pp[:(n_rows*n_columns)], (n_rows, n_columns))
+#
+#        if scale=='log':
+#            ep = np.log10(ep)
+#
+#        #Reshape the freq into n_rowss of n_columnss & create arays
+#        ef = np.reshape(ff[:(n_rows*n_columns)], (n_rows, n_columns))
+#        x_f = ((ef[0, :]-ef[0, 0]) % dnu)
+#        y_f = (ef[:, 0])
+#
+#        #Plot the echelle diagram
+#        fig, ax = plt.subplots()
+#
+#        extent = (x_f[0], x_f[-1], y_f[0], y_f[-1])
+#        figsize = plt.rcParams['figure.figsize']
+#        a = figsize[1] / figsize[0]
+#        b = (extent[3] - extent[2]) / extent[1]
+#
+#        ax.imshow(ep, cmap=cmap, aspect=a/b, origin='lower', extent=extent)
+#
+#        ax.set_xlabel(r'Frequency mod. %.2f [%s]' % (dnu, '$\mu$Hz'))
+#        ax.set_ylabel(r'Frequency [%s]' % ('$\mu$Hz'))
+#        
+#        self.figures['eschelle'] = fig
+#        return ax
