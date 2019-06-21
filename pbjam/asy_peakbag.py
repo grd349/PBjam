@@ -933,16 +933,12 @@ class mcmc():
         """        
         idx = sampler.acceptance_fraction < accept_lim
         nbad = np.shape(pos[idx, :])[0]
-        
-        flatchains = sampler.chain[~idx, :, :].reshape((-1, self.ndim)) 
-        good_med = np.median(flatchains, axis = 0)
-        good_mad = mad(flatchains, axis = 0) * spread
-        #cov = np.diag(good_mad)
-        #pos[idx, :] = np.random.multivariate_normal(good_med, cov, size=nbad)
-        
-        pos[idx, :] = np.array([[np.random.uniform(max(self.bounds[j][0], good_med[j]-good_mad[j]),
-                                                   min(self.bounds[j][1], good_med[j]+good_mad[j]) 
-                                                   ) for j in range(self.ndim)] for n in range(nbad)])
-    
+        if nbad > 0:
+            flatchains = sampler.chain[~idx, :, :].reshape((-1, self.ndim)) 
+            good_med = np.median(flatchains, axis = 0)
+            good_mad = mad(flatchains, axis = 0) * spread
+            pos[idx, :] = np.array([[np.random.uniform(max(self.bounds[j][0], good_med[j]-good_mad[j]),
+                                                       min(self.bounds[j][1], good_med[j]+good_mad[j]) 
+                                                       ) for j in range(self.ndim)] for n in range(nbad)])
         return pos
     
