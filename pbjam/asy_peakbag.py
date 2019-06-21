@@ -149,7 +149,8 @@ def P_envelope(nu, hmax, numax, width):
     h : float
         Power at frequency nu (SNR)
     """
-
+    hmax = 10**hmax
+    width = 10**width
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
 def get_summary_stats(fit, model, pnames):
@@ -184,11 +185,11 @@ def get_summary_stats(fit, model, pnames):
     means = np.mean(fit.flatchain, axis = 0)
     stds = np.std(fit.flatchain, axis = 0)
     skewness = scist.skew(fit.flatchain, axis = 0)
-    pars_percs = np.percentile(fit.flatchain, [0.50-0.954499736104/2,
-                                               0.50-0.682689492137/2,
-                                               0.50,
-                                               0.50+0.682689492137/2,
-                                               0.50+0.954499736104/2], axis=0)
+    pars_percs = np.percentile(fit.flatchain, [50-95.4499736104/2,
+                                               50-68.2689492137/2,
+                                               50,
+                                               50+68.2689492137/2,
+                                               50+95.4499736104/2], axis=0)
     mads =  mad(fit.flatchain, axis=0)
     mle = fit.flatchain[idx,:]
     for i, par in enumerate(pnames):
@@ -306,7 +307,7 @@ class asymp_spec_model():
         envwidth : float
             Gaussian width of the p-mode envelope (muHz)
         modewidth : float
-            Width of the modes (log_10(muHz))
+            Width of the modes (log10(muHz))
         *args : array-like
             List of additional parameters (Teff, bp_rp) that aren't actually
             used to construct the spectrum model, but just for evaluating the
@@ -457,16 +458,16 @@ class asymptotic_fit():
             self.guess['mode_width'] = [np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17)]
 
         if any(self.guess['env_width'] == None): 
-            self.guess['env_width'] = [0.66 * self.guess['numax'][0] ** 0.88]
+            self.guess['env_width'] = [np.log10(0.66 * self.guess['numax'][0] ** 0.88)]
 
         if any(self.guess['env_height'] == None):
             df = np.median(np.diff(self.f))
             a = int(np.floor(self.guess['dnu'][0]/df))
             b = int(len(self.s) / a)
             smoo = self.s[:a*b].reshape((b, a)).mean(1)
-            self.guess['env_height'] = [max(smoo)]
+            self.guess['env_height'] = [np.log10(max(smoo))]
                 
-    def set_bounds(self, nsig = 5):
+    def set_bounds(self, nsig = 20):
         """ Set parameter bounds for asymptotic relation fit
         
         Parameters
@@ -482,22 +483,21 @@ class asymptotic_fit():
             fit. These limits truncate the likelihood function.
         """
         
-        bounds = [[max(1e-20, self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
-                   self.guess['numax'][0]+nsig*self.guess['numax'][1]],
+        bounds = [[max(self.f[0], self.guess['numax'][0]-nsig*self.guess['numax'][1]),  # numax
+                   min(self.f[-1], self.guess['numax'][0]+nsig*self.guess['numax'][1])],
 
                   [max(1e-20, self.guess['dnu'][0]-nsig*self.guess['dnu'][1]),  # Dnu
                    self.guess['dnu'][0]+nsig*self.guess['dnu'][1]],
 
-                  [max(0.4, self.guess['eps'][0]-nsig*self.guess['eps'][1]),  # eps
-                   min(1.6, self.guess['eps'][0]+nsig*self.guess['eps'][1])],
+                  [0.4 , 1.6],  #eps
 
                   [1e-20, 0.1],  # alpha
 
                   [0.05*self.guess['dnu'][0], 0.25*self.guess['dnu'][0]],  # d02
 
-                  [self.guess['env_height'][0]*0.5, self.guess['env_height'][0]*1.5],  # hmax
+                  [-20, 2 + np.log10(max(self.s))],  # hmax
 
-                  [self.guess['env_width'][0]*0.75, self.guess['env_width'][0]*1.25],  # Ewidth
+                  [-20, 10 + np.log10(self.guess['env_width'])],  # Ewidth
 
                   [-2, 1.2],  # mode width (log10)
 
@@ -531,8 +531,8 @@ class asymptotic_fit():
                     (0, 0),  # eps
                     (0.015*self.guess['dnu'][0]**-0.32, 0.01),  # alpha
                     (0.14*self.guess['dnu'][0], 0.3*self.guess['dnu'][0]),  # d02
-                    (0, 0),  # hmax
-                    (0, 0),  # Ewidth
+                    (0, 0),  # env_height
+                    (0, 0),  # env_width
                     (np.log10(0.05 + 0.64 * (self.guess['teff'][0]/5777.0)**17), 0.2),  # mode width (log10)
                     (self.guess['teff'][0], self.guess['teff'][1]),  # Teff
                     (self.guess['bp_rp'][0], self.guess['bp_rp'][1]),  # Gaia bp-rp
@@ -587,8 +587,8 @@ class asymptotic_fit():
             nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
         
         modeID = pd.DataFrame({'ell': ells,
-                               'nu_mu': nus_med_out,
-                               'nu_std': nus_mad_out})
+                               'nu_med': nus_med_out,
+                               'nu_mad': nus_mad_out})
         return modeID
     
 
@@ -842,7 +842,7 @@ class mcmc():
         """
         return True
 
-    def __call__(self, niter=10, nwalkers=50, burnin=60, spread=0.01, 
+    def __call__(self, niter=1000, nwalkers=100, burnin=2000, spread=0.01, 
                  prior_only = False):
         """ Initialize and run the EMCEE afine invariant sampler
 

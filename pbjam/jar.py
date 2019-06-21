@@ -835,7 +835,7 @@ class star():
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
-            ax.axvline(modeID['nu_mu'][i], color='C3',
+            ax.axvline(modeID['nu_med'][i], color='C3',
                        ls=linestyles[modeID['ell'][i]], alpha=0.5)
 
         for i in np.unique(modeID['ell']):
@@ -846,7 +846,7 @@ class star():
         ax.axvline(mle['numax'], color='k', alpha=0.75, lw=3,
                    label=r'$\nu_{\mathrm{max}}$')
 
-        ax.set_ylim(0, min([mle['env_height'] * 5, max(self.s[sel])]))
+        ax.set_ylim(0, min([10**mle['env_height'] * 5, max(self.s[sel])]))
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(self.f[sel][0],self.f[sel][-1])
