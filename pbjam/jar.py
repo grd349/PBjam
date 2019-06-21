@@ -1106,7 +1106,8 @@ class star():
 
         return fig 
     
-#    def echelle(self, dnu=None, fmin=None, fmax=None, scale='linear', cmap='Blues'):
+#    def echelle(self, numax = None, dnu=None, eps = None, fmin=None, fmax=None, 
+#                scale='linear', cmap='Blues'):
 #        """ Plot echelle diagram
 #        
 #        Plots an echelle diagram of the periodogram by stacking the
@@ -1143,37 +1144,56 @@ class star():
 #
 #        w = envelope_width(self.numax[0])
 #
-#        if self.asy_result is not None:
-#            eps = self.asy_result.summary.loc['50th', 'eps']
-#        elif self.eps is not None:
-#            eps = self.eps
-#        else:
-#            eps = 0
+#        if numax is None:
+#            if self.asy_result is not None:
+#                numax = self.asy_result.summary.loc['50th', 'dnu']
+#            elif self.dnu[0] is not None:
+#                numax = self.numax[0]
+#            elif (fmin is not None) and (fmax is not None):
+#                pass
+#            else:
+#                raise ValueError('Must have either numax or a frequency range to make an echelle')
 #            
-#        
+#        if dnu is None:
+#            if self.asy_result is not None:
+#                dnu = self.asy_result.summary.loc['50th', 'dnu']
+#            elif self.dnu[0] is not None:
+#                dnu = self.dnu[0]
+#            else:
+#                raise ValueError('Must have a dnu to make an echelle')
+#                
+#        if eps is None:
+#            if self.asy_result is not None:
+#                eps = self.asy_result.summary.loc['50th', 'eps']
+#            elif self.eps is not None:
+#                eps = self.eps[0]
+#            else:
+#                eps = 0      
+#        pseud_eps = eps + 0 # eps + a fudge factor to make echelles nice
 #            
-##        elif self.asy_result is not None:
-##            eps = self.asy_result.summary.loc['50th', 'eps']
-##        else:
-##            eps = 0    
-#        
 #
+#        
 #        if (fmin is not None):
 #            fmin = max([fmin, self.f[0]])
 #            if fmin >= self.f[-1]:
-#                fmin = max([self.numax[0] - 2*w, self.f[0]])
+#                fmin = max([self.numax[0] - 2*w, self.f[0]]) 
 #                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
+#        elif (self.asy_result is not None):
+#            fmin = self.asy_result.f[self.asy_result.sel][0]
+#        else:
+#            fmin = max([self.numax[0] - 2*w, self.f[0]])
 #
+#
+#
+#
+#        if (fmax is not None):
 #            fmax = min([fmax, self.f[-1]])
 #            if fmax <= self.f[0]:
 #                fmax = fmax = min([self.numax[0] + 2*w, self.f[-1]])
 #                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
-#
 #        elif (self.asy_result is not None):
-#                fmin = self.asy_result.f[self.asy_result.sel][0]
-#                fmax = self.asy_result.f[self.asy_result.sel][-1]
+#            fmax = self.asy_result.f[self.asy_result.sel][-1]
 #        else:
-#            fmin = max([self.numax[0] - 2*w, self.f[0]])
 #            fmax = min([self.numax[0] + 2*w, self.f[-1]])
 #
 #        # Add on 1x Dnu so we don't miss any important range due to rounding
@@ -1182,7 +1202,7 @@ class star():
 #
 #        df = np.median(np.diff(self.f))
 #
-#        ff = self.f[int(fmin/df):int(fmax/df)]   #The the selected frequency range
+#        ff = self.f[int(fmin/df):int(fmax/df)] + pseud_eps*dnu  #The the selected frequency range
 #        pp = self.s[int(fmin/df):int(fmax/df)]   #The selected power range
 #
 #        n_rows = int((ff[-1]-ff[0])/dnu)     #The number of stacks to use
