@@ -5,6 +5,6 @@ setup(name='pbjam',
       #url='TODO',
       install_requires=['numpy', 'pandas', 'emcee', 'statsmodels==0.9.0',
                         'lightkurve', 'astropy', 'scipy==1.2.1',
-                        'psutil', 'pickle'],
+                        'psutil'],
       include_package_data=True,
       )
