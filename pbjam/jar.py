@@ -4,22 +4,22 @@ This jar contains the input layer for setting up jam sessions for peakbagging
 solar-like oscillators. This is the easiest way to handle targets in PBjam.
 
 It's possible to manually initiate star class instances and do all the fitting
-that way, but it's simpler to just use the session class, which handles 
+that way, but it's simpler to just use the session class, which handles
 everything, including formatting of the inputs.
 
 A jam session is started by initializing the session class instance with a
-target ID, numax, and a large separation. Additional parameters like the 
-effective surface temperature of the star, are optional but help convergence. 
+target ID, numax, and a large separation. Additional parameters like the
+effective surface temperature of the star, are optional but help convergence.
 
 Lists of the above can be provided for multiple targets, but it's often simpler
 to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv
 for a template.
 
 Custom timeseries or periodogram can be provided as either file pathnames,
-numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If 
+numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
 nothing is provided PBjam will download the data automatically.
 
-Specific quarters, campgains or sectors can be requested with the relevant 
+Specific quarters, campgains or sectors can be requested with the relevant
 keyword (i.e., 'quarter' for KIC, etc.). If none of these are provided, PBjam
 will download all available data, picking the long cadence versions by default.
 
@@ -253,10 +253,10 @@ def query_lightkurve(id, lkwargs, use_cached):
 
 def arr_to_lk(x, y, name, typ):
     """ LightKurve object from input
-    
-    Creates either a lightkurve.LightCurve or lightkurve.periodogram object 
+
+    Creates either a lightkurve.LightCurve or lightkurve.periodogram object
     from the input arrays.
-    
+
     Parameters
     ----------
     x : list-like
@@ -267,13 +267,13 @@ def arr_to_lk(x, y, name, typ):
         Target ID
     typ : string
         Either timeseries or periodogram.
-    
+
     Returns
     -------
     lkobj : object
-        Either lightkurve.LightCurve or lightkurve.periodogram object  
+        Either lightkurve.LightCurve or lightkurve.periodogram object
         depending on typ.
-    
+
     """
     if typ == 'timeseries':
         return lk.LightCurve(time=x, flux=y, targetid=name)
@@ -289,21 +289,21 @@ def format_col(vardf, col, key):
     """ Add timeseries or psd column to dataframe based on input
 
     Based on the contents of col, will try to format col and add it as a column
-    to vardf with column name key. col can be many things, so the decision is 
-    based mainly on the dimensionality of col. 
-    
-    If dim = 0, it's assumed that col is either None, or a string, (for the 
-    latter it assumes there is then only one target). 
-    
-    If dim = 1, it's assumed that col is a list-like object, consisting of 
-    either None or strings, these are passed along without modification. 
-    
-    If dim = 2, col is assumed to be either a time series or power spectrum 
-    of shape (2,M), with time/frequency in 1st row and flux/power in the 
-    second. 
-    
-    If dim = 3, it is assumed to be list of (2,M) arrays. 
-    
+    to vardf with column name key. col can be many things, so the decision is
+    based mainly on the dimensionality of col.
+
+    If dim = 0, it's assumed that col is either None, or a string, (for the
+    latter it assumes there is then only one target).
+
+    If dim = 1, it's assumed that col is a list-like object, consisting of
+    either None or strings, these are passed along without modification.
+
+    If dim = 2, col is assumed to be either a time series or power spectrum
+    of shape (2,M), with time/frequency in 1st row and flux/power in the
+    second.
+
+    If dim = 3, it is assumed to be list of (2,M) arrays.
+
     In both of the latter cases col is converted to LightKurve object(s).
 
     Parameters
@@ -430,63 +430,63 @@ def lk_to_pg(vardf):
 
 def print_memusage(pre='', post=''):
     process = psutil.Process(os.getpid())
-    print(pre, process.memory_info().rss, 'bytes', post)  # in bytes 
+    print(pre, process.memory_info().rss, 'bytes', post)  # in bytes
 
 
 class session():
     """ Main class used to initiate peakbagging.
 
     Use this class to initialize a star class instance for one or more targets.
-    
+
     Once initialized, calling this class instance will execute a complete
-    peakbagging run. 
+    peakbagging run.
 
     Data can be provided in multiple different ways, the simplest of which is
-    just to let PBjam query the MAST server. Otherwise arrays of 
-    timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram, 
+    just to let PBjam query the MAST server. Otherwise arrays of
+    timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram,
     or just path names as strings, is also possible.
 
     The physical parameters, numax, dnu, teff, must each be provided at least
     as a list of length 2 for each star. This should contain the parameter
-    value and it's error. 
+    value and it's error.
 
-    For multiple target all the above can be provided as lists, but the 
+    For multiple target all the above can be provided as lists, but the
     easiest way is to simply provide a dataframe from csv file.
 
     Examples
     --------
-    Peakbagging run for a single target: 
-   
+    Peakbagging run for a single target:
+
     jam_sess = pbjam.session(ID =  '4448777',  numax = [220.0, 3.0],
                              dnu = [16.97, 0.01], teff = [4750, 100],
                              bp_rp = [1.34, 0.01], cadence = 'short')
     jam_sess()
-    
+
     Peakbagging run for multiple targets:
     jam_sess = pbjam.session(dictlike = mydataframe)
-    jam_sess()    
-    
-    By default, PBjam will download all the available data, favoring long 
+    jam_sess()
+
+    By default, PBjam will download all the available data, favoring long
     cadence. Cadence and specific observing seasons (quarter, month, campagin,
     sector) can be specified for more detailed control.
-    
+
     Parameters
     ----------
     ID : string, int
-        Target identifier, if custom timeseries/periodogram is provided, it 
+        Target identifier, if custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
     numax : list
-        List of the form [numax, numax_error], list of lists for multiple 
-        targets 
+        List of the form [numax, numax_error], list of lists for multiple
+        targets
     dnu : list
         List of the form [dnu, dnu_error], list of lists for multiple targets
     teff : list, optional
         List of the form [teff, teff_error], list of lists for multiple targets
     bp_rp : list, optional
-        List of the form [bp_rp, bp_rp_error], list of lists for multiple 
+        List of the form [bp_rp, bp_rp_error], list of lists for multiple
         targets
     epsilon : list, optional
-        List of the form [epsilon, epsilon_error], list of lists for multiple 
+        List of the form [epsilon, epsilon_error], list of lists for multiple
         targets
     timeseries : object, optional
         Timeseries input. Leave as None for PBjam to download it automatically.
@@ -497,22 +497,22 @@ class session():
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
     dictlike : pandas.DataFrame or dictionary, optional
-        DataFrame, dictionary, record array with a list of targets, and their 
+        DataFrame, dictionary, record array with a list of targets, and their
         properties. If string, PBjam will assume it's a pathname to a csv file.
-        Specify timeseries and psd columns with file pathnames to use manually 
-        reduced data. 
+        Specify timeseries and psd columns with file pathnames to use manually
+        reduced data.
     store_chains : bool, optional
-        Flag for storing all the full set of samples from the MCMC run. 
+        Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
     nthreads : int, optional
         Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead. 
-        Untested on short cadence. 
+        cadence data 1 is best, more will just add parallelization overhead.
+        Untested on short cadence.
     use_cached : bool
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
     cadence : string
-        Argument for lightkurve to download correct data type. Can be 'short' 
+        Argument for lightkurve to download correct data type. Can be 'short'
         or 'long'. 'long' is default setting, so if you're looking at main
         sequence stars, make sure to manually set 'short'.
     month : int
@@ -520,21 +520,21 @@ class session():
     quarter : int
         Argument for lightkurve when requesting Kepler data.
     campaign : int
-        Argument for lightkurve when requesting K2 data. 
+        Argument for lightkurve when requesting K2 data.
     sector : int
         Argument for lightkurve when requesting TESS data.
-    
+
     Attributes
     ----------
     nthreads : int, optional
         Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead. 
-        Untested on short cadence. 
+        cadence data 1 is best, more will just add parallelization overhead.
+        Untested on short cadence.
     store_chains : bool, optional
-        Flag for storing all the full set of samples from the MCMC run. 
+        Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
     stars : list
-        Session will store star class instances in this list, based on the 
+        Session will store star class instances in this list, based on the
         requested targets.
     """
 
@@ -547,13 +547,13 @@ class session():
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.stars = []
-        
+
         #print_memusage(pre = 'Session init start')
 
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
-            if isinstance(dictlike, str):    
+            if isinstance(dictlike, str):
                 vardf = pd.read_csv(dictlike)
-            else:                
+            else:
                 try:
                     vardf = pd.DataFrame.from_records(dictlike)
                 except TypeError:
@@ -575,9 +575,9 @@ class session():
 
         lc_to_lk(vardf, use_cached=use_cached)
         lk_to_pg(vardf)
-        
+
         #print_memusage(pre = 'df setup')
-        
+
         for i in range(len(vardf)):
             #print_memusage(pre = f'Initializing star {i}')
 
@@ -595,68 +595,68 @@ class session():
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
-                
+
     def __call__(self, step = None, norders = 8, plots = True):
         """ The doitall script
-        
+
         Calling session will by default do asymptotic mode ID and peakbagging
         for all stars in the session.
-        
+
         Parameters
         ----------
         step : string
-            Which step to perform. Can currently be 'asymptotic_modeid' and 
-            'peakbag'. asymptotic_modeid must be run before peakbag. 
+            Which step to perform. Can currently be 'asymptotic_modeid' and
+            'peakbag'. asymptotic_modeid must be run before peakbag.
         norders : int
             Number of orders to include in the fits
         plots : bool
-            Flag for whether or not to generate plots too. By default PBjam 
+            Flag for whether or not to generate plots too. By default PBjam
             will only plot the summary figure, but if flatchain is large, it
             will also try to make a corner plot.
         """
         from tqdm import tqdm
-        
+
         #print_memusage(pre = f'Call do it all')
-        
+
         for star in tqdm(self.stars):
-            
+
             if not step or (step == 'asymptotic_modeid'):
                 star.asymptotic_modeid(norders = 9)
-            
+
             if not step or (step == 'peakbag'):
                 pass  # TODO - add peakbagging option
-                
+
             if not step or plots:
                 star.plot_asyfit()
-                if np.shape(star.asy_result.flatchain)[0] > 200: 
+                if np.shape(star.asy_result.flatchain)[0] > 200:
                     star.corner()
-            
+
             #print_memusage(pre = f'Star {star.ID} finished')
 
-            
+
     def record(self, path = None):
         """ The recordall script
-        
-        Stores the various results for all the star class instances in the 
+
+        Stores the various results for all the star class instances in the
         session. These include figures, a csv with the mode ID, a csv with
         the summary statistics of the marginalized posterior distributions, and
-        a pickles of the star class instances. 
-        
+        a pickles of the star class instances.
+
         Parameters
         ----------
         path : str
-            Dictory pathname to place the results        
+            Dictory pathname to place the results
         """
-                
+
         if not path:
             raise ValueError('Specify path for recording your session')
-        
+
         if len(self.stars) == 0:
             print('No stars left in session, they may already have be recorded and deleted')
         else:
-            for star in self.stars:            
+            for star in self.stars:
                 star.record(path)
-                
+
 class star():
     """ Class for each star to be peakbagged
 
@@ -665,32 +665,32 @@ class star():
     Parameters
     ----------
     ID : string, int
-        Target identifier, if custom timeseries/periodogram is provided, it 
+        Target identifier, if custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
     f : float, array
         Array of frequency bins of the spectrum (muHz)
     s : array
         The power at frequencies f
     numax : list
-        List of the form [numax, numax_error], list of lists for multiple 
-        targets 
+        List of the form [numax, numax_error], list of lists for multiple
+        targets
     dnu : list
         List of the form [dnu, dnu_error], list of lists for multiple targets
     teff : list, optional
         List of the form [teff, teff_error], list of lists for multiple targets
     bp_rp : list, optional
-        List of the form [bp_rp, bp_rp_error], list of lists for multiple 
+        List of the form [bp_rp, bp_rp_error], list of lists for multiple
         targets
     epsilon : list, optional
-        List of the form [epsilon, epsilon_error], list of lists for multiple 
-        targets   
+        List of the form [epsilon, epsilon_error], list of lists for multiple
+        targets
     store_chains : bool, optional
-        Flag for storing all the full set of samples from the MCMC run. 
+        Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
     nthreads : int, optional
         Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead. 
-        Untested on short cadence. 
+        cadence data 1 is best, more will just add parallelization overhead.
+        Untested on short cadence.
 
     Attributes
     ----------
@@ -725,45 +725,45 @@ class star():
 
     def record(self, path=None):
         """ The record star script
-        
-        Stores the various results in the star class instance. These include 
-        figures, a csv with the mode ID, a csv with the summary statistics of 
-        the marginalized posterior distributions, and a pickles of the star 
-        class instances. 
-        
+
+        Stores the various results in the star class instance. These include
+        figures, a csv with the mode ID, a csv with the summary statistics of
+        the marginalized posterior distributions, and a pickles of the star
+        class instances.
+
         Parameters
         ----------
         path : str
-            Dictory pathname to place the results        
+            Dictory pathname to place the results
         """
         if path is None:
             raise ValueError('Specify path for recording star.')
-        
+
         bpath = os.path.join(*[path, f'{self.ID}'])
-        
-        if not self.recorded:    
+
+        if not self.recorded:
             if isinstance(self.figures, dict):
                 for key in self.figures.keys():
-                    fig = self.figures[key]                   
+                    fig = self.figures[key]
                     try:
                         fig.savefig(bpath+f'_{key}.png')
                         self.figures[key] = None # On successful save, delete fig
                     except:
                         print('Could not use savefig on contents of star.figures')
-                                              
-                with open(bpath+'.p', "wb") as f: 
+
+                with open(bpath+'.p', "wb") as f:
                     pickle.dump(self, f)
-                
+
                 if self.asy_result is not None:
                     self.asy_result.modeID.to_csv(bpath+'_modeID.csv')
                     self.asy_result.summary.to_csv(bpath+'_summary.csv')
-                
+
                     self.recorded = True
         elif self.recorded:
             print(f'{self.ID} has already been recorded.')
         else:
             raise ValueError('Unrecognized value in star.recorded.')
-            
+
     def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
                           env_width=None, env_height=None, norders=8):
         """ Perform mode ID using the asymptotic method.
@@ -792,13 +792,13 @@ class star():
         norders : int, optional
             Number of radial orders to fit
         store_chains : bool, optional
-            Flag for storing all the full set of samples from the MCMC run. 
-            Warning, if running multiple targets, make sure you have enough 
+            Flag for storing all the full set of samples from the MCMC run.
+            Warning, if running multiple targets, make sure you have enough
             memory.
         nthreads : int, optional
-            Number of multiprocessing threads to use to perform the fit. For 
-            long cadence data 1 is best, more will just add parallelization 
-            overhead. Untested on short cadence. 
+            Number of multiprocessing threads to use to perform the fit. For
+            long cadence data 1 is best, more will just add parallelization
+            overhead. Untested on short cadence.
         """
 
         fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
@@ -1019,7 +1019,7 @@ class star():
         if not fig:
             fig = plt.figure(figsize=(12, 7))
 
-        prior = pd.read_csv('pbjam/data/prior_data.csv')
+        prior = pd.read_csv(self.data_file)
         smry = self.asy_result.summary
         gs = self.asy_result.guess
         sel = self.asy_result.sel
@@ -1052,21 +1052,21 @@ class star():
         self.make_numax_plot(ax_numax, gs, percs, prior)
 
         self.figures['summary'] = fig
-        
+
         return fig
 
     def corner(self, chains = None, labels = None, kdehist = True):
         """ Make a corner plot for the MCMC chains
-        
+
         Returns
         -------
         fig : matplotlib figure instance
             Figure instance with corner plot
-        
+
         """
-        
+
         import corner
-        
+
         if not chains:
             chains = self.asy_result.flatchain
         if not labels:
@@ -1075,48 +1075,48 @@ class star():
 
         fig = corner.corner(xs = chains, labels = labels, plot_density = False,
                             quiet = True)
-     
+
         ndim = np.shape(chains)[1]
         axes = np.array(fig.axes).reshape(ndim, ndim)
 
-        for i in range(ndim):   
+        for i in range(ndim):
             bounds = self.asy_result.bounds[i]
             axes[i,i].axvline(bounds[0], color = 'C3', lw = 15)
             axes[i,i].axvline(bounds[1], color = 'C3', lw = 15)
-            
-            if kdehist:               
-                xlim = axes[i,i].get_xlim()   
+
+            if kdehist:
+                xlim = axes[i,i].get_xlim()
                 xrange = np.linspace(xlim[0],xlim[1],100)
-                kde = gaussian_kde(self.asy_result.flatchain[:,i])   
+                kde = gaussian_kde(self.asy_result.flatchain[:,i])
                 axes[i,i].clear()
                 axes[i,i].plot(xrange,kde(xrange), color = 'k')
                 axes[i,i].fill_between(xrange, kde(xrange), color = 'k', alpha = 0.1)
-                
-                                
+
+
                 axes[i,i].set_xlim(xlim)
                 axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
                 axes[i,i].set_yticks([])
-                
+
                 if i < ndim - 2:
                     axes[i,i].set_xticks([])
-                    
+
         axes[-1,-1].set_xlabel(labels[-1])
-        
+
         self.figures['corner'] = fig
 
-        return fig 
-    
-#    def echelle(self, numax = None, dnu=None, eps = None, fmin=None, fmax=None, 
+        return fig
+
+#    def echelle(self, numax = None, dnu=None, eps = None, fmin=None, fmax=None,
 #                scale='linear', cmap='Blues'):
 #        """ Plot echelle diagram
-#        
+#
 #        Plots an echelle diagram of the periodogram by stacking the
 #        periodogram in slices of dnu. Modes of equal radial degree should
 #        appear approximately vertically aligned. If no structure is present,
 #        you are likely dealing with a faulty dnu value or a low signal to noise
 #        case. This method is adapted from lightkurve.periodogram (original
 #        author O. J. Hall).
-#        
+#
 #        Parameters
 #        ----------
 #        dnu : float
@@ -1124,18 +1124,18 @@ class star():
 #            frequencies in the periodogram. Assumed to have the same units as
 #            tthe frequency axis of the spectrum.
 #        fmin : float
-#            The minimum frequency at which to display the echelle. Is assumed 
+#            The minimum frequency at which to display the echelle. Is assumed
 #            to be in the same units as dnu and the frequency axis of the
 #            spectrum.
 #        fmax : float
-#            The maximum frequency at which to display the echelle. Is assumed 
+#            The maximum frequency at which to display the echelle. Is assumed
 #            to be in the same units as dnu and the frequency axis of the
 #            spectrum.
 #        scale: str
 #            Set z axis to be "linear" or "log". Default is linear.
 #        cmap : str
 #            The name of the matplotlib colourmap to use in the echelle diagram.
-#        
+#
 #        Returns
 #        -------
 #        ax : matplotlib.axes._subplots.AxesSubplot
@@ -1153,7 +1153,7 @@ class star():
 #                pass
 #            else:
 #                raise ValueError('Must have either numax or a frequency range to make an echelle')
-#            
+#
 #        if dnu is None:
 #            if self.asy_result is not None:
 #                dnu = self.asy_result.summary.loc['50th', 'dnu']
@@ -1161,22 +1161,22 @@ class star():
 #                dnu = self.dnu[0]
 #            else:
 #                raise ValueError('Must have a dnu to make an echelle')
-#                
+#
 #        if eps is None:
 #            if self.asy_result is not None:
 #                eps = self.asy_result.summary.loc['50th', 'eps']
 #            elif self.eps is not None:
 #                eps = self.eps[0]
 #            else:
-#                eps = 0      
+#                eps = 0
 #        pseud_eps = eps + 0 # eps + a fudge factor to make echelles nice
-#            
 #
-#        
+#
+#
 #        if (fmin is not None):
 #            fmin = max([fmin, self.f[0]])
 #            if fmin >= self.f[-1]:
-#                fmin = max([self.numax[0] - 2*w, self.f[0]]) 
+#                fmin = max([self.numax[0] - 2*w, self.f[0]])
 #                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
 #        elif (self.asy_result is not None):
 #            fmin = self.asy_result.f[self.asy_result.sel][0]
@@ -1231,6 +1231,6 @@ class star():
 #
 #        ax.set_xlabel(r'Frequency mod. %.2f [%s]' % (dnu, '$\mu$Hz'))
 #        ax.set_ylabel(r'Frequency [%s]' % ('$\mu$Hz'))
-#        
+#
 #        self.figures['eschelle'] = fig
 #        return ax
