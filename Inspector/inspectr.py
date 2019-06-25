@@ -69,7 +69,7 @@ class MyCentralWidget(QWidget):
             self.my_widget.show_image(self.idx)
         except:
             self.main_window.statusBar().showMessage(
-                        f'Failed on {self.main_window.df.loc[self.idx].KIC}')
+                        f'Failed on {self.main_window.df.loc[self.idx].ID}')
 
     def on_good_button_clicked(self):
         self.main_window.df.at[self.idx, 'error_flag'] = 0
@@ -94,7 +94,7 @@ class MyWidget():
         self.label = label
 
     def show_image(self, idx):
-        id = str(int(self.df.loc[idx].KIC))
+        id = str(int(self.df.loc[idx].ID))
         sfile = glob.glob(self.image_dir + os.sep + '*' + id + '*.png')
         pixmap = QPixmap(sfile[0])
         self.label.setPixmap(pixmap)
