@@ -801,7 +801,9 @@ class star():
             overhead. Untested on short cadence.
         """
 
-        fit = asymptotic_fit(self, d02, alpha, mode_width, env_width,
+        fit = asymptotic_fit(self.f, self.s, self.numax, self.dnu, self.epsilon,
+                             self.teff, self.bp_rp, 
+                             d02, alpha, mode_width, env_width,
                              env_height, store_chains=self.store_chains,
                              nthreads=self.nthreads, norders=norders)
         fit.run()
