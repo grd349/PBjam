@@ -61,14 +61,14 @@ class peakbag():
         The ladders are designed to contain the l=0 and l=2 modes and have
         a width of dnu/2.
         """
-        dnu = self.asy_result.summary.loc['best'].dnu
-        epsilon = self.asy_result.summary.loc['best'].eps
+        dnu = self.asy_result['summary'].loc['mean'].dnu
+        epsilon = self.asy_result['summary'].loc['mean'].eps
         bin_width = self.f[1] - self.f[0]
         w = int(dnu / bin_width) # width in bins
-        s = int(epsilon * dnu / bin_width * 0.8) # epsilon offset
+        s = int(epsilon * dnu / bin_width) # epsilon offset
         h = int(np.floor(len(self.snr[s:]) / w)) # n orders
-        self.ladder_p = np.reshape(self.snr[s:h*w+s], [h, w])[:, :int(w/2)]
-        self.ladder_f = np.reshape(self.f[s:h*w+s], [h, w])[:, :int(w/2)]
+        self.ladder_p = np.reshape(self.snr[s:h*w+s], [h, w])[:, :int(w)]
+        self.ladder_f = np.reshape(self.f[s:h*w+s], [h, w])[:, :int(w)]
 
     def make_start(self):
         """
@@ -76,15 +76,15 @@ class peakbag():
         asymptotic peakbagging) and builds a disctionary of starting values
         for the peakbagging methods.
         """
-        l0 = self.asy_result.modeID.loc[self.asy_result.modeID.ell == 0].nu_mu.values.flatten()
-        l2 = self.asy_result.modeID.loc[self.asy_result.modeID.ell == 2].nu_mu.values.flatten()
-        width = 10**(np.ones(len(l0)) * self.asy_result.summary.loc['best'].mode_width).flatten()
-        height =  (self.asy_result.summary.loc['best'].env_height * \
-                 np.exp(-0.5 * (l0 - self.asy_result.summary.loc['best'].numax)**2 /
-                 self.asy_result.summary.loc['best'].env_width**2)).flatten()
+        l0 = self.asy_result['modeID'].loc[self.asy_result['modeID'].ell == 0].nu_med.values.flatten()
+        l2 = self.asy_result['modeID'].loc[self.asy_result['modeID'].ell == 2].nu_med.values.flatten()
+        width = 10**(np.ones(len(l0)) * self.asy_result['summary'].loc['mean'].mode_width).flatten()
+        height =  (10**self.asy_result['summary'].loc['mean'].env_height * \
+                 np.exp(-0.5 * (l0 - self.asy_result['summary'].loc['mean'].numax)**2 /
+                 (10**self.asy_result['summary'].loc['mean'].env_width)**2)).flatten()
         self.start = {'l0': l0,
                       'l2': l2,
-                      'width0': width * (1.0 + np.random.randn(len(l0)) * 0.1),
+                      'width0': width,
                       'width2': width,
                       'height0': height,
                       'height2': height*0.7,
@@ -207,7 +207,7 @@ class peakbag():
         equivalent of stating that observed/model is distributed as chi squared
         two degrees of freedom.
         """
-        dnu = self.asy_result.summary.loc['best'].dnu
+        dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
         hfac = 10.0
         wfac = 1.0
@@ -233,7 +233,7 @@ class peakbag():
         """
         TODO
         """
-        dnu = self.asy_result.summary.loc['best'].dnu
+        dnu = self.asy_result.summary.loc['mean'].dnu
         self.pm_model = pm.Model()
 
         hfac = 10.0
@@ -307,6 +307,8 @@ class peakbag():
                                      start=self.start,
                                      cores=cores,
                                      target_accept=target_accept)
+
+    def traceplot(self):
         pm.traceplot(self.samples)
 
     def plot_linewidth(self, thin=10):

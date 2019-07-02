@@ -586,7 +586,7 @@ class asymptotic_fit():
             self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
-        return self.modeID, self.summary
+        return {'modeID': self.modeID, 'summary': self.summary}
 
 
 class Prior(pb.epsilon):

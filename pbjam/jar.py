@@ -44,6 +44,8 @@ the cadence to 'short' for main-sequence targets.
 
 import lightkurve as lk
 from pbjam.asy_peakbag import asymptotic_fit, envelope_width
+from pbjam.guess_epsilon import epsilon
+from pbjam.peakbag import peakbag
 import numpy as np
 import astropy.units as units
 import pandas as pd
@@ -172,18 +174,45 @@ def sort_lc(lc):
         The sorted LightKurve object
 
     """
+    def clean_lc(lc):
+        lc = lc.remove_nans().normalize().flatten().remove_outliers()
+        #lc.flux = (lc.flux-1)*1e6
+        return lc
 
-    sidx = np.argsort(lc.time)
-    lc.time = lc.time[sidx]
-    lc.flux = lc.flux[sidx]
-    return lc
+    lc_list = []
+    source_list = []
+    lc_col = []
+    for i, id in enumerate(ID):
+        if use_cached:
+            ddir = os.path.join(os.path.expanduser('~'), '.lightkurve-cache')
+            ddir += '/mastDownload/*/' + f'*{str(int(id))}*/*_llc.fits'
+            tgt = glob.glob(ddir)
+            lc_col = [lk.open(n) for n in tgt]
+
+        if use_cached == False or lc_col == []:
+            tgt = lk.search_lightcurvefile(target=id,
+                                           quarter=lkargs['quarter'][i],
+                                           campaign=lkargs['campaign'][i],
+                                           sector=lkargs['sector'][i],
+                                           month=lkargs['month'][i],
+                                           cadence=lkargs['cadence'][i])
+            lc_col = tgt.download_all()
+
+        lc0 = lc_col[0].PDCSAP_FLUX.normalize()
+        for i, lc in enumerate(lc_col[1:]):
+            lc0 = lc0.append(lc.PDCSAP_FLUX.normalize())
+        lc0 = lc0.remove_nans().remove_outliers(4)
+        lc_list.append(lc0)
+        try:
+            source_list.append(tgt.table['productFilename'][0])
+        except AttributeError:
+            source_list.append(tgt)
+
+    return lc_list, source_list
 
 
-def clean_lc(lc):
-    """ Perform LightKurve operations on object
-
-    Performes basic cleaning of a light curve, removing nans, outliers,
-    median filtering etc.
+def get_psd(arr, arr_type):
+    """ Get psd from timeseries/psd arguments in session class
 
     Parameters
     ----------
@@ -221,6 +250,10 @@ def query_lightkurve(id, lkwargs, use_cached):
     Prioritizes long cadence over short cadence unless otherwise specified.
 
     """
+    def clean_lc(lc):
+        lc = lc.remove_nans().normalize().flatten().remove_outliers(4)
+        #lc.flux = (lc.flux-1)*1e6
+        return lc
     lk_cache = os.path.join(*[os.path.expanduser('~'),
                               '.lightkurve-cache',
                               'mastDownload/*/'])
@@ -564,7 +597,7 @@ class session():
 
             organize_sess_dataframe(vardf)
 
-        elif ID and numax and dnu:
+        elif ID:
             vardf = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
                                         bp_rp=bp_rp, eps=epsilon,
                                         cadence=cadence, campaign=campaign,
@@ -706,7 +739,7 @@ class star():
     """
 
     def __init__(self, ID, f, s, numax, dnu, teff=None, bp_rp=None,
-                 epsilon=None, source=None, store_chains=False, nthreads=1):
+                 store_chains=False, nthreads=1):
         self.ID = ID
         self.f = f
         self.s = s
@@ -722,6 +755,33 @@ class star():
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
         self.figures = {}
         self.recorded = False
+
+    def run_epsilon(self, bw_fac=1.0):
+        self.epsilon = epsilon()
+        self.epsilon_result = self.epsilon(dnu=self.dnu,
+                                           numax=self.numax,
+                                           teff=self.teff,
+                                           bp_rp=self.bp_rp,
+                                           bw_fac=bw_fac)
+
+    def run_asy_peakbag(self, norders=8):
+        self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
+                                      self.teff, self.bp_rp,
+                                      store_chains=self.store_chains,
+                                      nthreads=self.nthreads, norders=norders)
+        self.asy_result = self.asy_fit.run()
+
+    def run_peakbag(self, model_type='simple', tune=1500):
+        self.peakbag = peakbag(self.f, self.s, self.asy_result)
+        self.peakbag.sample(model_type=model_type, tune=tune)
+
+    def __call__(self, bw_fac=1.0, norders=8,
+                 model_type='simple', tune=1500):
+        ''' TODO '''
+        self.run_epsilon(bw_fac=bw_fac)
+        self.run_asy_peakbag(norders=norders)
+        self.run_peakbag(model_type=model_type, tune=tune, norders=norders)
+
 
     def record(self, path=None):
         """ The record star script
@@ -764,80 +824,17 @@ class star():
         else:
             raise ValueError('Unrecognized value in star.recorded.')
 
-    def asymptotic_modeid(self, d02=None, alpha=None, mode_width=None,
-                          env_width=None, env_height=None, norders=8):
-        """ Perform mode ID using the asymptotic method.
-
-        Calls the asymptotic_fit method from asy_peakbag and does an MCMC fit
-        to the asymptotic relation for l=2,0 pairs in the spectrum, with a
-        multivariate KDE as a prior on all the parameters.
-
-        Results are stored in the star.asy_result attribute.
-
-        Parameters
-        ----------
-        d02 : float, optional
-            Initial guess for the small frequency separation (in muHz) between
-            l=0 and l=2.
-        alpha : float, optional
-            Initial guess for the scale of the second order frequency term in
-            the asymptotic relation
-        mode_width : float, optional
-            Initial guess for the mode width (in log10!) for all the modes that
-            are fit.
-        env_width : float, optional
-            Initial guess for the p-mode envelope width (muHz)
-        env_height : float, optional
-            Initial guess for the p-mode envelope height
-        norders : int, optional
-            Number of radial orders to fit
-        store_chains : bool, optional
-            Flag for storing all the full set of samples from the MCMC run.
-            Warning, if running multiple targets, make sure you have enough
-            memory.
-        nthreads : int, optional
-            Number of multiprocessing threads to use to perform the fit. For
-            long cadence data 1 is best, more will just add parallelization
-            overhead. Untested on short cadence.
-        """
-
-        fit = asymptotic_fit(self.f, self.s, self.numax, self.dnu, self.epsilon,
-                             self.teff, self.bp_rp, 
-                             d02, alpha, mode_width, env_width,
-                             env_height, store_chains=self.store_chains,
-                             nthreads=self.nthreads, norders=norders)
-        fit.run()
-
-        self.asy_result = fit
-
-    def make_spectrum_plot(self, ax, sel, model, modeID, mle):
-        """ Plot the spectrum and model
-
-        Parameters
-        ----------
-        ax : matplotlib axis instance
-            Axis instance to plot in.
-        sel : boolean array
-            Used to select the range of frequency bins that the model is
-            computed on.
-        model : asy_peakbag.model.model instance
-            Function for computing a spectrum model given a set of parameters.
-        modeID : pandas.DataFrame instance
-            Dataframe containing the mode angular degree and frequency of the
-            fit modes.
-        mle : list of floats
-            The parameters of the maximum likelihood estimate from the fit.
-        """
+    def make_main_plot(self, ax, sel, model, modeID, best, percs):
         ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
-                color='C0', alpha=0.5)
+                color='C0', alpha = 0.5)
 
         ax.plot(self.f[sel], model, lw=3, color='C3', alpha=1)
 
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
-            ax.axvline(modeID['nu_med'][i], color='C3',
-                       ls=linestyles[modeID['ell'][i]], alpha=0.5)
+            ax.axvline(modeID['nu_mu'][i], color='C3',
+                            ls=linestyles[modeID['ell'][i]], alpha=0.5)
 
         for i in np.unique(modeID['ell']):
             ax.plot([-100, -101], [-100, -101], ls=linestyles[i],
