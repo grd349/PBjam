@@ -748,8 +748,6 @@ class star():
         self.teff = teff
         self.bp_rp = bp_rp
         self.epsilon = epsilon
-        self.asy_result = None
-        self.source = source
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])

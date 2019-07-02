@@ -59,7 +59,7 @@ class peakbag():
         self.snr to two dimensional arrays called ladders.
 
         The ladders are designed to contain the l=0 and l=2 modes and have
-        a width of dnu/2.
+        a width of dnu.
         """
         dnu = self.asy_result['summary'].loc['mean'].dnu
         epsilon = self.asy_result['summary'].loc['mean'].eps
@@ -104,6 +104,8 @@ class peakbag():
                     orders.append(j)
         self.ladder_f = self.ladder_f[orders, :]
         self.ladder_p = self.ladder_p[orders, :]
+
+        # TODO add a lateral trim here too!
 
     def lor(self, freq, w, h):
         """
