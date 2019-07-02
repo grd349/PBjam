@@ -586,7 +586,7 @@ class asymptotic_fit():
             self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
-        return self.modeID
+        return self.modeID, self.summary
 
 
 class Prior(pb.epsilon):
@@ -849,19 +849,16 @@ class mcmc():
         # Start walkers in a tight random ball
         p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
 
-        print(p0.std(axis=0))
         sampler_prior = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                               self.lp, threads=self.nthreads)
         pos, prob, state = sampler_prior.run_mcmc(p0, self.burnin) # Burningham
         pos = self.fold(sampler_prior, pos, spread)
-        print(pos.std(axis=0))
         sampler_prior.reset()
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)
         pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
         pos = self.fold(sampler, pos, spread)
-        print(pos.std(axis=0))
         sampler.reset()
 
         converged = False

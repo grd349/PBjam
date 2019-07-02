@@ -172,6 +172,45 @@ def sort_lc(lc):
         The sorted LightKurve object
 
     """
+    def clean_lc(lc):
+        lc = lc.remove_nans().normalize().flatten().remove_outliers()
+        #lc.flux = (lc.flux-1)*1e6
+        return lc
+
+    lc_list = []
+    source_list = []
+    lc_col = []
+    for i, id in enumerate(ID):
+        if use_cached:
+            ddir = os.path.join(os.path.expanduser('~'), '.lightkurve-cache')
+            ddir += '/mastDownload/*/' + f'*{str(int(id))}*/*_llc.fits'
+            tgt = glob.glob(ddir)
+            lc_col = [lk.open(n) for n in tgt]
+
+        if use_cached == False or lc_col == []:
+            tgt = lk.search_lightcurvefile(target=id,
+                                           quarter=lkargs['quarter'][i],
+                                           campaign=lkargs['campaign'][i],
+                                           sector=lkargs['sector'][i],
+                                           month=lkargs['month'][i],
+                                           cadence=lkargs['cadence'][i])
+            lc_col = tgt.download_all()
+
+        lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
+        for i, lc in enumerate(lc_col[1:]):
+            lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
+        lc_list.append(lc0)
+        try:
+            source_list.append(tgt.table['productFilename'][0])
+        except AttributeError:
+            source_list.append(tgt)
+
+    return lc_list, source_list
+
+
+def get_psd(arr, arr_type):
+    """ Get psd from timeseries/psd arguments in session class
+=======
 
     sidx = np.argsort(lc.time)
     lc.time = lc.time[sidx]
@@ -184,6 +223,7 @@ def clean_lc(lc):
 
     Performes basic cleaning of a light curve, removing nans, outliers,
     median filtering etc.
+>>>>>>> master
 
     Parameters
     ----------
@@ -810,6 +850,11 @@ class star():
 
         self.asy_result = fit
 
+
+    def make_main_plot(self, ax, sel, model, modeID, best, percs):
+        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
+                color='C0', alpha = 0.5)
+=======
     def make_spectrum_plot(self, ax, sel, model, modeID, mle):
         """ Plot the spectrum and model
 
@@ -830,29 +875,47 @@ class star():
         """
         ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
                 color='C0', alpha=0.5)
+>>>>>>> master
 
         ax.plot(self.f[sel], model, lw=3, color='C3', alpha=1)
 
         linestyles = ['-', '--', '-.', '.']
         labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
         for i in range(len(modeID)):
+<<<<<<< HEAD
+            ax.axvline(modeID['nu_mu'][i], color='C3',
+                            ls=linestyles[modeID['ell'][i]], alpha=0.5)
+=======
             ax.axvline(modeID['nu_med'][i], color='C3',
                        ls=linestyles[modeID['ell'][i]], alpha=0.5)
+>>>>>>> master
 
         for i in np.unique(modeID['ell']):
             ax.plot([-100, -101], [-100, -101], ls=linestyles[i],
                     color='C3', label=labels[i])
         ax.plot([-100, -101], [-100, -101], label='Model', lw=3,
                 color='C3')
+<<<<<<< HEAD
+        ax.axvline(best['numax'], color='k', alpha=0.75, lw=3,
+                        label=r'$\nu_{\mathrm{max}}$')
+
+        ax.set_ylim(0, min([best['env_height'] * 5, max(self.s[sel])]))
+=======
         ax.axvline(mle['numax'], color='k', alpha=0.75, lw=3,
                    label=r'$\nu_{\mathrm{max}}$')
 
         ax.set_ylim(0, min([10**mle['env_height'] * 5, max(self.s[sel])]))
+>>>>>>> master
         ax.set_ylabel('SNR')
         ax.set_xticks([])
         ax.set_xlim(self.f[sel][0],self.f[sel][-1])
         ax.legend()
 
+<<<<<<< HEAD
+    def make_residual_plot(self, ax, mod_f):
+        res = self.residual
+        ax.plot(mod_f, res)
+=======
     def make_residual_plot(self, ax, sel):
         """ Make residual plot
 
@@ -867,6 +930,7 @@ class star():
             computed on.
         """
         ax.plot(self.f[sel], self.residual)
+>>>>>>> master
         ax.set_xlabel(r'Frequency [$\mu$Hz]')
         ax.set_xlim(self.f[sel][0], self.f[sel][-1])
         ax.set_ylabel('SNR/Model')
@@ -906,6 +970,16 @@ class star():
         ax.yaxis.set_label_position("right")
 
     def make_Teff_plot(self, ax, gs, percs, prior):
+<<<<<<< HEAD
+
+        ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1],
+                    yerr=gs['teff'][1], fmt='o', color='C1')
+        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1],
+                    xerr=np.diff(percs['dnu']).reshape(2,1),
+                    yerr=np.diff(percs['teff']).reshape(2,1),
+                    fmt='o', color='C0')
+        ax.scatter(prior['dnu'], prior['Teff'], c='k', s=2, alpha=0.2)
+=======
         """ Plot Teff results
 
         Plot the initial guess and best-fit Teff, with the prior as context.
@@ -929,6 +1003,7 @@ class star():
                     yerr=np.diff(percs['teff']).reshape(2, 1),
                     fmt='o', color='C0')
         ax.scatter(prior['dnu'], prior['teff'], c='k', s=2, alpha=0.2)
+>>>>>>> master
         ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
         ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')
         ax.yaxis.tick_right()
@@ -936,6 +1011,11 @@ class star():
         ax.set_xscale('log')
 
     def make_epsilon_plot(self, ax, gs, percs, prior):
+<<<<<<< HEAD
+        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1],
+                    xerr=np.diff(percs['dnu']).reshape(2,1),
+                    yerr=np.diff(percs['eps']).reshape(2,1),
+=======
         """ Plot epsilon results
 
         Plot the initial guess and best-fit epsilon, with the prior as context.
@@ -955,6 +1035,7 @@ class star():
         ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1],
                     xerr=np.diff(percs['dnu']).reshape(2, 1),
                     yerr=np.diff(percs['eps']).reshape(2, 1),
+>>>>>>> master
                     fmt='o', color='C0')
         ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)
         ax.set_ylabel(r'$\epsilon$')
@@ -965,6 +1046,11 @@ class star():
         ax.yaxis.set_label_position("right")
 
     def make_numax_plot(self, ax, gs, percs, prior):
+<<<<<<< HEAD
+        ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0],
+                      xerr=gs['dnu'][1], yerr=gs['numax'][1],
+                      fmt='o', color='C1')
+=======
         """ Plot numax results
 
         Plot the initial guess and best-fit numax, with the prior as context.
@@ -984,6 +1070,7 @@ class star():
 
         ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0], xerr=gs['dnu'][1],
                     yerr=gs['numax'][1], fmt='o', color='C1')
+>>>>>>> master
         ax.errorbar(x=percs['dnu'][1], y=percs['numax'][1],
                     xerr=np.diff(percs['dnu']).reshape(2, 1),
                     yerr=np.diff(percs['numax']).reshape(2, 1),
@@ -996,6 +1083,10 @@ class star():
         ax.yaxis.tick_right()
         ax.yaxis.set_label_position("right")
 
+<<<<<<< HEAD
+    def plot_asyfit(self, model=None, fig=None, modeID=None):
+        # Plot resulting spectrum model
+=======
     def plot_asyfit(self, fig=None, model=None, modeID=None):
         """ Make diagnostic plot of the fit.
 
@@ -1014,6 +1105,7 @@ class star():
             Dataframe of angular degrees and frequencies from the fit
         """
 
+>>>>>>> master
         if not model:
             model = self.asy_result.mle_model
         if not modeID:
@@ -1021,7 +1113,12 @@ class star():
         if not fig:
             fig = plt.figure(figsize=(12, 7))
 
+<<<<<<< HEAD
+        prior = pd.read_csv('pbjam/data/prior_data.csv')
+        fc = self.asy_result.flatchain
+=======
         prior = pd.read_csv(self.data_file)
+>>>>>>> master
         smry = self.asy_result.summary
         gs = self.asy_result.guess
         sel = self.asy_result.sel
@@ -1031,11 +1128,19 @@ class star():
 
         # Main plot
         ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
+<<<<<<< HEAD
+        self.make_main_plot(ax_main, sel, model, modeID, best, percs)
+
+        # Residual plot
+        ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
+        self.make_residual_plot(ax_res, self.f[sel])
+=======
         self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['mle'])
 
         # Residual plot
         ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
         self.make_residual_plot(ax_res, sel)
+>>>>>>> master
 
         # KDE plot
         ax_kde = fig.add_axes([0.75, 0.07, 0.19, 0.15])
@@ -1053,8 +1158,11 @@ class star():
         ax_numax = fig.add_axes([0.75, 0.76, 0.19, 0.23])
         self.make_numax_plot(ax_numax, gs, percs, prior)
 
+<<<<<<< HEAD
+=======
         self.figures['summary'] = fig
 
+>>>>>>> master
         return fig
 
     def corner(self, chains = None, labels = None, kdehist = True):
@@ -1078,8 +1186,77 @@ class star():
         fig = corner.corner(xs = chains, labels = labels, plot_density = False,
                             quiet = True)
 
+<<<<<<< HEAD
+        lkwargs = kwargs.copy()  # prevents memory leak between sessions
+
+        listchk = all([ID, numax, dnu])
+
+        lk_kws = ['cadence', 'month', 'quarter', 'campaign', 'sector']
+
+        # Given ID will use LK to download
+        if listchk:
+            ID, numax, dnu, teff, bp_rp, epsilon = enforce_list(ID, numax, dnu,
+                                                                teff, bp_rp,
+                                                                epsilon)
+            teff = multiplier(teff, len(ID))
+            bp_rp = multiplier(bp_rp, len(ID))
+            epsilon = multiplier(epsilon, len(ID))
+
+            check_list_lengths([ID, numax, dnu, teff, bp_rp, epsilon])
+
+            if not timeseries and not psd:
+                for key in lk_kws:
+                    if key not in lkwargs:
+                        lkwargs[key] = [None]*len(ID)
+                    lkwargs[key] = enforce_list(lkwargs[key])[0]
+                check_list_lengths(lkwargs)
+
+                lc_list, source_list = download_lc(ID, lkwargs,
+                                                   use_cached=use_cached)
+                PS_list = get_psd(lc_list, arr_type='TS')
+
+        # Given time series as lk object, tuple or path
+            elif timeseries:
+                timeseries = enforce_list(timeseries)[0]
+                check_list_lengths([timeseries])
+                PS_list = get_psd(timeseries, arr_type='TS')
+                source_list = [x if type(x) == str else None for x in timeseries]
+
+        # Given power spectrum as lk object, tuple or path
+            elif psd:
+                psd = enforce_list(psd)[0]
+                check_list_lengths([psd])
+                PS_list = get_psd(psd, arr_type='PS')
+                source_list = [x if type(x) == str else None for x in psd]
+
+        # Given dataframe or dictionary
+        elif isinstance(dictlike, (dict, np.recarray, pd.DataFrame)):
+            try:
+                df = pd.DataFrame.from_records(dictlike)
+            except TypeError:
+                print('Unrecognized type in dictlike. Must be convertable to dataframe through pandas.DataFrame.from_records()')
+
+            if any([ID, numax, dnu, teff, bp_rp]):
+                warnings.warn('Dictlike provided as input, ignoring other inputs.')
+
+            # Check if required keywords are present
+            dfkeys = ['ID', 'numax', 'dnu', 'numax_error', 'dnu_error']
+            dfkeychk = any(x not in dfkeys for x in df.keys())
+            if not dfkeychk:
+                raise(KeyError, 'Some of the required keywords were missing.')
+
+            ID = list(df['ID'])
+            numax = [[df['numax'][i], df['numax_error'][i]] for i in range(len(ID))]
+            dnu = [[df['dnu'][i], df['dnu_error'][i]] for i in range(len(ID))]
+
+            if ('teff' in df.keys) and ('teff_error' in df.keys):
+                teff = [[df['teff'][i], df['teff_error'][i]] for i in range(len(ID))]
+            else:
+                teff = [None for i in range(len(ID))]
+=======
         ndim = np.shape(chains)[1]
         axes = np.array(fig.axes).reshape(ndim, ndim)
+>>>>>>> master
 
         for i in range(ndim):
             bounds = self.asy_result.bounds[i]
