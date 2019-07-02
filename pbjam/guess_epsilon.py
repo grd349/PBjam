@@ -227,9 +227,11 @@ class epsilon():
         if self.samples == []:
             print('Need to run the sampler first')
             return -1, -1
-        dnu = self.samples[:, 0]
+        dnu = 10**self.samples[:, 0]
         eps = self.samples[:, 2]
-        freq = np.array([(nn + eps) * 10**dnu for nn in n])
+        nmax = 10**self.samples[:, 1] / dnu - eps
+        alpha = 10**self.samples[:, 4]
+        freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
     def __call__(self,
