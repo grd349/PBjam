@@ -190,8 +190,8 @@ class epsilon():
         periodogram.plot(ax=ax)
         f = periodogram.frequency.value
         dnu = 10**(self.samples[:, 0].mean())
-        nmin = f.min() / dnu
-        nmax = f.max() / dnu
+        nmin = np.floor(f.min() / dnu)
+        nmax = np.floor(f.max() / dnu)
         self.n = np.arange(nmin-1, nmax+1, 1)
         freq, freq_unc = self.kde_predict(self.n)
         for i in range(len(self.n)):
