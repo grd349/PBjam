@@ -622,14 +622,14 @@ class session():
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
                                    epsilon=vardf.loc[i, ['eps', 'eps_err']].values,
-                                   store_chains=self.store_chains,
+                                   store_chains=store_chains,
                                    nthreads=self.nthreads))
 
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
-    def __call__(self, step = None, norders = 8, plots = True):
+    def __call__(self, norders = 8, plots = True):
         """ The doitall script
 
         Calling session will by default do asymptotic mode ID and peakbagging
@@ -652,17 +652,13 @@ class session():
         #print_memusage(pre = f'Call do it all')
 
         for star in tqdm(self.stars):
-
-            if not step or (step == 'asymptotic_modeid'):
-                star.asymptotic_modeid(norders = 9)
-
-            if not step or (step == 'peakbag'):
-                pass  # TODO - add peakbagging option
-
-            if not step or plots:
-                star.plot_asyfit()
-                if np.shape(star.asy_result.flatchain)[0] > 200:
-                    star.corner()
+            try:
+                star()
+                if plots:
+                    # TODO do something here
+                    pass
+            except:
+                warnings.warn(f'Failed on star {star.ID}')
 
             #print_memusage(pre = f'Star {star.ID} finished')
 
@@ -766,12 +762,13 @@ class star():
         self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
                                       self.teff, self.bp_rp,
                                       store_chains=self.store_chains,
-                                      nthreads=self.nthreads, norders=norders)
+                                      nthreads=1, norders=norders)
         self.asy_result = self.asy_fit.run()
 
     def run_peakbag(self, model_type='simple', tune=1500):
         self.peakbag = peakbag(self.f, self.s, self.asy_result)
-        self.peakbag.sample(model_type=model_type, tune=tune)
+        self.peakbag.sample(model_type=model_type, tune=tune,
+                            cores=self.nthreads)
 
     def __call__(self, bw_fac=1.0, norders=8,
                  model_type='simple', tune=1500):

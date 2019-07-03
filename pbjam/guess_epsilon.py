@@ -120,7 +120,7 @@ class epsilon():
 
         return lp + ld
 
-    def kde_sampler(self, niter=4000, nwalkers=20, burnin=2000):
+    def kde_sampler(self, niter=1000, nwalkers=20, burnin=2000):
         ''' Samples from the posterior probability distribution
 
         p(theta | D) propto p(theta) p(D | theta)
@@ -174,7 +174,7 @@ class epsilon():
                         'teff': self.to_log10(*self.obs['teff']),
                         'bp_rp': self.obs['bp_rp']}
 
-    def plot(self, periodogram, h=10):
+    def plot(self, periodogram):
         '''
         Make a plot of the suggested Vrard \"\ ilon_guess, on top of a
         `lightkurve` periodogram object passed by the user.
@@ -187,7 +187,11 @@ class epsilon():
 
         '''
         fig, ax = plt.subplots(figsize=[16,9])
-        periodogram.plot(ax=ax)
+        periodogram.plot(ax=ax, alpha=0.5, c='gray')
+        dnu = 10**(self.samples[:, 0].mean())
+        smoo = periodogram.smooth(filter_width=dnu*0.02)
+        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed')
+        h = np.max(smoo.power.value)
         f = periodogram.frequency.value
         dnu = 10**(self.samples[:, 0].mean())
         nmin = np.floor(f.min() / dnu)
@@ -199,9 +203,9 @@ class epsilon():
             y = h * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
             #ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
             #            c='k', alpha=0.5)
-            ax.fill_between(f, y, alpha=0.3, facecolor='r', edgecolor='none')
+            ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none')
         ax.set_xlim([f.min(), f.max()])
-        ax.set_ylim([0, periodogram.power.value.max()])
+        ax.set_ylim([0, h*2])
 
     def kde_predict(self, n):
         '''

@@ -48,27 +48,9 @@ class peakbag():
         self.f = f
         self.snr = snr
         self.asy_result = asy_result
-        self.make_ladder()
         self.make_start()
         self.trim_ladder()
         self.gp0 = []
-
-    def make_ladder(self):
-        """
-        This function transforms the 1 dimensional data in self.f and
-        self.snr to two dimensional arrays called ladders.
-
-        The ladders are designed to contain the l=0 and l=2 modes and have
-        a width of dnu.
-        """
-        dnu = self.asy_result['summary'].loc['mean'].dnu
-        epsilon = self.asy_result['summary'].loc['mean'].eps
-        bin_width = self.f[1] - self.f[0]
-        w = int(dnu / bin_width) # width in bins
-        s = int(epsilon * dnu / bin_width) # epsilon offset
-        h = int(np.floor(len(self.snr[s:]) / w)) # n orders
-        self.ladder_p = np.reshape(self.snr[s:h*w+s], [h, w])[:, :int(w)]
-        self.ladder_f = np.reshape(self.f[s:h*w+s], [h, w])[:, :int(w)]
 
     def make_start(self):
         """
@@ -91,21 +73,27 @@ class peakbag():
                       'back': np.ones(len(l0))}
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
-    def trim_ladder(self):
+    def trim_ladder(self, lw_fac=10, extra=0.01):
         """
         This function selects only the orders in the ladders that have modes
         that age to be fitted, i.e., it trims the ladder.
         """
         orders = []
-        for freq in self.start['l0']:
-            for j in range(self.ladder_f.shape[0]):
-                if ((freq > np.min(self.ladder_f[j,:])) and
-                    (freq < np.max(self.ladder_f[j,:]))):
-                    orders.append(j)
-        self.ladder_f = self.ladder_f[orders, :]
-        self.ladder_p = self.ladder_p[orders, :]
-
-        # TODO add a lateral trim here too!
+        d02 = self.asy_result['summary'].loc['mean'].d02
+        d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
+        w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
+        bw = self.f[1] - self.f[0]
+        w /= bw
+        ladder_trim_f = np.zeros([len(self.start['l0']), int(w)])
+        ladder_trim_p = np.zeros([len(self.start['l0']), int(w)])
+        for idx, freq in enumerate(self.start['l0']):
+            loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
+            ladder_trim_f[idx, :] = \
+                self.f[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w)]
+            ladder_trim_p[idx, :] = \
+                self.snr[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w) ]
+        self.ladder_f = ladder_trim_f
+        self.ladder_p = ladder_trim_p
 
     def lor(self, freq, w, h):
         """
