@@ -169,10 +169,10 @@ class epsilon():
         return [x, xerr]
 
     def obs_to_log(self, obs):
-        self.log_obs = {'dnu': self.to_log10(*self.obs['dnu']),
-                        'numax': self.to_log10(*self.obs['numax']),
-                        'teff': self.to_log10(*self.obs['teff']),
-                        'bp_rp': self.obs['bp_rp']}
+        self.log_obs = {'dnu': self.to_log10(*obs['dnu']),
+                        'numax': self.to_log10(*obs['numax']),
+                        'teff': self.to_log10(*obs['teff']),
+                        'bp_rp': obs['bp_rp']}
 
     def plot(self, periodogram):
         '''
@@ -268,4 +268,4 @@ class epsilon():
         self.obs_to_log(self.obs)
         self.make_kde(bw_fac=bw_fac)
         self.samples = self.kde_sampler(niter=niter, burnin=burnin)
-        return [self.samples[:,4].mean(), self.samples[:,4].std()]
+        return [self.samples[:,2].mean(), self.samples[:,2].std()]
