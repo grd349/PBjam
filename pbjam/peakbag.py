@@ -4,6 +4,7 @@
 import numpy as np
 import pymc3 as pm
 import matplotlib.pyplot as plt
+import warnings
 
 class peakbag():
     """
@@ -44,12 +45,13 @@ class peakbag():
         pb.sample(model_type='width_gp', cores=4, tune=5000)
         pm.summary(pb.samples)
     """
-    def __init__(self, f, snr, asy_result):
+    def __init__(self, f, snr, asy_result, init=True):
         self.f = f
         self.snr = snr
         self.asy_result = asy_result
-        self.make_start()
-        self.trim_ladder()
+        if init:
+            self.make_start()
+            self.trim_ladder()
         self.gp0 = []
 
     def make_start(self):
@@ -78,7 +80,6 @@ class peakbag():
         This function selects only the orders in the ladders that have modes
         that age to be fitted, i.e., it trims the ladder.
         """
-        orders = []
         d02 = self.asy_result['summary'].loc['mean'].d02
         d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
         w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
@@ -88,6 +89,10 @@ class peakbag():
         ladder_trim_p = np.zeros([len(self.start['l0']), int(w)])
         for idx, freq in enumerate(self.start['l0']):
             loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
+            if loc_mid_02 == 0:
+                # TODO warnings.warn('Possible problem with frequency range! Check ...')
+                # What if mode outside of frequency range???
+                print('Holy cow batman - mode outside frequency range')
             ladder_trim_f[idx, :] = \
                 self.f[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w)]
             ladder_trim_p[idx, :] = \
@@ -223,7 +228,7 @@ class peakbag():
         """
         TODO
         """
-        dnu = self.asy_result.summary.loc['mean'].dnu
+        dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
 
         hfac = 10.0
@@ -263,7 +268,6 @@ class peakbag():
 
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
-
 
     def sample(self, model_type='simple',
                      tune=1000,
