@@ -69,7 +69,6 @@ def get_nmax(numax, dnu, eps):
 
     return numax / dnu - eps
 
-
 def get_enns(nmax, norders):
     """Compute radial order numbers.
 
@@ -95,8 +94,6 @@ def get_enns(nmax, norders):
         return np.arange(below, above)
     else:
         return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)
-
-
 
 def asymptotic_relation(numax, dnu, eps, alpha, norders):
     """ Compute the l=0 mode frequencies from the asymptotic relation for
@@ -125,7 +122,6 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
     nmax = get_nmax(numax, dnu, eps)
     enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
-
 
 def P_envelope(nu, hmax, numax, width):
     """ Power of the p-mode envelope
@@ -343,9 +339,6 @@ class asymp_spec_model():
         """
 
         return self.model(*p)
-
-
-
 
 class asymptotic_fit():
     """ Class for fitting a spectrum based on the asymptotic relation
@@ -587,7 +580,6 @@ class asymptotic_fit():
 
         self.acceptance = self.fit.acceptance
         return {'modeID': self.modeID, 'summary': self.summary}
-
 
 class Prior(pb.epsilon):
     """ Evaluate the proirs on the provided model parameters

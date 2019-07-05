@@ -49,6 +49,7 @@ class peakbag():
         self.f = f
         self.snr = snr
         self.asy_result = asy_result
+
         if init:
             self.make_start()
             self.trim_ladder()
@@ -62,6 +63,7 @@ class peakbag():
         """
         l0 = self.asy_result['modeID'].loc[self.asy_result['modeID'].ell == 0].nu_med.values.flatten()
         l2 = self.asy_result['modeID'].loc[self.asy_result['modeID'].ell == 2].nu_med.values.flatten()
+        l0, l2 = self.remove_outsiders(l0, l2)
         width = 10**(np.ones(len(l0)) * self.asy_result['summary'].loc['mean'].mode_width).flatten()
         height =  (10**self.asy_result['summary'].loc['mean'].env_height * \
                  np.exp(-0.5 * (l0 - self.asy_result['summary'].loc['mean'].numax)**2 /
@@ -74,6 +76,10 @@ class peakbag():
                       'height2': height*0.7,
                       'back': np.ones(len(l0))}
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
+
+    def remove_outsiders(self, l0, l2):
+        sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
+        return l0[sel], l2[sel]
 
     def trim_ladder(self, lw_fac=10, extra=0.01):
         """
