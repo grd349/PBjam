@@ -5,5 +5,6 @@ import os
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 
 from .guess_epsilon import epsilon
-from .jar import session
+from .jar import session, star
 from .asy_peakbag import asymp_spec_model, Prior, mcmc
+from .peakbag import peakbag

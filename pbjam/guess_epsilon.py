@@ -120,7 +120,7 @@ class epsilon():
 
         return lp + ld
 
-    def kde_sampler(self, niter=4000, nwalkers=20, burnin=2000):
+    def kde_sampler(self, niter=1000, nwalkers=20, burnin=2000):
         ''' Samples from the posterior probability distribution
 
         p(theta | D) propto p(theta) p(D | theta)
@@ -169,12 +169,12 @@ class epsilon():
         return [x, xerr]
 
     def obs_to_log(self, obs):
-        self.log_obs = {'dnu': self.to_log10(*self.obs['dnu']),
-                        'numax': self.to_log10(*self.obs['numax']),
-                        'teff': self.to_log10(*self.obs['teff']),
-                        'bp_rp': self.obs['bp_rp']}
+        self.log_obs = {'dnu': self.to_log10(*obs['dnu']),
+                        'numax': self.to_log10(*obs['numax']),
+                        'teff': self.to_log10(*obs['teff']),
+                        'bp_rp': obs['bp_rp']}
 
-    def plot(self, periodogram, h=10):
+    def plot(self, periodogram):
         '''
         Make a plot of the suggested Vrard \"\ ilon_guess, on top of a
         `lightkurve` periodogram object passed by the user.
@@ -187,11 +187,15 @@ class epsilon():
 
         '''
         fig, ax = plt.subplots(figsize=[16,9])
-        periodogram.plot(ax=ax)
+        periodogram.plot(ax=ax, alpha=0.5, c='gray')
+        dnu = 10**(self.samples[:, 0].mean())
+        smoo = periodogram.smooth(filter_width=dnu*0.02)
+        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed')
+        h = np.max(smoo.power.value)
         f = periodogram.frequency.value
         dnu = 10**(self.samples[:, 0].mean())
-        nmin = f.min() / dnu
-        nmax = f.max() / dnu
+        nmin = np.floor(f.min() / dnu)
+        nmax = np.floor(f.max() / dnu)
         self.n = np.arange(nmin-1, nmax+1, 1)
         freq, freq_unc = self.kde_predict(self.n)
         for i in range(len(self.n)):
@@ -199,9 +203,9 @@ class epsilon():
             y = h * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
             #ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
             #            c='k', alpha=0.5)
-            ax.fill_between(f, y, alpha=0.3, facecolor='r', edgecolor='none')
+            ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none')
         ax.set_xlim([f.min(), f.max()])
-        ax.set_ylim([0, periodogram.power.value.max()])
+        ax.set_ylim([0, h*2])
 
     def kde_predict(self, n):
         '''
@@ -264,4 +268,4 @@ class epsilon():
         self.obs_to_log(self.obs)
         self.make_kde(bw_fac=bw_fac)
         self.samples = self.kde_sampler(niter=niter, burnin=burnin)
-        return [self.samples[:,4].mean(), self.samples[:,4].std()]
+        return [self.samples[:,2].mean(), self.samples[:,2].std()]

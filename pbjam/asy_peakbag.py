@@ -12,6 +12,7 @@ import pandas as pd
 from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
+import matplotlib.pyplot as plt
 
 def mad(x, axis=0, scale=1.4826):
     """ Compute median absolute deviation
@@ -69,7 +70,6 @@ def get_nmax(numax, dnu, eps):
 
     return numax / dnu - eps
 
-
 def get_enns(nmax, norders):
     """Compute radial order numbers.
 
@@ -95,8 +95,6 @@ def get_enns(nmax, norders):
         return np.arange(below, above)
     else:
         return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)
-
-
 
 def asymptotic_relation(numax, dnu, eps, alpha, norders):
     """ Compute the l=0 mode frequencies from the asymptotic relation for
@@ -125,7 +123,6 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
     nmax = get_nmax(numax, dnu, eps)
     enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
-
 
 def P_envelope(nu, hmax, numax, width):
     """ Power of the p-mode envelope
@@ -344,9 +341,6 @@ class asymp_spec_model():
 
         return self.model(*p)
 
-
-
-
 class asymptotic_fit():
     """ Class for fitting a spectrum based on the asymptotic relation
 
@@ -556,8 +550,6 @@ class asymptotic_fit():
                                'nu_mad': nus_mad_out})
         return modeID
 
-
-
     def run(self, burnin=1000, niter=1000):
         """ Setup, run and parse the asymptotic relation fit using EMCEE
 
@@ -586,7 +578,17 @@ class asymptotic_fit():
             self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
-        return self.modeID
+        return {'modeID': self.modeID, 'summary': self.summary}
+
+    def plot(self, thin=100):
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(self.f, self.s, 'k-', label='Data')
+        ax.plot(self.model.f, self.model(self.flatchain[0, :]),
+                'r-', label='fit', alpha=0.3)
+        for i in np.arange(thin, len(self.flatchain[:, 0]), thin):
+            ax.plot(self.model.f, self.model(self.flatchain[i, :]),
+                    alpha=0.3)
+        ax.plot(self.model.f, self.mle_model, 'b-', alpha=0.7, lw=2)
 
 
 class Prior(pb.epsilon):
@@ -849,19 +851,16 @@ class mcmc():
         # Start walkers in a tight random ball
         p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
 
-        print(p0.std(axis=0))
         sampler_prior = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                               self.lp, threads=self.nthreads)
         pos, prob, state = sampler_prior.run_mcmc(p0, self.burnin) # Burningham
         pos = self.fold(sampler_prior, pos, spread)
-        print(pos.std(axis=0))
         sampler_prior.reset()
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)
         pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
         pos = self.fold(sampler, pos, spread)
-        print(pos.std(axis=0))
         sampler.reset()
 
         converged = False
