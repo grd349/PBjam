@@ -89,7 +89,6 @@ def organize_sess_dataframe(vardf):
     if 'psd' not in vardf.keys():
         format_col(vardf, None, 'psd')
 
-
 def organize_sess_input(**vardct):
     """ Takes input and organizes them in a dataframe
 
@@ -129,7 +128,6 @@ def organize_sess_input(**vardct):
             vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
     return vardf
 
-
 def query_mast(id, lkwargs):
     """ Search for target on MAST server
 
@@ -155,7 +153,6 @@ def query_mast(id, lkwargs):
         return []
     else:
         return search_results.download_all()
-
 
 def sort_lc(lc):
     """ Sort a lightcurve in LightKurve object
@@ -210,7 +207,6 @@ def sort_lc(lc):
 
     return lc_list, source_list
 
-
 def get_psd(arr, arr_type):
     """ Get psd from timeseries/psd arguments in session class
 
@@ -227,7 +223,6 @@ def get_psd(arr, arr_type):
 
     lc = lc.remove_nans().normalize().flatten().remove_outliers()
     return lc
-
 
 def query_lightkurve(id, lkwargs, use_cached):
     """ Check cache for fits file, or download it
@@ -283,7 +278,6 @@ def query_lightkurve(id, lkwargs, use_cached):
         lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
     return lc0
 
-
 def arr_to_lk(x, y, name, typ):
     """ LightKurve object from input
 
@@ -316,7 +310,6 @@ def arr_to_lk(x, y, name, typ):
                                           targetid=name)
     else:
         raise KeyError("Don't modify anything but psd and timeseries cols")
-
 
 def format_col(vardf, col, key):
     """ Add timeseries or psd column to dataframe based on input
@@ -384,7 +377,6 @@ def format_col(vardf, col, key):
     else:
         print('Unhandled exception')
 
-
 def lc_to_lk(vardf, use_cached=True):
     """ Convert time series column in dataframe to lk.LightCurve object
 
@@ -427,7 +419,6 @@ def lc_to_lk(vardf, use_cached=True):
 
         if vardf.loc[i, key]:
             sort_lc(vardf.loc[i, key])
-
 
 def lk_to_pg(vardf):
     """ Convert psd column in dataframe to lk periodgram object list

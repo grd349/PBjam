@@ -98,6 +98,7 @@ class peakbag():
             if loc_mid_02 == 0:
                 # TODO warnings.warn('Possible problem with frequency range! Check ...')
                 # What if mode outside of frequency range???
+                print(freq, d02/2.0, self.f.min, self.f.max)
                 print('Holy cow batman - mode outside frequency range')
             ladder_trim_f[idx, :] = \
                 self.f[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w)]
@@ -211,9 +212,9 @@ class peakbag():
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
         with self.pm_model:
-            l0 = pm.Normal('l0', self.start['l0'], dnu*0.02,
+            l0 = pm.Normal('l0', self.start['l0'], dnu*0.05,
                               shape=len(self.start['l0']))
-            l2 = pm.Normal('l2', self.start['l2'], dnu*0.02,
+            l2 = pm.Normal('l2', self.start['l2'], dnu*0.05,
                               shape=len(self.start['l2']))
             width0 = pm.Lognormal('width0', np.log(self.start['width0']), 1.0,
                                     shape=len(self.start['l2']))

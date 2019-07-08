@@ -12,6 +12,7 @@ import pandas as pd
 from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
+import matplotlib.pyplot as plt
 
 def mad(x, axis=0, scale=1.4826):
     """ Compute median absolute deviation
@@ -549,8 +550,6 @@ class asymptotic_fit():
                                'nu_mad': nus_mad_out})
         return modeID
 
-
-
     def run(self, burnin=1000, niter=1000):
         """ Setup, run and parse the asymptotic relation fit using EMCEE
 
@@ -580,6 +579,17 @@ class asymptotic_fit():
 
         self.acceptance = self.fit.acceptance
         return {'modeID': self.modeID, 'summary': self.summary}
+
+    def plot(self, thin=100):
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(self.f, self.s, 'k-', label='Data')
+        ax.plot(self.model.f, self.model(self.flatchain[0, :]),
+                'r-', label='fit', alpha=0.3)
+        for i in np.arange(thin, len(self.flatchain[:, 0]), thin):
+            ax.plot(self.model.f, self.model(self.flatchain[i, :]),
+                    alpha=0.3)
+        ax.plot(self.model.f, self.mle_model, 'b-', alpha=0.7, lw=2)
+
 
 class Prior(pb.epsilon):
     """ Evaluate the proirs on the provided model parameters
