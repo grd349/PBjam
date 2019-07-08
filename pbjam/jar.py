@@ -758,12 +758,12 @@ class star():
                                            bp_rp=self.bp_rp,
                                            bw_fac=bw_fac)
 
-    def run_asy_peakbag(self, norders=8):
+    def run_asy_peakbag(self, norders=8, burnin=2000):
         self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
                                       self.teff, self.bp_rp,
                                       store_chains=self.store_chains,
                                       nthreads=1, norders=norders)
-        self.asy_result = self.asy_fit.run()
+        self.asy_result = self.asy_fit.run(burnin=burnin)
 
     def run_peakbag(self, model_type='simple', tune=1500):
         self.peakbag = peakbag(self.f, self.s, self.asy_result)

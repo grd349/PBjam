@@ -210,22 +210,22 @@ class peakbag():
         """
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
-        hfac = 10.0
-        wfac = 1.0
         with self.pm_model:
-            l0 = pm.Normal('l0', self.start['l0'], dnu*0.1,
+            l0 = pm.Normal('l0', self.start['l0'], dnu*0.02,
                               shape=len(self.start['l0']))
-            l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
+            l2 = pm.Normal('l2', self.start['l2'], dnu*0.02,
                               shape=len(self.start['l2']))
-            width0 = pm.HalfNormal('width0', wfac*self.start['width0'],
+            width0 = pm.Lognormal('width0', np.log(self.start['width0']), 1.0,
                                     shape=len(self.start['l2']))
-            width2 = pm.HalfNormal('width2', wfac*self.start['width2'],
+            width2 = pm.Lognormal('width2', np.log(self.start['width2']), 1.0,
                                     shape=len(self.start['l2']))
-            height0 = pm.HalfNormal('height0', hfac*self.start['height0'],
+            height0 = pm.Lognormal('height0', np.log(self.start['height0']),
+                                    0.4,
                                     shape=len(self.start['l2']))
-            height2 = pm.HalfNormal('height2', hfac*self.start['height2'],
+            height2 = pm.Lognormal('height2', np.log(self.start['height2']),
+                                    0.4,
                                     shape=len(self.start['l2']))
-            back = pm.Normal('back', 1.0, 0.2,
+            back = pm.Normal('back', 1.0, 0.3,
                                     shape=len(self.start['l2']))
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
@@ -278,7 +278,8 @@ class peakbag():
     def sample(self, model_type='simple',
                      tune=1000,
                      target_accept=0.8,
-                     cores=1):
+                     cores=1,
+                     maxiter=3):
         """
         Function to perform the sampling of a defined model.
 
@@ -302,11 +303,20 @@ class peakbag():
             self.model_gp()
         else:
             print('Model not defined ')
-        with self.pm_model:
-            self.samples = pm.sample(tune=tune,
-                                     start=self.start,
-                                     cores=cores,
-                                     target_accept=target_accept)
+
+        Rhat_max = 10
+        niter = 1
+        while Rhat_max > 1.02:
+            with self.pm_model:
+                self.samples = pm.sample(tune=tune * niter**2,
+                                         start=self.start,
+                                         cores=cores,
+                                         init='adapt_diag',
+                                         target_accept=target_accept)
+            Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
+            niter += 1
+            if niter > maxiter:
+                break
 
     def traceplot(self):
         pm.traceplot(self.samples)
