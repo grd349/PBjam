@@ -182,6 +182,7 @@ class peakbag():
         for i in range(n):
             ax[i].plot(self.ladder_f[i, :], self.ladder_p[i, :], c='k')
             ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r')
+        return fig
 
     def simple(self):
         """
@@ -212,13 +213,13 @@ class peakbag():
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
         with self.pm_model:
-            l0 = pm.Normal('l0', self.start['l0'], dnu*0.05,
+            l0 = pm.Normal('l0', self.start['l0'], dnu*0.1,
                               shape=len(self.start['l0']))
-            l2 = pm.Normal('l2', self.start['l2'], dnu*0.05,
+            l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
                               shape=len(self.start['l2']))
-            width0 = pm.Lognormal('width0', np.log(self.start['width0']), 1.0,
+            width0 = pm.Lognormal('width0', np.log(self.start['width0']), 2.0,
                                     shape=len(self.start['l2']))
-            width2 = pm.Lognormal('width2', np.log(self.start['width2']), 1.0,
+            width2 = pm.Lognormal('width2', np.log(self.start['width2']), 2.0,
                                     shape=len(self.start['l2']))
             height0 = pm.Lognormal('height0', np.log(self.start['height0']),
                                     0.4,
@@ -235,6 +236,7 @@ class peakbag():
         """
         TODO
         """
+        warnings.warn('This model is developmental - use carefully')
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
 
@@ -248,9 +250,10 @@ class peakbag():
             # Place a GP over the l=0 mode widths ...
             m0 = pm.Normal('gradient0', 0, 10)
             c0 = pm.Normal('intercept0', 0, 10)
-            sigma0 = pm.HalfNormal('sigma0', 1.0)
+            sigma0 = pm.Lognormal('sigma0', np.log(1.0), 0.3)
+            ls = pm.Lognormal('ls', np.log(0.3), 0.2)
             mean_func0 = pm.gp.mean.Linear(coeffs=m0, intercept=c0)
-            cov_func0 = sigma0 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            cov_func0 = sigma0 * pm.gp.cov.ExpQuad(1, ls=ls)
             self.gp0 = pm.gp.Latent(cov_func=cov_func0,
                                    mean_func=mean_func0)
             ln_width0 = self.gp0.prior('ln_width0', X=self.n)
@@ -258,19 +261,21 @@ class peakbag():
             # and on the l=2 mode widths
             m2 = pm.Normal('gradient2', 0, 10)
             c2 = pm.Normal('intercept2', 0, 10)
-            sigma2 = pm.HalfNormal('sigma2', 1.0)
+            sigma2 = pm.Lognormal('sigma2', np.log(1.0), 0.3)
             mean_func2 = pm.gp.mean.Linear(coeffs=m2, intercept=c2)
-            cov_func2 = sigma2 * pm.gp.cov.ExpQuad(1, ls=0.3)
+            cov_func2 = sigma2 * pm.gp.cov.ExpQuad(1, ls=ls)
             self.gp2 = pm.gp.Latent(cov_func=cov_func2,
                                    mean_func=mean_func2)
             ln_width2 = self.gp2.prior('ln_width2', X=self.n)
             width2 = pm.Deterministic('width2', pm.math.exp(ln_width2))
             #Carry on
-            height0 = pm.HalfNormal('height0', hfac*self.start['height0'],
+            height0 = pm.Lognormal('height0', np.log(self.start['height0']),
+                                    0.4,
                                     shape=len(self.start['l2']))
-            height2 = pm.HalfNormal('height2', hfac*self.start['height2'],
+            height2 = pm.Lognormal('height2', np.log(self.start['height2']),
+                                    0.4,
                                     shape=len(self.start['l2']))
-            back = pm.Normal('back', 1.0, 0.2,
+            back = pm.Normal('back', 1.0, 0.3,
                                     shape=len(self.start['l2']))
 
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
@@ -307,7 +312,7 @@ class peakbag():
 
         Rhat_max = 10
         niter = 1
-        while Rhat_max > 1.02:
+        while Rhat_max > 1.05:
             with self.pm_model:
                 self.samples = pm.sample(tune=tune * niter**2,
                                          start=self.start,
@@ -360,6 +365,7 @@ class peakbag():
         ax[1].set_ylabel('ln line width')
         ax[0].set_title('Radial modes')
         ax[1].set_title('Quadrupole modes')
+        return fig
 
     def plot_height(self, thin=10):
         """
@@ -369,8 +375,9 @@ class peakbag():
         for i in range(0, len(self.samples), thin):
             ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
             ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
+        return fig
 
-    def plot_fit(self, thin=100, alpha=0.2):
+    def plot_fit(self, thin=10, alpha=0.2):
         """
         TODO
         """
@@ -387,3 +394,5 @@ class peakbag():
                                  self.samples['back'][j])
                 ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
             ax[i].plot(self.ladder_f[i, :], self.ladder_p[i, :], c='k')
+        ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        return fig

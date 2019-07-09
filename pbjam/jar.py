@@ -677,7 +677,7 @@ class session():
             for star in self.stars:
                 star.record(path)
 
-class star():
+class star_old():
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
