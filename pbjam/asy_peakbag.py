@@ -12,7 +12,9 @@ import pandas as pd
 from collections import OrderedDict
 from . import PACKAGEDIR
 import scipy.stats as scist
+import astropy.convolution as conv
 import matplotlib.pyplot as plt
+import corner
 
 def mad(x, axis=0, scale=1.4826):
     """ Compute median absolute deviation
@@ -341,6 +343,7 @@ class asymp_spec_model():
 
         return self.model(*p)
 
+
 class asymptotic_fit():
     """ Class for fitting a spectrum based on the asymptotic relation
 
@@ -550,6 +553,47 @@ class asymptotic_fit():
                                'nu_mad': nus_mad_out})
         return modeID
 
+    def plot_start(self):
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+        kernel = conv.Gaussian1DKernel(stddev=smoo)
+        smoothed = conv.convolve(self.s, kernel)
+        ax.plot(self.f, smoothed, 'k-',
+                label='Smoothed', lw=3, alpha=0.6)
+        ax.plot(self.f[self.sel], self.model(self.start), 'r-',
+                label='Start model', alpha=0.7)
+        ax.set_ylim([0, smoothed.max()*1.5])
+        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        ax.set_ylabel(r'SNR')
+        ax.legend()
+        return fig
+
+    def plot(self, thin=100):
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+        kernel = conv.Gaussian1DKernel(stddev=smoo)
+        smoothed = conv.convolve(self.s, kernel)
+        ax.plot(self.f, smoothed, 'k-',
+                label='Smoothed', lw=3, alpha=0.6)
+        ax.plot(self.f[self.sel], self.model(self.flatchain[0, :]), 'r-',
+                label='Model', alpha=0.2)
+        for i in np.arange(thin, len(self.flatchain), thin):
+            ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
+                    alpha=0.2)
+        ax.set_ylim([0, smoothed.max()*1.5])
+        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        ax.set_ylabel(r'SNR')
+        ax.legend(loc=1)
+        return fig
+
+    def plot_corner(self):
+        fig = corner.corner(self.flatchain, labels=self.pars_names,
+                            quantiles=[0.16, 0.5, 0.84],
+                       show_titles=True, title_kwargs={"fontsize": 12})
+        return fig
+
     def run(self, burnin=1000, niter=1000):
         """ Setup, run and parse the asymptotic relation fit using EMCEE
 
@@ -579,16 +623,6 @@ class asymptotic_fit():
 
         self.acceptance = self.fit.acceptance
         return {'modeID': self.modeID, 'summary': self.summary}
-
-    def plot(self, thin=100):
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data')
-        ax.plot(self.model.f, self.model(self.flatchain[0, :]),
-                'r-', label='fit', alpha=0.3)
-        for i in np.arange(thin, len(self.flatchain[:, 0]), thin):
-            ax.plot(self.model.f, self.model(self.flatchain[i, :]),
-                    alpha=0.3)
-        ax.plot(self.model.f, self.mle_model, 'b-', alpha=0.7, lw=2)
 
 
 class Prior(pb.epsilon):
@@ -850,12 +884,6 @@ class mcmc():
 
         # Start walkers in a tight random ball
         p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
-
-        sampler_prior = emcee.EnsembleSampler(self.nwalkers, self.ndim,
-                                              self.lp, threads=self.nthreads)
-        pos, prob, state = sampler_prior.run_mcmc(p0, self.burnin) # Burningham
-        pos = self.fold(sampler_prior, pos, spread)
-        sampler_prior.reset()
 
         sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
                                         self.likelihood, threads=self.nthreads)

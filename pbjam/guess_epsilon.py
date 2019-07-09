@@ -4,6 +4,7 @@ import os
 import emcee
 import matplotlib.pyplot as plt
 import warnings
+import corner
 
 from . import PACKAGEDIR
 
@@ -185,6 +186,12 @@ class epsilon():
         periodogram: Periodogram
             A lightkurve Periodogram object for plotting.
 
+        Returns
+        -------
+
+        fig: Figure
+            
+
         '''
         fig, ax = plt.subplots(figsize=[16,9])
         periodogram.plot(ax=ax, alpha=0.5, c='gray')
@@ -206,6 +213,12 @@ class epsilon():
             ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none')
         ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, h*2])
+        return fig
+
+    def plot_corner(self):
+        fig = corner.corner(self.samples, labels=self.cols,  quantiles=[0.16, 0.5, 0.84],
+                       show_titles=True, title_kwargs={"fontsize": 12})
+        return fig
 
     def kde_predict(self, n):
         '''
