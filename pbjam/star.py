@@ -50,9 +50,9 @@ class star():
 
     def __init__(self, ID, periodogram,
                  numax, dnu, teff=None, bp_rp=None,
-                 store_chains=False, nthreads=1,
+                 store_chains=True, nthreads=1,
                  make_plots=False,
-                 path=None):
+                 path=None, verbose=False):
         self.ID = ID
         self.pg = periodogram
         self.f = periodogram.frequency.value
@@ -73,10 +73,10 @@ class star():
         try:
             os.mkdir(self.bpath)
         except OSError:
-            warnings.warn(f'Path {self.bpath} already exists')
+            if verbose:
+                warnings.warn(f'Path {self.bpath} already exists - I will try to overwrite ... ')
 
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-        self.figures = {}
 
     def run_epsilon(self, bw_fac=1.0):
         self.epsilon = epsilon()
@@ -95,6 +95,8 @@ class star():
                                       store_chains=self.store_chains,
                                       nthreads=1, norders=norders)
         self.asy_result = self.asy_fit.run(burnin=burnin)
+        if self.store_chains:
+            pass # TODO
         if self.make_plots:
             self.asy_fit.plot_corner().savefig(self.bpath + os.sep + f'asy_corner_{self.ID}.png')
             self.asy_fit.plot().savefig(self.bpath + os.sep + f'asy_{self.ID}.png')

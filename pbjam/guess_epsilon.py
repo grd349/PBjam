@@ -159,10 +159,10 @@ class epsilon():
               self.log_obs['bp_rp'][0]]
         ndim = len(x0)
         p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
-        sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood,
+        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood,
                                         threads=self.nthreads)
-        sampler.run_mcmc(p0, niter)
-        return sampler.chain[:, burnin:, :].reshape((-1, ndim))
+        self.sampler.run_mcmc(p0, niter)
+        return self.sampler.chain[:, burnin:, :].reshape((-1, ndim))
 
     def to_log10(self, x, xerr):
         if xerr > 0:
@@ -190,7 +190,7 @@ class epsilon():
         -------
 
         fig: Figure
-            
+
 
         '''
         fig, ax = plt.subplots(figsize=[16,9])
@@ -207,12 +207,12 @@ class epsilon():
         freq, freq_unc = self.kde_predict(self.n)
         for i in range(len(self.n)):
             ax.axvline(freq[i], c='k', linestyle='--', zorder=0, alpha=0.3)
-            y = h * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
+            y = h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
             #ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
             #            c='k', alpha=0.5)
             ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none')
         ax.set_xlim([f.min(), f.max()])
-        ax.set_ylim([0, h*2])
+        ax.set_ylim([0, h*1.2])
         return fig
 
     def plot_corner(self):
@@ -281,4 +281,6 @@ class epsilon():
         self.obs_to_log(self.obs)
         self.make_kde(bw_fac=bw_fac)
         self.samples = self.kde_sampler(niter=niter, burnin=burnin)
-        return [self.samples[:,2].mean(), self.samples[:,2].std()]
+        result = [self.samples[:,2].mean(), self.samples[:,2].std()]
+        self.sampler.reset()
+        return result

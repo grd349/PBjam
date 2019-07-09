@@ -43,9 +43,7 @@ the cadence to 'short' for main-sequence targets.
 """
 
 import lightkurve as lk
-from pbjam.asy_peakbag import asymptotic_fit, envelope_width
-from pbjam.guess_epsilon import epsilon
-from pbjam.peakbag import peakbag
+from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
 import pandas as pd
@@ -54,6 +52,7 @@ from scipy.stats import gaussian_kde
 import os, glob, warnings, psutil, pickle
 from . import PACKAGEDIR
 
+from pbjam.star import star
 
 def organize_sess_dataframe(vardf):
     """ Takes input dataframe and organizes
@@ -73,7 +72,7 @@ def organize_sess_dataframe(vardf):
     N = len(vardf)
 
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
-    doubles = ['eps', 'teff', 'bp_rp']
+    doubles = ['teff', 'bp_rp']
 
     for key in singles:
         if key not in vardf.keys():
@@ -88,6 +87,7 @@ def organize_sess_dataframe(vardf):
         format_col(vardf, None, 'timeseries')
     if 'psd' not in vardf.keys():
         format_col(vardf, None, 'psd')
+
 
 def organize_sess_input(**vardct):
     """ Takes input and organizes them in a dataframe
@@ -128,6 +128,7 @@ def organize_sess_input(**vardct):
             vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
     return vardf
 
+
 def query_mast(id, lkwargs):
     """ Search for target on MAST server
 
@@ -154,6 +155,7 @@ def query_mast(id, lkwargs):
     else:
         return search_results.download_all()
 
+
 def sort_lc(lc):
     """ Sort a lightcurve in LightKurve object
 
@@ -171,44 +173,18 @@ def sort_lc(lc):
         The sorted LightKurve object
 
     """
-    def clean_lc(lc):
-        lc = lc.remove_nans().normalize().flatten().remove_outliers()
-        #lc.flux = (lc.flux-1)*1e6
-        return lc
 
-    lc_list = []
-    source_list = []
-    lc_col = []
-    for i, id in enumerate(ID):
-        if use_cached:
-            ddir = os.path.join(os.path.expanduser('~'), '.lightkurve-cache')
-            ddir += '/mastDownload/*/' + f'*{str(int(id))}*/*_llc.fits'
-            tgt = glob.glob(ddir)
-            lc_col = [lk.open(n) for n in tgt]
+    sidx = np.argsort(lc.time)
+    lc.time = lc.time[sidx]
+    lc.flux = lc.flux[sidx]
+    return lc
 
-        if use_cached == False or lc_col == []:
-            tgt = lk.search_lightcurvefile(target=id,
-                                           quarter=lkargs['quarter'][i],
-                                           campaign=lkargs['campaign'][i],
-                                           sector=lkargs['sector'][i],
-                                           month=lkargs['month'][i],
-                                           cadence=lkargs['cadence'][i])
-            lc_col = tgt.download_all()
 
-        lc0 = lc_col[0].PDCSAP_FLUX.normalize()
-        for i, lc in enumerate(lc_col[1:]):
-            lc0 = lc0.append(lc.PDCSAP_FLUX.normalize())
-        lc0 = lc0.remove_nans().remove_outliers(4)
-        lc_list.append(lc0)
-        try:
-            source_list.append(tgt.table['productFilename'][0])
-        except AttributeError:
-            source_list.append(tgt)
+def clean_lc(lc):
+    """ Perform LightKurve operations on object
 
-    return lc_list, source_list
-
-def get_psd(arr, arr_type):
-    """ Get psd from timeseries/psd arguments in session class
+    Performes basic cleaning of a light curve, removing nans, outliers,
+    median filtering etc.
 
     Parameters
     ----------
@@ -223,6 +199,7 @@ def get_psd(arr, arr_type):
 
     lc = lc.remove_nans().normalize().flatten().remove_outliers()
     return lc
+
 
 def query_lightkurve(id, lkwargs, use_cached):
     """ Check cache for fits file, or download it
@@ -245,10 +222,6 @@ def query_lightkurve(id, lkwargs, use_cached):
     Prioritizes long cadence over short cadence unless otherwise specified.
 
     """
-    def clean_lc(lc):
-        lc = lc.remove_nans().normalize().flatten().remove_outliers(4)
-        #lc.flux = (lc.flux-1)*1e6
-        return lc
     lk_cache = os.path.join(*[os.path.expanduser('~'),
                               '.lightkurve-cache',
                               'mastDownload/*/'])
@@ -264,7 +237,7 @@ def query_lightkurve(id, lkwargs, use_cached):
     if (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
         if ((len(tgtfiles) == 0) and use_cached):
             warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
-        print('Querying MAST')
+        print(f'Querying MAST for {id}')
         lc_col = query_mast(id, lkwargs)
         if len(lc_col) == 0:
             raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
@@ -277,6 +250,7 @@ def query_lightkurve(id, lkwargs, use_cached):
     for i, lc in enumerate(lc_col[1:]):
         lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
     return lc0
+
 
 def arr_to_lk(x, y, name, typ):
     """ LightKurve object from input
@@ -310,6 +284,7 @@ def arr_to_lk(x, y, name, typ):
                                           targetid=name)
     else:
         raise KeyError("Don't modify anything but psd and timeseries cols")
+
 
 def format_col(vardf, col, key):
     """ Add timeseries or psd column to dataframe based on input
@@ -377,6 +352,7 @@ def format_col(vardf, col, key):
     else:
         print('Unhandled exception')
 
+
 def lc_to_lk(vardf, use_cached=True):
     """ Convert time series column in dataframe to lk.LightCurve object
 
@@ -420,6 +396,7 @@ def lc_to_lk(vardf, use_cached=True):
         if vardf.loc[i, key]:
             sort_lc(vardf.loc[i, key])
 
+
 def lk_to_pg(vardf):
     """ Convert psd column in dataframe to lk periodgram object list
 
@@ -452,9 +429,10 @@ def lk_to_pg(vardf):
         else:
             raise TypeError("Can't handle this type of time series object")
 
+
 def print_memusage(pre='', post=''):
     process = psutil.Process(os.getpid())
-    print(pre, process.memory_info().rss, 'bytes', post)  # in bytes
+    print(pre, process.memory_info().rss // 1000, 'Kbytes', post)  # in bytes
 
 
 class session():
@@ -562,11 +540,14 @@ class session():
         requested targets.
     """
 
-    def __init__(self, ID=None, numax=None, dnu=None,
-                 teff=None, bp_rp=None, epsilon=None,
-                 timeseries=None, psd=None, dictlike=None, store_chains=False,
-                 nthreads=1, use_cached=False, cadence=None, campaign=None,
-                 sector=None, month=None, quarter=None):
+    def __init__(self, ID=None,
+                 numax=None, dnu=None, teff=None, bp_rp=None,
+                 timeseries=None, psd=None,
+                 dictlike=None,
+                 store_chains=True, nthreads=1, use_cached=False,
+                 cadence=None, campaign=None, sector=None, month=None, quarter=None,
+                 make_plots=False,
+                 path=None):
 
         self.nthreads = nthreads
         self.store_chains = store_chains
@@ -583,7 +564,7 @@ class session():
                 except TypeError:
                     print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
 
-            if any([ID, numax, dnu, teff, bp_rp, epsilon]):
+            if any([ID, numax, dnu, teff, bp_rp]):
                 warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
 
             organize_sess_dataframe(vardf)
@@ -606,21 +587,21 @@ class session():
             #print_memusage(pre = f'Initializing star {i}')
 
             self.stars.append(star(ID=vardf.loc[i, 'ID'],
-                                   f=np.array(vardf.loc[i, 'psd'].frequency),
-                                   s=np.array(vardf.loc[i, 'psd'].power),
+                                   periodogram=vardf.loc[i, 'psd'],
                                    numax=vardf.loc[i, ['numax', 'numax_err']].values,
                                    dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
-                                   epsilon=vardf.loc[i, ['eps', 'eps_err']].values,
                                    store_chains=store_chains,
-                                   nthreads=self.nthreads))
+                                   nthreads=self.nthreads,
+                                   make_plots=make_plots,
+                                   path=path))
 
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
-    def __call__(self, norders = 8, plots = True):
+    def __call__(self, norders=8):
         """ The doitall script
 
         Calling session will by default do asymptotic mode ID and peakbagging
@@ -633,589 +614,19 @@ class session():
             'peakbag'. asymptotic_modeid must be run before peakbag.
         norders : int
             Number of orders to include in the fits
-        plots : bool
-            Flag for whether or not to generate plots too. By default PBjam
-            will only plot the summary figure, but if flatchain is large, it
-            will also try to make a corner plot.
+
         """
         from tqdm import tqdm
 
         #print_memusage(pre = f'Call do it all')
 
-        for star in tqdm(self.stars):
+        for idx, star in enumerate(self.stars):
             try:
-                star()
-                if plots:
-                    # TODO do something here
-                    pass
+                print(star.ID)
+                print_memusage()
+                star(norders=norders)
+                print_memusage()
+                self.stars[idx] = None
+                print_memusage()
             except:
                 warnings.warn(f'Failed on star {star.ID}')
-
-            #print_memusage(pre = f'Star {star.ID} finished')
-
-
-    def record(self, path = None):
-        """ The recordall script
-
-        Stores the various results for all the star class instances in the
-        session. These include figures, a csv with the mode ID, a csv with
-        the summary statistics of the marginalized posterior distributions, and
-        a pickles of the star class instances.
-
-        Parameters
-        ----------
-        path : str
-            Dictory pathname to place the results
-        """
-
-        if not path:
-            raise ValueError('Specify path for recording your session')
-
-        if len(self.stars) == 0:
-            print('No stars left in session, they may already have be recorded and deleted')
-        else:
-            for star in self.stars:
-                star.record(path)
-
-class star_old():
-    """ Class for each star to be peakbagged
-
-    Additional attributes are added for each step of the peakbagging process
-
-    Parameters
-    ----------
-    ID : string, int
-        Target identifier, if custom timeseries/periodogram is provided, it
-        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
-    f : float, array
-        Array of frequency bins of the spectrum (muHz)
-    s : array
-        The power at frequencies f
-    numax : list
-        List of the form [numax, numax_error], list of lists for multiple
-        targets
-    dnu : list
-        List of the form [dnu, dnu_error], list of lists for multiple targets
-    teff : list, optional
-        List of the form [teff, teff_error], list of lists for multiple targets
-    bp_rp : list, optional
-        List of the form [bp_rp, bp_rp_error], list of lists for multiple
-        targets
-    epsilon : list, optional
-        List of the form [epsilon, epsilon_error], list of lists for multiple
-        targets
-    store_chains : bool, optional
-        Flag for storing all the full set of samples from the MCMC run.
-        Warning, if running multiple targets, make sure you have enough memory.
-    nthreads : int, optional
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
-        Untested on short cadence.
-
-    Attributes
-    ----------
-    data_file : str
-        Filepath to file containing prior data on the fit parameters, either
-        from literature or previous fits.
-    figures : list
-        List of figures objects that are created if plotting fit outputs. These
-        will be saved if session.record is called.
-    asy_result : pbjam.asy_peakbag.asymptotic_fit class instance
-        Contains the result of the modeID stage of the peakbagging process from
-        fitting the asymptotic relation to the provided data.
-    """
-
-    def __init__(self, ID, f, s, numax, dnu, teff=None, bp_rp=None,
-                 store_chains=False, nthreads=1):
-        self.ID = ID
-        self.f = f
-        self.s = s
-        self.numax = numax
-        self.dnu = dnu
-        self.teff = teff
-        self.bp_rp = bp_rp
-        self.epsilon = epsilon
-        self.nthreads = nthreads
-        self.store_chains = store_chains
-        self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-        self.figures = {}
-        self.recorded = False
-
-    def run_epsilon(self, bw_fac=1.0):
-        self.epsilon = epsilon()
-        self.epsilon_result = self.epsilon(dnu=self.dnu,
-                                           numax=self.numax,
-                                           teff=self.teff,
-                                           bp_rp=self.bp_rp,
-                                           bw_fac=bw_fac)
-
-    def run_asy_peakbag(self, norders=8, burnin=2000):
-        self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
-                                      self.teff, self.bp_rp,
-                                      store_chains=self.store_chains,
-                                      nthreads=1, norders=norders)
-        self.asy_result = self.asy_fit.run(burnin=burnin)
-
-    def run_peakbag(self, model_type='simple', tune=1500):
-        self.peakbag = peakbag(self.f, self.s, self.asy_result)
-        self.peakbag.sample(model_type=model_type, tune=tune,
-                            cores=self.nthreads)
-
-    def __call__(self, bw_fac=1.0, norders=8,
-                 model_type='simple', tune=1500):
-        ''' TODO '''
-        self.run_epsilon(bw_fac=bw_fac)
-        self.run_asy_peakbag(norders=norders)
-        self.run_peakbag(model_type=model_type, tune=tune, norders=norders)
-
-
-    def record(self, path=None):
-        """ The record star script
-
-        Stores the various results in the star class instance. These include
-        figures, a csv with the mode ID, a csv with the summary statistics of
-        the marginalized posterior distributions, and a pickles of the star
-        class instances.
-
-        Parameters
-        ----------
-        path : str
-            Dictory pathname to place the results
-        """
-        if path is None:
-            raise ValueError('Specify path for recording star.')
-
-        bpath = os.path.join(*[path, f'{self.ID}'])
-
-        if not self.recorded:
-            if isinstance(self.figures, dict):
-                for key in self.figures.keys():
-                    fig = self.figures[key]
-                    try:
-                        fig.savefig(bpath+f'_{key}.png')
-                        self.figures[key] = None # On successful save, delete fig
-                    except:
-                        print('Could not use savefig on contents of star.figures')
-
-                with open(bpath+'.p', "wb") as f:
-                    pickle.dump(self, f)
-
-                if self.asy_result is not None:
-                    self.asy_result.modeID.to_csv(bpath+'_modeID.csv')
-                    self.asy_result.summary.to_csv(bpath+'_summary.csv')
-
-                    self.recorded = True
-        elif self.recorded:
-            print(f'{self.ID} has already been recorded.')
-        else:
-            raise ValueError('Unrecognized value in star.recorded.')
-
-    def make_main_plot(self, ax, sel, model, modeID, best, percs):
-        ax.plot(self.f[sel], self.s[sel], lw=0.5, label='Spectrum',
-                color='C0', alpha = 0.5)
-
-        ax.plot(self.f[sel], model, lw=3, color='C3', alpha=1)
-
-        linestyles = ['-', '--', '-.', '.']
-        labels = ['$l=0$', '$l=1$', '$l=2$', '$l=3$']
-        for i in range(len(modeID)):
-            ax.axvline(modeID['nu_mu'][i], color='C3',
-                            ls=linestyles[modeID['ell'][i]], alpha=0.5)
-
-        for i in np.unique(modeID['ell']):
-            ax.plot([-100, -101], [-100, -101], ls=linestyles[i],
-                    color='C3', label=labels[i])
-        ax.plot([-100, -101], [-100, -101], label='Model', lw=3,
-                color='C3')
-        ax.axvline(mle['numax'], color='k', alpha=0.75, lw=3,
-                   label=r'$\nu_{\mathrm{max}}$')
-
-        ax.set_ylim(0, min([10**mle['env_height'] * 5, max(self.s[sel])]))
-        ax.set_ylabel('SNR')
-        ax.set_xticks([])
-        ax.set_xlim(self.f[sel][0],self.f[sel][-1])
-        ax.legend()
-
-    def make_residual_plot(self, ax, sel):
-        """ Make residual plot
-
-        Plot the ratio (residual) of the spectrum and the MLE model
-
-        Parameters
-        ----------
-        ax : matplotlib axis instance
-            Axis instance to plot in.
-        sel : boolean array
-            Used to select the range of frequency bins that the model is
-            computed on.
-        """
-        ax.plot(self.f[sel], self.residual)
-        ax.set_xlabel(r'Frequency [$\mu$Hz]')
-        ax.set_xlim(self.f[sel][0], self.f[sel][-1])
-        ax.set_ylabel('SNR/Model')
-        ax.set_yscale('log')
-        ax.set_ylim(1e-1, max(self.residual))
-
-    def make_residual_kde_plot(self, ax, res_lims):
-        """ Make residual kde plot
-
-        Plot the KDE of the residual along with a reference KDE based on a
-        samples drawn from a pure exponential distribution.
-
-        Parameters
-        ----------
-        ax : matplotlib axis instance
-            Axis instance to plot in.
-        res_lims : list of floats
-            Axis limits from residual plot, so that the plot scales agree.
-        """
-        res = self.residual
-        ref = np.random.exponential(scale=1, size=max(2000, len(res)))
-        res_kde = gaussian_kde(res)
-        ref_kde = gaussian_kde(ref)
-        y = np.linspace(res_lims[0], res_lims[1], 5000)
-        xlim = [min([min(res_kde(y)), min(ref_kde(y))]),
-                max([max(res_kde(y)), max(ref_kde(y))])]
-        cols = ['C0', 'C1']
-        for i, kde in enumerate([res_kde(y), ref_kde(y)]):
-            ax.plot(kde, y, lw=4, color=cols[i])
-            ax.fill_betweenx(y, x2=xlim[0], x1=kde, color=cols[i], alpha=0.5)
-        ax.plot(np.exp(-y), y, ls='dashed', color='k', lw=1)
-        ax.set_ylim(y[0], y[-1])
-        ax.set_xlim(max([1e-4, xlim[0]]), 1.1)
-        ax.set_yscale('log')
-        ax.set_xscale('log')
-        ax.yaxis.tick_right()
-        ax.yaxis.set_label_position("right")
-
-    def make_Teff_plot(self, ax, gs, percs, prior):
-        """ Plot Teff results
-
-        Plot the initial guess and best-fit Teff, with the prior as context.
-
-        Parameters
-        ----------
-        ax : matplotlib axis instance
-            Axis instance to plot in.
-        gs : dictionary
-            Dictionary containing initial guess values for the fit
-        percs : pandas.Series
-            Pandas series containing the percentile values of the marginalized
-            posteriors from the fit.
-        prior : pandas.DataFrame
-            Pandas DataFrame with the prior values on the the fit parameters.
-        """
-        ax.errorbar(x=gs['dnu'][0], y=gs['teff'][0], xerr=gs['dnu'][1],
-                    yerr=gs['teff'][1], fmt='o', color='C1')
-        ax.errorbar(x=percs['dnu'][1], y=percs['teff'][1],
-                    xerr=np.diff(percs['dnu']).reshape(2, 1),
-                    yerr=np.diff(percs['teff']).reshape(2, 1),
-                    fmt='o', color='C0')
-        ax.scatter(prior['dnu'], prior['teff'], c='k', s=2, alpha=0.2)
-        ax.set_xlabel(r'$\Delta\nu$ [$\mu$Hz]')
-        ax.set_ylabel(r'$T_{\mathrm{eff}}$ [K]')
-        ax.yaxis.tick_right()
-        ax.yaxis.set_label_position("right")
-        ax.set_xscale('log')
-
-    def make_epsilon_plot(self, ax, gs, percs, prior):
-        """ Plot epsilon results
-
-        Plot the initial guess and best-fit epsilon, with the prior as context.
-
-        Parameters
-        ----------
-        ax : matplotlib axis instance
-            Axis instance to plot in.
-        gs : dictionary
-            Dictionary containing initial guess values for the fit
-        percs : pandas.Series
-            Pandas series containing the percentile values of the marginalized
-            posteriors from the fit.
-        prior : pandas.DataFrame
-            Pandas DataFrame with the prior values on the the fit parameters.
-        """
-        ax.errorbar(x=percs['dnu'][1], y=percs['eps'][1],
-                    xerr=np.diff(percs['dnu']).reshape(2, 1),
-                    yerr=np.diff(percs['eps']).reshape(2, 1),
-                    fmt='o', color='C0')
-        ax.scatter(prior['dnu'], prior['eps'], c='k', s=2, alpha=0.2)
-        ax.set_ylabel(r'$\epsilon$')
-        ax.set_ylim(0.4, 1.6)
-        ax.set_xscale('log')
-        ax.set_xticks([])
-        ax.yaxis.tick_right()
-        ax.yaxis.set_label_position("right")
-
-    def make_numax_plot(self, ax, gs, percs, prior):
-        """ Plot numax results
-
-        Plot the initial guess and best-fit numax, with the prior as context.
-
-        Parameters
-        ----------
-        ax : matplotlib axis instance
-            Axis instance to plot in.
-        gs : dictionary
-            Dictionary containing initial guess values for the fit
-        percs : pandas.Series
-            Pandas series containing the percentile values of the marginalized
-            posteriors from the fit.
-        prior : pandas.DataFrame
-            Pandas DataFrame with the prior values on the the fit parameters.
-        """
-
-        ax.errorbar(x=gs['dnu'][0], y=gs['numax'][0], xerr=gs['dnu'][1],
-                    yerr=gs['numax'][1], fmt='o', color='C1')
-        ax.errorbar(x=percs['dnu'][1], y=percs['numax'][1],
-                    xerr=np.diff(percs['dnu']).reshape(2, 1),
-                    yerr=np.diff(percs['numax']).reshape(2, 1),
-                    fmt='o', color='C0')
-        ax.scatter(prior['dnu'], prior['numax'], c='k', s=2, alpha=0.2)
-        ax.set_ylabel(r'$\nu_{\mathrm{max}}$ [$\mu$Hz]')
-        ax.set_xscale('log')
-        ax.set_yscale('log')
-        ax.set_xticks([])
-        ax.yaxis.tick_right()
-        ax.yaxis.set_label_position("right")
-
-    def plot_asyfit(self, fig=None, model=None, modeID=None):
-        """ Make diagnostic plot of the fit.
-
-        Plot various diagnostics of a fit, including the MLE model,
-        spectrum residuals, residual histogram (KDE), and numax, epsilon, Teff
-        context plots.
-
-        Parameters
-        ----------
-        fig : matplotlib figure instance
-            Figure instance to plot in.
-        model : array of floats
-            Spectrum model to overplot. By default this is the MLE model
-            from the latest fit.
-        modeID : pandas.DataFrame
-            Dataframe of angular degrees and frequencies from the fit
-        """
-
-        if not model:
-            model = self.asy_result.mle_model
-        if not modeID:
-            modeID = self.asy_result.modeID
-        if not fig:
-            fig = plt.figure(figsize=(12, 7))
-
-        prior = pd.read_csv(self.data_file)
-        smry = self.asy_result.summary
-        gs = self.asy_result.guess
-        sel = self.asy_result.sel
-        percs = smry.loc[['16th', '50th', '84th']]
-
-        self.residual = self.s[sel]/model
-
-        # Main plot
-        ax_main = fig.add_axes([0.05, 0.23, 0.69, 0.76])
-        self.make_spectrum_plot(ax_main, sel, model, modeID, smry.loc['mle'])
-
-        # Residual plot
-        ax_res = fig.add_axes([0.05, 0.07, 0.69, 0.15])
-        self.make_residual_plot(ax_res, sel)
-
-        # KDE plot
-        ax_kde = fig.add_axes([0.75, 0.07, 0.19, 0.15])
-        self.make_residual_kde_plot(ax_kde, ax_res.get_ylim())
-
-        # Teff plot
-        ax_teff = fig.add_axes([0.75, 0.30, 0.19, 0.226])
-        self.make_Teff_plot(ax_teff, gs, percs, prior)
-
-        # epsilon plot
-        ax_eps = fig.add_axes([0.75, 0.53, 0.19, 0.226])
-        self.make_epsilon_plot(ax_eps, gs, percs, prior)
-
-        # nu_max plot
-        ax_numax = fig.add_axes([0.75, 0.76, 0.19, 0.23])
-        self.make_numax_plot(ax_numax, gs, percs, prior)
-
-        self.figures['summary'] = fig
-
-        return fig
-
-    def corner(self, chains = None, labels = None, kdehist = True):
-        """ Make a corner plot for the MCMC chains
-
-        Returns
-        -------
-        fig : matplotlib figure instance
-            Figure instance with corner plot
-
-        """
-
-        import corner
-
-        if not chains:
-            chains = self.asy_result.flatchain
-        if not labels:
-            labels = self.asy_result.pars_names
-
-
-        fig = corner.corner(xs = chains, labels = labels, plot_density = False,
-                            quiet = True)
-
-        ndim = np.shape(chains)[1]
-        axes = np.array(fig.axes).reshape(ndim, ndim)
-
-        for i in range(ndim):
-            bounds = self.asy_result.bounds[i]
-            axes[i,i].axvline(bounds[0], color = 'C3', lw = 15)
-            axes[i,i].axvline(bounds[1], color = 'C3', lw = 15)
-
-            if kdehist:
-                xlim = axes[i,i].get_xlim()
-                xrange = np.linspace(xlim[0],xlim[1],100)
-                kde = gaussian_kde(self.asy_result.flatchain[:,i])
-                axes[i,i].clear()
-                axes[i,i].plot(xrange,kde(xrange), color = 'k')
-                axes[i,i].fill_between(xrange, kde(xrange), color = 'k', alpha = 0.1)
-
-
-                axes[i,i].set_xlim(xlim)
-                axes[i,i].set_ylim(0, max(kde(xrange)*1.1))
-                axes[i,i].set_yticks([])
-
-                if i < ndim - 2:
-                    axes[i,i].set_xticks([])
-
-        axes[-1,-1].set_xlabel(labels[-1])
-
-        self.figures['corner'] = fig
-
-        return fig
-
-#    def echelle(self, numax = None, dnu=None, eps = None, fmin=None, fmax=None,
-#                scale='linear', cmap='Blues'):
-#        """ Plot echelle diagram
-#
-#        Plots an echelle diagram of the periodogram by stacking the
-#        periodogram in slices of dnu. Modes of equal radial degree should
-#        appear approximately vertically aligned. If no structure is present,
-#        you are likely dealing with a faulty dnu value or a low signal to noise
-#        case. This method is adapted from lightkurve.periodogram (original
-#        author O. J. Hall).
-#
-#        Parameters
-#        ----------
-#        dnu : float
-#            Value for the large frequency separation of the seismic mode
-#            frequencies in the periodogram. Assumed to have the same units as
-#            tthe frequency axis of the spectrum.
-#        fmin : float
-#            The minimum frequency at which to display the echelle. Is assumed
-#            to be in the same units as dnu and the frequency axis of the
-#            spectrum.
-#        fmax : float
-#            The maximum frequency at which to display the echelle. Is assumed
-#            to be in the same units as dnu and the frequency axis of the
-#            spectrum.
-#        scale: str
-#            Set z axis to be "linear" or "log". Default is linear.
-#        cmap : str
-#            The name of the matplotlib colourmap to use in the echelle diagram.
-#
-#        Returns
-#        -------
-#        ax : matplotlib.axes._subplots.AxesSubplot
-#            The matplotlib axes object.
-#        """
-#
-#        w = envelope_width(self.numax[0])
-#
-#        if numax is None:
-#            if self.asy_result is not None:
-#                numax = self.asy_result.summary.loc['50th', 'dnu']
-#            elif self.dnu[0] is not None:
-#                numax = self.numax[0]
-#            elif (fmin is not None) and (fmax is not None):
-#                pass
-#            else:
-#                raise ValueError('Must have either numax or a frequency range to make an echelle')
-#
-#        if dnu is None:
-#            if self.asy_result is not None:
-#                dnu = self.asy_result.summary.loc['50th', 'dnu']
-#            elif self.dnu[0] is not None:
-#                dnu = self.dnu[0]
-#            else:
-#                raise ValueError('Must have a dnu to make an echelle')
-#
-#        if eps is None:
-#            if self.asy_result is not None:
-#                eps = self.asy_result.summary.loc['50th', 'eps']
-#            elif self.eps is not None:
-#                eps = self.eps[0]
-#            else:
-#                eps = 0
-#        pseud_eps = eps + 0 # eps + a fudge factor to make echelles nice
-#
-#
-#
-#        if (fmin is not None):
-#            fmin = max([fmin, self.f[0]])
-#            if fmin >= self.f[-1]:
-#                fmin = max([self.numax[0] - 2*w, self.f[0]])
-#                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
-#        elif (self.asy_result is not None):
-#            fmin = self.asy_result.f[self.asy_result.sel][0]
-#        else:
-#            fmin = max([self.numax[0] - 2*w, self.f[0]])
-#
-#
-#
-#
-#        if (fmax is not None):
-#            fmax = min([fmax, self.f[-1]])
-#            if fmax <= self.f[0]:
-#                fmax = fmax = min([self.numax[0] + 2*w, self.f[-1]])
-#                raise ValueError("Invalid limits on frequency range. PBjam will decide for you.")
-#        elif (self.asy_result is not None):
-#            fmax = self.asy_result.f[self.asy_result.sel][-1]
-#        else:
-#            fmax = min([self.numax[0] + 2*w, self.f[-1]])
-#
-#        # Add on 1x Dnu so we don't miss any important range due to rounding
-#        if fmax < self.f[-1] - 1.5*dnu:
-#            fmax += dnu
-#
-#        df = np.median(np.diff(self.f))
-#
-#        ff = self.f[int(fmin/df):int(fmax/df)] + pseud_eps*dnu  #The the selected frequency range
-#        pp = self.s[int(fmin/df):int(fmax/df)]   #The selected power range
-#
-#        n_rows = int((ff[-1]-ff[0])/dnu)     #The number of stacks to use
-#        n_columns = int(dnu/df)               #The number of elements in each stack
-#
-#        #Reshape the power into n_rowss of n_columnss
-#        ep = np.reshape(pp[:(n_rows*n_columns)], (n_rows, n_columns))
-#
-#        if scale=='log':
-#            ep = np.log10(ep)
-#
-#        #Reshape the freq into n_rowss of n_columnss & create arays
-#        ef = np.reshape(ff[:(n_rows*n_columns)], (n_rows, n_columns))
-#        x_f = ((ef[0, :]-ef[0, 0]) % dnu)
-#        y_f = (ef[:, 0])
-#
-#        #Plot the echelle diagram
-#        fig, ax = plt.subplots()
-#
-#        extent = (x_f[0], x_f[-1], y_f[0], y_f[-1])
-#        figsize = plt.rcParams['figure.figsize']
-#        a = figsize[1] / figsize[0]
-#        b = (extent[3] - extent[2]) / extent[1]
-#
-#        ax.imshow(ep, cmap=cmap, aspect=a/b, origin='lower', extent=extent)
-#
-#        ax.set_xlabel(r'Frequency mod. %.2f [%s]' % (dnu, '$\mu$Hz'))
-#        ax.set_ylabel(r'Frequency [%s]' % ('$\mu$Hz'))
-#
-#        self.figures['eschelle'] = fig
-#        return ax

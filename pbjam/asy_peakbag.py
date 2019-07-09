@@ -395,7 +395,7 @@ class asymptotic_fit():
 
     def __init__(self, f, snr, start_samples,
                  teff, bp_rp,
-                 store_chains = False, nthreads=1, norders = 8):
+                 store_chains=True, nthreads=1, norders=8):
 
         self.start_samples = start_samples
         self.store_chains = store_chains
@@ -583,13 +583,14 @@ class asymptotic_fit():
             ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
                     alpha=0.2)
         ax.set_ylim([0, smoothed.max()*1.5])
+        ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
         ax.set_ylabel(r'SNR')
         ax.legend(loc=1)
         return fig
 
     def plot_corner(self):
-        fig = corner.corner(self.flatchain, labels=self.pars_names,
+        fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
                             quantiles=[0.16, 0.5, 0.84],
                        show_titles=True, title_kwargs={"fontsize": 12})
         return fig

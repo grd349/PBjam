@@ -217,9 +217,9 @@ class peakbag():
                               shape=len(self.start['l0']))
             l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
                               shape=len(self.start['l2']))
-            width0 = pm.Lognormal('width0', np.log(self.start['width0']), 2.0,
+            width0 = pm.Lognormal('width0', np.log(self.start['width0']), 1.0,
                                     shape=len(self.start['l2']))
-            width2 = pm.Lognormal('width2', np.log(self.start['width2']), 2.0,
+            width2 = pm.Lognormal('width2', np.log(self.start['width2']), 1.0,
                                     shape=len(self.start['l2']))
             height0 = pm.Lognormal('height0', np.log(self.start['height0']),
                                     0.4,
@@ -314,14 +314,16 @@ class peakbag():
         niter = 1
         while Rhat_max > 1.05:
             with self.pm_model:
-                self.samples = pm.sample(tune=tune * niter**2,
+                self.samples = pm.sample(tune=tune * niter,
                                          start=self.start,
                                          cores=cores,
                                          init='adapt_diag',
-                                         target_accept=target_accept)
+                                         target_accept=target_accept,
+                                         progressbar=True)
             Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
             niter += 1
             if niter > maxiter:
+                warnings.warn()
                 break
 
     def traceplot(self):
@@ -394,5 +396,7 @@ class peakbag():
                                  self.samples['back'][j])
                 ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
             ax[i].plot(self.ladder_f[i, :], self.ladder_p[i, :], c='k')
+            ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
         ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        fig.tight_layout()
         return fig
