@@ -21,11 +21,11 @@ df.head()
 # In[3]:
 
 
-sess = pb.session(dictlike=df, make_plots=True, nthreads=4, use_cached=True)
+sess = pb.session(dictlike=df, make_plots=True, nthreads=4,
+                  use_cached=True, model_type='simple')
 
 
 # In[4]:
 
 
 sess()
-

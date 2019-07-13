@@ -582,6 +582,9 @@ class asymptotic_fit():
         for i in np.arange(thin, len(self.flatchain), thin):
             ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
                     alpha=0.2)
+        freqs = self.modeID['nu_med']
+        for f in freqs:
+            ax.axvline(f, c='k', linestyle='--')
         ax.set_ylim([0, smoothed.max()*1.5])
         ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')

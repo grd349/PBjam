@@ -547,11 +547,12 @@ class session():
                  store_chains=True, nthreads=1, use_cached=False,
                  cadence=None, campaign=None, sector=None, month=None, quarter=None,
                  make_plots=False,
-                 path=None):
+                 path=None, model_type='simple'):
 
         self.nthreads = nthreads
         self.store_chains = store_chains
         self.stars = []
+        self.pb_model_type = model_type
 
         #print_memusage(pre = 'Session init start')
 
@@ -624,7 +625,7 @@ class session():
             try:
                 print(star.ID)
                 print_memusage()
-                star(norders=norders)
+                star(norders=norders, model_type=self.pb_model_type)
                 print_memusage()
                 self.stars[idx] = None
                 print_memusage()

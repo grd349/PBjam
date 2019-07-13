@@ -232,6 +232,30 @@ class peakbag():
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
 
+    def model_hr(self):
+        dnu = self.asy_result['summary'].loc['mean'].dnu
+        self.pm_model = pm.Model()
+        with self.pm_model:
+            l0 = pm.Normal('l0', self.start['l0'], dnu*0.1,
+                              shape=len(self.start['l0']))
+            l2 = pm.Normal('l2', self.start['l2'], dnu*0.1,
+                              shape=len(self.start['l2']))
+            width0 = pm.Lognormal('width0', np.log(self.start['width0']), 0.2,
+                                    shape=len(self.start['l2']))
+            width2 = pm.Lognormal('width2', np.log(self.start['width2']), 0.2,
+                                    shape=len(self.start['l2']))
+            height0 = pm.Lognormal('height0', np.log(self.start['height0']),
+                                    0.4,
+                                    shape=len(self.start['l2']))
+            height20 = pm.Lognormal('height20', np.log(0.7), 0.1,
+                                    shape=len(self.start['l2']),
+                                    startval=np.one(len(self.start['l2']))*0.7)
+            height2 = pm.Deterministic('height2', height0 * height20)
+            back = pm.Normal('back', 1.0, 0.3,
+                                    shape=len(self.start['l2']))
+            limit = self.model(l0, l2, width0, width2, height0, height2, back)
+            yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
+
     def model_gp(self):
         """
         TODO
@@ -282,10 +306,10 @@ class peakbag():
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
 
     def sample(self, model_type='simple',
-                     tune=1000,
+                     tune=2000,
                      target_accept=0.8,
                      cores=1,
-                     maxiter=3):
+                     maxiter=4):
         """
         Function to perform the sampling of a defined model.
 
@@ -307,24 +331,27 @@ class peakbag():
             self.simple()
         elif model_type == 'model_gp':
             self.model_gp()
+        elif model_type == 'model_hr':
+            self.model_hr()
         else:
             print('Model not defined ')
 
         Rhat_max = 10
         niter = 1
         while Rhat_max > 1.05:
+            if niter > maxiter:
+                warnings.warn('Did not converge!')
+                break
             with self.pm_model:
                 self.samples = pm.sample(tune=tune * niter,
-                                         start=self.start,
+                                         start=self.start + np.randon.randn(len(self.start)) * 1e-3,
                                          cores=cores,
                                          init='adapt_diag',
                                          target_accept=target_accept,
                                          progressbar=True)
             Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
             niter += 1
-            if niter > maxiter:
-                warnings.warn()
-                break
+
 
     def traceplot(self):
         pm.traceplot(self.samples)

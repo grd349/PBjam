@@ -1,2 +1,3 @@
 *.fits
-Examples/*.png
+Examples/*/*.png
+Examples/*/*.csv
