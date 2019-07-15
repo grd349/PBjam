@@ -1,8 +1,11 @@
 # PBjam
 
-PBjam is toolbox for peakbagging solar-like oscillators. This involves identifying a set of modes and then modeling the surrounding spectrum to accurately measure the mode frequencies. Currently, the mode identification is based on fitting the asymptotic relation to the l=2,0 pairs, relying on the cumulative sum of prior knowledge gained from NASA's Kepler to inform the fitting process. PBjam is meant to be modular, allowing for different approaches to this to be added. 
+PBjam is toolbox for modeling the oscillation spectra of solar-like stars. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies. 
 
-This provides precise initial estimates and mode IDs for further detailed peakbagging. 
+Currently, the mode identification is based on fitting the asymptotic relation to the l=2,0 pairs, relying on the cumulative sum of prior knowledge gained from NASA's Kepler mission to inform the fitting process. 
+
+Modeling the modes, or 'peakbagging' is done using the HMC sampler from pymc3, which fits the modes with much fewer priors in place, which allows us to more accurately model the spectrum of frequencies.
+
 
 ## Getting Started
 
@@ -28,7 +31,7 @@ See working examples in the [Examples Notebook](https://github.com/grd349/PBjam/
 
 ## Contributing
 
-PBjam is open source and we welcome contributions, large or small, by anyone with ideas for optimizing the current code, adding new nifty features, or just simply tidying things up. 
+PBjam is open source and we welcome contributions, large or small. If you spot any bugs, have ideas for optimizing the code, want new nifty features, feel free to submit issues on the GitHub repo. Pull requests are also welcome, these will be reviewed by the main authors of the code before merging. 
 
 ## Authors
 
