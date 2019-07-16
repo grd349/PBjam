@@ -52,6 +52,8 @@ extensions = [
     'nbsphinx',
 ]
 
+nbsphinx_execute = 'never'
+
 # Exclude build directory and Jupyter backup files:
 exclude_patterns = ['_build', '**.ipynb_checkpoints']
 

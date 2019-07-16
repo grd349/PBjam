@@ -1,5 +1,20 @@
 API
 ====
 
-.. automodule:: pbjam.jar
-    :members:
+Brief summary of the structure of PBjam
+
+.. toctree::
+   :maxdepth: 2
+   
+   jar
+   star
+   asy_peakbag
+   peakbag
+
+
+
+
+
+
+
+

@@ -1,22 +1,6 @@
-PBjam: peakbagging made easy
-============================
-
-Intro to PBjam goes here
 
 
-Guide
-^^^^^
-
-.. toctree::
-   :maxdepth: 2
-
-   setup
-   usage
-   api
-   license
-   help
-
-
+.. include:: ../../README.rst
 
 
 

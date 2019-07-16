@@ -34,26 +34,60 @@
             
   <div class="section" id="pbjam-peakbagging-made-easy">
 <h1>PBjam: peakbagging made easy<a class="headerlink" href="#pbjam-peakbagging-made-easy" title="Permalink to this headline">¶</a></h1>
-<p>Intro to PBjam goes here</p>
-<div class="section" id="guide">
-<h2>Guide<a class="headerlink" href="#guide" title="Permalink to this headline">¶</a></h2>
+<p>PBjam is toolbox for modeling the oscillation spectra of solar-like stars. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies.</p>
+<p>Currently, the mode identification is based on fitting the asymptotic relation to the l=2,0 pairs, relying on the cumulative sum of prior knowledge gained from NASA’s Kepler mission to inform the fitting process.</p>
+<p>Modeling the modes, or ‘peakbagging’, is done using the HMC sampler from <a class="reference external" href="https://docs.pymc.io/">pymc3</a>, which fits a Lorentzian to each of the identified modes, with much fewer priors in place. This allows for a more accurate model of the spectrum of frequencies, than the heavily parameterized models like the asymptotic relation.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="setup.html#requirements">Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="setup.html#installation">Installation</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">User Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#basic-usage">Basic Usage</a></li>
-<li class="toctree-l2"><a class="reference internal" href="usage.html#advanced-usage">Advanced Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#session"><code class="docutils literal notranslate"><span class="pre">Session</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#star"><code class="docutils literal notranslate"><span class="pre">star</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="usage.html#advanced">Advanced</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="api.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="jar.html">jar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="star.html">star</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asy_peakbag.html">asy_peakbag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="peakbag.html">peakbag</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
 <li class="toctree-l1"><a class="reference internal" href="help.html">Help &amp; Contact</a></li>
 </ul>
 </div>
 </div>
+<div class="section" id="contributing">
+<h1>Contributing<a class="headerlink" href="#contributing" title="Permalink to this headline">¶</a></h1>
+<p>PBjam is open source and we welcome contributions, large or small.</p>
+<p>If you spot any bugs, have ideas for optimizing the code, want new nifty features, feel free to submit issues on the <a class="reference external" href="https://github.com/grd349/PBjam/issues">GitHub repo</a>.</p>
+<p>Pull requests are also welcome, these will be reviewed by the main authors of the code before merging.</p>
+</div>
+<div class="section" id="authors">
+<h1>Authors<a class="headerlink" href="#authors" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="main-contributors">
+<h2>Main Contributors<a class="headerlink" href="#main-contributors" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/grd349">Guy Davies</a></li>
+<li><a class="reference external" href="https://github.com/ojhall94">Oliver Hall</a></li>
+<li><a class="reference external" href="https://github.com/nielsenmb">Martin Nielsen</a></li>
+</ul>
+</div>
+<div class="section" id="chaos-engineers">
+<h2>Chaos Engineers<a class="headerlink" href="#chaos-engineers" title="Permalink to this headline">¶</a></h2>
+<ul class="simple">
+<li><a class="reference external" href="https://github.com/warrickball">Warrick Ball</a></li>
+</ul>
+</div>
+</div>
+<div class="section" id="acknowledgments">
+<h1>Acknowledgments<a class="headerlink" href="#acknowledgments" title="Permalink to this headline">¶</a></h1>
+<p>PBjam relies heavily on many open source software packages to operate.</p>
 </div>
 <div class="section" id="indices-and-tables">
 <h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Permalink to this headline">¶</a></h1>

@@ -1,13 +1,26 @@
 User Guide
 ==========
 
-Basic Usage
------------
-See example-seesion.ipynb
-See example-star.ipynb
+PBjam is intended to be a user-friendly peakbagging tool. The most straight-forward way of using PBjam is through the :class:`~pbjam.jar.session` class. This class handles the organization of the inputs, the mode ID, peakbagging and output. The inputs to the session class can take a variety of forms which are shown in the example below below. 
+
+It's also possible to use the :class:`~pbjam.star.star` class to analyze single stars, mainly for use in custom scripts.
+
+:class:`Session <~pbjam.jar.session>`
+-------------------------------------
+The most straight-forward way to analyze one or more stars with PBjam is by using the :class:`~pbjam.jar.session` class. The `Session notebook <https://github.com/grd349/PBjam/blob/master/Examples/Example-Session.ipynb>`_ provides a few simple examples of the forms of input that can be given to :class:`~pbjam.jar.session`. 
+
+.. note:: 
+    After initializing the session class, it can be called to execute the entire peakbagging procedure.
 
 
-Advanced Usage
---------------
-See example-advanced.ipynb
+:class:`Star <~pbjam.star.star>`
+--------------------------------
+The class is meant for more detailed control of the inputs for each star. The `Star notebook <https://github.com/grd349/PBjam/blob/master/Examples/Example-Star.ipynb>`_ shows a simple example of this. 
+
+.. note::
+    The :class:`~pbjam.jar.session` class is really just a fancy wrapper for the :class:`~pbjam.star.star` class. 
+
+Advanced
+--------
+It is not strictly necessary to use either the :class:`~pbjam.jar.session` or :class:`~pbjam.star.star` classes. The `Advanced notebook <https://github.com/grd349/PBjam/blob/master/Examples/Example-Advanced.ipynb>`_ shows an end-to-end walkthrough the steps that PBjam goes through for peakbagging.
 

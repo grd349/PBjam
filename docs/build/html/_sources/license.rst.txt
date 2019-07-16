@@ -1,6 +1,3 @@
 License
 =======
-
-everyone can use this
-
-
+.. include:: ../../LICENSE
