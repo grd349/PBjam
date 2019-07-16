@@ -34,13 +34,46 @@
   <h1>Source code for pbjam.jar</h1><div class="highlight"><pre>
 <span></span><span class="sd">&quot;&quot;&quot; Setup jam sessions and perform mode ID and peakbagging</span>
 
-<span class="sd">This jar is for for setting up jam sessions for peakbagging solar-like </span>
-<span class="sd">oscillators. </span>
+<span class="sd">This jar contains the input layer for setting up jam sessions for peakbagging</span>
+<span class="sd">solar-like oscillators. This is the easiest way to handle targets in PBjam.</span>
 
 <span class="sd">It&#39;s possible to manually initiate star class instances and do all the fitting</span>
-<span class="sd">that way, but it is simpler to just use the session class which handles all</span>
-<span class="sd">steps of the process.</span>
+<span class="sd">that way, but it&#39;s simpler to just use the session class, which handles</span>
+<span class="sd">everything, including formatting of the inputs.</span>
 
+<span class="sd">A jam session is started by initializing the session class instance with a</span>
+<span class="sd">target ID, numax, and a large separation. Additional parameters like the</span>
+<span class="sd">effective surface temperature of the star, are optional but help convergence.</span>
+
+<span class="sd">Lists of the above can be provided for multiple targets, but it&#39;s often simpler</span>
+<span class="sd">to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv</span>
+<span class="sd">for a template.</span>
+
+<span class="sd">Custom timeseries or periodogram can be provided as either file pathnames,</span>
+<span class="sd">numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If</span>
+<span class="sd">nothing is provided PBjam will download the data automatically.</span>
+
+<span class="sd">Specific quarters, campgains or sectors can be requested with the relevant</span>
+<span class="sd">keyword (i.e., &#39;quarter&#39; for KIC, etc.). If none of these are provided, PBjam</span>
+<span class="sd">will download all available data, picking the long cadence versions by default.</span>
+
+<span class="sd">Once initialized, the session class contains a list of star class instances</span>
+<span class="sd">for each requested target, with associated spectra for each.</span>
+
+<span class="sd">The next step is to perform a mode ID on the spectra. At the moment PBjam</span>
+<span class="sd">only supports use of the asymptotic relation mode ID method.</span>
+
+<span class="sd">Finally the peakbagging method takes the output from the modeID and performs</span>
+<span class="sd">a proper HMC peakbagging run.</span>
+
+<span class="sd">Plotting the results of each stage is also possible.</span>
+
+<span class="sd">Note</span>
+<span class="sd">----</span>
+<span class="sd">Target IDs must be resolvable by Lightkurve</span>
+
+<span class="sd">For automatic download the long cadence data set is used by default, so set</span>
+<span class="sd">the cadence to &#39;short&#39; for main-sequence targets.</span>
 <span class="sd">&quot;&quot;&quot;</span>
 
 <span class="kn">import</span> <span class="nn">lightkurve</span> <span class="k">as</span> <span class="nn">lk</span>
@@ -54,214 +87,6 @@
 <span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">PACKAGEDIR</span>
 
 <span class="kn">from</span> <span class="nn">pbjam.star</span> <span class="k">import</span> <span class="n">star</span>
-
-
-<div class="viewcode-block" id="session"><a class="viewcode-back" href="../../jar.html#pbjam.jar.session">[docs]</a><span class="k">class</span> <span class="nc">session</span><span class="p">():</span>
-    <span class="sd">&quot;&quot;&quot; Main class used to initiate peakbagging.</span>
-
-<span class="sd">    A jam session is started by initializing the session class instance with a</span>
-<span class="sd">    target ID, numax, large separation, effective temperature and/or Gaia</span>
-<span class="sd">    Bp-Rp color. </span>
-
-<span class="sd">    Custom timeseries or periodogram can be provided as either file pathnames,</span>
-<span class="sd">    numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If</span>
-<span class="sd">    nothing is provided PBjam will download the data automatically.</span>
-
-<span class="sd">    Specific quarters, campgains or sectors can be requested with the relevant</span>
-<span class="sd">    keyword (i.e., &#39;quarter&#39; for KIC, etc.). If none of these are provided, </span>
-<span class="sd">    PBjam will download all available data, picking the long cadence versions </span>
-<span class="sd">    by default.</span>
-<span class="sd">    </span>
-<span class="sd">    Note</span>
-<span class="sd">    ----</span>
-<span class="sd">    Target IDs must be resolvable by Lightkurve</span>
-<span class="sd">    </span>
-<span class="sd">    For automatic download the long cadence data set is used by default, so set</span>
-<span class="sd">    the cadence to &#39;short&#39; for main-sequence targets.</span>
-<span class="sd">    </span>
-<span class="sd">    </span>
-<span class="sd">    Once initialized, the session class contains a list of star class instances</span>
-<span class="sd">    for each requested target, with associated spectra for each.</span>
-<span class="sd">    </span>
-<span class="sd">    Example</span>
-<span class="sd">    -------</span>
-<span class="sd">    </span>
-<span class="sd">    &gt;&gt;&gt; jam_sess = pbjam.session(ID =  &#39;4448777&#39;,  numax = [220.0, 3.0], dnu = [16.97, 0.01], teff = [4750, 100],  bp_rp = [1.34, 0.01])</span>
-<span class="sd">    &gt;&gt;&gt; jam_sess()</span>
-<span class="sd">    </span>
-<span class="sd">    Here we initialize a jam session with the star, KIC4448777, providing the</span>
-<span class="sd">    physical parameters as lists [mu, sigma]. </span>
-<span class="sd">    </span>
-<span class="sd">    Calling the jam session instance then automatically downloads the data,</span>
-<span class="sd">    performs mode ID, peakbags the star, and outputs the result.</span>
-<span class="sd">    </span>
-<span class="sd">    Initializing the jam session can also be done with lists of each of the </span>
-<span class="sd">    input parameters, or with a dictionary, pandas dataframe, or csv filepath,</span>
-<span class="sd">    using the dictlike option. </span>
-
-<span class="sd">    The mode ID is done by fitting the asymptotic relation to the data, using a</span>
-<span class="sd">    10 dimensional KDE as a prior, which is constructed from the published </span>
-<span class="sd">    values of each parameter from the Kepler mission. </span>
-<span class="sd">    </span>
-<span class="sd">    The peakbagging uses a HMC sampler (pymc3) to fit the data as a series of</span>
-<span class="sd">    lorentzian profiles with independent parameters. Furthermoe, the KDE prior </span>
-<span class="sd">    is not used, allowing for more detailed variation of the mode frequencies</span>
-<span class="sd">    to be captured. </span>
-
-<span class="sd">    </span>
-<span class="sd">    Parameters</span>
-<span class="sd">    ----------</span>
-<span class="sd">    ID : string, int</span>
-<span class="sd">        Target identifier, if custom timeseries/periodogram is provided, it</span>
-<span class="sd">        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)</span>
-<span class="sd">    numax : list</span>
-<span class="sd">        List of the form [numax, numax_error], list of lists for multiple</span>
-<span class="sd">        targets</span>
-<span class="sd">    dnu : list</span>
-<span class="sd">        List of the form [dnu, dnu_error], list of lists for multiple targets</span>
-<span class="sd">    teff : list, optional</span>
-<span class="sd">        List of the form [teff, teff_error], list of lists for multiple targets</span>
-<span class="sd">    bp_rp : list, optional</span>
-<span class="sd">        List of the form [bp_rp, bp_rp_error], list of lists for multiple</span>
-<span class="sd">        targets</span>
-<span class="sd">    epsilon : list, optional</span>
-<span class="sd">        List of the form [epsilon, epsilon_error], list of lists for multiple</span>
-<span class="sd">        targets</span>
-<span class="sd">    timeseries : object, optional</span>
-<span class="sd">        Timeseries input. Leave as None for PBjam to download it automatically.</span>
-<span class="sd">        Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or</span>
-<span class="sd">        strings for pathnames are accepted.</span>
-<span class="sd">    psd : object, optional</span>
-<span class="sd">        Periodogram input. Leave as None for PBjam to use Timeseries to compute</span>
-<span class="sd">        it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram</span>
-<span class="sd">        objects, or strings for pathnames are accepted.</span>
-<span class="sd">    dictlike : pandas.DataFrame or dictionary, optional</span>
-<span class="sd">        DataFrame, dictionary, record array with a list of targets, and their</span>
-<span class="sd">        properties. If string, PBjam will assume it&#39;s a pathname to a csv file.</span>
-<span class="sd">        Specify timeseries and psd columns with file pathnames to use manually</span>
-<span class="sd">        reduced data.</span>
-<span class="sd">    store_chains : bool, optional</span>
-<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
-<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
-<span class="sd">    nthreads : int, optional</span>
-<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
-<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
-<span class="sd">        Untested on short cadence.</span>
-<span class="sd">    use_cached : bool</span>
-<span class="sd">        Flag for using cached data. If fitting the same targets multiple times,</span>
-<span class="sd">        use to this to not download the data every time.</span>
-<span class="sd">    cadence : string</span>
-<span class="sd">        Argument for lightkurve to download correct data type. Can be &#39;short&#39;</span>
-<span class="sd">        or &#39;long&#39;. &#39;long&#39; is default setting, so if you&#39;re looking at main</span>
-<span class="sd">        sequence stars, make sure to manually set &#39;short&#39;.</span>
-<span class="sd">    month : int</span>
-<span class="sd">        Argument for lightkurve when requesting Kepler short cadence data.</span>
-<span class="sd">    quarter : int</span>
-<span class="sd">        Argument for lightkurve when requesting Kepler data.</span>
-<span class="sd">    campaign : int</span>
-<span class="sd">        Argument for lightkurve when requesting K2 data.</span>
-<span class="sd">    sector : int</span>
-<span class="sd">        Argument for lightkurve when requesting TESS data.</span>
-
-<span class="sd">    Attributes</span>
-<span class="sd">    ----------</span>
-<span class="sd">    nthreads : int, optional</span>
-<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
-<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
-<span class="sd">        Untested on short cadence.</span>
-<span class="sd">    store_chains : bool, optional</span>
-<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
-<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
-<span class="sd">    stars : list</span>
-<span class="sd">        Session will store star class instances in this list, based on the</span>
-<span class="sd">        requested targets.</span>
-<span class="sd">    &quot;&quot;&quot;</span>
-
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">numax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dnu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bp_rp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">timeseries</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">psd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">dictlike</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">cadence</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">campaign</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">month</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quarter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">):</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span> <span class="o">=</span> <span class="n">nthreads</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span> <span class="o">=</span> <span class="n">store_chains</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">stars</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pb_model_type</span> <span class="o">=</span> <span class="n">model_type</span>
-
-        <span class="c1">#print_memusage(pre = &#39;Session init start&#39;)</span>
-
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dictlike</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
-            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dictlike</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
-                <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">dictlike</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">try</span><span class="p">:</span>
-                    <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_records</span><span class="p">(</span><span class="n">dictlike</span><span class="p">)</span>
-                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
-                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()&#39;</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">ID</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">]):</span>
-                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Dictlike provided as input, ignoring other input fit parameters.&#39;</span><span class="p">)</span>
-
-            <span class="n">organize_sess_dataframe</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
-
-        <span class="k">elif</span> <span class="n">ID</span><span class="p">:</span>
-            <span class="n">vardf</span> <span class="o">=</span> <span class="n">organize_sess_input</span><span class="p">(</span><span class="n">ID</span><span class="o">=</span><span class="n">ID</span><span class="p">,</span> <span class="n">numax</span><span class="o">=</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="o">=</span><span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="n">teff</span><span class="p">,</span>
-                                        <span class="n">bp_rp</span><span class="o">=</span><span class="n">bp_rp</span><span class="p">,</span>
-                                        <span class="n">cadence</span><span class="o">=</span><span class="n">cadence</span><span class="p">,</span> <span class="n">campaign</span><span class="o">=</span><span class="n">campaign</span><span class="p">,</span>
-                                        <span class="n">sector</span><span class="o">=</span><span class="n">sector</span><span class="p">,</span> <span class="n">month</span><span class="o">=</span><span class="n">month</span><span class="p">,</span>
-                                        <span class="n">quarter</span><span class="o">=</span><span class="n">quarter</span><span class="p">)</span>
-            <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">timeseries</span><span class="p">,</span> <span class="s1">&#39;timeseries&#39;</span><span class="p">)</span>
-            <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">psd</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">)</span>
-
-        <span class="n">lc_to_lk</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="n">use_cached</span><span class="p">)</span>
-        <span class="n">lk_to_pg</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
-
-
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vardf</span><span class="p">)):</span>
-
-            <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">star</span><span class="p">(</span><span class="n">ID</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;ID&#39;</span><span class="p">],</span>
-                                   <span class="n">periodogram</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">],</span>
-                                   <span class="n">numax</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;numax_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-                                   <span class="n">dnu</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-                                   <span class="n">teff</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;teff_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-                                   <span class="n">bp_rp</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;bp_rp&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
-                                   <span class="n">store_chains</span><span class="o">=</span><span class="n">store_chains</span><span class="p">,</span>
-                                   <span class="n">nthreads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span><span class="p">,</span>
-                                   <span class="n">make_plots</span><span class="o">=</span><span class="n">make_plots</span><span class="p">,</span>
-                                   <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">))</span>
-
-        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">st</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">):</span>
-            <span class="k">if</span> <span class="n">st</span><span class="o">.</span><span class="n">numax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">st</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
-                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Input numax is greater than Nyquist frequeny for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">ID</span><span class="p">))</span>
-
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot; The doitall script</span>
-
-<span class="sd">        Calling session will by default do asymptotic mode ID and peakbagging</span>
-<span class="sd">        for all stars in the session.</span>
-
-<span class="sd">        Parameters</span>
-<span class="sd">        ----------</span>
-<span class="sd">        step : string</span>
-<span class="sd">            Which step to perform. Can currently be &#39;asymptotic_modeid&#39; and</span>
-<span class="sd">            &#39;peakbag&#39;. asymptotic_modeid must be run before peakbag.</span>
-<span class="sd">        norders : int</span>
-<span class="sd">            Number of orders to include in the fits</span>
-
-<span class="sd">        &quot;&quot;&quot;</span>
-
-        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">st</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">):</span>
-            <span class="k">try</span><span class="p">:</span>
-                <span class="nb">print</span><span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">ID</span><span class="p">)</span>
-                <span class="n">star</span><span class="p">(</span><span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pb_model_type</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
-            <span class="k">except</span><span class="p">:</span>
-                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Failed on star </span><span class="si">{st.ID}</span><span class="s1">&#39;</span><span class="p">)</span></div>
-
-
 
 <div class="viewcode-block" id="organize_sess_dataframe"><a class="viewcode-back" href="../../jar.html#pbjam.jar.organize_sess_dataframe">[docs]</a><span class="k">def</span> <span class="nf">organize_sess_dataframe</span><span class="p">(</span><span class="n">vardf</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Takes input dataframe and organizes</span>
@@ -319,7 +144,7 @@
     <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;ID&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">vardct</span><span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()})</span>
 
     <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
-    <span class="n">doubles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp&#39;</span><span class="p">]</span>
+    <span class="n">doubles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;eps&#39;</span><span class="p">,</span> <span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp&#39;</span><span class="p">]</span>
     <span class="n">singles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">,</span> <span class="s1">&#39;campaign&#39;</span><span class="p">,</span> <span class="s1">&#39;sector&#39;</span><span class="p">,</span> <span class="s1">&#39;month&#39;</span><span class="p">,</span> <span class="s1">&#39;quarter&#39;</span><span class="p">]</span>
 
     <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">singles</span><span class="p">:</span>
@@ -644,7 +469,202 @@
     <span class="nb">print</span><span class="p">(</span><span class="n">pre</span><span class="p">,</span> <span class="n">process</span><span class="o">.</span><span class="n">memory_info</span><span class="p">()</span><span class="o">.</span><span class="n">rss</span> <span class="o">//</span> <span class="mi">1000</span><span class="p">,</span> <span class="s1">&#39;Kbytes&#39;</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span>  <span class="c1"># in bytes</span>
 
 
+<div class="viewcode-block" id="session"><a class="viewcode-back" href="../../jar.html#pbjam.jar.session">[docs]</a><span class="k">class</span> <span class="nc">session</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Main class used to initiate peakbagging.</span>
 
+<span class="sd">    Use this class to initialize a star class instance for one or more targets.</span>
+
+<span class="sd">    Once initialized, calling this class instance will execute a complete</span>
+<span class="sd">    peakbagging run.</span>
+
+<span class="sd">    Data can be provided in multiple different ways, the simplest of which is</span>
+<span class="sd">    just to let PBjam query the MAST server. Otherwise arrays of</span>
+<span class="sd">    timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram,</span>
+<span class="sd">    or just path names as strings, is also possible.</span>
+
+<span class="sd">    The physical parameters, numax, dnu, teff, must each be provided at least</span>
+<span class="sd">    as a list of length 2 for each star. This should contain the parameter</span>
+<span class="sd">    value and it&#39;s error.</span>
+
+<span class="sd">    For multiple target all the above can be provided as lists, but the</span>
+<span class="sd">    easiest way is to simply provide a dataframe from csv file.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Peakbagging run for a single target:</span>
+
+<span class="sd">    &gt;&gt;&gt; jam_sess = pbjam.session(ID =  &#39;4448777&#39;,  numax = [220.0, 3.0],</span>
+<span class="sd">                             dnu = [16.97, 0.01], teff = [4750, 100],</span>
+<span class="sd">                             bp_rp = [1.34, 0.01], cadence = &#39;short&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; jam_sess()</span>
+
+<span class="sd">    Peakbagging run for multiple targets:</span>
+<span class="sd">    jam_sess = pbjam.session(dictlike = mydataframe)</span>
+<span class="sd">    jam_sess()</span>
+
+<span class="sd">    By default, PBjam will download all the available data, favoring long</span>
+<span class="sd">    cadence. Cadence and specific observing seasons (quarter, month, campagin,</span>
+<span class="sd">    sector) can be specified for more detailed control.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ID : string, int</span>
+<span class="sd">        Target identifier, if custom timeseries/periodogram is provided, it</span>
+<span class="sd">        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)</span>
+<span class="sd">    numax : list</span>
+<span class="sd">        List of the form [numax, numax_error], list of lists for multiple</span>
+<span class="sd">        targets</span>
+<span class="sd">    dnu : list</span>
+<span class="sd">        List of the form [dnu, dnu_error], list of lists for multiple targets</span>
+<span class="sd">    teff : list, optional</span>
+<span class="sd">        List of the form [teff, teff_error], list of lists for multiple targets</span>
+<span class="sd">    bp_rp : list, optional</span>
+<span class="sd">        List of the form [bp_rp, bp_rp_error], list of lists for multiple</span>
+<span class="sd">        targets</span>
+<span class="sd">    epsilon : list, optional</span>
+<span class="sd">        List of the form [epsilon, epsilon_error], list of lists for multiple</span>
+<span class="sd">        targets</span>
+<span class="sd">    timeseries : object, optional</span>
+<span class="sd">        Timeseries input. Leave as None for PBjam to download it automatically.</span>
+<span class="sd">        Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or</span>
+<span class="sd">        strings for pathnames are accepted.</span>
+<span class="sd">    psd : object, optional</span>
+<span class="sd">        Periodogram input. Leave as None for PBjam to use Timeseries to compute</span>
+<span class="sd">        it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram</span>
+<span class="sd">        objects, or strings for pathnames are accepted.</span>
+<span class="sd">    dictlike : pandas.DataFrame or dictionary, optional</span>
+<span class="sd">        DataFrame, dictionary, record array with a list of targets, and their</span>
+<span class="sd">        properties. If string, PBjam will assume it&#39;s a pathname to a csv file.</span>
+<span class="sd">        Specify timeseries and psd columns with file pathnames to use manually</span>
+<span class="sd">        reduced data.</span>
+<span class="sd">    store_chains : bool, optional</span>
+<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
+<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
+<span class="sd">    nthreads : int, optional</span>
+<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
+<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
+<span class="sd">        Untested on short cadence.</span>
+<span class="sd">    use_cached : bool</span>
+<span class="sd">        Flag for using cached data. If fitting the same targets multiple times,</span>
+<span class="sd">        use to this to not download the data every time.</span>
+<span class="sd">    cadence : string</span>
+<span class="sd">        Argument for lightkurve to download correct data type. Can be &#39;short&#39;</span>
+<span class="sd">        or &#39;long&#39;. &#39;long&#39; is default setting, so if you&#39;re looking at main</span>
+<span class="sd">        sequence stars, make sure to manually set &#39;short&#39;.</span>
+<span class="sd">    month : int</span>
+<span class="sd">        Argument for lightkurve when requesting Kepler short cadence data.</span>
+<span class="sd">    quarter : int</span>
+<span class="sd">        Argument for lightkurve when requesting Kepler data.</span>
+<span class="sd">    campaign : int</span>
+<span class="sd">        Argument for lightkurve when requesting K2 data.</span>
+<span class="sd">    sector : int</span>
+<span class="sd">        Argument for lightkurve when requesting TESS data.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nthreads : int, optional</span>
+<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
+<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
+<span class="sd">        Untested on short cadence.</span>
+<span class="sd">    store_chains : bool, optional</span>
+<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
+<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
+<span class="sd">    stars : list</span>
+<span class="sd">        Session will store star class instances in this list, based on the</span>
+<span class="sd">        requested targets.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">numax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dnu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bp_rp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">timeseries</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">psd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dictlike</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">cadence</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">campaign</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">month</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quarter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span> <span class="o">=</span> <span class="n">nthreads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span> <span class="o">=</span> <span class="n">store_chains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stars</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pb_model_type</span> <span class="o">=</span> <span class="n">model_type</span>
+
+        <span class="c1">#print_memusage(pre = &#39;Session init start&#39;)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dictlike</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dictlike</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">dictlike</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_records</span><span class="p">(</span><span class="n">dictlike</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">ID</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">]):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Dictlike provided as input, ignoring other input fit parameters.&#39;</span><span class="p">)</span>
+
+            <span class="n">organize_sess_dataframe</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">ID</span><span class="p">:</span>
+            <span class="n">vardf</span> <span class="o">=</span> <span class="n">organize_sess_input</span><span class="p">(</span><span class="n">ID</span><span class="o">=</span><span class="n">ID</span><span class="p">,</span> <span class="n">numax</span><span class="o">=</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="o">=</span><span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="n">teff</span><span class="p">,</span>
+                                        <span class="n">bp_rp</span><span class="o">=</span><span class="n">bp_rp</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">epsilon</span><span class="p">,</span>
+                                        <span class="n">cadence</span><span class="o">=</span><span class="n">cadence</span><span class="p">,</span> <span class="n">campaign</span><span class="o">=</span><span class="n">campaign</span><span class="p">,</span>
+                                        <span class="n">sector</span><span class="o">=</span><span class="n">sector</span><span class="p">,</span> <span class="n">month</span><span class="o">=</span><span class="n">month</span><span class="p">,</span>
+                                        <span class="n">quarter</span><span class="o">=</span><span class="n">quarter</span><span class="p">)</span>
+            <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">timeseries</span><span class="p">,</span> <span class="s1">&#39;timeseries&#39;</span><span class="p">)</span>
+            <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">psd</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">)</span>
+
+        <span class="n">lc_to_lk</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="n">use_cached</span><span class="p">)</span>
+        <span class="n">lk_to_pg</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
+
+        <span class="c1">#print_memusage(pre = &#39;df setup&#39;)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vardf</span><span class="p">)):</span>
+            <span class="c1">#print_memusage(pre = f&#39;Initializing star {i}&#39;)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">star</span><span class="p">(</span><span class="n">ID</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;ID&#39;</span><span class="p">],</span>
+                                   <span class="n">periodogram</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">],</span>
+                                   <span class="n">numax</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;numax_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">dnu</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">teff</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;teff_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">bp_rp</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;bp_rp&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">store_chains</span><span class="o">=</span><span class="n">store_chains</span><span class="p">,</span>
+                                   <span class="n">nthreads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span><span class="p">,</span>
+                                   <span class="n">make_plots</span><span class="o">=</span><span class="n">make_plots</span><span class="p">,</span>
+                                   <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">st</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">st</span><span class="o">.</span><span class="n">numax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">st</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Input numax is greater than Nyquist frequeny for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">ID</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; The doitall script</span>
+
+<span class="sd">        Calling session will by default do asymptotic mode ID and peakbagging</span>
+<span class="sd">        for all stars in the session.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        step : string</span>
+<span class="sd">            Which step to perform. Can currently be &#39;asymptotic_modeid&#39; and</span>
+<span class="sd">            &#39;peakbag&#39;. asymptotic_modeid must be run before peakbag.</span>
+<span class="sd">        norders : int</span>
+<span class="sd">            Number of orders to include in the fits</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span> <span class="nn">tqdm</span> <span class="k">import</span> <span class="n">tqdm</span>
+
+        <span class="c1">#print_memusage(pre = f&#39;Call do it all&#39;)</span>
+
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">star</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">star</span><span class="o">.</span><span class="n">ID</span><span class="p">)</span>
+                <span class="n">print_memusage</span><span class="p">()</span>
+                <span class="n">star</span><span class="p">(</span><span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pb_model_type</span><span class="p">)</span>
+                <span class="n">print_memusage</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">print_memusage</span><span class="p">()</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Failed on star </span><span class="si">{star.ID}</span><span class="s1">&#39;</span><span class="p">)</span></div>
 </pre></div>
 
           </div>
@@ -664,7 +684,7 @@
 
 <h3>Navigation</h3>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../setup.html">Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../usage.html">User Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api.html">API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
