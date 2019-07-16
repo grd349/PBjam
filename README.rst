@@ -3,7 +3,7 @@ PBjam: peakbagging made easy
 ============================
 .. image:: https://img.shields.io/badge/GitHub-PBjam-green.svg
     :target: https://github.com/grd349/PBjam
-.. image:: https://img.shields.io/badge/GitHub-issues-critical.svg
+.. image:: https://img.shields.io/github/issues-closed/grd349/PBjam.svg
     :target: https://github.com/grd349/PBjam/issues
 .. image:: https://readthedocs.org/projects/pbjam/badge/?version=latest
     :target: https://pbjam.readthedocs.io/en/latest/?badge=latest
