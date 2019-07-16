@@ -221,14 +221,15 @@ class peakbag():
                                     shape=len(self.start['l2']))
             width2 = pm.Lognormal('width2', np.log(self.start['width2']), 1.0,
                                     shape=len(self.start['l2']))
-            height0 = pm.Lognormal('height0', np.log(self.start['height0']),
-                                    0.4,
+            height0 = pm.Lognormal('height0', np.log(3),
+                                    10.0,
                                     shape=len(self.start['l2']))
-            height2 = pm.Lognormal('height2', np.log(self.start['height2']),
-                                    0.4,
+            height2 = pm.Lognormal('height2', np.log(3),
+                                    10.0,
                                     shape=len(self.start['l2']))
-            back = pm.Normal('back', 1.0, 0.3,
+            back = pm.Lognormal('back', np.log(1.0), 0.5,
                                     shape=len(self.start['l2']))
+
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
             yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
 
@@ -309,7 +310,8 @@ class peakbag():
                      tune=2000,
                      target_accept=0.8,
                      cores=1,
-                     maxiter=4):
+                     maxiter=4,
+                     advi=True):
         """
         Function to perform the sampling of a defined model.
 
@@ -336,21 +338,31 @@ class peakbag():
         else:
             print('Model not defined ')
 
-        Rhat_max = 10
-        niter = 1
-        while Rhat_max > 1.05:
-            if niter > maxiter:
-                warnings.warn('Did not converge!')
-                break
+        if advi:
             with self.pm_model:
-                self.samples = pm.sample(tune=tune * niter,
-                                         start=self.start + np.randon.randn(len(self.start)) * 1e-3,
-                                         cores=cores,
-                                         init='adapt_diag',
-                                         target_accept=target_accept,
-                                         progressbar=True)
-            Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
-            niter += 1
+                mean_field = pm.fit(n=100000, method='fullrank_advi',
+                                    start=self.start,
+                                    callbacks=[pm.callbacks.CheckParametersConvergence(every=1000,
+                                                                                       diff='absolute',
+                                                                                       tolerance=0.01)])
+                self.samples = mean_field.sample(1000)
+
+        else:
+            Rhat_max = 10
+            niter = 1
+            while Rhat_max > 1.05:
+                if niter > maxiter:
+                    warnings.warn('Did not converge!')
+                    break
+                with self.pm_model:
+                    self.samples = pm.sample(tune=tune * niter,
+                                             #start=self.start,
+                                             cores=cores,
+                                             init='adapt_diag',
+                                             target_accept=target_accept,
+                                             progressbar=True)
+                Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
+                niter += 1
 
 
     def traceplot(self):
