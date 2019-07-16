@@ -221,11 +221,11 @@ class peakbag():
                                     shape=len(self.start['l2']))
             width2 = pm.Lognormal('width2', np.log(self.start['width2']), 1.0,
                                     shape=len(self.start['l2']))
-            height0 = pm.Lognormal('height0', np.log(3),
-                                    10.0,
-                                    shape=len(self.start['l2']))
-            height2 = pm.Lognormal('height2', np.log(3),
-                                    10.0,
+            height0 = pm.Lognormal('height0', np.log(self.start['height0']),
+                                    0.4,
+                                    shape=len(self.start['l0']))
+            height2 = pm.Lognormal('height2', np.log(self.start['height2']),
+                                    0.4,
                                     shape=len(self.start['l2']))
             back = pm.Lognormal('back', np.log(1.0), 0.5,
                                     shape=len(self.start['l2']))
@@ -344,7 +344,7 @@ class peakbag():
                                     start=self.start,
                                     callbacks=[pm.callbacks.CheckParametersConvergence(every=1000,
                                                                                        diff='absolute',
-                                                                                       tolerance=0.01)])
+                                                                                       tolerance=0.1)])
                 self.samples = mean_field.sample(1000)
 
         else:
