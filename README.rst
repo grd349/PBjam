@@ -29,7 +29,7 @@ PBjam is open source and we welcome contributions, large or small.
 
 If you spot any bugs, have ideas for optimizing the code, want new nifty features, feel free to submit issues on the `GitHub repo <https://github.com/grd349/PBjam/issues>`_. 
 
-Pull requests are also welcome, these will be reviewed by the main authors of the code before merging. 
+If you wish to contribute to PBjam, create a fork, make the changes and create a pull requests. The update will be reviewed by the main authors before merging. 
 
 Authors
 -------
