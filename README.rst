@@ -23,8 +23,8 @@ Authors
 Main Contributors
 -----------------
 - `Guy Davies <https://github.com/grd349>`_ 
-- `Oliver Hall <https://github.com/ojhall94>`_ 
 - `Martin Nielsen <https://github.com/nielsenmb>`_ 
+- `Oliver Hall <https://github.com/ojhall94>`_ 
 
 Chaos Engineers
 ---------------
