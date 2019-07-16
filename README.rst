@@ -1,11 +1,15 @@
 
 PBjam: peakbagging made easy
 ============================
+.. image:: https://img.shields.io/badge/GitHub-PBjam-green.svg
+    :target: https://github.com/grd349/PBjam
+.. image:: https://img.shields.io/github/issues/grd349/PBjam.svg
+    :target: https://github.com/grd349/PBjam/issues
 .. image:: https://readthedocs.org/projects/pbjam/badge/?version=latest
     :target: https://pbjam.readthedocs.io/en/latest/?badge=latest
     :alt: Documentation Status
 .. image:: http://img.shields.io/badge/license-MIT-blue.svg?style=flat
-    :target: https://github.com/nielsenmb/PBjam/blob/master/LICENSE
+    :target: https://github.com/grd349/PBjam/blob/master/LICENSE
 
 PBjam is toolbox for modeling the oscillation spectra of solar-like stars. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies. 
 
