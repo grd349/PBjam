@@ -2,7 +2,7 @@
 PBjam
 ============================
 
-** Peakbagging made easy **
+**Peakbagging made easy**
 
 .. image:: https://img.shields.io/badge/GitHub-PBjam-green.svg
     :target: https://github.com/grd349/PBjam
