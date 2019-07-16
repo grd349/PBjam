@@ -1,6 +1,7 @@
 
 PBjam: peakbagging made easy
 ============================
+|docs|
 PBjam is toolbox for modeling the oscillation spectra of solar-like stars. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies. 
 
 Currently, the mode identification is based on fitting the asymptotic relation to the l=2,0 pairs, relying on the cumulative sum of prior knowledge gained from NASA's Kepler mission to inform the fitting process. 
