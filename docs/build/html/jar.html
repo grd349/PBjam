@@ -1,0 +1,491 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>jar &#8212; PBjam 0.0.1 documentation</title>
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="./" src="_static/documentation_options.js"></script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="star" href="star.html" />
+    <link rel="prev" title="API" href="api.html" />
+   
+  <link rel="stylesheet" href="_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <div class="section" id="module-pbjam.jar">
+<span id="jar"></span><h1>jar<a class="headerlink" href="#module-pbjam.jar" title="Permalink to this headline">¶</a></h1>
+<p>Setup jam sessions and perform mode ID and peakbagging</p>
+<p>This jar is for for setting up jam sessions for peakbagging solar-like
+oscillators.</p>
+<p>It’s possible to manually initiate star class instances and do all the fitting
+that way, but it is simpler to just use the session class which handles all
+steps of the process.</p>
+<dl class="function">
+<dt id="pbjam.jar.arr_to_lk">
+<code class="descclassname">pbjam.jar.</code><code class="descname">arr_to_lk</code><span class="sig-paren">(</span><em>x</em>, <em>y</em>, <em>name</em>, <em>typ</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#arr_to_lk"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.arr_to_lk" title="Permalink to this definition">¶</a></dt>
+<dd><p>LightKurve object from input</p>
+<p>Creates either a lightkurve.LightCurve or lightkurve.periodogram object
+from the input arrays.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>x</strong> (<em>list-like</em>) – First column of timeseries or periodogram (time/frequency).</li>
+<li><strong>y</strong> (<em>list-like</em>) – Second column of timeseries or periodogram (flux/power).</li>
+<li><strong>name</strong> (<em>string</em>) – Target ID</li>
+<li><strong>typ</strong> (<em>string</em>) – Either timeseries or periodogram.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>lkobj</strong> – Either lightkurve.LightCurve or lightkurve.periodogram object
+depending on typ.</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)">object</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.clean_lc">
+<code class="descclassname">pbjam.jar.</code><code class="descname">clean_lc</code><span class="sig-paren">(</span><em>lc</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#clean_lc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.clean_lc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Perform LightKurve operations on object</p>
+<p>Performes basic cleaning of a light curve, removing nans, outliers,
+median filtering etc.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lc</strong> (<em>LightKurve.LightCurve instance</em>) – LightKurve object to be cleaned</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><strong>lc</strong> – The cleaned LightKurve object</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">LightKurve.LightCurve instance</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.format_col">
+<code class="descclassname">pbjam.jar.</code><code class="descname">format_col</code><span class="sig-paren">(</span><em>vardf</em>, <em>col</em>, <em>key</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#format_col"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.format_col" title="Permalink to this definition">¶</a></dt>
+<dd><p>Add timeseries or psd column to dataframe based on input</p>
+<p>Based on the contents of col, will try to format col and add it as a column
+to vardf with column name key. col can be many things, so the decision is
+based mainly on the dimensionality of col.</p>
+<p>If dim = 0, it’s assumed that col is either None, or a string, (for the
+latter it assumes there is then only one target).</p>
+<p>If dim = 1, it’s assumed that col is a list-like object, consisting of
+either None or strings, these are passed along without modification.</p>
+<p>If dim = 2, col is assumed to be either a time series or power spectrum
+of shape (2,M), with time/frequency in 1st row and flux/power in the
+second.</p>
+<p>If dim = 3, it is assumed to be list of (2,M) arrays.</p>
+<p>In both of the latter cases col is converted to LightKurve object(s).</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>vardf</strong> (<em>pandas.DataFrame instance</em>) – Pandas Dataframe instance to which either a timeseries or psd column
+will be added.</li>
+<li><strong>col</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><em>object</em></a>) – Input from Session call, corresponding to key</li>
+<li><strong>key</strong> (<em>name of column to add to H</em>) – </li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.lc_to_lk">
+<code class="descclassname">pbjam.jar.</code><code class="descname">lc_to_lk</code><span class="sig-paren">(</span><em>vardf</em>, <em>use_cached=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#lc_to_lk"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.lc_to_lk" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert time series column in dataframe to lk.LightCurve object</p>
+<p>Goes through the timeseries column in the dataframe and tries to convert
+it to a LightKurve.LightCurve object. If string, it’s assumed to be a file
+path name, if None, it will query the LightCurve cache locally or MAST if
+nothing is found. Skips column entries which are already LightKurve objects
+or if a psd for the star in question exists in the psd column.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>vardf</strong> (<em>pandas.DataFrame instance</em>) – Dataframe containing a ‘timeseries’ column consisting of None, strings
+or LightKurver.LightCurve objects.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.lk_to_pg">
+<code class="descclassname">pbjam.jar.</code><code class="descname">lk_to_pg</code><span class="sig-paren">(</span><em>vardf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#lk_to_pg"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.lk_to_pg" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert psd column in dataframe to lk periodgram object list</p>
+<p>Takes whatever is in the psd column of a dataframe and tries to turn it
+into a LightKurve.periodogram object. If column entry is a string, it
+assumes it’s a path name, if None, it will try to take what’s in the
+timeseries column and compute periodogram based on that. If a periodogram
+object is already present, it’ll just flatten it (to be safe) and then
+continue on.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>vardf</strong> (<em>pandas.DataFrame instance</em>) – Dataframe containing a ‘psd’ column consisting of None, strings or
+LightKurver.periodogram objects.</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.organize_sess_dataframe">
+<code class="descclassname">pbjam.jar.</code><code class="descname">organize_sess_dataframe</code><span class="sig-paren">(</span><em>vardf</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#organize_sess_dataframe"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.organize_sess_dataframe" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes input dataframe and organizes</p>
+<p>Checks to see if required columns are present in the input dataframe,
+and adds optional columns if they don’t exists, containing None values.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>vardf</strong> (<em>Pandas.DataFrame</em>) – Input dataframe</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.organize_sess_input">
+<code class="descclassname">pbjam.jar.</code><code class="descname">organize_sess_input</code><span class="sig-paren">(</span><em>**vardct</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#organize_sess_input"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.organize_sess_input" title="Permalink to this definition">¶</a></dt>
+<dd><p>Takes input and organizes them in a dataframe</p>
+<p>Checks to see if required inputs are present and inserts them into a
+dataframe. Any optional columns that are not included in the input are
+added as None columns.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>vardct</strong> (<em>objects</em>) – Variable inputs to Session class to be arranged into a dataframe</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><strong>vardf</strong> – Dataframe containing the inputs from Session class call.</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">Pandas.DataFrame</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.query_lightkurve">
+<code class="descclassname">pbjam.jar.</code><code class="descname">query_lightkurve</code><span class="sig-paren">(</span><em>id</em>, <em>lkwargs</em>, <em>use_cached</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#query_lightkurve"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.query_lightkurve" title="Permalink to this definition">¶</a></dt>
+<dd><p>Check cache for fits file, or download it</p>
+<p>Based on use_cached flag, will look in the cache for fits file
+corresponding to request id star. If nothing is found in cached it will be
+downloaded from the MAST server.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>id</strong> (<em>string</em>) – Identifier for the requested star. Must be resolvable by LightKurve</li>
+<li><strong>lkwargs</strong> (<em>dictionary containing keywords for the LightKurve search.</em>) – cadence, quarter, campaign, sector, month.</li>
+<li><strong>use_cached</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – Whether or not to used data in the LightKurve cache.</li>
+<li><strong>Note</strong> – </li>
+<li><strong>-----</strong> – </li>
+<li><strong>long cadence over short cadence unless otherwise specified.</strong> (<em>Prioritizes</em>) – </li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.query_mast">
+<code class="descclassname">pbjam.jar.</code><code class="descname">query_mast</code><span class="sig-paren">(</span><em>id</em>, <em>lkwargs</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#query_mast"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.query_mast" title="Permalink to this definition">¶</a></dt>
+<dd><p>Search for target on MAST server</p>
+<p>Get all the lightcurves available for a target id, using options in kwargs
+dictionary.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
+<li><strong>id</strong> (<em>string</em>) – Target id, must be resolvable by LightKurve</li>
+<li><strong>lkwargs</strong> (<em>dictionary containing keywords for the LightKurve search.</em>) – cadence, quarter, campaign, sector, month.</li>
+</ul>
+</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>search_results</strong> – List of fits files for the requested target</p>
+</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)">list</a></p>
+</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="class">
+<dt id="pbjam.jar.session">
+<em class="property">class </em><code class="descclassname">pbjam.jar.</code><code class="descname">session</code><span class="sig-paren">(</span><em>ID=None</em>, <em>numax=None</em>, <em>dnu=None</em>, <em>teff=None</em>, <em>bp_rp=None</em>, <em>timeseries=None</em>, <em>psd=None</em>, <em>dictlike=None</em>, <em>store_chains=True</em>, <em>nthreads=1</em>, <em>use_cached=False</em>, <em>cadence=None</em>, <em>campaign=None</em>, <em>sector=None</em>, <em>month=None</em>, <em>quarter=None</em>, <em>make_plots=False</em>, <em>path=None</em>, <em>model_type='simple'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#session"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.session" title="Permalink to this definition">¶</a></dt>
+<dd><p>Main class used to initiate peakbagging.</p>
+<p>A jam session is started by initializing the session class instance with a
+target ID, numax, large separation, effective temperature and/or Gaia
+Bp-Rp color.</p>
+<p>Custom timeseries or periodogram can be provided as either file pathnames,
+numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
+nothing is provided PBjam will download the data automatically.</p>
+<p>Specific quarters, campgains or sectors can be requested with the relevant
+keyword (i.e., ‘quarter’ for KIC, etc.). If none of these are provided,
+PBjam will download all available data, picking the long cadence versions
+by default.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Target IDs must be resolvable by Lightkurve</p>
+<p class="last">For automatic download the long cadence data set is used by default, so set
+the cadence to ‘short’ for main-sequence targets.</p>
+</div>
+<p>Once initialized, the session class contains a list of star class instances
+for each requested target, with associated spectra for each.</p>
+<p class="rubric">Example</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">jam_sess</span> <span class="o">=</span> <span class="n">pbjam</span><span class="o">.</span><span class="n">session</span><span class="p">(</span><span class="n">ID</span> <span class="o">=</span>  <span class="s1">&#39;4448777&#39;</span><span class="p">,</span>  <span class="n">numax</span> <span class="o">=</span> <span class="p">[</span><span class="mf">220.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">],</span> <span class="n">dnu</span> <span class="o">=</span> <span class="p">[</span><span class="mf">16.97</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">],</span> <span class="n">teff</span> <span class="o">=</span> <span class="p">[</span><span class="mi">4750</span><span class="p">,</span> <span class="mi">100</span><span class="p">],</span>  <span class="n">bp_rp</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.34</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">jam_sess</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Here we initialize a jam session with the star, KIC4448777, providing the
+physical parameters as lists [mu, sigma].</p>
+<p>Calling the jam session instance then automatically downloads the data,
+performs mode ID, peakbags the star, and outputs the result.</p>
+<p>Initializing the jam session can also be done with lists of each of the
+input parameters, or with a dictionary, pandas dataframe, or csv filepath,
+using the dictlike option.</p>
+<p>The mode ID is done by fitting the asymptotic relation to the data, using a
+10 dimensional KDE as a prior, which is constructed from the published
+values of each parameter from the Kepler mission.</p>
+<p>The peakbagging uses a HMC sampler (pymc3) to fit the data as a series of
+lorentzian profiles with independent parameters. Furthermoe, the KDE prior
+is not used, allowing for more detailed variation of the mode frequencies
+to be captured.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
+<li><strong>ID</strong> (<em>string</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Target identifier, if custom timeseries/periodogram is provided, it
+must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)</li>
+<li><strong>numax</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [numax, numax_error], list of lists for multiple
+targets</li>
+<li><strong>dnu</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [dnu, dnu_error], list of lists for multiple targets</li>
+<li><strong>teff</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em>) – List of the form [teff, teff_error], list of lists for multiple targets</li>
+<li><strong>bp_rp</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em>) – List of the form [bp_rp, bp_rp_error], list of lists for multiple
+targets</li>
+<li><strong>epsilon</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em>) – List of the form [epsilon, epsilon_error], list of lists for multiple
+targets</li>
+<li><strong>timeseries</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><em>object</em></a><em>, </em><em>optional</em>) – Timeseries input. Leave as None for PBjam to download it automatically.
+Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
+strings for pathnames are accepted.</li>
+<li><strong>psd</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#object" title="(in Python v3.7)"><em>object</em></a><em>, </em><em>optional</em>) – Periodogram input. Leave as None for PBjam to use Timeseries to compute
+it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
+objects, or strings for pathnames are accepted.</li>
+<li><strong>dictlike</strong> (<em>pandas.DataFrame</em><em> or </em><em>dictionary</em><em>, </em><em>optional</em>) – DataFrame, dictionary, record array with a list of targets, and their
+properties. If string, PBjam will assume it’s a pathname to a csv file.
+Specify timeseries and psd columns with file pathnames to use manually
+reduced data.</li>
+<li><strong>store_chains</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – Flag for storing all the full set of samples from the MCMC run.
+Warning, if running multiple targets, make sure you have enough memory.</li>
+<li><strong>nthreads</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em>) – Number of multiprocessing threads to use to perform the fit. For long
+cadence data 1 is best, more will just add parallelization overhead.
+Untested on short cadence.</li>
+<li><strong>use_cached</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – Flag for using cached data. If fitting the same targets multiple times,
+use to this to not download the data every time.</li>
+<li><strong>cadence</strong> (<em>string</em>) – Argument for lightkurve to download correct data type. Can be ‘short’
+or ‘long’. ‘long’ is default setting, so if you’re looking at main
+sequence stars, make sure to manually set ‘short’.</li>
+<li><strong>month</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Argument for lightkurve when requesting Kepler short cadence data.</li>
+<li><strong>quarter</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Argument for lightkurve when requesting Kepler data.</li>
+<li><strong>campaign</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Argument for lightkurve when requesting K2 data.</li>
+<li><strong>sector</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Argument for lightkurve when requesting TESS data.</li>
+</ul>
+</td>
+</tr>
+</tbody>
+</table>
+<dl class="attribute">
+<dt id="pbjam.jar.session.nthreads">
+<code class="descname">nthreads</code><a class="headerlink" href="#pbjam.jar.session.nthreads" title="Permalink to this definition">¶</a></dt>
+<dd><p>Number of multiprocessing threads to use to perform the fit. For long
+cadence data 1 is best, more will just add parallelization overhead.
+Untested on short cadence.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)">int</a>, optional</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pbjam.jar.session.store_chains">
+<code class="descname">store_chains</code><a class="headerlink" href="#pbjam.jar.session.store_chains" title="Permalink to this definition">¶</a></dt>
+<dd><p>Flag for storing all the full set of samples from the MCMC run.
+Warning, if running multiple targets, make sure you have enough memory.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)">bool</a>, optional</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pbjam.jar.session.stars">
+<code class="descname">stars</code><a class="headerlink" href="#pbjam.jar.session.stars" title="Permalink to this definition">¶</a></dt>
+<dd><p>Session will store star class instances in this list, based on the
+requested targets.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)">list</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="function">
+<dt id="pbjam.jar.sort_lc">
+<code class="descclassname">pbjam.jar.</code><code class="descname">sort_lc</code><span class="sig-paren">(</span><em>lc</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#sort_lc"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.sort_lc" title="Permalink to this definition">¶</a></dt>
+<dd><p>Sort a lightcurve in LightKurve object</p>
+<p>LightKurve lightcurves are not necessarily sorted in time, which causes
+an error in periodogram.</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><strong>lc</strong> (<em>LightKurve.LightCurve instance</em>) – LightKurve object to be modified</td>
+</tr>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><strong>lc</strong> – The sorted LightKurve object</td>
+</tr>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body">LightKurve.LightCurve instance</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+</div>
+
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">PBjam</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="usage.html">User Guide</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="api.html">API</a><ul class="current">
+<li class="toctree-l2 current"><a class="current reference internal" href="#">jar</a></li>
+<li class="toctree-l2"><a class="reference internal" href="star.html">star</a></li>
+<li class="toctree-l2"><a class="reference internal" href="asy_peakbag.html">asy_peakbag</a></li>
+<li class="toctree-l2"><a class="reference internal" href="peakbag.html">peakbag</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="help.html">Help &amp; Contact</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="index.html">Documentation overview</a><ul>
+  <li><a href="api.html">API</a><ul>
+      <li>Previous: <a href="api.html" title="previous chapter">API</a></li>
+      <li>Next: <a href="star.html" title="next chapter">star</a></li>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Martin Nielsen.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+      |
+      <a href="_sources/jar.rst.txt"
+          rel="nofollow">Page source</a>
+    </div>
+
+    
+
+    
+  </body>
+</html>
