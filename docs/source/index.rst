@@ -2,7 +2,7 @@
     :end-before: inclusion_marker0
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    setup
    usage

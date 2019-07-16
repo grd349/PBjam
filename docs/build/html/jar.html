@@ -36,11 +36,36 @@
   <div class="section" id="module-pbjam.jar">
 <span id="jar"></span><h1>jar<a class="headerlink" href="#module-pbjam.jar" title="Permalink to this headline">¶</a></h1>
 <p>Setup jam sessions and perform mode ID and peakbagging</p>
-<p>This jar is for for setting up jam sessions for peakbagging solar-like
-oscillators.</p>
+<p>This jar contains the input layer for setting up jam sessions for peakbagging
+solar-like oscillators. This is the easiest way to handle targets in PBjam.</p>
 <p>It’s possible to manually initiate star class instances and do all the fitting
-that way, but it is simpler to just use the session class which handles all
-steps of the process.</p>
+that way, but it’s simpler to just use the session class, which handles
+everything, including formatting of the inputs.</p>
+<p>A jam session is started by initializing the session class instance with a
+target ID, numax, and a large separation. Additional parameters like the
+effective surface temperature of the star, are optional but help convergence.</p>
+<p>Lists of the above can be provided for multiple targets, but it’s often simpler
+to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv
+for a template.</p>
+<p>Custom timeseries or periodogram can be provided as either file pathnames,
+numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
+nothing is provided PBjam will download the data automatically.</p>
+<p>Specific quarters, campgains or sectors can be requested with the relevant
+keyword (i.e., ‘quarter’ for KIC, etc.). If none of these are provided, PBjam
+will download all available data, picking the long cadence versions by default.</p>
+<p>Once initialized, the session class contains a list of star class instances
+for each requested target, with associated spectra for each.</p>
+<p>The next step is to perform a mode ID on the spectra. At the moment PBjam
+only supports use of the asymptotic relation mode ID method.</p>
+<p>Finally the peakbagging method takes the output from the modeID and performs
+a proper HMC peakbagging run.</p>
+<p>Plotting the results of each stage is also possible.</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>Target IDs must be resolvable by Lightkurve</p>
+<p class="last">For automatic download the long cadence data set is used by default, so set
+the cadence to ‘short’ for main-sequence targets.</p>
+</div>
 <dl class="function">
 <dt id="pbjam.jar.arr_to_lk">
 <code class="descclassname">pbjam.jar.</code><code class="descname">arr_to_lk</code><span class="sig-paren">(</span><em>x</em>, <em>y</em>, <em>name</em>, <em>typ</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#arr_to_lk"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.arr_to_lk" title="Permalink to this definition">¶</a></dt>
@@ -255,43 +280,32 @@ dictionary.</p>
 <dt id="pbjam.jar.session">
 <em class="property">class </em><code class="descclassname">pbjam.jar.</code><code class="descname">session</code><span class="sig-paren">(</span><em>ID=None</em>, <em>numax=None</em>, <em>dnu=None</em>, <em>teff=None</em>, <em>bp_rp=None</em>, <em>timeseries=None</em>, <em>psd=None</em>, <em>dictlike=None</em>, <em>store_chains=True</em>, <em>nthreads=1</em>, <em>use_cached=False</em>, <em>cadence=None</em>, <em>campaign=None</em>, <em>sector=None</em>, <em>month=None</em>, <em>quarter=None</em>, <em>make_plots=False</em>, <em>path=None</em>, <em>model_type='simple'</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/jar.html#session"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.jar.session" title="Permalink to this definition">¶</a></dt>
 <dd><p>Main class used to initiate peakbagging.</p>
-<p>A jam session is started by initializing the session class instance with a
-target ID, numax, large separation, effective temperature and/or Gaia
-Bp-Rp color.</p>
-<p>Custom timeseries or periodogram can be provided as either file pathnames,
-numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
-nothing is provided PBjam will download the data automatically.</p>
-<p>Specific quarters, campgains or sectors can be requested with the relevant
-keyword (i.e., ‘quarter’ for KIC, etc.). If none of these are provided,
-PBjam will download all available data, picking the long cadence versions
-by default.</p>
-<div class="admonition note">
-<p class="first admonition-title">Note</p>
-<p>Target IDs must be resolvable by Lightkurve</p>
-<p class="last">For automatic download the long cadence data set is used by default, so set
-the cadence to ‘short’ for main-sequence targets.</p>
-</div>
-<p>Once initialized, the session class contains a list of star class instances
-for each requested target, with associated spectra for each.</p>
-<p class="rubric">Example</p>
-<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">jam_sess</span> <span class="o">=</span> <span class="n">pbjam</span><span class="o">.</span><span class="n">session</span><span class="p">(</span><span class="n">ID</span> <span class="o">=</span>  <span class="s1">&#39;4448777&#39;</span><span class="p">,</span>  <span class="n">numax</span> <span class="o">=</span> <span class="p">[</span><span class="mf">220.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">],</span> <span class="n">dnu</span> <span class="o">=</span> <span class="p">[</span><span class="mf">16.97</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">],</span> <span class="n">teff</span> <span class="o">=</span> <span class="p">[</span><span class="mi">4750</span><span class="p">,</span> <span class="mi">100</span><span class="p">],</span>  <span class="n">bp_rp</span> <span class="o">=</span> <span class="p">[</span><span class="mf">1.34</span><span class="p">,</span> <span class="mf">0.01</span><span class="p">])</span>
+<p>Use this class to initialize a star class instance for one or more targets.</p>
+<p>Once initialized, calling this class instance will execute a complete
+peakbagging run.</p>
+<p>Data can be provided in multiple different ways, the simplest of which is
+just to let PBjam query the MAST server. Otherwise arrays of
+timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram,
+or just path names as strings, is also possible.</p>
+<p>The physical parameters, numax, dnu, teff, must each be provided at least
+as a list of length 2 for each star. This should contain the parameter
+value and it’s error.</p>
+<p>For multiple target all the above can be provided as lists, but the
+easiest way is to simply provide a dataframe from csv file.</p>
+<p class="rubric">Examples</p>
+<p>Peakbagging run for a single target:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="n">jam_sess</span> <span class="o">=</span> <span class="n">pbjam</span><span class="o">.</span><span class="n">session</span><span class="p">(</span><span class="n">ID</span> <span class="o">=</span>  <span class="s1">&#39;4448777&#39;</span><span class="p">,</span>  <span class="n">numax</span> <span class="o">=</span> <span class="p">[</span><span class="mf">220.0</span><span class="p">,</span> <span class="mf">3.0</span><span class="p">],</span>
+<span class="go">                         dnu = [16.97, 0.01], teff = [4750, 100],</span>
+<span class="go">                         bp_rp = [1.34, 0.01], cadence = &#39;short&#39;)</span>
 <span class="gp">&gt;&gt;&gt; </span><span class="n">jam_sess</span><span class="p">()</span>
 </pre></div>
 </div>
-<p>Here we initialize a jam session with the star, KIC4448777, providing the
-physical parameters as lists [mu, sigma].</p>
-<p>Calling the jam session instance then automatically downloads the data,
-performs mode ID, peakbags the star, and outputs the result.</p>
-<p>Initializing the jam session can also be done with lists of each of the
-input parameters, or with a dictionary, pandas dataframe, or csv filepath,
-using the dictlike option.</p>
-<p>The mode ID is done by fitting the asymptotic relation to the data, using a
-10 dimensional KDE as a prior, which is constructed from the published
-values of each parameter from the Kepler mission.</p>
-<p>The peakbagging uses a HMC sampler (pymc3) to fit the data as a series of
-lorentzian profiles with independent parameters. Furthermoe, the KDE prior
-is not used, allowing for more detailed variation of the mode frequencies
-to be captured.</p>
+<p>Peakbagging run for multiple targets:
+jam_sess = pbjam.session(dictlike = mydataframe)
+jam_sess()</p>
+<p>By default, PBjam will download all the available data, favoring long
+cadence. Cadence and specific observing seasons (quarter, month, campagin,
+sector) can be specified for more detailed control.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -424,7 +438,7 @@ an error in periodogram.</p>
 
 <h3>Navigation</h3>
 <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="setup.html">Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="setup.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="usage.html">User Guide</a></li>
 <li class="toctree-l1 current"><a class="reference internal" href="api.html">API</a><ul class="current">
 <li class="toctree-l2 current"><a class="current reference internal" href="#">jar</a></li>

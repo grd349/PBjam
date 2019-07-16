@@ -257,12 +257,13 @@
                                     <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
             <span class="n">height0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">]),</span>
                                     <span class="mf">0.4</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
+                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]))</span>
             <span class="n">height2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">]),</span>
                                     <span class="mf">0.4</span><span class="p">,</span>
                                     <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">back</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;back&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span>
+            <span class="n">back</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;back&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span>
                                     <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
+
             <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">,</span> <span class="n">width0</span><span class="p">,</span> <span class="n">width2</span><span class="p">,</span> <span class="n">height0</span><span class="p">,</span> <span class="n">height2</span><span class="p">,</span> <span class="n">back</span><span class="p">)</span>
             <span class="n">yobs</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Gamma</span><span class="p">(</span><span class="s1">&#39;yobs&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="o">/</span><span class="n">limit</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="p">)</span></div>
 
@@ -343,7 +344,8 @@
                      <span class="n">tune</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
                      <span class="n">target_accept</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
                      <span class="n">cores</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                     <span class="n">maxiter</span><span class="o">=</span><span class="mi">4</span><span class="p">):</span>
+                     <span class="n">maxiter</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+                     <span class="n">advi</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Function to perform the sampling of a defined model.</span>
 
@@ -370,21 +372,31 @@
         <span class="k">else</span><span class="p">:</span>
             <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Model not defined &#39;</span><span class="p">)</span>
 
-        <span class="n">Rhat_max</span> <span class="o">=</span> <span class="mi">10</span>
-        <span class="n">niter</span> <span class="o">=</span> <span class="mi">1</span>
-        <span class="k">while</span> <span class="n">Rhat_max</span> <span class="o">&gt;</span> <span class="mf">1.05</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">niter</span> <span class="o">&gt;</span> <span class="n">maxiter</span><span class="p">:</span>
-                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Did not converge!&#39;</span><span class="p">)</span>
-                <span class="k">break</span>
+        <span class="k">if</span> <span class="n">advi</span><span class="p">:</span>
             <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">tune</span><span class="o">=</span><span class="n">tune</span> <span class="o">*</span> <span class="n">niter</span><span class="p">,</span>
-                                         <span class="n">start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">randon</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">))</span> <span class="o">*</span> <span class="mf">1e-3</span><span class="p">,</span>
-                                         <span class="n">cores</span><span class="o">=</span><span class="n">cores</span><span class="p">,</span>
-                                         <span class="n">init</span><span class="o">=</span><span class="s1">&#39;adapt_diag&#39;</span><span class="p">,</span>
-                                         <span class="n">target_accept</span><span class="o">=</span><span class="n">target_accept</span><span class="p">,</span>
-                                         <span class="n">progressbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-            <span class="n">Rhat_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">v</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pm</span><span class="o">.</span><span class="n">diagnostics</span><span class="o">.</span><span class="n">gelman_rubin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
-            <span class="n">niter</span> <span class="o">+=</span> <span class="mi">1</span></div>
+                <span class="n">mean_field</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="mi">100000</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;fullrank_advi&#39;</span><span class="p">,</span>
+                                    <span class="n">start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
+                                    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">pm</span><span class="o">.</span><span class="n">callbacks</span><span class="o">.</span><span class="n">CheckParametersConvergence</span><span class="p">(</span><span class="n">every</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+                                                                                       <span class="n">diff</span><span class="o">=</span><span class="s1">&#39;absolute&#39;</span><span class="p">,</span>
+                                                                                       <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)])</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">mean_field</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
+
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Rhat_max</span> <span class="o">=</span> <span class="mi">10</span>
+            <span class="n">niter</span> <span class="o">=</span> <span class="mi">1</span>
+            <span class="k">while</span> <span class="n">Rhat_max</span> <span class="o">&gt;</span> <span class="mf">1.05</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">niter</span> <span class="o">&gt;</span> <span class="n">maxiter</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Did not converge!&#39;</span><span class="p">)</span>
+                    <span class="k">break</span>
+                <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">tune</span><span class="o">=</span><span class="n">tune</span> <span class="o">*</span> <span class="n">niter</span><span class="p">,</span>
+                                             <span class="c1">#start=self.start,</span>
+                                             <span class="n">cores</span><span class="o">=</span><span class="n">cores</span><span class="p">,</span>
+                                             <span class="n">init</span><span class="o">=</span><span class="s1">&#39;adapt_diag&#39;</span><span class="p">,</span>
+                                             <span class="n">target_accept</span><span class="o">=</span><span class="n">target_accept</span><span class="p">,</span>
+                                             <span class="n">progressbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">Rhat_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">v</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pm</span><span class="o">.</span><span class="n">diagnostics</span><span class="o">.</span><span class="n">gelman_rubin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
+                <span class="n">niter</span> <span class="o">+=</span> <span class="mi">1</span></div>
 
 
     <span class="k">def</span> <span class="nf">traceplot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
@@ -480,7 +492,7 @@
 
 <h3>Navigation</h3>
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="../../setup.html">Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../setup.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../usage.html">User Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../api.html">API</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>

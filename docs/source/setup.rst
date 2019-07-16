@@ -1,5 +1,18 @@
-Setup
-=====
+Installation
+============
+
+You can install PBjam using pip
+
+.. code-block:: console
+
+    $ pip install pbjam
+
+Or clone the GitHub repository
+
+.. code-block:: console
+
+    $ git clone https://github.com/grd349/PBjam.git
+
 
 Requirements
 ------------
@@ -14,20 +27,7 @@ Requirements
 - statsmodels v0.9.0
 - corner
 
-Installation
-------------
 
-Clone the GitHub repo with
-
-.. code-block:: console
-
-    $ git clone https://github.com/grd349/PBjam.git
-
-or with pip
-
-.. code-block:: console
-
-    $ pip install https://github.com/grd349/PBjam.git
 
 
 
