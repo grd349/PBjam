@@ -8,6 +8,9 @@ Currently, the mode identification is based on fitting the asymptotic relation t
 
 Modeling the modes, or 'peakbagging', is done using the HMC sampler from `pymc3 <https://docs.pymc.io/>`_, which fits a Lorentzian to each of the identified modes, with much fewer priors in place. This allows for a more accurate model of the spectrum of frequencies, than the heavily parameterized models like the asymptotic relation.
 
+
+Read the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
+
 .. inclusion_marker0
 
 
