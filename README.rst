@@ -6,9 +6,10 @@ PBjam is toolbox for modeling the oscillation spectra of solar-like stars. This 
 Currently, the mode identification is based on fitting the asymptotic relation to the l=2,0 pairs, relying on the cumulative sum of prior knowledge gained from NASA's Kepler mission to inform the fitting process. 
 
 Modeling the modes, or 'peakbagging', is done using the HMC sampler from `pymc3 <https://docs.pymc.io/>`_, which fits a Lorentzian to each of the identified modes, with much fewer priors in place. This allows for a more accurate model of the spectrum of frequencies, than the heavily parameterized models like the asymptotic relation.
+
 .. inclusion_marker0
 
-.. inclusion_marker1
+
 Contributing
 ============
 PBjam is open source and we welcome contributions, large or small. 

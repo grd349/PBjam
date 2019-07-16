@@ -11,7 +11,7 @@
    help
 
 .. include:: ../../README.rst
-    :start-after: inclusion_marker1
+    :start-after: inclusion_marker0
 
 Indices and tables
 ==================
