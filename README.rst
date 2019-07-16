@@ -1,6 +1,9 @@
 
-PBjam: peakbagging made easy
+PBjam
 ============================
+
+** Peakbagging made easy **
+
 .. image:: https://img.shields.io/badge/GitHub-PBjam-green.svg
     :target: https://github.com/grd349/PBjam
 .. image:: https://readthedocs.org/projects/pbjam/badge/?version=latest
