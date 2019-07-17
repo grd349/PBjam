@@ -43,14 +43,10 @@ the cadence to 'short' for main-sequence targets.
 """
 
 import lightkurve as lk
-from pbjam.asy_peakbag import asymptotic_fit
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import matplotlib.pyplot as plt
-from scipy.stats import gaussian_kde
-import os, glob, warnings, psutil, pickle
-from . import PACKAGEDIR
+import os, glob, warnings, psutil
 
 from pbjam.star import star
 
@@ -572,10 +568,9 @@ class session():
 
         elif ID:
             vardf = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                        bp_rp=bp_rp, eps=epsilon,
-                                        cadence=cadence, campaign=campaign,
-                                        sector=sector, month=month,
-                                        quarter=quarter)
+                                        bp_rp=bp_rp, cadence=cadence, 
+                                        campaign=campaign, sector=sector, 
+                                        month=month, quarter=quarter)
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
 
@@ -617,17 +612,10 @@ class session():
             Number of orders to include in the fits
 
         """
-        from tqdm import tqdm
 
-        #print_memusage(pre = f'Call do it all')
-
-        for idx, star in enumerate(self.stars):
+        for i, st in enumerate(self.stars):
             try:
-                print(star.ID)
-                print_memusage()
-                star(norders=norders, model_type=self.pb_model_type)
-                print_memusage()
-                self.stars[idx] = None
-                print_memusage()
+                st(norders=norders, model_type=self.pb_model_type)
+                self.stars[i] = None
             except:
                 warnings.warn(f'Failed on star {star.ID}')
