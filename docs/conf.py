@@ -51,6 +51,8 @@ extensions = [
     'sphinx.ext.napoleon',
 ]
 
+autodoc_mock_imports = ['pymc3']
+
 # Exclude build directory and Jupyter backup files:
 exclude_patterns = ['_build', '**.ipynb_checkpoints']
 
