@@ -473,49 +473,64 @@ class session():
     ID : string, int
         Target identifier, if custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
+
     numax : list
         List of the form [numax, numax_error], list of lists for multiple
         targets
+
     dnu : list
         List of the form [dnu, dnu_error], list of lists for multiple targets
+
     teff : list, optional
         List of the form [teff, teff_error], list of lists for multiple targets
+
     bp_rp : list, optional
         List of the form [bp_rp, bp_rp_error], list of lists for multiple
         targets
+
     timeseries : object, optional
         Timeseries input. Leave as None for PBjam to download it automatically.
         Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
         strings for pathnames are accepted.
+
     psd : object, optional
         Periodogram input. Leave as None for PBjam to use Timeseries to compute
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
+
     dictlike : pandas.DataFrame or dictionary, optional
         DataFrame, dictionary, record array with a list of targets, and their
         properties. If string, PBjam will assume it's a pathname to a csv file.
         Specify timeseries and psd columns with file pathnames to use manually
         reduced data.
+
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
+
     nthreads : int, optional
         Number of multiprocessing threads to use to perform the fit. For long
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
+
     use_cached : bool
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
+
     cadence : string
         Argument for lightkurve to download correct data type. Can be 'short'
         or 'long'. 'long' is default setting, so if you're looking at main
         sequence stars, make sure to manually set 'short'.
+
     month : int
         Argument for lightkurve when requesting Kepler short cadence data.
+
     quarter : int
         Argument for lightkurve when requesting Kepler data.
+
     campaign : int
         Argument for lightkurve when requesting K2 data.
+
     sector : int
         Argument for lightkurve when requesting TESS data.
 
@@ -525,9 +540,11 @@ class session():
         Number of multiprocessing threads to use to perform the fit. For long
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
+
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
+        
     stars : list
         Session will store star class instances in this list, based on the
         requested targets.
@@ -565,8 +582,8 @@ class session():
 
         elif ID:
             vardf = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                        bp_rp=bp_rp, cadence=cadence, 
-                                        campaign=campaign, sector=sector, 
+                                        bp_rp=bp_rp, cadence=cadence,
+                                        campaign=campaign, sector=sector,
                                         month=month, quarter=quarter)
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
