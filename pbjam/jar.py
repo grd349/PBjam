@@ -459,10 +459,10 @@ class session():
     --------
     Peakbagging run for a single target:
 
-    jam_sess = pbjam.session(ID =  '4448777',  numax = [220.0, 3.0],
+    >>> jam_sess = pbjam.session(ID =  '4448777',  numax = [220.0, 3.0],
                              dnu = [16.97, 0.01], teff = [4750, 100],
                              bp_rp = [1.34, 0.01], cadence = 'short')
-    jam_sess()
+    >>> jam_sess()
 
     Peakbagging run for multiple targets:
     jam_sess = pbjam.session(dictlike = mydataframe)

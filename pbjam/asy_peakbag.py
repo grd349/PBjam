@@ -385,12 +385,6 @@ class asymptotic_fit():
         Numpy array of tuples of mean and sigma for Gaussian
         priors on each of the fit parameters (To be removed when full
         KDE is implimented).
-
-        Note:['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
-        key: [log, log, lin, log, log, log, log, log, log, lin]
     """
 
     def __init__(self, f, snr, start_samples,
