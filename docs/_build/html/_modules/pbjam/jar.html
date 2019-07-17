@@ -1,0 +1,725 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>pbjam.jar &#8212; PBjam 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pbjam.jar</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot; Setup jam sessions and perform mode ID and peakbagging</span>
+
+<span class="sd">This jar contains the input layer for setting up jam sessions for peakbagging</span>
+<span class="sd">solar-like oscillators. This is the easiest way to handle targets in PBjam.</span>
+
+<span class="sd">It&#39;s possible to manually initiate star class instances and do all the fitting</span>
+<span class="sd">that way, but it&#39;s simpler to just use the session class, which handles</span>
+<span class="sd">everything, including formatting of the inputs.</span>
+
+<span class="sd">A jam session is started by initializing the session class instance with a</span>
+<span class="sd">target ID, numax, and a large separation. Additional parameters like the</span>
+<span class="sd">effective surface temperature of the star, are optional but help convergence.</span>
+
+<span class="sd">Lists of the above can be provided for multiple targets, but it&#39;s often simpler</span>
+<span class="sd">to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv</span>
+<span class="sd">for a template.</span>
+
+<span class="sd">Custom timeseries or periodogram can be provided as either file pathnames,</span>
+<span class="sd">numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If</span>
+<span class="sd">nothing is provided PBjam will download the data automatically.</span>
+
+<span class="sd">Specific quarters, campgains or sectors can be requested with the relevant</span>
+<span class="sd">keyword (i.e., &#39;quarter&#39; for KIC, etc.). If none of these are provided, PBjam</span>
+<span class="sd">will download all available data, picking the long cadence versions by default.</span>
+
+<span class="sd">Once initialized, the session class contains a list of star class instances</span>
+<span class="sd">for each requested target, with associated spectra for each.</span>
+
+<span class="sd">The next step is to perform a mode ID on the spectra. At the moment PBjam</span>
+<span class="sd">only supports use of the asymptotic relation mode ID method.</span>
+
+<span class="sd">Finally the peakbagging method takes the output from the modeID and performs</span>
+<span class="sd">a proper HMC peakbagging run.</span>
+
+<span class="sd">Plotting the results of each stage is also possible.</span>
+
+<span class="sd">Note</span>
+<span class="sd">----</span>
+<span class="sd">Target IDs must be resolvable by Lightkurve</span>
+
+<span class="sd">For automatic download the long cadence data set is used by default, so set</span>
+<span class="sd">the cadence to &#39;short&#39; for main-sequence targets.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">lightkurve</span> <span class="k">as</span> <span class="nn">lk</span>
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">units</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">import</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">warnings</span><span class="o">,</span> <span class="nn">psutil</span>
+
+<span class="kn">from</span> <span class="nn">pbjam.star</span> <span class="k">import</span> <span class="n">star</span>
+
+<div class="viewcode-block" id="organize_sess_dataframe"><a class="viewcode-back" href="../../jar.html#pbjam.jar.organize_sess_dataframe">[docs]</a><span class="k">def</span> <span class="nf">organize_sess_dataframe</span><span class="p">(</span><span class="n">vardf</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Takes input dataframe and organizes</span>
+
+<span class="sd">    Checks to see if required columns are present in the input dataframe,</span>
+<span class="sd">    and adds optional columns if they don&#39;t exists, containing None values.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vardf : Pandas.DataFrame</span>
+<span class="sd">        Input dataframe</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">,</span> <span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;numax_err&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu_err&#39;</span><span class="p">]</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">any</span><span class="p">(</span><span class="n">x</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">keys</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">vardf</span><span class="o">.</span><span class="n">keys</span><span class="p">()):</span>
+        <span class="k">raise</span><span class="p">(</span><span class="ne">KeyError</span><span class="p">,</span> <span class="s1">&#39;Some of the required keywords were missing.&#39;</span><span class="p">)</span>
+
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
+
+    <span class="n">singles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">,</span> <span class="s1">&#39;campaign&#39;</span><span class="p">,</span> <span class="s1">&#39;sector&#39;</span><span class="p">,</span> <span class="s1">&#39;month&#39;</span><span class="p">,</span> <span class="s1">&#39;quarter&#39;</span><span class="p">]</span>
+    <span class="n">doubles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp&#39;</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">singles</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">vardf</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">doubles</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">vardf</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="o">+</span><span class="s1">&#39;_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="s1">&#39;timeseries&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">vardf</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;timeseries&#39;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="s1">&#39;psd&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">vardf</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+        <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="organize_sess_input"><a class="viewcode-back" href="../../jar.html#pbjam.jar.organize_sess_input">[docs]</a><span class="k">def</span> <span class="nf">organize_sess_input</span><span class="p">(</span><span class="o">**</span><span class="n">vardct</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Takes input and organizes them in a dataframe</span>
+
+<span class="sd">    Checks to see if required inputs are present and inserts them into a</span>
+<span class="sd">    dataframe. Any optional columns that are not included in the input are</span>
+<span class="sd">    added as None columns.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vardct : objects</span>
+<span class="sd">        Variable inputs to Session class to be arranged into a dataframe</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    vardf : Pandas.DataFrame</span>
+<span class="sd">        Dataframe containing the inputs from Session class call.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;ID&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">vardct</span><span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()})</span>
+
+    <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
+    <span class="n">doubles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp&#39;</span><span class="p">]</span>
+    <span class="n">singles</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">,</span> <span class="s1">&#39;campaign&#39;</span><span class="p">,</span> <span class="s1">&#39;sector&#39;</span><span class="p">,</span> <span class="s1">&#39;month&#39;</span><span class="p">,</span> <span class="s1">&#39;quarter&#39;</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">singles</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">vardct</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">vardct</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">doubles</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">vardct</span><span class="p">[</span><span class="n">key</span><span class="p">]:</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="o">+</span><span class="s1">&#39;_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">vardct</span><span class="p">[</span><span class="n">key</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))[:,</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="o">+</span><span class="s1">&#39;_err&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">vardct</span><span class="p">[</span><span class="n">key</span><span class="p">])</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">))[:,</span> <span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">vardf</span></div>
+
+
+<div class="viewcode-block" id="query_mast"><a class="viewcode-back" href="../../jar.html#pbjam.jar.query_mast">[docs]</a><span class="k">def</span> <span class="nf">query_mast</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="n">lkwargs</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Search for target on MAST server</span>
+
+<span class="sd">    Get all the lightcurves available for a target id, using options in kwargs</span>
+<span class="sd">    dictionary.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    id : string</span>
+<span class="sd">        Target id, must be resolvable by LightKurve</span>
+<span class="sd">    lkwargs : dictionary containing keywords for the LightKurve search.</span>
+<span class="sd">        cadence, quarter, campaign, sector, month.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    search_results : list</span>
+<span class="sd">        List of fits files for the requested target</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">search_results</span> <span class="o">=</span> <span class="n">lk</span><span class="o">.</span><span class="n">search_lightcurvefile</span><span class="p">(</span><span class="n">target</span><span class="o">=</span><span class="nb">id</span><span class="p">,</span> <span class="o">**</span><span class="n">lkwargs</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">search_results</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;LightKurve did not return </span><span class="si">%s</span><span class="s1"> cadence data for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">],</span> <span class="nb">id</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">[]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">search_results</span><span class="o">.</span><span class="n">download_all</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="sort_lc"><a class="viewcode-back" href="../../jar.html#pbjam.jar.sort_lc">[docs]</a><span class="k">def</span> <span class="nf">sort_lc</span><span class="p">(</span><span class="n">lc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Sort a lightcurve in LightKurve object</span>
+
+<span class="sd">    LightKurve lightcurves are not necessarily sorted in time, which causes</span>
+<span class="sd">    an error in periodogram.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lc : LightKurve.LightCurve instance</span>
+<span class="sd">        LightKurve object to be modified</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    lc : LightKurve.LightCurve instance</span>
+<span class="sd">        The sorted LightKurve object</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">sidx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argsort</span><span class="p">(</span><span class="n">lc</span><span class="o">.</span><span class="n">time</span><span class="p">)</span>
+    <span class="n">lc</span><span class="o">.</span><span class="n">time</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">time</span><span class="p">[</span><span class="n">sidx</span><span class="p">]</span>
+    <span class="n">lc</span><span class="o">.</span><span class="n">flux</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">flux</span><span class="p">[</span><span class="n">sidx</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">lc</span></div>
+
+
+<div class="viewcode-block" id="clean_lc"><a class="viewcode-back" href="../../jar.html#pbjam.jar.clean_lc">[docs]</a><span class="k">def</span> <span class="nf">clean_lc</span><span class="p">(</span><span class="n">lc</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Perform LightKurve operations on object</span>
+
+<span class="sd">    Performes basic cleaning of a light curve, removing nans, outliers,</span>
+<span class="sd">    median filtering etc.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    lc : LightKurve.LightCurve instance</span>
+<span class="sd">        LightKurve object to be cleaned</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    lc : LightKurve.LightCurve instance</span>
+<span class="sd">        The cleaned LightKurve object</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">lc</span> <span class="o">=</span> <span class="n">lc</span><span class="o">.</span><span class="n">remove_nans</span><span class="p">()</span><span class="o">.</span><span class="n">normalize</span><span class="p">()</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span><span class="o">.</span><span class="n">remove_outliers</span><span class="p">()</span>
+    <span class="k">return</span> <span class="n">lc</span></div>
+
+
+<div class="viewcode-block" id="query_lightkurve"><a class="viewcode-back" href="../../jar.html#pbjam.jar.query_lightkurve">[docs]</a><span class="k">def</span> <span class="nf">query_lightkurve</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="n">lkwargs</span><span class="p">,</span> <span class="n">use_cached</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Check cache for fits file, or download it</span>
+
+<span class="sd">    Based on use_cached flag, will look in the cache for fits file</span>
+<span class="sd">    corresponding to request id star. If nothing is found in cached it will be</span>
+<span class="sd">    downloaded from the MAST server.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    id : string</span>
+<span class="sd">        Identifier for the requested star. Must be resolvable by LightKurve</span>
+<span class="sd">    lkwargs : dictionary containing keywords for the LightKurve search.</span>
+<span class="sd">        cadence, quarter, campaign, sector, month.</span>
+<span class="sd">    use_cached: bool</span>
+<span class="sd">        Whether or not to used data in the LightKurve cache.</span>
+
+<span class="sd">    Note:</span>
+<span class="sd">    -----</span>
+<span class="sd">    Prioritizes long cadence over short cadence unless otherwise specified.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">lk_cache</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">expanduser</span><span class="p">(</span><span class="s1">&#39;~&#39;</span><span class="p">),</span>
+                              <span class="s1">&#39;.lightkurve-cache&#39;</span><span class="p">,</span>
+                              <span class="s1">&#39;mastDownload/*/&#39;</span><span class="p">])</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">]:</span>
+        <span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;long&#39;</span>
+    <span class="k">if</span> <span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;short&#39;</span><span class="p">:</span>
+        <span class="n">tgtfiles</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">lk_cache</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;*{str(int(id))}*/*_slc.fits&#39;</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;long&#39;</span><span class="p">:</span>
+        <span class="n">tgtfiles</span> <span class="o">=</span> <span class="n">glob</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="n">lk_cache</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;*{str(int(id))}*/*_llc.fits&#39;</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s1">&#39;Unrecognized cadence input for </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="nb">id</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="p">(</span><span class="ow">not</span> <span class="n">use_cached</span><span class="p">)</span> <span class="ow">or</span> <span class="p">(</span><span class="n">use_cached</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tgtfiles</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">tgtfiles</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">)</span> <span class="ow">and</span> <span class="n">use_cached</span><span class="p">):</span>
+            <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Could not find </span><span class="si">%s</span><span class="s1"> cadence data for </span><span class="si">%s</span><span class="s1"> in cache, checking MAST...&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">],</span> <span class="nb">id</span><span class="p">))</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Querying MAST for </span><span class="si">{id}</span><span class="s1">&#39;</span><span class="p">)</span>
+        <span class="n">lc_col</span> <span class="o">=</span> <span class="n">query_mast</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="n">lkwargs</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">lc_col</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Could not find </span><span class="si">%s</span><span class="s2"> cadence data for </span><span class="si">%s</span><span class="s2"> in cache or on MAST&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">lkwargs</span><span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">],</span> <span class="nb">id</span><span class="p">))</span>
+
+    <span class="k">elif</span> <span class="p">(</span><span class="n">use_cached</span> <span class="ow">and</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">tgtfiles</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">)):</span>
+        <span class="n">lc_col</span> <span class="o">=</span> <span class="p">[</span><span class="n">lk</span><span class="o">.</span><span class="n">open</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="n">tgtfiles</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;Unhandled Exception&#39;</span><span class="p">)</span>
+    <span class="n">lc0</span> <span class="o">=</span> <span class="n">clean_lc</span><span class="p">(</span><span class="n">lc_col</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">PDCSAP_FLUX</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">lc</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">lc_col</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+        <span class="n">lc0</span> <span class="o">=</span> <span class="n">lc0</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">clean_lc</span><span class="p">(</span><span class="n">lc</span><span class="o">.</span><span class="n">PDCSAP_FLUX</span><span class="p">))</span>
+    <span class="k">return</span> <span class="n">lc0</span></div>
+
+
+<div class="viewcode-block" id="arr_to_lk"><a class="viewcode-back" href="../../jar.html#pbjam.jar.arr_to_lk">[docs]</a><span class="k">def</span> <span class="nf">arr_to_lk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">name</span><span class="p">,</span> <span class="n">typ</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; LightKurve object from input</span>
+
+<span class="sd">    Creates either a lightkurve.LightCurve or lightkurve.periodogram object</span>
+<span class="sd">    from the input arrays.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : list-like</span>
+<span class="sd">        First column of timeseries or periodogram (time/frequency).</span>
+<span class="sd">    y : list-like</span>
+<span class="sd">        Second column of timeseries or periodogram (flux/power).</span>
+<span class="sd">    name : string</span>
+<span class="sd">        Target ID</span>
+<span class="sd">    typ : string</span>
+<span class="sd">        Either timeseries or periodogram.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    lkobj : object</span>
+<span class="sd">        Either lightkurve.LightCurve or lightkurve.periodogram object</span>
+<span class="sd">        depending on typ.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">typ</span> <span class="o">==</span> <span class="s1">&#39;timeseries&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">lk</span><span class="o">.</span><span class="n">LightCurve</span><span class="p">(</span><span class="n">time</span><span class="o">=</span><span class="n">x</span><span class="p">,</span> <span class="n">flux</span><span class="o">=</span><span class="n">y</span><span class="p">,</span> <span class="n">targetid</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">typ</span> <span class="o">==</span> <span class="s1">&#39;psd&#39;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">lk</span><span class="o">.</span><span class="n">periodogram</span><span class="o">.</span><span class="n">Periodogram</span><span class="p">(</span><span class="n">x</span><span class="o">*</span><span class="n">units</span><span class="o">.</span><span class="n">microhertz</span><span class="p">,</span>
+                                          <span class="n">units</span><span class="o">.</span><span class="n">Quantity</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="kc">None</span><span class="p">),</span>
+                                          <span class="n">targetid</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Don&#39;t modify anything but psd and timeseries cols&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="format_col"><a class="viewcode-back" href="../../jar.html#pbjam.jar.format_col">[docs]</a><span class="k">def</span> <span class="nf">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">col</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Add timeseries or psd column to dataframe based on input</span>
+
+<span class="sd">    Based on the contents of col, will try to format col and add it as a column</span>
+<span class="sd">    to vardf with column name key. col can be many things, so the decision is</span>
+<span class="sd">    based mainly on the dimensionality of col.</span>
+
+<span class="sd">    If dim = 0, it&#39;s assumed that col is either None, or a string, (for the</span>
+<span class="sd">    latter it assumes there is then only one target).</span>
+
+<span class="sd">    If dim = 1, it&#39;s assumed that col is a list-like object, consisting of</span>
+<span class="sd">    either None or strings, these are passed along without modification.</span>
+
+<span class="sd">    If dim = 2, col is assumed to be either a time series or power spectrum</span>
+<span class="sd">    of shape (2,M), with time/frequency in 1st row and flux/power in the</span>
+<span class="sd">    second.</span>
+
+<span class="sd">    If dim = 3, it is assumed to be list of (2,M) arrays.</span>
+
+<span class="sd">    In both of the latter cases col is converted to LightKurve object(s).</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vardf : pandas.DataFrame instance</span>
+<span class="sd">        Pandas Dataframe instance to which either a timeseries or psd column</span>
+<span class="sd">        will be added.</span>
+<span class="sd">    col : object</span>
+<span class="sd">        Input from Session call, corresponding to key</span>
+<span class="sd">    key : name of column to add to H</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">N</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">vardf</span><span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="n">col</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+
+    <span class="c1"># If dim = 0, it&#39;s either none or a string</span>
+    <span class="k">if</span> <span class="n">col</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">col</span><span class="p">:</span>
+            <span class="c1"># If none, then multiply up to length of ID</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="kc">None</span><span class="p">]</span><span class="o">*</span><span class="n">N</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># If string, then single target</span>
+            <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+    <span class="c1"># If dim = 1, it&#39;s either a list of nones, strings or lightkurve objects</span>
+    <span class="k">elif</span> <span class="n">col</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">col</span>
+
+    <span class="c1"># if dim = 2, it&#39;s an array or tuple, with time and flux</span>
+    <span class="k">elif</span> <span class="n">col</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+        <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">arr_to_lk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">vardf</span><span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">])],</span> <span class="n">key</span><span class="p">)</span>
+
+    <span class="c1"># If dim = 3, it&#39;s a list of arrays or tuples</span>
+    <span class="k">elif</span> <span class="n">col</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="n">temp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">object</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="p">:],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">col</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="p">:],</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
+            <span class="n">temp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">temp</span><span class="p">,</span>
+                             <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">arr_to_lk</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;ID&#39;</span><span class="p">],</span> <span class="n">key</span><span class="p">)]))</span>
+        <span class="n">vardf</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">temp</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Unhandled exception&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="lc_to_lk"><a class="viewcode-back" href="../../jar.html#pbjam.jar.lc_to_lk">[docs]</a><span class="k">def</span> <span class="nf">lc_to_lk</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Convert time series column in dataframe to lk.LightCurve object</span>
+
+<span class="sd">    Goes through the timeseries column in the dataframe and tries to convert</span>
+<span class="sd">    it to a LightKurve.LightCurve object. If string, it&#39;s assumed to be a file</span>
+<span class="sd">    path name, if None, it will query the LightCurve cache locally or MAST if</span>
+<span class="sd">    nothing is found. Skips column entries which are already LightKurve objects</span>
+<span class="sd">    or if a psd for the star in question exists in the psd column.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vardf : pandas.DataFrame instance</span>
+<span class="sd">        Dataframe containing a &#39;timeseries&#39; column consisting of None, strings</span>
+<span class="sd">        or LightKurver.LightCurve objects.</span>
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">tinyoffset</span> <span class="o">=</span> <span class="mf">1e-20</span>  <span class="c1"># to avoid cases LC median = 0 (lk doesn&#39;t like it)</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="s1">&#39;timeseries&#39;</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="nb">id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">vardf</span><span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">]):</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">t</span><span class="p">,</span> <span class="n">d</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">genfromtxt</span><span class="p">(</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">],</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">d</span> <span class="o">+=</span> <span class="n">tinyoffset</span>
+            <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">arr_to_lk</span><span class="p">(</span><span class="n">t</span><span class="p">,</span> <span class="n">d</span><span class="p">,</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;ID&#39;</span><span class="p">],</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">]:</span>
+                <span class="k">pass</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">D</span> <span class="o">=</span> <span class="p">{</span><span class="n">x</span><span class="p">:</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">x</span><span class="p">]</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;cadence&#39;</span><span class="p">,</span> <span class="s1">&#39;month&#39;</span><span class="p">,</span> <span class="s1">&#39;sector&#39;</span><span class="p">,</span>
+                                              <span class="s1">&#39;campaign&#39;</span><span class="p">,</span> <span class="s1">&#39;quarter&#39;</span><span class="p">]}</span>
+                <span class="n">lk_lc</span> <span class="o">=</span> <span class="n">query_lightkurve</span><span class="p">(</span><span class="nb">id</span><span class="p">,</span> <span class="n">D</span><span class="p">,</span> <span class="n">use_cached</span><span class="p">)</span>
+                <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">lk_lc</span>
+        <span class="k">elif</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">==</span> <span class="n">lk</span><span class="o">.</span><span class="n">lightcurve</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t handle this type of time series object&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]:</span>
+            <span class="n">sort_lc</span><span class="p">(</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">])</span></div>
+
+
+<div class="viewcode-block" id="lk_to_pg"><a class="viewcode-back" href="../../jar.html#pbjam.jar.lk_to_pg">[docs]</a><span class="k">def</span> <span class="nf">lk_to_pg</span><span class="p">(</span><span class="n">vardf</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Convert psd column in dataframe to lk periodgram object list</span>
+
+<span class="sd">    Takes whatever is in the psd column of a dataframe and tries to turn it</span>
+<span class="sd">    into a LightKurve.periodogram object. If column entry is a string, it</span>
+<span class="sd">    assumes it&#39;s a path name, if None, it will try to take what&#39;s in the</span>
+<span class="sd">    timeseries column and compute periodogram based on that. If a periodogram</span>
+<span class="sd">    object is already present, it&#39;ll just flatten it (to be safe) and then</span>
+<span class="sd">    continue on.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    vardf : pandas.DataFrame instance</span>
+<span class="sd">        Dataframe containing a &#39;psd&#39; column consisting of None, strings or</span>
+<span class="sd">        LightKurver.periodogram objects.</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">key</span> <span class="o">=</span> <span class="s1">&#39;psd&#39;</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="nb">id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">vardf</span><span class="p">[</span><span class="s1">&#39;ID&#39;</span><span class="p">]):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">],</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="n">f</span><span class="p">,</span> <span class="n">s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">genfromtxt</span><span class="p">(</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">],</span> <span class="n">usecols</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span><span class="o">.</span><span class="n">T</span>
+            <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">arr_to_lk</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;ID&#39;</span><span class="p">],</span> <span class="n">key</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]:</span>
+            <span class="n">lk_lc</span> <span class="o">=</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;timeseries&#39;</span><span class="p">]</span>
+            <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">lk_lc</span><span class="o">.</span><span class="n">to_periodogram</span><span class="p">(</span><span class="n">freq_unit</span><span class="o">=</span><span class="n">units</span><span class="o">.</span><span class="n">microHertz</span><span class="p">,</span> <span class="n">normalization</span><span class="o">=</span><span class="s1">&#39;psd&#39;</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+
+        <span class="k">elif</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="vm">__module__</span> <span class="o">==</span> <span class="n">lk</span><span class="o">.</span><span class="n">periodogram</span><span class="o">.</span><span class="vm">__name__</span><span class="p">:</span>
+            <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;Can&#39;t handle this type of time series object&quot;</span><span class="p">)</span></div>
+
+
+<span class="k">def</span> <span class="nf">print_memusage</span><span class="p">(</span><span class="n">pre</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">,</span> <span class="n">post</span><span class="o">=</span><span class="s1">&#39;&#39;</span><span class="p">):</span>
+    <span class="n">process</span> <span class="o">=</span> <span class="n">psutil</span><span class="o">.</span><span class="n">Process</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">getpid</span><span class="p">())</span>
+    <span class="nb">print</span><span class="p">(</span><span class="n">pre</span><span class="p">,</span> <span class="n">process</span><span class="o">.</span><span class="n">memory_info</span><span class="p">()</span><span class="o">.</span><span class="n">rss</span> <span class="o">//</span> <span class="mi">1000</span><span class="p">,</span> <span class="s1">&#39;Kbytes&#39;</span><span class="p">,</span> <span class="n">post</span><span class="p">)</span>  <span class="c1"># in bytes</span>
+
+
+<div class="viewcode-block" id="session"><a class="viewcode-back" href="../../jar.html#pbjam.jar.session">[docs]</a><span class="k">class</span> <span class="nc">session</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Main class used to initiate peakbagging.</span>
+
+<span class="sd">    Use this class to initialize a star class instance for one or more targets.</span>
+
+<span class="sd">    Once initialized, calling this class instance will execute a complete</span>
+<span class="sd">    peakbagging run.</span>
+
+<span class="sd">    Data can be provided in multiple different ways, the simplest of which is</span>
+<span class="sd">    just to let PBjam query the MAST server. Otherwise arrays of</span>
+<span class="sd">    timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram,</span>
+<span class="sd">    or just path names as strings, is also possible.</span>
+
+<span class="sd">    The physical parameters, numax, dnu, teff, must each be provided at least</span>
+<span class="sd">    as a list of length 2 for each star. This should contain the parameter</span>
+<span class="sd">    value and it&#39;s error.</span>
+
+<span class="sd">    For multiple target all the above can be provided as lists, but the</span>
+<span class="sd">    easiest way is to simply provide a dataframe from csv file.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Peakbagging run for a single target:</span>
+
+<span class="sd">    &gt;&gt;&gt; jam_sess = pbjam.session(ID =  &#39;4448777&#39;,  numax = [220.0, 3.0],</span>
+<span class="sd">                             dnu = [16.97, 0.01], teff = [4750, 100],</span>
+<span class="sd">                             bp_rp = [1.34, 0.01], cadence = &#39;short&#39;)</span>
+<span class="sd">    &gt;&gt;&gt; jam_sess()</span>
+
+<span class="sd">    Peakbagging run for multiple targets:</span>
+<span class="sd">    jam_sess = pbjam.session(dictlike = mydataframe)</span>
+<span class="sd">    jam_sess()</span>
+
+<span class="sd">    By default, PBjam will download all the available data, favoring long</span>
+<span class="sd">    cadence. Cadence and specific observing seasons (quarter, month, campagin,</span>
+<span class="sd">    sector) can be specified for more detailed control.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ID : string, int</span>
+<span class="sd">        Target identifier, if custom timeseries/periodogram is provided, it</span>
+<span class="sd">        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)</span>
+<span class="sd">    numax : list</span>
+<span class="sd">        List of the form [numax, numax_error], list of lists for multiple</span>
+<span class="sd">        targets</span>
+<span class="sd">    dnu : list</span>
+<span class="sd">        List of the form [dnu, dnu_error], list of lists for multiple targets</span>
+<span class="sd">    teff : list, optional</span>
+<span class="sd">        List of the form [teff, teff_error], list of lists for multiple targets</span>
+<span class="sd">    bp_rp : list, optional</span>
+<span class="sd">        List of the form [bp_rp, bp_rp_error], list of lists for multiple</span>
+<span class="sd">        targets</span>
+<span class="sd">    timeseries : object, optional</span>
+<span class="sd">        Timeseries input. Leave as None for PBjam to download it automatically.</span>
+<span class="sd">        Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or</span>
+<span class="sd">        strings for pathnames are accepted.</span>
+<span class="sd">    psd : object, optional</span>
+<span class="sd">        Periodogram input. Leave as None for PBjam to use Timeseries to compute</span>
+<span class="sd">        it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram</span>
+<span class="sd">        objects, or strings for pathnames are accepted.</span>
+<span class="sd">    dictlike : pandas.DataFrame or dictionary, optional</span>
+<span class="sd">        DataFrame, dictionary, record array with a list of targets, and their</span>
+<span class="sd">        properties. If string, PBjam will assume it&#39;s a pathname to a csv file.</span>
+<span class="sd">        Specify timeseries and psd columns with file pathnames to use manually</span>
+<span class="sd">        reduced data.</span>
+<span class="sd">    store_chains : bool, optional</span>
+<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
+<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
+<span class="sd">    nthreads : int, optional</span>
+<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
+<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
+<span class="sd">        Untested on short cadence.</span>
+<span class="sd">    use_cached : bool</span>
+<span class="sd">        Flag for using cached data. If fitting the same targets multiple times,</span>
+<span class="sd">        use to this to not download the data every time.</span>
+<span class="sd">    cadence : string</span>
+<span class="sd">        Argument for lightkurve to download correct data type. Can be &#39;short&#39;</span>
+<span class="sd">        or &#39;long&#39;. &#39;long&#39; is default setting, so if you&#39;re looking at main</span>
+<span class="sd">        sequence stars, make sure to manually set &#39;short&#39;.</span>
+<span class="sd">    month : int</span>
+<span class="sd">        Argument for lightkurve when requesting Kepler short cadence data.</span>
+<span class="sd">    quarter : int</span>
+<span class="sd">        Argument for lightkurve when requesting Kepler data.</span>
+<span class="sd">    campaign : int</span>
+<span class="sd">        Argument for lightkurve when requesting K2 data.</span>
+<span class="sd">    sector : int</span>
+<span class="sd">        Argument for lightkurve when requesting TESS data.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nthreads : int, optional</span>
+<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
+<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
+<span class="sd">        Untested on short cadence.</span>
+<span class="sd">    store_chains : bool, optional</span>
+<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
+<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
+<span class="sd">    stars : list</span>
+<span class="sd">        Session will store star class instances in this list, based on the</span>
+<span class="sd">        requested targets.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">numax</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dnu</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bp_rp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">timeseries</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">psd</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">dictlike</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">cadence</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">campaign</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">month</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">quarter</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                 <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                 <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span> <span class="o">=</span> <span class="n">nthreads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span> <span class="o">=</span> <span class="n">store_chains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">stars</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pb_model_type</span> <span class="o">=</span> <span class="n">model_type</span>
+
+        <span class="c1">#print_memusage(pre = &#39;Session init start&#39;)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dictlike</span><span class="p">,</span> <span class="p">(</span><span class="nb">dict</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">recarray</span><span class="p">,</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dictlike</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">dictlike</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="n">vardf</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="o">.</span><span class="n">from_records</span><span class="p">(</span><span class="n">dictlike</span><span class="p">)</span>
+                <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()&#39;</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="nb">any</span><span class="p">([</span><span class="n">ID</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">]):</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Dictlike provided as input, ignoring other input fit parameters.&#39;</span><span class="p">)</span>
+
+            <span class="n">organize_sess_dataframe</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
+
+        <span class="k">elif</span> <span class="n">ID</span><span class="p">:</span>
+            <span class="n">vardf</span> <span class="o">=</span> <span class="n">organize_sess_input</span><span class="p">(</span><span class="n">ID</span><span class="o">=</span><span class="n">ID</span><span class="p">,</span> <span class="n">numax</span><span class="o">=</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="o">=</span><span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="n">teff</span><span class="p">,</span>
+                                        <span class="n">bp_rp</span><span class="o">=</span><span class="n">bp_rp</span><span class="p">,</span> <span class="n">cadence</span><span class="o">=</span><span class="n">cadence</span><span class="p">,</span> 
+                                        <span class="n">campaign</span><span class="o">=</span><span class="n">campaign</span><span class="p">,</span> <span class="n">sector</span><span class="o">=</span><span class="n">sector</span><span class="p">,</span> 
+                                        <span class="n">month</span><span class="o">=</span><span class="n">month</span><span class="p">,</span> <span class="n">quarter</span><span class="o">=</span><span class="n">quarter</span><span class="p">)</span>
+            <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">timeseries</span><span class="p">,</span> <span class="s1">&#39;timeseries&#39;</span><span class="p">)</span>
+            <span class="n">format_col</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">psd</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">)</span>
+
+        <span class="n">lc_to_lk</span><span class="p">(</span><span class="n">vardf</span><span class="p">,</span> <span class="n">use_cached</span><span class="o">=</span><span class="n">use_cached</span><span class="p">)</span>
+        <span class="n">lk_to_pg</span><span class="p">(</span><span class="n">vardf</span><span class="p">)</span>
+
+        <span class="c1">#print_memusage(pre = &#39;df setup&#39;)</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vardf</span><span class="p">)):</span>
+            <span class="c1">#print_memusage(pre = f&#39;Initializing star {i}&#39;)</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">star</span><span class="p">(</span><span class="n">ID</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;ID&#39;</span><span class="p">],</span>
+                                   <span class="n">periodogram</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="s1">&#39;psd&#39;</span><span class="p">],</span>
+                                   <span class="n">numax</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;numax_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">dnu</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;dnu_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">teff</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;teff&#39;</span><span class="p">,</span> <span class="s1">&#39;teff_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">bp_rp</span><span class="o">=</span><span class="n">vardf</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">[</span><span class="s1">&#39;bp_rp&#39;</span><span class="p">,</span> <span class="s1">&#39;bp_rp_err&#39;</span><span class="p">]]</span><span class="o">.</span><span class="n">values</span><span class="p">,</span>
+                                   <span class="n">store_chains</span><span class="o">=</span><span class="n">store_chains</span><span class="p">,</span>
+                                   <span class="n">nthreads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span><span class="p">,</span>
+                                   <span class="n">make_plots</span><span class="o">=</span><span class="n">make_plots</span><span class="p">,</span>
+                                   <span class="n">path</span><span class="o">=</span><span class="n">path</span><span class="p">))</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">st</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">st</span><span class="o">.</span><span class="n">numax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="n">st</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s2">&quot;Input numax is greater than Nyquist frequeny for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">st</span><span class="o">.</span><span class="n">ID</span><span class="p">))</span>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; The doitall script</span>
+
+<span class="sd">        Calling session will by default do asymptotic mode ID and peakbagging</span>
+<span class="sd">        for all stars in the session.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        step : string</span>
+<span class="sd">            Which step to perform. Can currently be &#39;asymptotic_modeid&#39; and</span>
+<span class="sd">            &#39;peakbag&#39;. asymptotic_modeid must be run before peakbag.</span>
+<span class="sd">        norders : int</span>
+<span class="sd">            Number of orders to include in the fits</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">st</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">st</span><span class="p">(</span><span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pb_model_type</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stars</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">except</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Failed on star </span><span class="si">{star.ID}</span><span class="s1">&#39;</span><span class="p">)</span></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">PBjam</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../setup.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../help.html">Help &amp; Contact</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Martin Nielsen.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

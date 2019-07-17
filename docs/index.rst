@@ -1,4 +1,4 @@
-.. include:: ../../README.rst
+.. include:: ../README.rst
     :end-before: inclusion_marker0
 
 .. toctree::
@@ -10,7 +10,7 @@
    license
    help
 
-.. include:: ../../README.rst
+.. include:: ../README.rst
     :start-after: inclusion_marker0
 
 Indices and tables
