@@ -7,5 +7,6 @@ emcee
 lightkurve
 astropy
 corner
+pymc3
 
 
