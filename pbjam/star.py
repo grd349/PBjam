@@ -89,7 +89,7 @@ class star():
             self.epsilon.plot(self.pg).savefig(self.bpath + os.sep + f'epsilon_{self.ID}.png')
             self.epsilon.plot_corner().savefig(self.bpath + os.sep + f'epsilon_corner_{self.ID}.png')
 
-    def run_asy_peakbag(self, norders=6, burnin=1000):
+    def run_asy_peakbag(self, norders=6, burnin=3000):
         self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
                                       self.teff, self.bp_rp,
                                       store_chains=self.store_chains,

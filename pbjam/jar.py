@@ -623,11 +623,7 @@ class session():
 
         for idx, star in enumerate(self.stars):
             try:
-                print(star.ID)
-                print_memusage()
                 star(norders=norders, model_type=self.pb_model_type)
-                print_memusage()
                 self.stars[idx] = None
-                print_memusage()
             except:
                 warnings.warn(f'Failed on star {star.ID}')

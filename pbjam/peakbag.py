@@ -390,7 +390,8 @@ class peakbag():
                                              cores=cores,
                                              init=self.init_sampler,
                                              target_accept=target_accept,
-                                             progressbar=True)
+                                             progressbar=True,
+                                             tolerance=0.05)
                 Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
                 niter += 1
 
