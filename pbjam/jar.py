@@ -106,7 +106,7 @@ def organize_sess_input(**vardct):
     vardf = pd.DataFrame({'ID': np.array(vardct['ID']).reshape((-1, 1)).flatten()})
 
     N = len(vardf)
-    doubles = ['numax', 'dnu', 'eps', 'teff', 'bp_rp']
+    doubles = ['numax', 'dnu', 'teff', 'bp_rp']
     singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
 
     for key in singles:
@@ -482,9 +482,6 @@ class session():
         List of the form [teff, teff_error], list of lists for multiple targets
     bp_rp : list, optional
         List of the form [bp_rp, bp_rp_error], list of lists for multiple
-        targets
-    epsilon : list, optional
-        List of the form [epsilon, epsilon_error], list of lists for multiple
         targets
     timeseries : object, optional
         Timeseries input. Leave as None for PBjam to download it automatically.
