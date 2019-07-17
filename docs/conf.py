@@ -48,7 +48,8 @@ extensions = [
     'sphinx.ext.ifconfig',
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
-    'sphinx.ext.napoleon',
+    'sphinx.ext.napoleon'
+    'nbsphinx',
 ]
 
 # This line is to ensure the readthedocs can compile Theano properly, the other packages in requirements.txt seem to work fine.
