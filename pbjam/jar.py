@@ -615,4 +615,4 @@ class session():
                 st(norders=norders, model_type=self.pb_model_type)
                 self.stars[i] = None
             except:
-                warnings.warn(f'Failed on star {star.ID}')
+                warnings.warn(f'Failed on star {st.ID}')
