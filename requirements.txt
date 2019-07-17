@@ -8,5 +8,5 @@ lightkurve
 astropy
 corner
 pymc3
-
+nbsphinx
 
