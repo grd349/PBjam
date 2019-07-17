@@ -51,6 +51,7 @@ extensions = [
     'sphinx.ext.napoleon',
 ]
 
+# This line is to ensure the readthedocs can compile Theano properly, the other packages in requirements.txt seem to work fine.
 autodoc_mock_imports = ['pymc3']
 
 # Exclude build directory and Jupyter backup files:
