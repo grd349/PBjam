@@ -1,8 +1,8 @@
-""" Fitting asymptotic relation to an SNR spectrum
+"""Fitting the asymptotic relation to an SNR spectrum
 
 This module fits the asymptotic relation to the p-modes in a frequency range
-around nu_max in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes
-are ignored.
+around nu_max, the central frequency of the seismic mode envelope,
+in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are ignored.
 """
 
 import numpy as np
