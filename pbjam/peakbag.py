@@ -5,6 +5,7 @@ import numpy as np
 import pymc3 as pm
 import matplotlib.pyplot as plt
 import warnings
+import astropy.convolution as conv
 
 class peakbag():
     """
@@ -250,7 +251,7 @@ class peakbag():
         """
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
-        dnu_fac = 0.1 # Prior on mode frequency has width 10% of Dnu.
+        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
         back_fac = 0.5 # Lognorrmal prior on back has std=0.5.
@@ -288,7 +289,7 @@ class peakbag():
         warnings.warn('This model is developmental - use carefully')
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
-        dnu_fac = 0.1 # Prior on mode frequency has width 10% of Dnu.
+        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
         back_fac = 0.5 # Lognorrmal prior on back has std=0.5.
         with self.pm_model:
@@ -335,10 +336,9 @@ class peakbag():
 
     def sample(self, model_type='simple',
                      tune=2000,
-                     target_accept=0.8,
                      cores=1,
                      maxiter=4,
-                     advi=True):
+                     advi=False):
         """
         Function to perform the sampling of a defined model.
 
@@ -358,19 +358,23 @@ class peakbag():
         """
         if model_type == 'simple':
             self.simple()
+            self.init_sampler = 'adapt_diag'
+            target_accept = 0.9
         elif model_type == 'model_gp':
             self.model_gp()
+            self.init_sampler = 'advi+adapt_diag'
+            target_accept = 0.99
         else:
             warnings.warn('Model not defined - using simple model')
             self.simple()
 
         if advi:
             with self.pm_model:
-                mean_field = pm.fit(n=100000, method='fullrank_advi',
+                mean_field = pm.fit(n=200000, method='fullrank_advi',
                                     start=self.start,
                                     callbacks=[pm.callbacks.CheckParametersConvergence(every=1000,
                                                                                        diff='absolute',
-                                                                                       tolerance=0.1)])
+                                                                                       tolerance=0.01)])
                 self.samples = mean_field.sample(1000)
 
         else:
@@ -382,9 +386,9 @@ class peakbag():
                     break
                 with self.pm_model:
                     self.samples = pm.sample(tune=tune * niter,
-                                             #start=self.start,
+                                             start=self.start,
                                              cores=cores,
-                                             init='adapt_diag',
+                                             init=self.init_sampler,
                                              target_accept=target_accept,
                                              progressbar=True)
                 Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
@@ -464,4 +468,31 @@ class peakbag():
             ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
         ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
         fig.tight_layout()
+        return fig
+
+    def plot_flat_fit(self, thin=10, alpha=0.2):
+        n = self.ladder_p.shape[0]
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(self.f, self.snr, 'k-', label='Data', alpha=0.2)
+        dnu = self.asy_result['summary'].loc['mean'].dnu
+        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
+        kernel = conv.Gaussian1DKernel(stddev=smoo)
+        smoothed = conv.convolve(self.snr, kernel)
+        ax.plot(self.f, smoothed, 'k-',
+                label='Smoothed', lw=3, alpha=0.6)
+        for i in range(n):
+            for j in range(0, len(self.samples), thin):
+                mod = self.model(self.samples['l0'][j],
+                                 self.samples['l2'][j],
+                                 self.samples['width0'][j],
+                                 self.samples['width2'][j],
+                                 self.samples['height0'][j],
+                                 self.samples['height2'][j],
+                                 self.samples['back'][j])
+                ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
+        ax.set_ylim([0, smoothed.max()*1.5])
+        ax.set_xlim([self.f.min(), self.f.max()])
+        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        ax.set_ylabel(r'SNR')
+        ax.legend(loc=1)
         return fig
