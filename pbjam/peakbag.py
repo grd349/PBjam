@@ -14,24 +14,22 @@ class peakbag():
     This class allows for simple manipulation of the data, the fitting of a
     pymc3 model to the data, and some plotting of results functionality.
 
-    Example useage:
-        # Star API interaction (recommended)
-        from pbjam import star
-        # ... define a star in the pbjam star class ...
-        star = pb.star(kic, pg,
-                   numax, dnu, teff, bp_rp,
-                   store_chains=True,
-                   nthreads=4)
-        star.run_epsilon()
-        star.run_asy_peakbag(norders=7)
-        star.run_peakbag()
+    Examples
+    --------
+    Star API interaction (recommended)
+    
+    >>> from pbjam import star
+    >>> star = pb.star(kic, pg, numax, dnu, teff, bp_rp, store_chains=True, nthreads=4)
+    >>> star.run_epsilon()
+    >>> star.run_asy_peakbag(norders=7)
+    >>> star.run_peakbag()
 
-    Example useage 2:
-        # lower level API interaction.
-        import PBjam
-        pbag = pbjam.peakbag(frequency, snr, asy_result)
-        pbag.sample(model_type='simple', cores=4)
-        pbag.plot_fit()
+    Lower level API interaction.
+    
+    >>> import PBjam
+    >>> pbag = pbjam.peakbag(frequency, snr, asy_result)
+    >>> pbag.sample(model_type='simple', cores=4)
+    >>> pbag.plot_fit()
 
     """
     def __init__(self, f, snr, asy_result, init=True):
@@ -114,7 +112,7 @@ class peakbag():
 
         The width of the rung is detemrined by d02, line width, and some
         parameters lw_fac and extra.  The basic calculation is the width is:
-            d02 + (lw_fac * line_width) + (extra * dnu)
+        d02 + (lw_fac * line_width) + (extra * dnu)
 
         Parameters
         ----------
@@ -125,6 +123,7 @@ class peakbag():
             The factor by which dnu is multiplied in order to contribute to
             the rung width.
         """
+        
         d02 = self.asy_result['summary'].loc['mean'].d02
         d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
         w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
