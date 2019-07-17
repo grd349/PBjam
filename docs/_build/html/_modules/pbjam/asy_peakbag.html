@@ -1,0 +1,1045 @@
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>pbjam.asy_peakbag &#8212; PBjam 0.0.1 documentation</title>
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    <script type="text/javascript" id="documentation_options" data-url_root="../../" src="../../_static/documentation_options.js"></script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for pbjam.asy_peakbag</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot; Fitting asymptotic relation to an SNR spectrum</span>
+
+<span class="sd">This module fits the asymptotic relation to the p-modes in a frequency range</span>
+<span class="sd">around nu_max in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes</span>
+<span class="sd">are ignored.</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">pbjam</span> <span class="k">as</span> <span class="nn">pb</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
+<span class="kn">from</span> <span class="nn">collections</span> <span class="k">import</span> <span class="n">OrderedDict</span>
+<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">PACKAGEDIR</span>
+<span class="kn">import</span> <span class="nn">scipy.stats</span> <span class="k">as</span> <span class="nn">scist</span>
+<span class="kn">import</span> <span class="nn">astropy.convolution</span> <span class="k">as</span> <span class="nn">conv</span>
+<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
+<span class="kn">import</span> <span class="nn">corner</span>
+
+<div class="viewcode-block" id="mad"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.mad">[docs]</a><span class="k">def</span> <span class="nf">mad</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">scale</span><span class="o">=</span><span class="mf">1.4826</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Compute median absolute deviation</span>
+
+<span class="sd">    Grabbed from Scipy version 1.3.0.</span>
+
+<span class="sd">    TODO - To be removed once PBjam works with Scipy v &gt; 1.2.0 and replaced</span>
+<span class="sd">    with scipy.stats.median_absolute_deviation.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    x : array</span>
+<span class="sd">        Array to compute the mad for.</span>
+<span class="sd">    axis : int</span>
+<span class="sd">        Axis to compute the mad over</span>
+<span class="sd">    scale : float</span>
+<span class="sd">        Scale factor for the MAD, 1.4826 to match standard deviation for</span>
+<span class="sd">        Gaussian.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    mad : float</span>
+<span class="sd">        The median absolute deviation(s) of the array</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">x</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">axis</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">med</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+        <span class="n">mabsdev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">med</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">med</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">apply_over_axes</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">axis</span><span class="p">)</span>
+        <span class="n">mabsdev</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">med</span><span class="p">),</span> <span class="n">axis</span><span class="o">=</span><span class="n">axis</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">scale</span> <span class="o">*</span> <span class="n">mabsdev</span></div>
+
+<div class="viewcode-block" id="get_nmax"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.get_nmax">[docs]</a><span class="k">def</span> <span class="nf">get_nmax</span><span class="p">(</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">eps</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute radial order at numax.</span>
+
+<span class="sd">    Compute the radial order at numax, which in this implimentation of the</span>
+<span class="sd">    asymptotic relation is not necessarily integer.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    numax : float</span>
+<span class="sd">        Frequency of maximum power of the p-mode envelope (muHz).</span>
+<span class="sd">    dnu : float</span>
+<span class="sd">        Large separation of l=0 modes (muHz).</span>
+<span class="sd">    eps : float</span>
+<span class="sd">        Epsilon phase term in asymptotic relation (muHz).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">        nmax : float</span>
+<span class="sd">            non-integer radial order of maximum power of the p-mode envelope</span>
+<span class="sd">    -------</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">return</span> <span class="n">numax</span> <span class="o">/</span> <span class="n">dnu</span> <span class="o">-</span> <span class="n">eps</span></div>
+
+<div class="viewcode-block" id="get_enns"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.get_enns">[docs]</a><span class="k">def</span> <span class="nf">get_enns</span><span class="p">(</span><span class="n">nmax</span><span class="p">,</span> <span class="n">norders</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Compute radial order numbers.</span>
+
+<span class="sd">    Get the enns that will be included in the asymptotic relation fit. These</span>
+<span class="sd">    are all integer.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nmax : float</span>
+<span class="sd">        Frequency of maximum power of the p-mode envelope</span>
+<span class="sd">    norders : int</span>
+<span class="sd">        Total number of radial orders to consider</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    enns : array</span>
+<span class="sd">            Numpy array of norders radial orders (integers) around numax (nmax).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">below</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">nmax</span> <span class="o">-</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">norders</span><span class="o">/</span><span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="n">above</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">floor</span><span class="p">(</span><span class="n">nmax</span> <span class="o">+</span> <span class="n">np</span><span class="o">.</span><span class="n">ceil</span><span class="p">(</span><span class="n">norders</span><span class="o">/</span><span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">type</span><span class="p">(</span><span class="n">below</span><span class="p">)</span> <span class="o">==</span> <span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">below</span><span class="p">,</span> <span class="n">above</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">below</span><span class="p">,</span> <span class="n">above</span><span class="p">)])</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">norders</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="asymptotic_relation"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymptotic_relation">[docs]</a><span class="k">def</span> <span class="nf">asymptotic_relation</span><span class="p">(</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">norders</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Compute the l=0 mode frequencies from the asymptotic relation for</span>
+<span class="sd">    p-modes</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    numax : float</span>
+<span class="sd">        Frequency of maximum power of the p-mode envelope (muHz).</span>
+<span class="sd">    dnu : float</span>
+<span class="sd">        Large separation of l=0 modes (muHz).</span>
+<span class="sd">    eps : float</span>
+<span class="sd">        Epsilon phase term in asymptotic relation (unitless).</span>
+<span class="sd">    alpha : float</span>
+<span class="sd">        Curvature factor of l=0 ridge (second order term, unitless).</span>
+<span class="sd">    norders : int</span>
+<span class="sd">        Number of desired radial orders to calculate frequncies for, centered</span>
+<span class="sd">        around numax.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    nu0s : array()</span>
+<span class="sd">        Array of l=0 mode frequencies from the asymptotic relation (muHz).</span>
+
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">nmax</span> <span class="o">=</span> <span class="n">get_nmax</span><span class="p">(</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">eps</span><span class="p">)</span>
+    <span class="n">enns</span> <span class="o">=</span> <span class="n">get_enns</span><span class="p">(</span><span class="n">nmax</span><span class="p">,</span> <span class="n">norders</span><span class="p">)</span>
+    <span class="k">return</span> <span class="p">(</span><span class="n">enns</span><span class="o">.</span><span class="n">T</span> <span class="o">+</span> <span class="n">eps</span> <span class="o">+</span> <span class="n">alpha</span><span class="o">/</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="n">enns</span><span class="o">.</span><span class="n">T</span> <span class="o">-</span> <span class="n">nmax</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">*</span> <span class="n">dnu</span></div>
+
+<div class="viewcode-block" id="P_envelope"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.P_envelope">[docs]</a><span class="k">def</span> <span class="nf">P_envelope</span><span class="p">(</span><span class="n">nu</span><span class="p">,</span> <span class="n">hmax</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">width</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Power of the p-mode envelope</span>
+
+<span class="sd">    Computes the power at frequency nu in the p-mode envelope from a Gaussian</span>
+<span class="sd">    distribution. Used for computing mode heights</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    nu : float</span>
+<span class="sd">        Frequency (muHz).</span>
+<span class="sd">    hmax : float</span>
+<span class="sd">        Height of p-mode envelope (SNR).</span>
+<span class="sd">    numax : float</span>
+<span class="sd">        Frequency of maximum power of the p-mode envelope (muHz).</span>
+<span class="sd">    width : float</span>
+<span class="sd">        Width of the p-mode envelope (muHz).</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    h : float</span>
+<span class="sd">        Power at frequency nu (SNR)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">hmax</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="n">hmax</span>
+    <span class="n">width</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="n">width</span>
+    <span class="k">return</span> <span class="n">hmax</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">nu</span> <span class="o">-</span> <span class="n">numax</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="n">width</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="get_summary_stats"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.get_summary_stats">[docs]</a><span class="k">def</span> <span class="nf">get_summary_stats</span><span class="p">(</span><span class="n">fit</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">pnames</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Make dataframe with fit summary statistics</span>
+
+<span class="sd">    Creates a dataframe that contains various quantities that summarize the</span>
+<span class="sd">    fit. Note, these are predominantly derived from the marginalized posteriors.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    fit : asy_peakbag.mcmc instance</span>
+<span class="sd">        asy_peakbag.mcmc that was used to fit the spectrum, containing the</span>
+<span class="sd">        log-likelihoods and MCMC chains.</span>
+<span class="sd">    model : the asymp_spec_model.model instance that defines the model used to</span>
+<span class="sd">        fit the spectrum.</span>
+<span class="sd">    pnames : list</span>
+<span class="sd">       List of names of each of the parameters in the fit.</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    summary : pandas.DataFrame</span>
+<span class="sd">        Dataframe with the summary statistics.</span>
+<span class="sd">    mle_model : 1d array</span>
+<span class="sd">        Numpy array with the model spectrum corresponding to the maximum</span>
+<span class="sd">        likelihood solution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">summary</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">()</span>
+    <span class="n">smry_stats</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span><span class="s1">&#39;mean&#39;</span><span class="p">,</span><span class="s1">&#39;std&#39;</span><span class="p">,</span> <span class="s1">&#39;skew&#39;</span><span class="p">,</span> <span class="s1">&#39;2nd&#39;</span><span class="p">,</span> <span class="s1">&#39;16th&#39;</span><span class="p">,</span> <span class="s1">&#39;50th&#39;</span><span class="p">,</span> <span class="s1">&#39;84th&#39;</span><span class="p">,</span>
+                  <span class="s1">&#39;97th&#39;</span><span class="p">,</span> <span class="s1">&#39;MAD&#39;</span><span class="p">]</span>
+    <span class="n">idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmax</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">flatlnlike</span><span class="p">)</span>
+    <span class="n">means</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">stds</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">std</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">skewness</span> <span class="o">=</span> <span class="n">scist</span><span class="o">.</span><span class="n">skew</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+    <span class="n">pars_percs</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">percentile</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">,</span> <span class="p">[</span><span class="mi">50</span><span class="o">-</span><span class="mf">95.4499736104</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>
+                                               <span class="mi">50</span><span class="o">-</span><span class="mf">68.2689492137</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>
+                                               <span class="mi">50</span><span class="p">,</span>
+                                               <span class="mi">50</span><span class="o">+</span><span class="mf">68.2689492137</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span>
+                                               <span class="mi">50</span><span class="o">+</span><span class="mf">95.4499736104</span><span class="o">/</span><span class="mi">2</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">mads</span> <span class="o">=</span>  <span class="n">mad</span><span class="p">(</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="n">mle</span> <span class="o">=</span> <span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">[</span><span class="n">idx</span><span class="p">,:]</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">par</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">pnames</span><span class="p">):</span>
+        <span class="n">z</span> <span class="o">=</span> <span class="p">[</span><span class="n">mle</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">means</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">stds</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">skewness</span><span class="p">[</span><span class="n">i</span><span class="p">],</span>  <span class="n">pars_percs</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span><span class="n">i</span><span class="p">],</span>
+             <span class="n">pars_percs</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span><span class="n">i</span><span class="p">],</span> <span class="n">pars_percs</span><span class="p">[</span><span class="mi">2</span><span class="p">,</span><span class="n">i</span><span class="p">],</span> <span class="n">pars_percs</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span><span class="n">i</span><span class="p">],</span>
+             <span class="n">pars_percs</span><span class="p">[</span><span class="mi">4</span><span class="p">,</span><span class="n">i</span><span class="p">],</span> <span class="n">mads</span><span class="p">[</span><span class="n">i</span><span class="p">]]</span>
+        <span class="n">A</span> <span class="o">=</span> <span class="p">{</span><span class="n">key</span><span class="p">:</span> <span class="n">z</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">smry_stats</span><span class="p">)}</span>
+        <span class="n">summary</span><span class="p">[</span><span class="n">par</span><span class="p">]</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">Series</span><span class="p">(</span><span class="n">A</span><span class="p">)</span>
+    <span class="n">mle_model</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">mle</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">summary</span><span class="p">,</span> <span class="n">mle_model</span></div>
+
+<span class="k">def</span> <span class="nf">envelope_width</span><span class="p">(</span><span class="n">numax</span><span class="p">):</span>
+    <span class="k">return</span> <span class="mf">0.66</span> <span class="o">*</span> <span class="n">numax</span> <span class="o">**</span> <span class="mf">0.88</span>
+
+<div class="viewcode-block" id="asymp_spec_model"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model">[docs]</a><span class="k">class</span> <span class="nc">asymp_spec_model</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Class for spectrum model using asymptotic relation</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ---------_</span>
+<span class="sd">    f : float, array</span>
+<span class="sd">        Array of frequency bins of the spectrum (muHz). Truncated to the range</span>
+<span class="sd">        around numax.</span>
+<span class="sd">    norders : int</span>
+<span class="sd">        Number of radial order to fit</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f : float, array</span>
+<span class="sd">        Array of frequency bins of the spectrum (muHz). Truncated to the range</span>
+<span class="sd">        around numax.</span>
+<span class="sd">    norders : int</span>
+<span class="sd">        Number of radial order to fit</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">norders</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">f</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">norders</span> <span class="o">=</span> <span class="n">norders</span>
+
+<div class="viewcode-block" id="asymp_spec_model.lor"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.lor">[docs]</a>    <span class="k">def</span> <span class="nf">lor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">freq</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Lorentzian to describe a mode.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        freq : float</span>
+<span class="sd">            Frequency of lorentzian (muHz)</span>
+<span class="sd">        h : float</span>
+<span class="sd">            Height of the lorentizan (SNR)</span>
+<span class="sd">        w : float</span>
+<span class="sd">            Full width of the lorentzian (log10(muHz))</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        mode : array</span>
+<span class="sd">            The SNR as a function frequency for a lorentzian</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">w</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">w</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">h</span> <span class="o">/</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="mf">4.0</span><span class="o">/</span><span class="n">w</span><span class="o">**</span><span class="mi">2</span><span class="o">*</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">-</span> <span class="n">freq</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="asymp_spec_model.pair"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.pair">[docs]</a>    <span class="k">def</span> <span class="nf">pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">freq0</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">d02</span><span class="p">,</span> <span class="n">hfac</span><span class="o">=</span><span class="mf">0.7</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Define a pair as the sum of two Lorentzians</span>
+
+<span class="sd">        A pair is assumed to consist of an l=0 and an l=2 mode. The widths are</span>
+<span class="sd">        assumed to be identical, and the height of the l=2 mode is scaled</span>
+<span class="sd">        relative to that of the l=0 mode. The frequency of the l=2 mode is the</span>
+<span class="sd">        l=0 frequency minus the small separation.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        freq0 : float</span>
+<span class="sd">            Frequency of the l=0 (muHz)</span>
+<span class="sd">        h : float</span>
+<span class="sd">            Height of the l=0 (SNR)</span>
+<span class="sd">        w : float</span>
+<span class="sd">            The mode width (identical for l=2 and l=0) (log10(muHz))</span>
+<span class="sd">        d02 : float</span>
+<span class="sd">            The small separation (muHz)</span>
+<span class="sd">        hfac : float, optional</span>
+<span class="sd">            Ratio of the l=2 height to that of l=0 (unitless)</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        pair_model : array</span>
+<span class="sd">            The SNR as a function of frequency of a mode pair.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">pair_model</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lor</span><span class="p">(</span><span class="n">freq0</span><span class="p">,</span> <span class="n">h</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
+        <span class="n">pair_model</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lor</span><span class="p">(</span><span class="n">freq0</span> <span class="o">-</span> <span class="n">d02</span><span class="p">,</span> <span class="n">h</span><span class="o">*</span><span class="n">hfac</span><span class="p">,</span> <span class="n">w</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">pair_model</span></div>
+
+<div class="viewcode-block" id="asymp_spec_model.model"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.model">[docs]</a>    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">d02</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="n">hmax</span><span class="p">,</span> <span class="n">envwidth</span><span class="p">,</span> <span class="n">modewidth</span><span class="p">,</span>
+              <span class="o">*</span><span class="n">args</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Constructs a spectrum model from the asymptotic relation</span>
+
+<span class="sd">        The asymptotic relation for p-modes with angular degree, l=0, is</span>
+<span class="sd">        defined as:</span>
+<span class="sd">        nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu,</span>
+
+<span class="sd">        where nmax = numax / dnu - eps.</span>
+
+<span class="sd">        We separate the l=0 and l=2 modes by d02.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        numax : float</span>
+<span class="sd">            Frequency of maximum power of the p-mode envelope (muHz)</span>
+<span class="sd">        dnu : float</span>
+<span class="sd">            Large separation (muHz)</span>
+<span class="sd">        eps : float</span>
+<span class="sd">            Phase term of the asymptotic relation (unitless)</span>
+<span class="sd">        alpha : float</span>
+<span class="sd">            Curvature of the asymptotic relation (unitless)</span>
+<span class="sd">        d02 : float</span>
+<span class="sd">            Small separation (muHz)</span>
+<span class="sd">        hmax : float</span>
+<span class="sd">            Gaussian height of p-mode envelope (SNR)</span>
+<span class="sd">        envwidth : float</span>
+<span class="sd">            Gaussian width of the p-mode envelope (muHz)</span>
+<span class="sd">        modewidth : float</span>
+<span class="sd">            Width of the modes (log10(muHz))</span>
+<span class="sd">        *args : array-like</span>
+<span class="sd">            List of additional parameters (Teff, bp_rp) that aren&#39;t actually</span>
+<span class="sd">            used to construct the spectrum model, but just for evaluating the</span>
+<span class="sd">            prior.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        model : array</span>
+<span class="sd">            spectrum model around the p-mode envelope</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">f0s</span> <span class="o">=</span> <span class="n">asymptotic_relation</span><span class="p">(</span><span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">eps</span><span class="p">,</span> <span class="n">alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">norders</span><span class="p">)</span>
+        <span class="n">Hs</span> <span class="o">=</span> <span class="n">P_envelope</span><span class="p">(</span><span class="n">f0s</span><span class="p">,</span> <span class="n">hmax</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">envwidth</span><span class="p">)</span>
+        <span class="n">mod</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">))</span>
+        <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">f0s</span><span class="p">)):</span>
+            <span class="n">mod</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pair</span><span class="p">(</span><span class="n">f0s</span><span class="p">[</span><span class="n">n</span><span class="p">],</span> <span class="n">Hs</span><span class="p">[</span><span class="n">n</span><span class="p">],</span> <span class="n">modewidth</span><span class="p">,</span> <span class="n">d02</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">mod</span></div>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Produce model of the asymptotic relation</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : list</span>
+<span class="sd">            list of model parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        model : array</span>
+<span class="sd">            spectrum model around the p-mode envelope</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="o">*</span><span class="n">p</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="asymptotic_fit"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit">[docs]</a><span class="k">class</span> <span class="nc">asymptotic_fit</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Class for fitting a spectrum based on the asymptotic relation</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    TODO - don&#39;t pass star pass attributes ... star : class instance</span>
+<span class="sd">        Star class instance to perform the fit on. This contains the required</span>
+<span class="sd">        attributes for the fit, f, s, numax, dnu, teff. All others are derived</span>
+<span class="sd">        from these, or can optionally be set.</span>
+<span class="sd">    teff :</span>
+<span class="sd">           TODO</span>
+<span class="sd">    bp_rp :</span>
+<span class="sd">        TODO</span>
+<span class="sd">    store_chains : bool, optional</span>
+<span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
+<span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
+<span class="sd">    nthreads : int, optional</span>
+<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
+<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
+<span class="sd">        Untested on short cadence.</span>
+<span class="sd">    norders : int, optional</span>
+<span class="sd">        Number of radial orders to fit</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f : array</span>
+<span class="sd">        Numpy array of frequency bins of the spectrum (muHz).</span>
+<span class="sd">    s : array</span>
+<span class="sd">        Numpy array of power in each frequency bin (SNR).</span>
+<span class="sd">    sel : array, bool</span>
+<span class="sd">        Numpy array of boolean values specifying the frequency range to be</span>
+<span class="sd">        considered in the asymptotic relation fit.</span>
+<span class="sd">    model : asy_peakbag.model.model instance</span>
+<span class="sd">        Function for computing a spectrum model given a set of parameters.</span>
+<span class="sd">    bounds : array</span>
+<span class="sd">        Numpy array of upper and lower boundaries for the asymptotic relation</span>
+<span class="sd">        fit. These limits truncate the likelihood function.</span>
+<span class="sd">    gaussian : array</span>
+<span class="sd">        Numpy array of tuples of mean and sigma for Gaussian</span>
+<span class="sd">        priors on each of the fit parameters (To be removed when full</span>
+<span class="sd">        KDE is implimented).</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">snr</span><span class="p">,</span> <span class="n">start_samples</span><span class="p">,</span>
+                 <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">,</span>
+                 <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">start_samples</span> <span class="o">=</span> <span class="n">start_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span> <span class="o">=</span> <span class="n">store_chains</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span> <span class="o">=</span> <span class="n">nthreads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">norders</span> <span class="o">=</span> <span class="n">norders</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">f</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">snr</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pars_names</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;eps&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;d02&#39;</span><span class="p">,</span> <span class="s1">&#39;alpha&#39;</span><span class="p">,</span> <span class="s1">&#39;env_height&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;env_width&#39;</span><span class="p">,</span> <span class="s1">&#39;mode_width&#39;</span><span class="p">,</span> <span class="s1">&#39;teff&#39;</span><span class="p">,</span>
+                           <span class="s1">&#39;bp_rp&#39;</span><span class="p">]</span>
+
+        <span class="n">summary</span> <span class="o">=</span> <span class="n">start_samples</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span><span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="p">[</span><span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">summary</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span> <span class="n">summary</span><span class="p">[</span><span class="mi">5</span><span class="p">],</span>
+                <span class="n">summary</span><span class="p">[</span><span class="mi">6</span><span class="p">],</span> <span class="n">summary</span><span class="p">[</span><span class="mi">7</span><span class="p">],</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">summary</span><span class="p">[</span><span class="mi">8</span><span class="p">]),</span>
+                <span class="n">summary</span><span class="p">[</span><span class="mi">9</span><span class="p">]]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
+
+        <span class="n">nmax</span> <span class="o">=</span> <span class="n">get_nmax</span><span class="p">(</span><span class="n">start</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">start</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+        <span class="n">lower_n</span> <span class="o">=</span> <span class="n">nmax</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">norders</span><span class="o">/</span><span class="mi">2</span> <span class="o">-</span> <span class="mf">1.25</span> <span class="o">+</span> <span class="n">start</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">upper_n</span> <span class="o">=</span> <span class="n">nmax</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">norders</span><span class="o">/</span><span class="mi">2</span> <span class="o">+</span> <span class="mf">0.25</span> <span class="o">+</span> <span class="n">start</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="n">lower_frequency</span> <span class="o">=</span> <span class="n">lower_n</span> <span class="o">*</span> <span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">upper_frequency</span> <span class="o">=</span> <span class="n">upper_n</span> <span class="o">*</span> <span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">((</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">&gt;</span> <span class="n">lower_frequency</span><span class="p">)</span> <span class="o">&amp;</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">&lt;</span> <span class="n">upper_frequency</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">asymp_spec_model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">norders</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_bounds</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">set_gaussian_pars</span><span class="p">(</span><span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lp</span> <span class="o">=</span> <span class="n">Prior</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">modeID</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">summary</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lnlike_fin</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lnprior_fin</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mle_model</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="asymptotic_fit.set_bounds"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.set_bounds">[docs]</a>    <span class="k">def</span> <span class="nf">set_bounds</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Set parameter bounds for asymptotic relation fit</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        start: arraylike</span>
+<span class="sd">            Note:[&#39;dnu&#39;, &#39;numax&#39;, &#39;eps&#39;,</span>
+<span class="sd">                         &#39;d02&#39;, &#39;alpha&#39;, &#39;env_height&#39;,</span>
+<span class="sd">                         &#39;env_width&#39;, &#39;mode_width&#39;, &#39;teff&#39;,</span>
+<span class="sd">                         &#39;bp_rp&#39;]</span>
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        bounds : array</span>
+<span class="sd">            Numpy array of upper and lower boundaries for the asymptotic relation</span>
+<span class="sd">            fit. These limits truncate the likelihood function.</span>
+
+<span class="sd">        [&#39;dnu&#39;, &#39;numax&#39;, &#39;eps&#39;,</span>
+<span class="sd">                     &#39;d02&#39;, &#39;alpha&#39;, &#39;env_height&#39;,</span>
+<span class="sd">                     &#39;env_width&#39;, &#39;mode_width&#39;, &#39;teff&#39;,</span>
+<span class="sd">                     &#39;bp_rp&#39;]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">bounds</span> <span class="o">=</span> <span class="p">[[</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="mf">0.9</span><span class="p">,</span> <span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">*</span><span class="mf">1.1</span><span class="p">],</span> <span class="c1">#dnu</span>
+                  <span class="p">[</span><span class="n">start</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="mf">0.9</span><span class="p">,</span> <span class="n">start</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">*</span><span class="mf">1.1</span><span class="p">],</span> <span class="c1"># numax</span>
+                  <span class="p">[</span><span class="mf">0.4</span> <span class="p">,</span> <span class="mf">1.6</span><span class="p">],</span>  <span class="c1">#eps</span>
+                  <span class="p">[</span><span class="mf">0.05</span><span class="o">*</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mf">0.25</span><span class="o">*</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]],</span>  <span class="c1"># d02</span>
+                  <span class="p">[</span><span class="mf">1e-20</span><span class="p">,</span> <span class="mf">0.1</span><span class="p">],</span>  <span class="c1"># alpha</span>
+                  <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">4</span><span class="p">],</span>  <span class="c1"># hmax (log10)</span>
+                  <span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="mi">6</span><span class="p">],</span>  <span class="c1"># Ewidth (log10)</span>
+                  <span class="p">[</span><span class="o">-</span><span class="mi">3</span><span class="p">,</span> <span class="mi">3</span><span class="p">],</span>  <span class="c1"># mode width (log10)</span>
+                  <span class="p">[</span><span class="n">start</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span> <span class="o">-</span> <span class="mi">2000</span><span class="p">,</span> <span class="n">start</span><span class="p">[</span><span class="mi">8</span><span class="p">]</span> <span class="o">+</span> <span class="mi">2000</span><span class="p">],</span> <span class="c1"># teff</span>
+                  <span class="p">[</span><span class="n">start</span><span class="p">[</span><span class="mi">9</span><span class="p">]</span> <span class="o">-</span> <span class="mf">1.0</span><span class="p">,</span> <span class="n">start</span><span class="p">[</span><span class="mi">9</span><span class="p">]</span> <span class="o">+</span> <span class="mf">1.0</span><span class="p">]</span>  <span class="c1"># Gaia bp-rp</span>
+                 <span class="p">]</span>
+        <span class="k">return</span> <span class="n">bounds</span></div>
+
+<div class="viewcode-block" id="asymptotic_fit.set_gaussian_pars"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.set_gaussian_pars">[docs]</a>    <span class="k">def</span> <span class="nf">set_gaussian_pars</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Parameters of the Gaussian priors</span>
+
+<span class="sd">        Used to define the mean and standard deviation of the Gaussian priors</span>
+<span class="sd">        on each of the parameters.</span>
+
+<span class="sd">        This will be deprecated in forthcoming versions of PBjam. To be</span>
+<span class="sd">        replaced by a full KDE on all fit parameters.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        gaussian : array</span>
+<span class="sd">            Numpy array of tuples of mean and sigma for Gaussian</span>
+<span class="sd">            priors on each of the fit parameters (To be removed when full</span>
+<span class="sd">            KDE is implimented).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">gaussian</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># dnu</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># numax</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># eps</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># d02</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># alpha</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># env_height</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># env_width</span>
+                    <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">),</span>  <span class="c1"># mode width (log10)</span>
+                    <span class="p">(</span><span class="n">teff</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">teff</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>  <span class="c1"># Teff</span>
+                    <span class="p">(</span><span class="n">bp_rp</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">bp_rp</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>  <span class="c1"># Gaia bp-rp</span>
+                    <span class="p">]</span>
+        <span class="k">return</span> <span class="n">gaussian</span></div>
+
+<div class="viewcode-block" id="asymptotic_fit.get_modeIDs"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.get_modeIDs">[docs]</a>    <span class="k">def</span> <span class="nf">get_modeIDs</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">fit</span><span class="p">,</span> <span class="n">N</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Set mode ID in a dataframe</span>
+
+<span class="sd">        Evaluates the asymptotic relation for each walker position from the</span>
+<span class="sd">        MCMC fit. The median values of the resulting set of frequencies are</span>
+<span class="sd">        then returned in a pandas.DataFrame</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        fit : asy_peakbag.mcmc class instance</span>
+<span class="sd">            mcmc class instances used in the fit</span>
+<span class="sd">        N : int</span>
+<span class="sd">            Number of radial orders to output. Note that doesn&#39;t have to be</span>
+<span class="sd">            the same as that used int he fit itself.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        modeID : pandas.DataFrame</span>
+<span class="sd">            Dataframe of radial order, n (best guess), angular degree, l,</span>
+<span class="sd">            frequency and frequency error.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># TODO - is there a better/neater way to do this?</span>
+
+        <span class="n">flatchain</span> <span class="o">=</span> <span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span>
+
+        <span class="n">nsamps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">flatchain</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">nu0_samps</span><span class="p">,</span> <span class="n">nu2_samps</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nsamps</span><span class="p">,</span> <span class="n">N</span><span class="p">)),</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="n">nsamps</span><span class="p">,</span> <span class="n">N</span><span class="p">))</span>
+
+        <span class="n">nu0_samps</span> <span class="o">=</span> <span class="n">asymptotic_relation</span><span class="p">(</span><span class="n">flatchain</span><span class="p">[:,</span> <span class="mi">1</span><span class="p">],</span> <span class="n">flatchain</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">],</span>
+                                        <span class="n">flatchain</span><span class="p">[:,</span> <span class="mi">2</span><span class="p">],</span> <span class="n">flatchain</span><span class="p">[:,</span> <span class="mi">4</span><span class="p">],</span> <span class="n">N</span><span class="p">)</span>
+        <span class="n">nu2_samps</span> <span class="o">=</span> <span class="n">nu0_samps</span> <span class="o">-</span> <span class="n">flatchain</span><span class="p">[:,</span> <span class="mi">3</span><span class="p">]</span>
+
+        <span class="n">nus_med</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">nu0_samps</span><span class="p">,</span> <span class="n">nu2_samps</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+        <span class="n">nus_mad</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">nu0_samps</span><span class="p">,</span> <span class="n">nu2_samps</span><span class="p">]),</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="c1">#nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)</span>
+
+        <span class="n">ells</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span> <span class="k">if</span> <span class="n">i</span> <span class="o">%</span> <span class="mi">2</span> <span class="k">else</span> <span class="mi">2</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">N</span><span class="p">)]</span>
+
+        <span class="n">nus_med_out</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">nus_mad_out</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">N</span><span class="p">):</span>
+            <span class="n">nus_med_out</span> <span class="o">+=</span> <span class="p">[</span><span class="n">nus_med</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">nus_med</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">]]</span>
+            <span class="n">nus_mad_out</span> <span class="o">+=</span> <span class="p">[</span><span class="n">nus_mad</span><span class="p">[</span><span class="mi">1</span><span class="p">,</span> <span class="n">i</span><span class="p">],</span> <span class="n">nus_mad</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">i</span><span class="p">]]</span>
+
+        <span class="n">modeID</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">({</span><span class="s1">&#39;ell&#39;</span><span class="p">:</span> <span class="n">ells</span><span class="p">,</span>
+                               <span class="s1">&#39;nu_med&#39;</span><span class="p">:</span> <span class="n">nus_med_out</span><span class="p">,</span>
+                               <span class="s1">&#39;nu_mad&#39;</span><span class="p">:</span> <span class="n">nus_mad_out</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">modeID</span></div>
+
+    <span class="k">def</span> <span class="nf">plot_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span><span class="mi">9</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Data&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        <span class="n">smoo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.005</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="n">conv</span><span class="o">.</span><span class="n">Gaussian1DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="n">smoo</span><span class="p">)</span>
+        <span class="n">smoothed</span> <span class="o">=</span> <span class="n">conv</span><span class="o">.</span><span class="n">convolve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="n">smoothed</span><span class="p">,</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Smoothed&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Start model&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.7</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">smoothed</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">*</span><span class="mf">1.5</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;Frequency ($\mu \rm Hz$)&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;SNR&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">fig</span>
+
+    <span class="k">def</span> <span class="nf">plot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">100</span><span class="p">):</span>
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span><span class="mi">9</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Data&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        <span class="n">smoo</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="mf">0.005</span> <span class="o">/</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+        <span class="n">kernel</span> <span class="o">=</span> <span class="n">conv</span><span class="o">.</span><span class="n">Gaussian1DKernel</span><span class="p">(</span><span class="n">stddev</span><span class="o">=</span><span class="n">smoo</span><span class="p">)</span>
+        <span class="n">smoothed</span> <span class="o">=</span> <span class="n">conv</span><span class="o">.</span><span class="n">convolve</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="n">kernel</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="n">smoothed</span><span class="p">,</span> <span class="s1">&#39;k-&#39;</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Smoothed&#39;</span><span class="p">,</span> <span class="n">lw</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.6</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span>
+                <span class="n">label</span><span class="o">=</span><span class="s1">&#39;Model&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="n">thin</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span><span class="p">),</span> <span class="n">thin</span><span class="p">):</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:]),</span> <span class="s1">&#39;r-&#39;</span><span class="p">,</span>
+                    <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">)</span>
+        <span class="n">freqs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">modeID</span><span class="p">[</span><span class="s1">&#39;nu_med&#39;</span><span class="p">]</span>
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">freqs</span><span class="p">:</span>
+            <span class="n">ax</span><span class="o">.</span><span class="n">axvline</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">linestyle</span><span class="o">=</span><span class="s1">&#39;--&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylim</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">smoothed</span><span class="o">.</span><span class="n">max</span><span class="p">()</span><span class="o">*</span><span class="mf">1.5</span><span class="p">])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">]</span><span class="o">.</span><span class="n">min</span><span class="p">(),</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">]</span><span class="o">.</span><span class="n">max</span><span class="p">()])</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;Frequency ($\mu \rm Hz$)&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;SNR&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="o">.</span><span class="n">legend</span><span class="p">(</span><span class="n">loc</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">fig</span>
+
+    <span class="k">def</span> <span class="nf">plot_corner</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">fig</span> <span class="o">=</span> <span class="n">corner</span><span class="o">.</span><span class="n">corner</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span><span class="p">,</span> <span class="n">labels</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pars_names</span><span class="p">,</span>
+                            <span class="n">quantiles</span><span class="o">=</span><span class="p">[</span><span class="mf">0.16</span><span class="p">,</span> <span class="mf">0.5</span><span class="p">,</span> <span class="mf">0.84</span><span class="p">],</span>
+                       <span class="n">show_titles</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">title_kwargs</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;fontsize&quot;</span><span class="p">:</span> <span class="mi">12</span><span class="p">})</span>
+        <span class="k">return</span> <span class="n">fig</span>
+
+<div class="viewcode-block" id="asymptotic_fit.run"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.run">[docs]</a>    <span class="k">def</span> <span class="nf">run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">burnin</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">niter</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Setup, run and parse the asymptotic relation fit using EMCEE</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        modeID : pandas.DataFrame</span>
+<span class="sd">            Dataframe of radial order, n (best guess), angular degree, l,</span>
+<span class="sd">            frequency and frequency error.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit</span> <span class="o">=</span> <span class="n">mcmc</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">sel</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span>
+                   <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">lp</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">burnin</span><span class="o">=</span><span class="n">burnin</span><span class="p">,</span> <span class="n">niter</span><span class="o">=</span><span class="n">niter</span><span class="p">)</span>  <span class="c1"># do the fit with default settings</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">modeID</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_modeIDs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">norders</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">mle_model</span> <span class="o">=</span> <span class="n">get_summary_stats</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pars_names</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">flatchain</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lnlike_fin</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">flatlnlike</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">chain</span><span class="p">[:,</span><span class="o">-</span><span class="mi">1</span><span class="p">,:]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lnlike_fin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">likelihood</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">chain</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,:])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">nwalkers</span><span class="p">)])</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">lnprior_fin</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">lp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">chain</span><span class="p">[</span><span class="n">i</span><span class="p">,</span><span class="o">-</span><span class="mi">1</span><span class="p">,:])</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">nwalkers</span><span class="p">)])</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fit</span><span class="o">.</span><span class="n">acceptance</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s1">&#39;modeID&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">modeID</span><span class="p">,</span> <span class="s1">&#39;summary&#39;</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">summary</span><span class="p">}</span></div></div>
+
+
+<div class="viewcode-block" id="Prior"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.Prior">[docs]</a><span class="k">class</span> <span class="nc">Prior</span><span class="p">(</span><span class="n">pb</span><span class="o">.</span><span class="n">epsilon</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Evaluate the proirs on the provided model parameters</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    bounds : array</span>
+<span class="sd">        Numpy array of upper and lower boundaries for the asymptotic relation</span>
+<span class="sd">        fit. These limits truncate the likelihood function.</span>
+<span class="sd">    gaussian : array</span>
+<span class="sd">        Numpy array of tuples of mean and sigma for Gaussian</span>
+<span class="sd">        priors on each of the fit parameters (To be removed when full</span>
+<span class="sd">        KDE is implimented)</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    data_file : str</span>
+<span class="sd">        Pathname to the file containing stellar parameters to make the KDE</span>
+<span class="sd">        prior.</span>
+<span class="sd">    prior_data : pandas.DataFrame instance</span>
+<span class="sd">        Dataframe with all the prior data. Read from prior_data.csv.</span>
+<span class="sd">    kde : sm.nonparametric.KDEMultivariate instance</span>
+<span class="sd">        KDE based on the prior data file.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">gaussian</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span> <span class="o">=</span> <span class="n">bounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span> <span class="o">=</span> <span class="n">gaussian</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">data_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">PACKAGEDIR</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_data.csv&#39;</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">read_prior_data</span><span class="p">()</span>  <span class="c1"># Inherited from epsilon</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_kde</span><span class="p">(</span><span class="n">bw_fac</span><span class="o">=</span><span class="mf">1.0</span><span class="p">)</span>  <span class="c1"># Inherited from epsilon</span>
+
+<div class="viewcode-block" id="Prior.pbound"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.Prior.pbound">[docs]</a>    <span class="k">def</span> <span class="nf">pbound</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39; Check if parameter set is out of bounds</span>
+
+<span class="sd">        Truncates posterior beyond the supplied bounds.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : array</span>
+<span class="sd">            Array containing model parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        prior : float or inf</span>
+<span class="sd">            If within bounds returns 0, -inf if not</span>
+<span class="sd">        &#39;&#39;&#39;</span>
+
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">):</span>
+                <span class="k">if</span> <span class="p">((</span><span class="n">i</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span> <span class="o">|</span> <span class="p">(</span><span class="n">i</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">])):</span>
+                    <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+        <span class="k">return</span> <span class="mi">0</span></div>
+
+<div class="viewcode-block" id="Prior.pgaussian"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.Prior.pgaussian">[docs]</a>    <span class="k">def</span> <span class="nf">pgaussian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Guassian priors</span>
+
+<span class="sd">        Function for setting Gaussian priors</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : array</span>
+<span class="sd">            Array containing mcmc proposals</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        lnprior : float</span>
+<span class="sd">            Sum of Guassian priors evaluted at respective values of p</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="n">lnprior</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">p</span><span class="p">):</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">lnprior</span> <span class="o">+=</span> <span class="o">-</span><span class="mf">0.5</span><span class="o">*</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span>
+                                 <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">0</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">gaussian</span><span class="p">[</span><span class="n">idx</span><span class="p">][</span><span class="mi">1</span><span class="p">]</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">lnprior</span></div>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Evaluate the priors for a set of parameters</span>
+
+<span class="sd">        The prior is estimated by a KDE of a set of previous Kepler</span>
+<span class="sd">        observations. This is truncated at some reasonable values to keep</span>
+<span class="sd">        the MCMC sampler in check.</span>
+
+<span class="sd">        Currently a Gaussian prior is added to some of the variables that are</span>
+<span class="sd">        not included in the current version of the KDE. In future the KDE will</span>
+<span class="sd">        be extended to include all the fit variables.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : array</span>
+<span class="sd">            Array of model parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        lp : float</span>
+<span class="sd">            The prior at p</span>
+
+<span class="sd">        [&#39;dnu&#39;, &#39;numax&#39;, &#39;eps&#39;,</span>
+<span class="sd">                     &#39;d02&#39;, &#39;alpha&#39;, &#39;env_height&#39;,</span>
+<span class="sd">                     &#39;env_width&#39;, &#39;mode_width&#39;, &#39;teff&#39;,</span>
+<span class="sd">                     &#39;bp_rp&#39;]</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">pbound</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">==</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+
+        <span class="n">lp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">kde</span><span class="o">.</span><span class="n">pdf</span><span class="p">([</span><span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span> <span class="n">p</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+                                  <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">3</span><span class="p">]),</span> <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">4</span><span class="p">]),</span>
+                                  <span class="n">p</span><span class="p">[</span><span class="mi">5</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="mi">6</span><span class="p">],</span> <span class="n">p</span><span class="p">[</span><span class="mi">7</span><span class="p">],</span>
+                                  <span class="n">np</span><span class="o">.</span><span class="n">log10</span><span class="p">(</span><span class="n">p</span><span class="p">[</span><span class="mi">8</span><span class="p">]),</span> <span class="n">p</span><span class="p">[</span><span class="mi">9</span><span class="p">]]))</span>
+        <span class="n">lp</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pgaussian</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">lp</span></div>
+
+<div class="viewcode-block" id="mcmc"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.mcmc">[docs]</a><span class="k">class</span> <span class="nc">mcmc</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot; Class for MCMC sampling</span>
+
+<span class="sd">    Use EMCEE to fit a provided model to a spectrum.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    f : float, array</span>
+<span class="sd">        Array of frequency bins of the spectrum (muHz)</span>
+<span class="sd">    s : array</span>
+<span class="sd">        The power at frequencies f</span>
+<span class="sd">    model : asy_peakbag.model.model instance</span>
+<span class="sd">        Function for computing a spectrum model given a set of parameters.</span>
+<span class="sd">    pars_names : list</span>
+<span class="sd">        List of parameter names in the asymptotic fit</span>
+<span class="sd">    guess : dictionary</span>
+<span class="sd">        Dictionary for organizing the initial guess for the asymptotic fir</span>
+<span class="sd">        parameters.</span>
+<span class="sd">    bounds : array</span>
+<span class="sd">        Numpy array of upper and lower boundaries for the asymptotic relation</span>
+<span class="sd">        fit. These limits truncate the likelihood function.</span>
+<span class="sd">    gaussian : array</span>
+<span class="sd">        Numpy array of tuples of mean and sigma for Gaussian</span>
+<span class="sd">        priors on each of the fit parameters (To be removed when full</span>
+<span class="sd">        KDE is implimented)</span>
+<span class="sd">    nthreads : int, optional</span>
+<span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
+<span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
+
+<span class="sd">    Attributes</span>
+<span class="sd">    ----------</span>
+<span class="sd">    ndim : int</span>
+<span class="sd">        Number of fit variables</span>
+<span class="sd">    lp : Prior class instance</span>
+<span class="sd">        Prior class initialized using model parameter limits, Gaussian</span>
+<span class="sd">        paramaters, and the KDE</span>
+<span class="sd">    burnin : int</span>
+<span class="sd">        Number of steps to take as the burn-in phase. These are discarded at</span>
+<span class="sd">        the end of the MCMC run.</span>
+<span class="sd">    niter : int</span>
+<span class="sd">        Number of steps to take after the burn-in phase. These will be tested</span>
+<span class="sd">        for convergence. Once the test is satisfied these steps will will be</span>
+<span class="sd">        assumed to be samples of the posterior distribution.</span>
+<span class="sd">    nwalkers : int</span>
+<span class="sd">        Number of walkers to use in the MCMC fit</span>
+<span class="sd">    prior_only : bool</span>
+<span class="sd">        Flag for whether or not to just sample the prior, or to sample both</span>
+<span class="sd">        sum of the prior and likelihood function. Use to draw initial positions</span>
+<span class="sd">        for the walkers.</span>
+<span class="sd">    chain : array</span>
+<span class="sd">        Numpy array of shape (niter, nwalkers, ndim) with all the MCMC samples</span>
+<span class="sd">        drawn after the burn-in phase.</span>
+<span class="sd">    flatchain : array</span>
+<span class="sd">        A flattened version of the chain array of shape (niter*nwalkers, ndim).</span>
+<span class="sd">    lnlike : array</span>
+<span class="sd">        Numpy array of shape (niter, nwalkers) of the likelihood at each step</span>
+<span class="sd">        of each walker.</span>
+<span class="sd">    flatlnlike : array</span>
+<span class="sd">        A flattened version of the lnlike array of shape (niter*walkers)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">s</span><span class="p">,</span> <span class="n">model</span><span class="p">,</span> <span class="n">start</span><span class="p">,</span> <span class="n">lp</span><span class="p">,</span>
+                 <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">f</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">s</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">model</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="n">start</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span> <span class="o">=</span> <span class="n">nthreads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">start</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lp</span> <span class="o">=</span> <span class="n">lp</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">niter</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nwalkers</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">burnin</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_only</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">chain</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lnlike</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flatlnlike</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="mcmc.likelihood"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.mcmc.likelihood">[docs]</a>    <span class="k">def</span> <span class="nf">likelihood</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">p</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Likelihood function for set of model parameters</span>
+
+<span class="sd">        Evaluates the likelihood function and applies any priors for a set of</span>
+<span class="sd">        model parameters.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        p : array</span>
+<span class="sd">            Array of model parameters</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        like : float</span>
+<span class="sd">            likelihood function at p</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">logp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lp</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">logp</span> <span class="o">==</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">:</span>
+            <span class="k">return</span> <span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span>
+
+        <span class="n">mod</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">p</span><span class="p">)</span>
+        <span class="n">like</span> <span class="o">=</span> <span class="o">-</span><span class="mf">1.0</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">mod</span><span class="p">)</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">/</span> <span class="n">mod</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">like</span> <span class="o">+</span> <span class="n">logp</span></div>
+
+<div class="viewcode-block" id="mcmc.convergence_test"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.mcmc.convergence_test">[docs]</a>    <span class="k">def</span> <span class="nf">convergence_test</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; TBD</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="kc">True</span></div>
+
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">niter</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">nwalkers</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span> <span class="n">burnin</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span> <span class="n">spread</span><span class="o">=</span><span class="mf">1e-4</span><span class="p">,</span>
+                 <span class="n">prior_only</span> <span class="o">=</span> <span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Initialize and run the EMCEE afine invariant sampler</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        niter : int</span>
+<span class="sd">            Number of steps for the walkers to take (both burn-in and</span>
+<span class="sd">            sampling).</span>
+<span class="sd">        nwalkers : int</span>
+<span class="sd">            Number of walkers to use in the EMCEE run.</span>
+<span class="sd">        spread : float</span>
+<span class="sd">            Percent spread around the intial position of the walkers. Small</span>
+<span class="sd">            value starts the walkers in a tight ball, large value fills out</span>
+<span class="sd">            the range set by parameter bounds.</span>
+
+<span class="sd">        Returns</span>
+<span class="sd">        -------</span>
+<span class="sd">        sampler.flatchain : array</span>
+<span class="sd">            The chain of (nwalkers, niter, ndim) flattened to</span>
+<span class="sd">            (nwalkers*niter, ndim).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="c1"># Save these for later</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">niter</span> <span class="o">=</span> <span class="n">niter</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">nwalkers</span> <span class="o">=</span> <span class="n">nwalkers</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">burnin</span> <span class="o">=</span> <span class="n">burnin</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">prior_only</span> <span class="o">=</span> <span class="kc">True</span>
+
+        <span class="kn">import</span> <span class="nn">emcee</span>
+
+        <span class="c1"># Start walkers in a tight random ball</span>
+        <span class="n">p0</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">+</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)</span> <span class="o">*</span> <span class="n">spread</span><span class="p">)</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nwalkers</span><span class="p">)])</span>
+
+        <span class="n">sampler</span> <span class="o">=</span> <span class="n">emcee</span><span class="o">.</span><span class="n">EnsembleSampler</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">nwalkers</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">,</span>
+                                        <span class="bp">self</span><span class="o">.</span><span class="n">likelihood</span><span class="p">,</span> <span class="n">threads</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span><span class="p">)</span>
+        <span class="n">pos</span><span class="p">,</span> <span class="n">prob</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">run_mcmc</span><span class="p">(</span><span class="n">p0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">burnin</span><span class="p">)</span> <span class="c1"># Burningham</span>
+        <span class="n">pos</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">fold</span><span class="p">(</span><span class="n">sampler</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">spread</span><span class="p">)</span>
+        <span class="n">sampler</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>
+
+        <span class="n">converged</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">while</span> <span class="ow">not</span> <span class="n">converged</span><span class="p">:</span>
+            <span class="n">pos</span><span class="p">,</span> <span class="n">prob</span><span class="p">,</span> <span class="n">state</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">run_mcmc</span><span class="p">(</span><span class="n">pos</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">niter</span><span class="p">)</span> <span class="c1"># Sampling</span>
+            <span class="n">converged</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">convergence_test</span><span class="p">()</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">chain</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">chain</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flatchain</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">flatchain</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">lnlike</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">lnprobability</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">flatlnlike</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">flatlnprobability</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">acceptance</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">acceptance_fraction</span>
+
+        <span class="n">sampler</span><span class="o">.</span><span class="n">reset</span><span class="p">()</span>  <span class="c1"># This hopefully minimizes emcee memory leak</span>
+
+
+<div class="viewcode-block" id="mcmc.fold"><a class="viewcode-back" href="../../asy_peakbag.html#pbjam.asy_peakbag.mcmc.fold">[docs]</a>    <span class="k">def</span> <span class="nf">fold</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">sampler</span><span class="p">,</span> <span class="n">pos</span><span class="p">,</span> <span class="n">spread</span><span class="p">,</span> <span class="n">accept_lim</span> <span class="o">=</span> <span class="mf">0.2</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Fold low acceptance walkers into main distribution</span>
+
+<span class="sd">        At the end of the burn-in, some walkers appear stuck with low</span>
+<span class="sd">        acceptance fraction. These can be selected using a threshold, and</span>
+<span class="sd">        folded back into the main distribution, estimated based on the median</span>
+<span class="sd">        of the walkers with an acceptance fraction above the threshold.</span>
+
+<span class="sd">        The stuck walkers are relocated with multivariate Gaussian, with mean</span>
+<span class="sd">        equal to the median of the high acceptancew walkers, and a standard</span>
+<span class="sd">        deviation equal to the median absolute deviation of these, with a</span>
+<span class="sd">        small scaling factor.</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        sampler : emcee sampler object</span>
+<span class="sd">            The sampler used in the fit</span>
+<span class="sd">        pos : array</span>
+<span class="sd">            The final position of the walkers after the burn-in phase</span>
+<span class="sd">        spread : float</span>
+<span class="sd">            The factor to apply to the walkers that are adjusted</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">idx</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">acceptance_fraction</span> <span class="o">&lt;</span> <span class="n">accept_lim</span>
+        <span class="n">nbad</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">shape</span><span class="p">(</span><span class="n">pos</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">nbad</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">flatchains</span> <span class="o">=</span> <span class="n">sampler</span><span class="o">.</span><span class="n">chain</span><span class="p">[</span><span class="o">~</span><span class="n">idx</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span><span class="o">.</span><span class="n">reshape</span><span class="p">((</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">))</span>
+            <span class="n">good_med</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">median</span><span class="p">(</span><span class="n">flatchains</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">good_mad</span> <span class="o">=</span> <span class="n">mad</span><span class="p">(</span><span class="n">flatchains</span><span class="p">,</span> <span class="n">axis</span> <span class="o">=</span> <span class="mi">0</span><span class="p">)</span> <span class="o">*</span> <span class="n">spread</span>
+            <span class="n">pos</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([[</span><span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">uniform</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lp</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">good_med</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">-</span><span class="n">good_mad</span><span class="p">[</span><span class="n">j</span><span class="p">]),</span>
+                                                       <span class="nb">min</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">lp</span><span class="o">.</span><span class="n">bounds</span><span class="p">[</span><span class="n">j</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">good_med</span><span class="p">[</span><span class="n">j</span><span class="p">]</span><span class="o">+</span><span class="n">good_mad</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+                                                       <span class="p">)</span> <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ndim</span><span class="p">)]</span> <span class="k">for</span> <span class="n">n</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">nbad</span><span class="p">)])</span>
+        <span class="k">return</span> <span class="n">pos</span></div></div>
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">PBjam</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../setup.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../usage.html">User Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../license.html">License</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../help.html">Help &amp; Contact</a></li>
+</ul>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    </div>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2019, Martin Nielsen.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.8.2</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
