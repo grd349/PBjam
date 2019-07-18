@@ -19,33 +19,47 @@ class star():
     Parameters
     ----------
     ID : string, int
-        Target identifier, if custom timeseries/periodogram is provided, it
-        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
-    f : float, array
-        Array of frequency bins of the spectrum (muHz)
-    s : array
-        The power at frequencies f
+        Target identifier. If custom timeseries/periodogram is provided, it
+        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.).
+
+    periodogram : lightkurve.periodogram.Periodogram object
+        A lightkurve periodogram object containing frequencies in units of
+        microhertz and power (in arbitrary units).
+
     numax : list
-        List of the form [numax, numax_error], list of lists for multiple
-        targets
+        List of the form [numax, numax_error]. For multiple targets, use a list
+        of lists.
+
     dnu : list
-        List of the form [dnu, dnu_error], list of lists for multiple targets
+        List of the form [dnu, dnu_error]. For multiple targets, use a list
+        of lists.
+
     teff : list, optional
-        List of the form [teff, teff_error], list of lists for multiple targets
+        List of the form [teff, teff_error]. For multiple targets, use a list
+        of lists.
+
     bp_rp : list, optional
-        List of the form [bp_rp, bp_rp_error], list of lists for multiple
-        targets
+        List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
+        of lists.
+
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
+
     nthreads : int, optional
         Number of multiprocessing threads to use to perform the fit. For long
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
 
-    Attributes
-    ----------
-    TODO
+    make_plots : bool, optional
+        If True, will save figures when calling methods in `star`.
+
+    path : str, optional
+        The path at which to store output. If no path is set but make_plots is
+        True, output will be saved in the current working directory.
+
+    verbose : bool, optional
+        If True, will show error messages on the users terminal if they occur.
     """
 
     def __init__(self, ID, periodogram,
@@ -79,6 +93,9 @@ class star():
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
 
     def run_epsilon(self, bw_fac=1.0):
+        """
+        TODO
+        """
         self.epsilon = epsilon()
         self.epsilon_result = self.epsilon(dnu=self.dnu,
                                            numax=self.numax,
@@ -103,6 +120,9 @@ class star():
 
 
     def run_peakbag(self, model_type='simple', tune=1500):
+        """
+        TODO
+        """
         self.peakbag = peakbag(self.f, self.s, self.asy_result)
         self.peakbag.sample(model_type=model_type, tune=tune,
                             cores=self.nthreads)
@@ -115,7 +135,7 @@ class star():
 
     def __call__(self, bw_fac=1.0, norders=8,
                  model_type='simple', tune=1500):
-        ''' TODO '''
+        """ Instead of a _call_ we should just make this a function maybe? """
         self.run_epsilon(bw_fac=bw_fac)
         self.run_asy_peakbag(norders=norders)
         self.run_peakbag(model_type=model_type, tune=tune)

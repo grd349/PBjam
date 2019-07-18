@@ -1,8 +1,8 @@
-""" Fitting asymptotic relation to an SNR spectrum
+"""Fitting the asymptotic relation to an SNR spectrum
 
 This module fits the asymptotic relation to the p-modes in a frequency range
-around nu_max in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes
-are ignored.
+around nu_max, the central frequency of the seismic mode envelope,
+in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are ignored.
 """
 
 import numpy as np
@@ -26,7 +26,7 @@ def mad(x, axis=0, scale=1.4826):
 
     Parameters
     ----------
-    x : array
+    x : ndarray
         Array to compute the mad for.
     axis : int
         Axis to compute the mad over
@@ -65,9 +65,9 @@ def get_nmax(numax, dnu, eps):
         Epsilon phase term in asymptotic relation (muHz).
 
     Returns
+    -------
         nmax : float
             non-integer radial order of maximum power of the p-mode envelope
-    -------
     """
 
     return numax / dnu - eps
@@ -87,7 +87,7 @@ def get_enns(nmax, norders):
 
     Returns
     -------
-    enns : array
+    enns : ndarray
             Numpy array of norders radial orders (integers) around numax (nmax).
     """
 
@@ -118,7 +118,7 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
 
     Returns
     -------
-    nu0s : array()
+    nu0s : ndarray
         Array of l=0 mode frequencies from the asymptotic relation (muHz).
 
     """
@@ -127,26 +127,29 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
 
 def P_envelope(nu, hmax, numax, width):
-    """ Power of the p-mode envelope
+    """ Power of the seismic p-mode envelope
 
     Computes the power at frequency nu in the p-mode envelope from a Gaussian
-    distribution. Used for computing mode heights
+    distribution. Used for computing mode heights.
 
     Parameters
     ----------
     nu : float
-        Frequency (muHz).
+        Frequency (in muHz).
+
     hmax : float
-        Height of p-mode envelope (SNR).
+        Height of p-mode envelope (in SNR).
+
     numax : float
-        Frequency of maximum power of the p-mode envelope (muHz).
+        Frequency of maximum power of the p-mode envelope (in muHz).
+
     width : float
-        Width of the p-mode envelope (muHz).
+        Width of the p-mode envelope (in muHz).
 
     Returns
     -------
     h : float
-        Power at frequency nu (SNR)
+        Power at frequency nu (in SNR)
     """
     hmax = 10**hmax
     width = 10**width
@@ -172,7 +175,7 @@ def get_summary_stats(fit, model, pnames):
     -------
     summary : pandas.DataFrame
         Dataframe with the summary statistics.
-    mle_model : 1d array
+    mle_model : ndarray
         Numpy array with the model spectrum corresponding to the maximum
         likelihood solution.
     """
@@ -204,11 +207,11 @@ def envelope_width(numax):
     return 0.66 * numax ** 0.88
 
 class asymp_spec_model():
-    """ Class for spectrum model using asymptotic relation
+    """Class for spectrum model using asymptotic relation.
 
     Parameters
     ---------_
-    f : float, array
+    f : float, ndarray
         Array of frequency bins of the spectrum (muHz). Truncated to the range
         around numax.
     norders : int
@@ -216,9 +219,10 @@ class asymp_spec_model():
 
     Attributes
     ----------
-    f : float, array
+    f : float, ndarray
         Array of frequency bins of the spectrum (muHz). Truncated to the range
         around numax.
+
     norders : int
         Number of radial order to fit
     """
@@ -233,23 +237,23 @@ class asymp_spec_model():
         Parameters
         ----------
         freq : float
-            Frequency of lorentzian (muHz)
+            Frequency of lorentzian (muHz).
         h : float
-            Height of the lorentizan (SNR)
+            Height of the lorentizan (SNR).
         w : float
-            Full width of the lorentzian (log10(muHz))
+            Full width of the lorentzian (log10(muHz)).
 
         Returns
         -------
-        mode : array
-            The SNR as a function frequency for a lorentzian
+        mode : ndarray
+            The SNR as a function frequency for a lorentzian.
         """
 
         w = 10**(w)
         return h / (1.0 + 4.0/w**2*(self.f - freq)**2)
 
     def pair(self, freq0, h, w, d02, hfac=0.7):
-        """ Define a pair as the sum of two Lorentzians
+        """Define a pair as the sum of two Lorentzians.
 
         A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
         assumed to be identical, and the height of the l=2 mode is scaled
@@ -259,15 +263,15 @@ class asymp_spec_model():
         Parameters
         ----------
         freq0 : float
-            Frequency of the l=0 (muHz)
+            Frequency of the l=0 (muHz).
         h : float
-            Height of the l=0 (SNR)
+            Height of the l=0 (SNR).
         w : float
-            The mode width (identical for l=2 and l=0) (log10(muHz))
+            The mode width (identical for l=2 and l=0) (log10(muHz)).
         d02 : float
-            The small separation (muHz)
+            The small separation (muHz).
         hfac : float, optional
-            Ratio of the l=2 height to that of l=0 (unitless)
+            Ratio of the l=2 height to that of l=0 (unitless).
 
         Returns
         -------
@@ -281,15 +285,16 @@ class asymp_spec_model():
 
     def model(self, dnu, numax, eps, d02, alpha, hmax, envwidth, modewidth,
               *args):
-        """ Constructs a spectrum model from the asymptotic relation
+        """ Constructs a spectrum model from the asymptotic relation.
 
         The asymptotic relation for p-modes with angular degree, l=0, is
         defined as:
-        nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log_dnu,
 
-        where nmax = numax / dnu - eps.
+        nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log(dnu) ,
 
-        We separate the l=0 and l=2 modes by d02.
+        where nmax = numax / dnu - epsilon.
+
+        We separate the l=0 and l=2 modes by the small separation d02.
 
         Parameters
         ----------
@@ -316,7 +321,7 @@ class asymp_spec_model():
 
         Returns
         -------
-        model : array
+        model : ndarray
             spectrum model around the p-mode envelope
         """
 
@@ -345,7 +350,7 @@ class asymp_spec_model():
 
 
 class asymptotic_fit():
-    """ Class for fitting a spectrum based on the asymptotic relation
+    """ Class for fitting a spectrum based on the asymptotic relation.
 
     Parameters
     ----------
@@ -369,19 +374,19 @@ class asymptotic_fit():
 
     Attributes
     ----------
-    f : array
+    f : ndarray
         Numpy array of frequency bins of the spectrum (muHz).
-    s : array
+    s : ndarray
         Numpy array of power in each frequency bin (SNR).
-    sel : array, bool
+    sel : ndarray, bool
         Numpy array of boolean values specifying the frequency range to be
         considered in the asymptotic relation fit.
     model : asy_peakbag.model.model instance
         Function for computing a spectrum model given a set of parameters.
-    bounds : array
+    bounds : ndarray
         Numpy array of upper and lower boundaries for the asymptotic relation
         fit. These limits truncate the likelihood function.
-    gaussian : array
+    gaussian : ndarray
         Numpy array of tuples of mean and sigma for Gaussian
         priors on each of the fit parameters (To be removed when full
         KDE is implimented).
@@ -430,12 +435,13 @@ class asymptotic_fit():
         self.acceptance = None
 
     def set_bounds(self, start):
-        """ Set parameter bounds for asymptotic relation fit
+        """ Set parameter bounds for asymptotic relation fit.
 
         Parameters
         ----------
         start: arraylike
-            Note:['dnu', 'numax', 'eps',
+            Note: in order, the parameters are:
+                        ['dnu', 'numax', 'eps',
                          'd02', 'alpha', 'env_height',
                          'env_width', 'mode_width', 'teff',
                          'bp_rp']
@@ -445,7 +451,8 @@ class asymptotic_fit():
             Numpy array of upper and lower boundaries for the asymptotic relation
             fit. These limits truncate the likelihood function.
 
-        ['dnu', 'numax', 'eps',
+            Note: in order, the parameters are:
+                    ['dnu', 'numax', 'eps',
                      'd02', 'alpha', 'env_height',
                      'env_width', 'mode_width', 'teff',
                      'bp_rp']
@@ -465,7 +472,7 @@ class asymptotic_fit():
         return bounds
 
     def set_gaussian_pars(self, teff, bp_rp):
-        """ Parameters of the Gaussian priors
+        """ Parameters of the Gaussian priors.
 
         Used to define the mean and standard deviation of the Gaussian priors
         on each of the parameters.
@@ -475,7 +482,7 @@ class asymptotic_fit():
 
         Returns
         -------
-        gaussian : array
+        gaussian : ndarray
             Numpy array of tuples of mean and sigma for Gaussian
             priors on each of the fit parameters (To be removed when full
             KDE is implimented).
@@ -593,7 +600,7 @@ class asymptotic_fit():
         return fig
 
     def run(self, burnin=1000, niter=1000):
-        """ Setup, run and parse the asymptotic relation fit using EMCEE
+        """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
         Returns
         -------
@@ -624,25 +631,28 @@ class asymptotic_fit():
 
 
 class Prior(pb.epsilon):
-    """ Evaluate the proirs on the provided model parameters
+    """ Evaluates the priors on the provided model parameters. Inherits from
+    peakbag.epsilon.
 
     Parameters
     ----------
-    bounds : array
+    bounds : ndarray
         Numpy array of upper and lower boundaries for the asymptotic relation
         fit. These limits truncate the likelihood function.
-    gaussian : array
-        Numpy array of tuples of mean and sigma for Gaussian
-        priors on each of the fit parameters (To be removed when full
-        KDE is implimented)
+
+    gaussian : ndarray
+        Numpy array of tuples of mean and sigma for Gaussian priors on each of
+        the fit parameters (To be removed when full KDE is implimented)
 
     Attributes
     ----------
     data_file : str
         Pathname to the file containing stellar parameters to make the KDE
         prior.
+
     prior_data : pandas.DataFrame instance
         Dataframe with all the prior data. Read from prior_data.csv.
+
     kde : sm.nonparametric.KDEMultivariate instance
         KDE based on the prior data file.
     """
@@ -655,14 +665,14 @@ class Prior(pb.epsilon):
         self.make_kde(bw_fac=1.0)  # Inherited from epsilon
 
     def pbound(self, p):
-        ''' Check if parameter set is out of bounds
+        '''Checks if parameter set is out of bounds.
 
         Truncates posterior beyond the supplied bounds.
 
         Parameters
         ----------
         p : array
-            Array containing model parameters
+            Array containing model parameters.
 
         Returns
         -------
@@ -677,19 +687,17 @@ class Prior(pb.epsilon):
         return 0
 
     def pgaussian(self, p):
-        """ Guassian priors
-
-        Function for setting Gaussian priors
+        """Function for setting Gaussian priors
 
         Parameters
         ----------
         p : array
-            Array containing mcmc proposals
+            Array containing mcmc proposals.
 
         Returns
         -------
         lnprior : float
-            Sum of Guassian priors evaluted at respective values of p
+            Sum of Gaussian priors evaluted at respective values of p.
         """
 
         lnprior = 0.0
@@ -700,7 +708,7 @@ class Prior(pb.epsilon):
         return lnprior
 
     def __call__(self, p):
-        """ Evaluate the priors for a set of parameters
+        """ Evaluate the priors for a set of parameters.
 
         The prior is estimated by a KDE of a set of previous Kepler
         observations. This is truncated at some reasonable values to keep
@@ -715,16 +723,16 @@ class Prior(pb.epsilon):
         p : array
             Array of model parameters
 
+            Note: in order, the parameters are:
+                    ['dnu', 'numax', 'eps',
+                     'd02', 'alpha', 'env_height',
+                     'env_width', 'mode_width', 'teff',
+                     'bp_rp']
+                     
         Returns
         -------
         lp : float
             The prior at p
-
-        ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
-
         """
 
         if self.pbound(p) == -np.inf:

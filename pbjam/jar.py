@@ -51,7 +51,7 @@ import os, glob, warnings, psutil
 from pbjam.star import star
 
 def organize_sess_dataframe(vardf):
-    """ Takes input dataframe and organizes
+    """ Takes input dataframe and tidies it up.
 
     Checks to see if required columns are present in the input dataframe,
     and adds optional columns if they don't exists, containing None values.
@@ -86,7 +86,7 @@ def organize_sess_dataframe(vardf):
 
 
 def organize_sess_input(**vardct):
-    """ Takes input and organizes them in a dataframe
+    """ Takes input and organizes them in a dataframe.
 
     Checks to see if required inputs are present and inserts them into a
     dataframe. Any optional columns that are not included in the input are
@@ -126,15 +126,17 @@ def organize_sess_input(**vardct):
 
 
 def query_mast(id, lkwargs):
-    """ Search for target on MAST server
+    """ Search for target on MAST server.
 
     Get all the lightcurves available for a target id, using options in kwargs
-    dictionary.
+    dictionary. The lightcurves are downloaded using the lightkurve API, and
+    the target ID must therefore be parseable by lightkurve.
 
     Parameters
     ----------
     id : string
-        Target id, must be resolvable by LightKurve
+        Target id, must be resolvable by Lightkurve.
+
     lkwargs : dictionary containing keywords for the LightKurve search.
         cadence, quarter, campaign, sector, month.
 
@@ -153,20 +155,20 @@ def query_mast(id, lkwargs):
 
 
 def sort_lc(lc):
-    """ Sort a lightcurve in LightKurve object
+    """ Sort a lightcurve in Lightkurve object.
 
-    LightKurve lightcurves are not necessarily sorted in time, which causes
+    Lightkurve lightcurves are not necessarily sorted in time, which causes
     an error in periodogram.
 
     Parameters
     ----------
-    lc : LightKurve.LightCurve instance
-        LightKurve object to be modified
+    lc : Lightkurve.LightCurve instance
+        Lightkurve object to be modified
 
     Returns
     -------
-    lc : LightKurve.LightCurve instance
-        The sorted LightKurve object
+    lc : Lightkurve.LightCurve instance
+        The sorted Lightkurve object
 
     """
 
@@ -177,20 +179,20 @@ def sort_lc(lc):
 
 
 def clean_lc(lc):
-    """ Perform LightKurve operations on object
+    """ Perform Lightkurve operations on object.
 
     Performes basic cleaning of a light curve, removing nans, outliers,
     median filtering etc.
 
     Parameters
     ----------
-    lc : LightKurve.LightCurve instance
-        LightKurve object to be cleaned
+    lc : Lightkurve.LightCurve instance
+        Lightkurve object to be cleaned
 
     Returns
     -------
-    lc : LightKurve.LightCurve instance
-        The cleaned LightKurve object
+    lc : Lightkurve.LightCurve instance
+        The cleaned Lightkurve object
     """
 
     lc = lc.remove_nans().normalize().flatten().remove_outliers()
@@ -198,7 +200,7 @@ def clean_lc(lc):
 
 
 def query_lightkurve(id, lkwargs, use_cached):
-    """ Check cache for fits file, or download it
+    """ Check cache for fits file, or download it.
 
     Based on use_cached flag, will look in the cache for fits file
     corresponding to request id star. If nothing is found in cached it will be
@@ -207,11 +209,12 @@ def query_lightkurve(id, lkwargs, use_cached):
     Parameters
     ----------
     id : string
-        Identifier for the requested star. Must be resolvable by LightKurve
-    lkwargs : dictionary containing keywords for the LightKurve search.
+        Identifier for the requested star. Must be resolvable by Lightkurve
+    lkwargs : dict
+        Dictionary containing keywords for the Lightkurve search.
         cadence, quarter, campaign, sector, month.
     use_cached: bool
-        Whether or not to used data in the LightKurve cache.
+        Whether or not to used data in the Lightkurve cache.
 
     Note:
     -----
@@ -249,7 +252,7 @@ def query_lightkurve(id, lkwargs, use_cached):
 
 
 def arr_to_lk(x, y, name, typ):
-    """ LightKurve object from input
+    """ LightKurve object from input.
 
     Creates either a lightkurve.LightCurve or lightkurve.periodogram object
     from the input arrays.
@@ -301,7 +304,7 @@ def format_col(vardf, col, key):
 
     If dim = 3, it is assumed to be list of (2,M) arrays.
 
-    In both of the latter cases col is converted to LightKurve object(s).
+    In both of the latter cases col is converted to Lightkurve object(s).
 
     Parameters
     ----------
@@ -310,7 +313,8 @@ def format_col(vardf, col, key):
         will be added.
     col : object
         Input from Session call, corresponding to key
-    key : name of column to add to H
+    key : str
+        Name of column to add to vardf
 
     """
     N = np.shape(vardf['ID'])[0]
@@ -353,7 +357,7 @@ def lc_to_lk(vardf, use_cached=True):
     """ Convert time series column in dataframe to lk.LightCurve object
 
     Goes through the timeseries column in the dataframe and tries to convert
-    it to a LightKurve.LightCurve object. If string, it's assumed to be a file
+    it to a Lightkurve.LightCurve object. If string, it's assumed to be a file
     path name, if None, it will query the LightCurve cache locally or MAST if
     nothing is found. Skips column entries which are already LightKurve objects
     or if a psd for the star in question exists in the psd column.
@@ -362,7 +366,7 @@ def lc_to_lk(vardf, use_cached=True):
     ----------
     vardf : pandas.DataFrame instance
         Dataframe containing a 'timeseries' column consisting of None, strings
-        or LightKurver.LightCurve objects.
+        or Lightkurve.LightCurve objects.
     Returns
     -------
 
@@ -394,10 +398,10 @@ def lc_to_lk(vardf, use_cached=True):
 
 
 def lk_to_pg(vardf):
-    """ Convert psd column in dataframe to lk periodgram object list
+    """ Convert psd column in dataframe to Lightkurve periodgram object list
 
     Takes whatever is in the psd column of a dataframe and tries to turn it
-    into a LightKurve.periodogram object. If column entry is a string, it
+    into a Lightkurve.periodogram object. If column entry is a string, it
     assumes it's a path name, if None, it will try to take what's in the
     timeseries column and compute periodogram based on that. If a periodogram
     object is already present, it'll just flatten it (to be safe) and then
@@ -407,7 +411,7 @@ def lk_to_pg(vardf):
     ----------
     vardf : pandas.DataFrame instance
         Dataframe containing a 'psd' column consisting of None, strings or
-        LightKurver.periodogram objects.
+        Lightkurve.periodogram objects.
 
     """
 
@@ -466,56 +470,75 @@ class session():
 
     By default, PBjam will download all the available data, favoring long
     cadence. Cadence and specific observing seasons (quarter, month, campagin,
-    sector) can be specified for more detailed control.
+    sector) can be specified for more detailed control. The data is downloaded
+    using the Lightkurve API, and cleaned on the timeseries level by removing
+    NaNs and outliers and flattening the lightcurve (again using LightKurve's
+    API). Note that the flattening process may impact the appearance of the
+    granulation background.
 
     Parameters
     ----------
     ID : string, int
         Target identifier, if custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)
+
     numax : list
         List of the form [numax, numax_error], list of lists for multiple
         targets
+
     dnu : list
         List of the form [dnu, dnu_error], list of lists for multiple targets
+
     teff : list, optional
         List of the form [teff, teff_error], list of lists for multiple targets
+
     bp_rp : list, optional
         List of the form [bp_rp, bp_rp_error], list of lists for multiple
         targets
+
     timeseries : object, optional
         Timeseries input. Leave as None for PBjam to download it automatically.
         Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
         strings for pathnames are accepted.
+
     psd : object, optional
         Periodogram input. Leave as None for PBjam to use Timeseries to compute
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
+
     dictlike : pandas.DataFrame or dictionary, optional
         DataFrame, dictionary, record array with a list of targets, and their
         properties. If string, PBjam will assume it's a pathname to a csv file.
         Specify timeseries and psd columns with file pathnames to use manually
         reduced data.
+
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
+
     nthreads : int, optional
         Number of multiprocessing threads to use to perform the fit. For long
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
+
     use_cached : bool
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
+
     cadence : string
         Argument for lightkurve to download correct data type. Can be 'short'
         or 'long'. 'long' is default setting, so if you're looking at main
         sequence stars, make sure to manually set 'short'.
+
     month : int
         Argument for lightkurve when requesting Kepler short cadence data.
+
     quarter : int
         Argument for lightkurve when requesting Kepler data.
+
     campaign : int
         Argument for lightkurve when requesting K2 data.
+
     sector : int
         Argument for lightkurve when requesting TESS data.
 
@@ -525,9 +548,11 @@ class session():
         Number of multiprocessing threads to use to perform the fit. For long
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
+
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
+
     stars : list
         Session will store star class instances in this list, based on the
         requested targets.
@@ -565,8 +590,8 @@ class session():
 
         elif ID:
             vardf = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                        bp_rp=bp_rp, cadence=cadence, 
-                                        campaign=campaign, sector=sector, 
+                                        bp_rp=bp_rp, cadence=cadence,
+                                        campaign=campaign, sector=sector,
                                         month=month, quarter=quarter)
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
