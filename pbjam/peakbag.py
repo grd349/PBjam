@@ -12,12 +12,12 @@ class peakbag():
     Class for PBjam peakbagging.
 
     This class allows for simple manipulation of the data, the fitting of a
-    pymc3 model to the data, and some plotting of results functionality.
+    PyMC3 model to the data, and some plotting of results functionality.
 
     Examples
     --------
     Star API interaction (recommended)
-    
+
     >>> from pbjam import star
     >>> star = pb.star(kic, pg, numax, dnu, teff, bp_rp, store_chains=True, nthreads=4)
     >>> star.run_epsilon()
@@ -25,42 +25,41 @@ class peakbag():
     >>> star.run_peakbag()
 
     Lower level API interaction.
-    
+
     >>> import PBjam
     >>> pbag = pbjam.peakbag(frequency, snr, asy_result)
     >>> pbag.sample(model_type='simple', cores=4)
     >>> pbag.plot_fit()
 
+    Parameters
+    ----------
+    f : float, array
+        Array of frequency bins of the spectrum (muHz). Truncated to the range
+        around numax.
+    snr : float, array
+        Array of SNR values for the frequency bins in f (dimensionless).
+    asy_result : asy_result
+        The result from the asy_peakbag method.
+    init : bool
+        If true runs make_start and trim_ladder to prepare starting
+        guesses for sampling and transforms the data onto a ladder.
+
+    Attributes
+    ----------
+    f : float, ndarray
+        Array of frequency bins of the spectrum (muHz). Truncated to the range
+        around numax.
+    snr : float, ndarray
+        Array of SNR values for the frequency bins in f (dimensionless).
+    asy_result : asy_result
+        The result from the asy_peakbag method.
+        This is a dictionary of 'modeID' and 'summary'.
+        'modeID' is a DataFrame with a list of modes and basic properties.
+        'summary' are summary statistics from the asymptotic_fit.
+        See asy_peakbag asymptotic_fit for more details.
     """
     def __init__(self, f, snr, asy_result, init=True):
-        '''
-        Parameters
-        ----------
-        f : float, array
-            Array of frequency bins of the spectrum (muHz). Truncated to the range
-            around numax.
-        snr : float, array
-            Array of SNR values for the frequency bins in f (dimensionless).
-        asy_result : asy_result
-            The result from the asy_peakbag method.
-        init : bool
-            If true runs make_start and trim_ladder to prepare starting
-            guesses for sampling and transforms the data onto a ladder.
 
-        Attributes
-        ----------
-        f : float, array
-            Array of frequency bins of the spectrum (muHz). Truncated to the range
-            around numax.
-        snr : float, array
-            Array of SNR values for the frequency bins in f (dimensionless).
-        asy_result : asy_result
-            The result from the asy_peakbag method.
-            This is a dictionary of 'modeID' and 'summary'.
-            'modeID' is a DataFrame with a list of modes and basic properties.
-            'summary' are summary statistics from the asymptotic_fit.
-            See asy_peakbag asymptotic_fit for more details.
-        '''
         self.f = f
         self.snr = snr
         self.asy_result = asy_result
@@ -103,14 +102,14 @@ class peakbag():
     def trim_ladder(self, lw_fac=10, extra=0.01):
         """
         This function makes ladders and then selects only the orders
-        in the ladders that have modes
-        that are to be fitted, i.e., it trims the ladder.
+        in the ladders that have modes that are to be fitted,
+        i.e, it trims the ladder.
 
         Each ladder rung is constructed so that the central frequency is
         the mid point between the l=0 and l=2 modes as determined by the
         info in the asy_result dictionary.
 
-        The width of the rung is detemrined by d02, line width, and some
+        The width of the rung is determined by d02, line width, and some
         parameters lw_fac and extra.  The basic calculation is the width is:
         d02 + (lw_fac * line_width) + (extra * dnu)
 
@@ -123,7 +122,7 @@ class peakbag():
             The factor by which dnu is multiplied in order to contribute to
             the rung width.
         """
-        
+
         d02 = self.asy_result['summary'].loc['mean'].d02
         d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
         w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
@@ -146,18 +145,20 @@ class peakbag():
         """
         This function calculates a lorentzian for each rung of the frequency
         ladder.  The ladder is a 2D array.  freq, w, and h should be 1D arrays
-        of length that matches the height of the ladder.  No checkes are made
+        of length that matches the height of the ladder.  No checks are made
         for this so as to reduce overheads.
 
          Parameters
          ----------
-         freq : float, array
+         freq : float, ndarray
             A length H array of Lorentzian central frequencies where H is the
             height of self.ladder_f .
-         w : float, array
-            A length H array of Lorentzian widths.
-         h : float, array
-            A length H array of Lorentzian heights.
+         w : float, ndarray
+            A length H array of Lorentzian width where H is the
+            height of self.ladder_f .
+         h : float, ndarray
+            A length H array of Lorentzian heightswhere H is the
+            height of self.ladder_f .
 
         Returns
         -------
@@ -175,26 +176,32 @@ class peakbag():
 
         Parameters
         ----------
-        l0 : float, array
+        l0 : float, ndarray
             A length H array of l=0 mode central frequencies where H is the
             height of self.ladder_f .
-        l2 : float, array
-            A length H array of l=2 mode central frequencies.
-        width0 : float, array
-            A length H array of l=0 mode widths.
-        width2 : float, array
-            A length H array of l=2 mode widths.
-        height0 : float, array
-            A length H array of l=0 mode heights.
-        height2 : float, array
-            A length H array of l=2 mode heights.
-        back : float, array
-            A length H array of background values.
+        l2 : float, ndarray
+            A length H array of l=2 mode central frequencies where H is the
+            height of self.ladder_f .
+        width0 : float, ndarray
+            A length H array of l=0 mode widths where H is the
+            height of self.ladder_f .
+        width2 : float, ndarray
+            A length H array of l=2 mode widths where H is the
+            height of self.ladder_f .
+        height0 : float, ndarray
+            A length H array of l=0 mode heights where H is the
+            height of self.ladder_f .
+        height2 : float, ndarray
+            A length H array of l=2 mode heights where H is the
+            height of self.ladder_f .
+        back : float, ndarray
+            A length H array of background values where H is the
+            height of self.ladder_f .
 
         Returns
         -------
-        mod : float, ladder
-            A ladder containing the calculted model.
+        mod : float, ndarray
+            A 2D array (or 'ladder') containing the calculated model.
         """
         mod = np.ones(self.ladder_f.shape).T * back
         mod += self.lor(l0, width0, height0)
@@ -225,7 +232,7 @@ class peakbag():
 
     def simple(self):
         """
-        Creates a simple peakbagging model in pymc3's self.pm_model which is
+        Creates a simple peakbagging model in PyMC3's self.pm_model which is
         an instance of pm.Model().
 
         The simple model has three parameters per mode (freq, w, h) and one
@@ -244,9 +251,9 @@ class peakbag():
         using a Gamma distribution where alpha=1 and beta=1/limit where limit
         is the model of the spectrum proposed.  Using this gamma distirbution
         is the equivalent of stating that observed/model is distributed as
-        chi squared two degrees of freedom.  The use of the Gamma distribution
-        is much more in line with the ethos of probabistic programming
-        languages.
+        chi squared two degrees of freedom (see Anderson 1990 for more details).
+        The use of the Gamma distribution is much more in line with the ethos of
+        probabistic programming languages.
         """
         dnu = self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
