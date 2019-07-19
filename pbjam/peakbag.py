@@ -17,7 +17,7 @@ class peakbag():
     Examples
     --------
     Star API interaction (recommended)
-    
+
     >>> from pbjam import star
     >>> star = pb.star(kic, pg, numax, dnu, teff, bp_rp, store_chains=True, nthreads=4)
     >>> star.run_epsilon()
@@ -25,7 +25,7 @@ class peakbag():
     >>> star.run_peakbag()
 
     Lower level API interaction.
-    
+
     >>> import PBjam
     >>> pbag = pbjam.peakbag(frequency, snr, asy_result)
     >>> pbag.sample(model_type='simple', cores=4)
@@ -123,7 +123,7 @@ class peakbag():
             The factor by which dnu is multiplied in order to contribute to
             the rung width.
         """
-        
+
         d02 = self.asy_result['summary'].loc['mean'].d02
         d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
         w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
@@ -389,8 +389,7 @@ class peakbag():
                                              cores=cores,
                                              init=self.init_sampler,
                                              target_accept=target_accept,
-                                             progressbar=True,
-                                             tolerance=0.05)
+                                             progressbar=True)
                 Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
                 niter += 1
 
