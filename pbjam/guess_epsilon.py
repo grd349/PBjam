@@ -209,7 +209,7 @@ class epsilon():
             y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
         ax.fill_between(f, y, alpha=0.3, facecolor='navy',
                         edgecolor='none',
-                        label=r'$\propto P(\ell = 0)$')
+                        label=r'$\propto P(\nu_{\ell=0})$')
         ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, h*1.2])
         ax.set_title(periodogram.label)
