@@ -40,13 +40,8 @@ class epsilon():
     def make_kde(self, bw_fac=1.0):
         ''' Takes the prior data and constructs a KDE function
 
-        TODO
-
-        Setting the bw correctly is very important.  Values of
-        [0.03, 0.03, 0,.03, 0.03, 0.3] do a pretty good job but are
-        certtainly too wide given the uncertainty in the data.  This results
-        in a prior that is smooth but too wide.  We can live with this here
-        as this just a first step in the PBjam method.
+        TODO: add details on the band width determination - see example
+        advanced for a base explaination.
 
         I have settled on using the values from a cross validated maximum
         likelihood estimate.
