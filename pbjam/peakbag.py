@@ -396,8 +396,7 @@ class peakbag():
                                              cores=cores,
                                              init=self.init_sampler,
                                              target_accept=target_accept,
-                                             progressbar=True,
-                                             tolerance=0.05)
+                                             progressbar=True)
                 Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
                 niter += 1
 
@@ -482,6 +481,7 @@ class peakbag():
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.snr, 'k-', label='Data', alpha=0.2)
         dnu = self.asy_result['summary'].loc['mean'].dnu
+        numax = self.asy_result['summary'].loc['mean'].numax
         smoo = dnu * 0.005 / (self.f[1] - self.f[0])
         kernel = conv.Gaussian1DKernel(stddev=smoo)
         smoothed = conv.convolve(self.snr, kernel)
@@ -498,7 +498,8 @@ class peakbag():
                                  self.samples['back'][j])
                 ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
         ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlim([self.f.min(), self.f.max()])
+        ax.set_xlim([max([self.f.min(),numax-(n+2)/2*dnu]), min([numax+(n+2)/2*dnu,self.f.max()])])
+        #ax.set_xlim([self.f.min(), self.f.max()])
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
         ax.set_ylabel(r'SNR')
         ax.legend(loc=1)

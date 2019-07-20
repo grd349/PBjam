@@ -84,6 +84,7 @@ class star():
         if path == None:
             path = os.getcwd()
         self.bpath = os.path.join(*[path, f'{self.ID}'])
+        
         try:
             os.mkdir(self.bpath)
         except OSError:
@@ -107,6 +108,9 @@ class star():
             self.epsilon.plot_corner().savefig(self.bpath + os.sep + f'epsilon_corner_{self.ID}.png')
 
     def run_asy_peakbag(self, norders=6, burnin=3000):
+        """
+        TODO
+        """
         self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
                                       self.teff, self.bp_rp,
                                       store_chains=self.store_chains,
