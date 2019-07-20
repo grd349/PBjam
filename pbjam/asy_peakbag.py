@@ -354,14 +354,14 @@ class asymptotic_fit():
 
     Parameters
     ----------
-    TODO - don't pass star pass attributes ... star : class instance
-        Star class instance to perform the fit on. This contains the required
-        attributes for the fit, f, s, numax, dnu, teff. All others are derived
-        from these, or can optionally be set.
-    teff :
-           TODO
-    bp_rp :
-        TODO
+    f : ndarray
+        Numpy array of frequency bins of the spectrum (muHz).
+    s : ndarray
+        Numpy array of power in each frequency bin (SNR).
+    teff : [real, real]
+        Stellar effective temperature and uncertainty
+    bp_rp : [real, real]
+        The Gaia Gbp - Grp color value and uncertainty (probably ~< 0.01 dex)
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
@@ -522,8 +522,6 @@ class asymptotic_fit():
             Dataframe of radial order, n (best guess), angular degree, l,
             frequency and frequency error.
         """
-
-        # TODO - is there a better/neater way to do this?
 
         flatchain = fit.flatchain
 
@@ -728,7 +726,7 @@ class Prior(pb.epsilon):
                      'd02', 'alpha', 'env_height',
                      'env_width', 'mode_width', 'teff',
                      'bp_rp']
-                     
+
         Returns
         -------
         lp : float
