@@ -253,7 +253,7 @@ class peakbag():
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
-        back_fac = 0.5 # Lognorrmal prior on back has std=0.5.
+        back_fac = 0.4 # Lognorrmal prior on back has std=0.4.
         with self.pm_model:
             l0 = pm.Normal('l0', self.start['l0'],
                             dnu*dnu_fac,
