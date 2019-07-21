@@ -45,9 +45,11 @@ def test_obs_to_log():
     assert_almost_equal(eps.log_obs['dnu'][0], 1.0, 0.01)
 
 def test_likelihood():
+    # TODO add test here
     pass
 
 def test_kde_sampler():
+    # TODO add test here
     pass
 
 @pytest.mark.slow
