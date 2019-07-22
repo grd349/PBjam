@@ -895,10 +895,16 @@ class mcmc():
         pos = self.fold(sampler, pos, spread)
         sampler.reset()
 
-        converged = False
-        while not converged:
+        old_tau = np.inf
+        for i in range(5):
+            print(i)
             pos, prob, state = sampler.run_mcmc(pos, self.niter) # Sampling
-            converged = self.convergence_test()
+            tau = sampler.get_autocorr_time(tol=0)
+            converged = np.all(tau * 100 < sampler.iteration)
+            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+            if converged:
+                break
+            old_tau = tau
 
         self.chain = sampler.chain.copy()
         self.flatchain = sampler.flatchain
