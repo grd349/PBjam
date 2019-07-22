@@ -4,9 +4,8 @@ statsmodels>=0.10.0
 matplotlib>=1.5.3
 pandas
 emcee
-lightkurve
+lightkurve==1.1.0
 astropy
 corner
 pymc3
 nbsphinx
-
