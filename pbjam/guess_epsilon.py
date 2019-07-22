@@ -60,7 +60,7 @@ class epsilon():
         import statsmodels.api as sm
         # bw set using CV ML but times two.
         bw = np.array([0.00774255, 0.01441685, 0.04582654,
-                       0.02127414, 0.17830664, 0.34219474,
+                       0.02127414, 0.17830664, 1.34219474,
                        0.04400531, 0.06834085, 0.0054522,
                        0.11864199]) * bw_fac
         self.kde = sm.nonparametric.KDEMultivariate(

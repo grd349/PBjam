@@ -130,7 +130,7 @@ class star():
         if self.store_chains:
             pass # TODO
         if self.make_plots:
-            self.peakbag.plot_fit().savefig(self.bpath + os.sep + f'peakbag_{self.ID}.png')
+            self.peakbag.plot_flat_fit().savefig(self.bpath + os.sep + f'peakbag_{self.ID}.png')
 
 
     def __call__(self, bw_fac=1.0, norders=8,
