@@ -296,7 +296,9 @@ class peakbag():
 
     def model_gp(self):
         """
-        TODO
+        TODO - Need to describe what is happening here.
+        Complete docs when model is settled on.  Probably quiet a
+        long docs needed to explain.  
         """
         warnings.warn('This model is developmental - use carefully')
         dnu = self.asy_result['summary'].loc['mean'].dnu
@@ -412,7 +414,7 @@ class peakbag():
 
     def plot_linewidth(self, thin=10):
         """
-        TODO
+        Plots the estimated line width as a function of scaled n.
         """
         fig, ax = plt.subplots(1, 2, figsize=[16,9])
 
@@ -452,7 +454,7 @@ class peakbag():
 
     def plot_height(self, thin=10):
         """
-        TODO
+        Plots the estimated mode height.
         """
         fig, ax = plt.subplots(figsize=[16,9])
         for i in range(0, len(self.samples), thin):
@@ -462,7 +464,14 @@ class peakbag():
 
     def plot_fit(self, thin=10, alpha=0.2):
         """
-        TODO
+        Plots the ladder data and models from the samples
+
+        Parameters
+        ----------
+        thin: int
+            Uses every other thin'th value from the samkles, i.e. [::thin].
+        alpha: float64
+            The alpha to use for plotting the models from samples.
         """
         n = self.ladder_p.shape[0]
         fig, ax = plt.subplots(n, figsize=[16,9])

@@ -78,4 +78,4 @@ def test_model_gp_compile():
 
 @pytest.mark.slow
 def test_sample():
-    pass # TODO
+    pass # TODO write a test here.

@@ -94,7 +94,7 @@ class star():
 
     def run_epsilon(self, bw_fac=1.0):
         """
-        TODO
+        Runs the epsilon code and makes plots if self.make_plots is set.
         """
         self.epsilon = epsilon()
         self.epsilon_result = self.epsilon(dnu=self.dnu,
@@ -113,7 +113,7 @@ class star():
                                       nthreads=1, norders=norders)
         self.asy_result = self.asy_fit.run(burnin=burnin)
         if self.store_chains:
-            pass # TODO
+            pass # TODO need to pickle the chains if requested.
         if self.make_plots:
             self.asy_fit.plot_corner().savefig(self.bpath + os.sep + f'asy_corner_{self.ID}.png')
             self.asy_fit.plot().savefig(self.bpath + os.sep + f'asy_{self.ID}.png')
@@ -121,14 +121,14 @@ class star():
 
     def run_peakbag(self, model_type='simple', tune=1500):
         """
-        TODO
+        Runs peakbag on the given star.
         """
         self.peakbag = peakbag(self.f, self.s, self.asy_result)
         self.peakbag.sample(model_type=model_type, tune=tune,
                             cores=self.nthreads)
         pm.summary(self.peakbag.samples).to_csv(self.bpath + os.sep + f'peakbag_summary_{self.ID}.csv')
         if self.store_chains:
-            pass # TODO
+            pass # TODO need to pickle the samples if requested.
         if self.make_plots:
             self.peakbag.plot_flat_fit().savefig(self.bpath + os.sep + f'peakbag_{self.ID}.png')
 
