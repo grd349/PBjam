@@ -6,6 +6,7 @@ import pymc3 as pm
 import matplotlib.pyplot as plt
 import warnings
 import astropy.convolution as conv
+from astropy import units as u
 
 class peakbag():
     """
@@ -298,7 +299,7 @@ class peakbag():
         """
         TODO - Need to describe what is happening here.
         Complete docs when model is settled on.  Probably quiet a
-        long docs needed to explain.  
+        long docs needed to explain.
         """
         warnings.warn('This model is developmental - use carefully')
         dnu = self.asy_result['summary'].loc['mean'].dnu
@@ -520,11 +521,35 @@ class peakbag():
         ax.legend(loc=1)
         return fig
 
-    def plot_echelle(self):
-        fig, ax = plt.subplots()
+    def plot_echelle(self, pg):
+        '''
+        Plots an echelle diagram with mode frequencies over plotted.
+
+        Parameters
+        ----------
+        pg : periodogram
+            A lightkurve periodogram (we use the plot echelle method
+            of the periodogram (well actually seismology) class)
+
+        Returns
+        -------
+        fig : figure
+            The figure containing the plot.
+        '''
         dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
-        bw = self.f[1] - self.f[0]
-        w = int(dnu / bw)
-        norder = len(self.n)
-        data = self.snr[:w*norder].reshape(norder, w)
-        cs = ax.imshow(np.log(data), aspect='auto', cmap='Blues')
+        numax = self.asy_result['summary'].loc['mean'].numax
+        seismology = pg.flatten().to_seismology()
+        nmin = np.floor(self.f.min() / dnu) + 1
+        ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
+                                     numax=numax * u.uHz,
+                                     minimum_frequency=dnu*nmin)
+        pbjam_mean_l0 = self.samples['l0'].mean(axis=0)
+        pbjam_std_l0 = self.samples['l0'].std(axis=0)
+        pbjam_mean_l2 = self.samples['l2'].mean(axis=0)
+        pbjam_std_l2 = self.samples['l2'].std(axis=0)
+        ax.errorbar(pbjam_mean_l0 % dnu, (pbjam_mean_l0 // dnu) * dnu,
+                    xerr=pbjam_std_l0, fmt='ro', alpha=0.5, label=r'$\ell=0$')
+        ax.errorbar(pbjam_mean_l2 % dnu, (pbjam_mean_l2 // dnu) * dnu,
+                    xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
+        ax.legend(fontsize = 'x-small')
+        # TODO need to pass ax to seismo. plot_echelle return fig
