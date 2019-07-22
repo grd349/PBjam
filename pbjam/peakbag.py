@@ -522,7 +522,20 @@ class peakbag():
         return fig
 
     def plot_echelle(self, pg):
-        fig, ax = plt.subplots()
+        '''
+        Plots an echelle diagram with mode frequencies over plotted.
+
+        Parameters
+        ----------
+        pg : periodogram
+            A lightkurve periodogram (we use the plot echelle method
+            of the periodogram (well actually seismology) class)
+
+        Returns
+        -------
+        fig : figure
+            The figure containing the plot.
+        '''
         dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
         numax = self.asy_result['summary'].loc['mean'].numax
         seismology = pg.flatten().to_seismology()
@@ -538,4 +551,5 @@ class peakbag():
                     xerr=pbjam_std_l0, fmt='ro', alpha=0.5, label=r'$\ell=0$')
         ax.errorbar(pbjam_mean_l2 % dnu, (pbjam_mean_l2 // dnu) * dnu,
                     xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
-        ax.legend()
+        ax.legend(fontsize = 'x-small')
+        # TODO need to pass ax to seismo. plot_echelle return fig
