@@ -84,7 +84,7 @@ class star():
         if path == None:
             path = os.getcwd()
         self.bpath = os.path.join(*[path, f'{self.ID}'])
-        
+
         try:
             os.mkdir(self.bpath)
         except OSError:
@@ -107,7 +107,7 @@ class star():
             self.epsilon.plot(self.pg).savefig(self.bpath + os.sep + f'epsilon_{self.ID}.png')
             self.epsilon.plot_corner().savefig(self.bpath + os.sep + f'epsilon_corner_{self.ID}.png')
 
-    def run_asy_peakbag(self, norders=6, burnin=3000):
+    def run_asy_peakbag(self, norders=6, burnin=1000):
         """
         TODO
         """
