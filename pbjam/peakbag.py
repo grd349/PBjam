@@ -100,7 +100,7 @@ class peakbag():
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
-    def trim_ladder(self, lw_fac=10, extra=0.01):
+    def trim_ladder(self, lw_fac=10, extra=0.01, verbose=False):
         """
         This function makes ladders and then selects only the orders
         in the ladders that have modes
@@ -129,12 +129,18 @@ class peakbag():
         w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
         bw = self.f[1] - self.f[0]
         w /= bw
+        if verbose:
+            print(f'w = {int(w)}')
+            print(f'bw = {bw}')
         ladder_trim_f = np.zeros([len(self.start['l0']), int(w)])
         ladder_trim_p = np.zeros([len(self.start['l0']), int(w)])
         for idx, freq in enumerate(self.start['l0']):
             loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
             if loc_mid_02 == 0:
                 warnings.warn('Did not find optimal rung location')
+            if verbose:
+                print(f'loc_mid_02 = {loc_mid_02}')
+                print(f'w/2 = {int(w/2)}')
             ladder_trim_f[idx, :] = \
                 self.f[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w)]
             ladder_trim_p[idx, :] = \
@@ -495,3 +501,12 @@ class peakbag():
         ax.set_ylabel(r'SNR')
         ax.legend(loc=1)
         return fig
+
+    def plot_echelle(self):
+        fig, ax = plt.subplots()
+        dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
+        bw = self.f[1] - self.f[0]
+        w = int(dnu / bw)
+        norder = len(self.n)
+        data = self.snr[:w*norder].reshape(norder, w)
+        cs = ax.imshow(np.log(data), aspect='auto', cmap='Blues')
