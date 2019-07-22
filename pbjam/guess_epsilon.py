@@ -172,27 +172,26 @@ class epsilon():
 
     def plot(self, periodogram):
         '''
-        Make a plot of the suggested Vrard \"\ ilon_guess, on top of a
+        Make a plot of the posterior distribution on the locations
+        of the l=0 modes, on top of a
         `lightkurve` periodogram object passed by the user.
 
         Parameters
         ----------
 
         periodogram: Periodogram
-            A lightkurve Periodogram object for plotting.
+            A flattened lightkurve Periodogram object for plotting.
 
         Returns
         -------
 
         fig: Figure
-
-
         '''
         fig, ax = plt.subplots(figsize=[16,9])
-        periodogram.plot(ax=ax, alpha=0.5, c='gray')
+        periodogram.plot(ax=ax, alpha=0.5, c='gray', label='Data')
         dnu = 10**(self.samples[:, 0].mean())
         smoo = periodogram.smooth(filter_width=dnu*0.02)
-        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed')
+        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed Data')
         h = np.max(smoo.power.value)
         f = periodogram.frequency.value
         dnu = 10**(self.samples[:, 0].mean())
@@ -200,14 +199,16 @@ class epsilon():
         nmax = np.floor(f.max() / dnu)
         self.n = np.arange(nmin-1, nmax+1, 1)
         freq, freq_unc = self.kde_predict(self.n)
+        y = np.zeros(len(f))
         for i in range(len(self.n)):
-            ax.axvline(freq[i], c='k', linestyle='--', zorder=0, alpha=0.3)
-            y = h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
-            #ax.plot(f, 10 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2),
-            #            c='k', alpha=0.5)
-            ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none')
+            y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
+        ax.fill_between(f, y, alpha=0.3, facecolor='navy',
+                        edgecolor='none',
+                        label=r'$\propto P(\nu_{\ell=0})$')
         ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, h*1.2])
+        ax.set_title(periodogram.label)
+        ax.legend()
         return fig
 
     def plot_corner(self):
