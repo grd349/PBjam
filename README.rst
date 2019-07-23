@@ -28,11 +28,9 @@ Read the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
 
 Contributing
 ------------
-PBjam is open source and we welcome contributions, large or small. 
 
-If you spot any bugs, have ideas for optimizing the code, want new nifty features, feel free to submit issues on the `GitHub repo <https://github.com/grd349/PBjam/issues>`_. 
+.. include:: ../CONTRIBUTING.rst
 
-If you wish to contribute to PBjam, create a fork, make the changes and create a pull requests. The update will be reviewed by the main authors before merging. 
 
 Authors
 -------
@@ -45,7 +43,3 @@ Main Contributors
 Chaos Engineers
 ^^^^^^^^^^^^^^^
 - `Warrick Ball <https://github.com/warrickball>`_ 
-
-Acknowledgments
----------------
-PBjam relies heavily on many open source software packages to operate. 
