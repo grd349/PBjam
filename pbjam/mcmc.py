@@ -1,5 +1,6 @@
 import emcee
 import numpy as np
+import scipy.stats as st
 
 class mcmc():
     """ Class for MCMC sampling
@@ -9,7 +10,7 @@ class mcmc():
     Parameters
     ----------
     start : ndarray
-        TODO
+        An array of size ndim for the starting position of the parameters.
     likelihood : function
         Function to call that returns the log likelihood when passed the
         parameters.
@@ -71,15 +72,23 @@ class mcmc():
         converged = np.all(tau * nfactor < self.sampler.iteration)
         return converged
 
-    def __call__(self, max_iter=20000, spread=1e-4):
+    def __call__(self, max_iter=20000,
+                 spread=1e-4,
+                 start_samples=[]):
         """ Initialize and run the EMCEE afine invariant sampler
 
         Parameters
         ----------
+        max_iter: int
+            Don't run the sampler for longer than this.  The sampler will
+            stop if convergence is deemed to have been achieved.
         spread : float
             Percent spread around the intial position of the walkers. Small
             value starts the walkers in a tight ball, large value fills out
             the range set by parameter bounds.
+        start_samples: ndarray
+            An array that has samples from the distribution that you want to
+            start the sampler at.
 
         Returns
         -------
@@ -89,10 +98,19 @@ class mcmc():
         """
 
         # Start walkers in a tight random ball
-        p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
+        if len(start_samples) == 0:
+            p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
+        else:
+            p0 = np.random.randn(self.nwalkers, self.ndim)
+            p0 *= start_samples.std(axis=0)
+            p0 += start_samples.mean(axis=0)
 
-        for sample in self.sampler.sample(p0, iterations=max_iter, progress=True):
-            if self.sampler.iteration % 100:
+        pos, prob, state = self.sampler.run_mcmc(p0, 1000)
+        pos = self.fold(pos, spread)
+        self.sampler.reset()
+
+        for sample in self.sampler.sample(pos, iterations=max_iter, progress=True):
+            if self.sampler.iteration % 500:
                 continue
             if self.converged():
                 break
@@ -107,7 +125,7 @@ class mcmc():
         return self.flatchain
 
 
-    def fold(self, sampler, pos, spread, accept_lim = 0.2):
+    def fold(self, pos, accept_lim = 0.2):
         """ Fold low acceptance walkers into main distribution
 
         At the end of the burn-in, some walkers appear stuck with low
@@ -117,26 +135,21 @@ class mcmc():
 
         The stuck walkers are relocated with multivariate Gaussian, with mean
         equal to the median of the high acceptancew walkers, and a standard
-        deviation equal to the median absolute deviation of these, with a
-        small scaling factor.
+        deviation equal to the median absolute deviation of these.
 
         Parameters
         ----------
-        sampler : emcee sampler object
-            The sampler used in the fit
         pos : array
-            The final position of the walkers after the burn-in phase
-        spread : float
-            The factor to apply to the walkers that are adjusted
-
+            The final position of the walkers after the burn-in phase.
+        accept_lim: float
+            The value below which walkers will be labelled as bad and/or hence 
+            stuck.
         """
-        idx = sampler.acceptance_fraction < accept_lim
+        idx = self.sampler.acceptance_fraction < accept_lim
         nbad = np.shape(pos[idx, :])[0]
         if nbad > 0:
-            flatchains = sampler.chain[~idx, :, :].reshape((-1, self.ndim))
+            flatchains = self.sampler.chain[~idx, :, :].reshape((-1, self.ndim))
             good_med = np.median(flatchains, axis = 0)
-            good_mad = mad(flatchains, axis = 0) * spread
-            pos[idx, :] = np.array([[np.random.uniform(max(self.lp.bounds[j][0], good_med[j]-good_mad[j]),
-                                                       min(self.lp.bounds[j][1], good_med[j]+good_mad[j])
-                                                       ) for j in range(self.ndim)] for n in range(nbad)])
+            good_mad = st.median_absolute_deviation(flatchains, axis = 0) * spread
+            pos[idx, :] = np.array([np.random.randn(self.ndim) * good_mad + good_med for n in range(nbad)])
         return pos

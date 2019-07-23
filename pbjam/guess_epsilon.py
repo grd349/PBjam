@@ -9,29 +9,22 @@ import corner
 from . import PACKAGEDIR
 
 from scipy.stats import gaussian_kde
-import pbjam as pb
+from .mcmc import mcmc
 
 class epsilon():
     ''' A class to predict epsilon.
 
-    TODO: flesh this out a bit more
+    TODO: See the docs for full information. (especially example_advanced)
 
-    Attributes
-    ----------
-    method : string
-        Sets the method used to estimate epsilon
-        Possible methods are ['Vrard', 'KDE']
-    vrard_dict : dict
-        Stores the Vrard coefficients (for Red Giant stars)
-    data_file : string
-        The location of the prior data file
     '''
-    def __init__(self, nthreads=1, verbose=False):
+    def __init__(self, nthreads=1, verbose=False, bw_fac=1):
         self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
         self.obs = []
         self.samples = []
         self.verbose = verbose
         self.nthreads = nthreads
+        self.read_prior_data()
+        self.make_kde(bw_fac=bw_fac)
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
@@ -109,6 +102,10 @@ class epsilon():
         return lp
 
     def likelihood(self, p):
+        '''
+        Calculates the likelihood of the observed properties given
+        the proposed parameters p.
+        '''
         log_dnu, log_numax, eps, log_d02, log_alpha, \
             log_env_height, log_env_width, log_mode_width, \
             log_teff, bp_rp = p
@@ -129,7 +126,7 @@ class epsilon():
 
         p(D | theta) is given by the observable constraints
 
-        Convergence is far from guaranteed! Samples are drawn using `emcee`.
+        Samples are drawn using `emcee`.
 
         Returns
         -------
@@ -156,18 +153,23 @@ class epsilon():
               -1.0, #log10 mode width
               self.log_obs['teff'][0],
               self.log_obs['bp_rp'][0]]
-        ndim = len(x0)
 
-        self.fit = pb.mcmc(x0, self.likelihood, self.prior, nwalkers=nwalkers)
+        self.fit = mcmc(x0, self.likelihood, self.prior, nwalkers=nwalkers)
 
         return self.fit()
 
     def to_log10(self, x, xerr):
+        '''
+        Transforms observables into log10 space.
+        '''
         if xerr > 0:
             return [np.log10(x), xerr/x/np.log(10.0)]
         return [x, xerr]
 
     def obs_to_log(self, obs):
+        '''
+        Converted the observed properties into log10 space.
+        '''
         self.log_obs = {'dnu': self.to_log10(*obs['dnu']),
                         'numax': self.to_log10(*obs['numax']),
                         'teff': self.to_log10(*obs['teff']),
@@ -215,6 +217,9 @@ class epsilon():
         return fig
 
     def plot_corner(self):
+        '''
+        Makes a nice corner plot using corner.corner
+        '''
         fig = corner.corner(self.samples, labels=self.cols,  quantiles=[0.16, 0.5, 0.84],
                        show_titles=True, title_kwargs={"fontsize": 12})
         return fig
@@ -251,9 +256,7 @@ class epsilon():
         return freq.mean(axis=1), freq.std(axis=1)
 
     def __call__(self,
-                dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1],
-                bw_fac=1.0,
-                niter=4000, burnin=2000):
+                dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
 
@@ -266,7 +269,8 @@ class epsilon():
         teff : [real, real]
             Stellar effective temperature and uncertainty
         bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty (probably ~< 0.01 dex)
+            The Gaia Gbp - Grp color value and uncertainty
+            (probably ~< 0.01 dex)
         Returns
         -------
         result : array-like
@@ -276,9 +280,8 @@ class epsilon():
                     'numax': numax,
                     'teff': teff,
                     'bp_rp': bp_rp}
-        self.read_prior_data()
         self.obs_to_log(self.obs)
-        self.make_kde(bw_fac=bw_fac)
+
         self.samples = self.kde_sampler()
         result = [self.samples[:,2].mean(), self.samples[:,2].std()]
         return result

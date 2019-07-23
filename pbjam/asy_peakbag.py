@@ -17,39 +17,6 @@ import matplotlib.pyplot as plt
 import corner
 import emcee
 
-def mad(x, axis=0, scale=1.4826):
-    """ Compute median absolute deviation
-
-    Grabbed from Scipy version 1.3.0.
-
-    TODO - To be removed once PBjam works with Scipy v > 1.2.0 and replaced
-    with scipy.stats.median_absolute_deviation.
-
-    Parameters
-    ----------
-    x : ndarray
-        Array to compute the mad for.
-    axis : int
-        Axis to compute the mad over
-    scale : float
-        Scale factor for the MAD, 1.4826 to match standard deviation for
-        Gaussian.
-
-    Returns
-    -------
-    mad : float
-        The median absolute deviation(s) of the array
-    """
-
-    x = np.asarray(x)
-    if axis is None:
-        med = np.median(x)
-        mabsdev = np.median(np.abs(x - med))
-    else:
-        med = np.apply_over_axes(np.median, x, axis)
-        mabsdev = np.median(np.abs(x - med), axis=axis)
-    return scale * mabsdev
-
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
 
@@ -72,6 +39,7 @@ def get_nmax(numax, dnu, eps):
     """
 
     return numax / dnu - eps
+
 
 def get_enns(nmax, norders):
     """Compute radial order numbers.
@@ -98,6 +66,7 @@ def get_enns(nmax, norders):
         return np.arange(below, above)
     else:
         return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)
+
 
 def asymptotic_relation(numax, dnu, eps, alpha, norders):
     """ Compute the l=0 mode frequencies from the asymptotic relation for
@@ -127,6 +96,7 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
     enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
 
+
 def P_envelope(nu, hmax, numax, width):
     """ Power of the seismic p-mode envelope
 
@@ -155,6 +125,7 @@ def P_envelope(nu, hmax, numax, width):
     hmax = 10**hmax
     width = 10**width
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
+
 
 def get_summary_stats(fit, model, pnames):
     """ Make dataframe with fit summary statistics
@@ -204,8 +175,6 @@ def get_summary_stats(fit, model, pnames):
     mle_model = model(mle)
     return summary, mle_model
 
-def envelope_width(numax):
-    return 0.66 * numax ** 0.88
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
@@ -232,6 +201,7 @@ class asymp_spec_model():
         self.f = f
         self.norders = norders
 
+
     def lor(self, freq, h, w):
         """ Lorentzian to describe a mode.
 
@@ -252,6 +222,7 @@ class asymp_spec_model():
 
         w = 10**(w)
         return h / (1.0 + 4.0/w**2*(self.f - freq)**2)
+
 
     def pair(self, freq0, h, w, d02, hfac=0.7):
         """Define a pair as the sum of two Lorentzians.
@@ -299,21 +270,22 @@ class asymp_spec_model():
 
         Parameters
         ----------
-        numax : float
-            Frequency of maximum power of the p-mode envelope (muHz)
         dnu : float
-            Large separation (muHz)
+            Large separation log10(muHz)
+        lognumax : float
+            Frequency of maximum power of the p-mode envelope log10(muHz)
+
         eps : float
             Phase term of the asymptotic relation (unitless)
         alpha : float
-            Curvature of the asymptotic relation (unitless)
+            Curvature of the asymptotic relation log10(unitless)
         d02 : float
-            Small separation (muHz)
-        hmax : float
-            Gaussian height of p-mode envelope (SNR)
-        envwidth : float
-            Gaussian width of the p-mode envelope (muHz)
-        modewidth : float
+            Small separation log10(muHz)
+        loghmax : float
+            Gaussian height of p-mode envelope log10(SNR)
+        logenvwidth : float
+            Gaussian width of the p-mode envelope log10(muHz)
+        logmodewidth : float
             Width of the modes (log10(muHz))
         *args : array-like
             List of additional parameters (Teff, bp_rp) that aren't actually
@@ -326,11 +298,11 @@ class asymp_spec_model():
             spectrum model around the p-mode envelope
         """
 
-        f0s = asymptotic_relation(numax, dnu, eps, alpha, self.norders)
-        Hs = P_envelope(f0s, hmax, numax, envwidth)
+        f0s = asymptotic_relation(10**numax, 10**dnu, eps, 10**alpha, self.norders)
+        Hs = P_envelope(f0s, hmax, 10**numax, envwidth)
         mod = np.ones(len(self.f))
         for n in range(len(f0s)):
-            mod += self.pair(f0s[n], Hs[n], modewidth, d02)
+            mod += self.pair(f0s[n], Hs[n], modewidth, 10**d02)
         return mod
 
     def __call__(self, p):
@@ -350,7 +322,7 @@ class asymp_spec_model():
         return self.model(*p)
 
 
-class asymptotic_fit():
+class asymptotic_fit(pb.epsilon):
     """ Class for fitting a spectrum based on the asymptotic relation.
 
     Parameters
@@ -359,6 +331,9 @@ class asymptotic_fit():
         Numpy array of frequency bins of the spectrum (muHz).
     s : ndarray
         Numpy array of power in each frequency bin (SNR).
+    start_samples: ndarray
+        Samples representing the starting guess for the asymptotic
+        peakbagging.
     teff : [real, real]
         Stellar effective temperature and uncertainty
     bp_rp : [real, real]
@@ -423,9 +398,6 @@ class asymptotic_fit():
         self.sel = np.where((self.f > lower_frequency) & (self.f < upper_frequency))
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
 
-        self.bounds = self.set_bounds(start)
-        self.gaussian = self.set_gaussian_pars(teff, bp_rp)
-        self.lp = Prior(self.bounds, self.gaussian)
 
         self.modeID = None
         self.summary = None
@@ -435,72 +407,6 @@ class asymptotic_fit():
         self.mle_model = None
         self.acceptance = None
 
-    def set_bounds(self, start):
-        """ Set parameter bounds for asymptotic relation fit.
-
-        Parameters
-        ----------
-        start: arraylike
-            Note: in order, the parameters are:
-                        ['dnu', 'numax', 'eps',
-                         'd02', 'alpha', 'env_height',
-                         'env_width', 'mode_width', 'teff',
-                         'bp_rp']
-        Returns
-        -------
-        bounds : array
-            Numpy array of upper and lower boundaries for the asymptotic relation
-            fit. These limits truncate the likelihood function.
-
-            Note: in order, the parameters are:
-                    ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
-        """
-
-        bounds = [[start[0]*0.9, start[0]*1.1], #dnu
-                  [start[1]*0.9, start[1]*1.1], # numax
-                  [0.4 , 1.6],  #eps
-                  [0.05*start[0], 0.25*start[0]],  # d02
-                  [1e-20, 0.1],  # alpha
-                  [0, 4],  # hmax (log10)
-                  [-1, 6],  # Ewidth (log10)
-                  [-3, 3],  # mode width (log10)
-                  [start[8] - 2000, start[8] + 2000], # teff
-                  [start[9] - 1.0, start[9] + 1.0]  # Gaia bp-rp
-                 ]
-        return bounds
-
-    def set_gaussian_pars(self, teff, bp_rp):
-        """ Parameters of the Gaussian priors.
-
-        Used to define the mean and standard deviation of the Gaussian priors
-        on each of the parameters.
-
-        This will be deprecated in forthcoming versions of PBjam. To be
-        replaced by a full KDE on all fit parameters.
-
-        Returns
-        -------
-        gaussian : ndarray
-            Numpy array of tuples of mean and sigma for Gaussian
-            priors on each of the fit parameters (To be removed when full
-            KDE is implimented).
-        """
-
-        gaussian = [(0, 0),  # dnu
-                    (0, 0),  # numax
-                    (0, 0),  # eps
-                    (0, 0),  # d02
-                    (0, 0),  # alpha
-                    (0, 0),  # env_height
-                    (0, 0),  # env_width
-                    (0, 0),  # mode width (log10)
-                    (teff[0], teff[1]),  # Teff
-                    (bp_rp[0], bp_rp[1]),  # Gaia bp-rp
-                    ]
-        return gaussian
 
     def get_modeIDs(self, fit, N):
         """ Set mode ID in a dataframe
@@ -530,9 +436,9 @@ class asymptotic_fit():
 
         nu0_samps, nu2_samps = np.empty((nsamps, N)), np.empty((nsamps, N))
 
-        nu0_samps = asymptotic_relation(flatchain[:, 1], flatchain[:, 0],
-                                        flatchain[:, 2], flatchain[:, 4], N)
-        nu2_samps = nu0_samps - flatchain[:, 3]
+        nu0_samps = asymptotic_relation(10**flatchain[:, 1], 10**flatchain[:, 0],
+                                        flatchain[:, 2], 10**flatchain[:, 4], N)
+        nu2_samps = nu0_samps - 10**flatchain[:, 3]
 
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
         nus_mad = mad(np.array([nu0_samps, nu2_samps]), axis=2)
@@ -554,6 +460,9 @@ class asymptotic_fit():
         return modeID
 
     def plot_start(self):
+        '''
+        Plots the starting model as a diagnotstic.
+        '''
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
         smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
@@ -569,7 +478,21 @@ class asymptotic_fit():
         ax.legend()
         return fig
 
-    def plot(self, thin=100):
+    def plot(self, thin=10):
+        '''
+        Plots the data and some models generated from the samples
+        from the posteriod distribution.
+
+        Parameters
+        ----------
+        thin: int
+            Thins the samples of the posterior in order to speed up plotting.
+
+        Returns
+        -------
+        fig: Figure
+            The figure element containing the plots.
+        '''
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
         smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
@@ -593,6 +516,9 @@ class asymptotic_fit():
         return fig
 
     def plot_corner(self):
+        '''
+        Calls corner.corner on the sampling results
+        '''
         fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
                             quantiles=[0.16, 0.5, 0.84],
                        show_titles=True, title_kwargs={"fontsize": 12})
@@ -601,8 +527,9 @@ class asymptotic_fit():
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
 
-        Evaluates the likelihood function and applies any priors for a set of
-        model parameters.
+        Evaluates the likelihood function for a set of
+        model parameters.  This includes the constraint from
+        the observed variables.
 
         Parameters
         ----------
@@ -613,33 +540,61 @@ class asymptotic_fit():
         -------
         like : float
             likelihood function at p
+
+        Note:
+        log_dnu, log_numax, eps, log_d02, log_alpha, \
+            log_env_height, log_env_width, log_mode_width, \
+            log_teff, bp_rp = p
         """
-        logp = self.lp(p)
-
-        if logp == -np.inf:
-            return -np.inf
-
+        # Constraint from input obs
+        ld = 0.0
+        ld += self.normal(p[-2], *self.log_obs['teff'])
+        ld += self.normal(p[-1], *self.log_obs['bp_rp'])
+        # Constraint from the periodogram
         mod = self.model(p)
-        like = -1.0 * np.sum(np.log(mod) + self.s / mod)
-        return like + logp
+        like = -1.0 * np.sum(np.log(mod) + self.s[self.sel] / mod)
+        return like + ld
 
-    def run(self, burnin=1000, niter=1000):
+    def run(self,
+            dnu=[1, -1],
+            numax=[1, -1],
+            teff=[1, -1],
+            bp_rp=[1, -1]):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
+
+        Parameters
+        ----------
+        dnu : [real, real]
+            Large frequency spacing and uncertainty
+        numax : [real, real]
+            Frequency of maximum power and uncertainty
+        teff : [real, real]
+            Stellar effective temperature and uncertainty
+        bp_rp : [real, real]
+            The Gaia Gbp - Grp color value and uncertainty
+            (probably ~< 0.01 dex).
 
         Returns
         -------
-        modeID : pandas.DataFrame
-            Dataframe of radial order, n (best guess), angular degree, l,
-            frequency and frequency error.
+        asy_result : Dict
+            A dictionary of the modeID DataFrame and the summary DataFrame.
         """
+        self.obs = {'dnu': dnu,
+                    'numax': numax,
+                    'teff': teff,
+                    'bp_rp': bp_rp}
+        self.obs_to_log(self.obs)
 
-        self.fit = pb.mcmc(self.start, self.lp, nthreads=self.nthreads)
+        self.prior = pb.epsilon().prior
+        self.fit = pb.mcmc(self.start_samples.mean(axis=0), self.likelihood,
+                           self.prior, nthreads=self.nthreads)
 
-        self.fit(burnin=burnin, niter=niter)  # do the fit with default settings
+        self.fit(start_samples=self.start_samples)
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
-        self.summary, self.mle_model = get_summary_stats(self.fit, self.model, self.pars_names)
+        self.summary, self.mle_model = get_summary_stats(self.fit,
+                                            self.model, self.pars_names)
 
         if self.store_chains:
             self.flatchain = self.fit.flatchain
@@ -651,119 +606,3 @@ class asymptotic_fit():
 
         self.acceptance = self.fit.acceptance
         return {'modeID': self.modeID, 'summary': self.summary}
-
-
-class Prior(pb.epsilon):
-    """ Evaluates the priors on the provided model parameters. Inherits from
-    peakbag.epsilon.
-
-    Parameters
-    ----------
-    bounds : ndarray
-        Numpy array of upper and lower boundaries for the asymptotic relation
-        fit. These limits truncate the likelihood function.
-
-    gaussian : ndarray
-        Numpy array of tuples of mean and sigma for Gaussian priors on each of
-        the fit parameters (To be removed when full KDE is implimented)
-
-    Attributes
-    ----------
-    data_file : str
-        Pathname to the file containing stellar parameters to make the KDE
-        prior.
-
-    prior_data : pandas.DataFrame instance
-        Dataframe with all the prior data. Read from prior_data.csv.
-
-    kde : sm.nonparametric.KDEMultivariate instance
-        KDE based on the prior data file.
-    """
-
-    def __init__(self, bounds, gaussian):
-        self.bounds = bounds
-        self.gaussian = gaussian
-        self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-        self.read_prior_data()  # Inherited from epsilon
-        self.make_kde(bw_fac=1.0)  # Inherited from epsilon
-
-    def pbound(self, p):
-        '''Checks if parameter set is out of bounds.
-
-        Truncates posterior beyond the supplied bounds.
-
-        Parameters
-        ----------
-        p : array
-            Array containing model parameters.
-
-        Returns
-        -------
-        prior : float or inf
-            If within bounds returns 0, -inf if not
-        '''
-
-        for idx, i in enumerate(p):
-            if np.all(self.bounds[idx] != 0):
-                if ((i < self.bounds[idx][0]) | (i > self.bounds[idx][1])):
-                    return -np.inf
-        return 0
-
-    def pgaussian(self, p):
-        """Function for setting Gaussian priors
-
-        Parameters
-        ----------
-        p : array
-            Array containing mcmc proposals.
-
-        Returns
-        -------
-        lnprior : float
-            Sum of Gaussian priors evaluted at respective values of p.
-        """
-
-        lnprior = 0.0
-        for idx, x in enumerate(p):
-            if self.gaussian[idx][1] != 0:
-                lnprior += -0.5*(np.log(2*np.pi*self.gaussian[idx][1]**2) +
-                                 (x - self.gaussian[idx][0])**2 / self.gaussian[idx][1]**2)
-        return lnprior
-
-    def __call__(self, p):
-        """ Evaluate the priors for a set of parameters.
-
-        The prior is estimated by a KDE of a set of previous Kepler
-        observations. This is truncated at some reasonable values to keep
-        the MCMC sampler in check.
-
-        Currently a Gaussian prior is added to some of the variables that are
-        not included in the current version of the KDE. In future the KDE will
-        be extended to include all the fit variables.
-
-        Parameters
-        ----------
-        p : array
-            Array of model parameters
-
-            Note: in order, the parameters are:
-                    ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
-
-        Returns
-        -------
-        lp : float
-            The prior at p
-        """
-
-        if self.pbound(p) == -np.inf:
-            return -np.inf
-
-        lp = np.log(self.kde.pdf([np.log10(p[0]), np.log10(p[1]), p[2],
-                                  np.log10(p[3]), np.log10(p[4]),
-                                  p[5], p[6], p[7],
-                                  np.log10(p[8]), p[9]]))
-        lp += self.pgaussian(p)
-        return lp
