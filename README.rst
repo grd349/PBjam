@@ -28,8 +28,7 @@ Read the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
 
 Contributing
 ------------
-
-.. include:: CONTRIBUTING.rst
+If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <CONTRIBUTING.rst>`_.
 
 
 Authors
