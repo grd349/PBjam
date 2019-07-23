@@ -5,7 +5,7 @@ You can install PBjam using pip
 
 .. code-block:: console
 
-    $ pip install pbjam
+    $ pip install pbjam --user
 
 Or clone the GitHub repository
 
@@ -18,13 +18,13 @@ Requirements
 ------------
 
 - numpy
-- scipy v1.2.1
+- scipy v1.3.0 or later
 - pandas
 - emcee
-- lightkurve
+- lightkurve v1.0.1 or later
 - astropy
 - pymc3
-- statsmodels v0.9.0
+- statsmodels v.0.10.0 or later
 - corner
 
 
