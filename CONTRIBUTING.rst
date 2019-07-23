@@ -15,11 +15,9 @@ You can also add new features, this might take a bit more back-and-forth with th
 Issues that currently need doing
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Below is a short list of issues that can be tackled without having to dig too deep into the guts of PBjam.  
+
 - Inspectr needs to be updated and polished (Issue #137)
 - Module for automatic download of Gbp-Grp values (Issue #55)
 - Module for automatic and robust detection of large separation and numax (Issue #138)
 - More flexible online lookup (Issue #122)
 - Code inspection (Are we doing something stupid/slow/wrong/unsafely?)
-
-
-
