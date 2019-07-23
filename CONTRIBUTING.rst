@@ -12,6 +12,14 @@ If you spot an issue that you know the solution to, and can write a patch for it
 
 You can also add new features, this might take a bit more back-and-forth with the main authors of PBjam, as we do have some ideas about what PBjam is meant for. Read the `visions notes <https://github.com/grd349/PBjam/blob/master/VISION.rst>`_ where we try to explain the rational behind PBjam. 
 
+Issues that currently need doing
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Below is a short list of issues that can be tackled without having to dig too deep into the guts of PBjam.  
+- Inspectr needs to be updated and polished (Issue #137)
+- Module for automatic download of Gbp-Grp values (Issue #55)
+- Module for automatic and robust detection of large separation and numax (Issue #138)
+- More flexible online lookup (Issue #122)
+- Code inspection (Are we doing something stupid/slow/wrong/unsafely?)
 
 
 
