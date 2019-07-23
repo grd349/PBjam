@@ -9,6 +9,7 @@ import corner
 from . import PACKAGEDIR
 
 from scipy.stats import gaussian_kde
+import pbjam as pb
 
 class epsilon():
     ''' A class to predict epsilon.
@@ -83,40 +84,43 @@ class epsilon():
             return 0.0
         return -0.5 * (y - mu)**2 / sigma**2
 
-    def likelihood(self, p):
-        ''' Calculates the log likelihood of for the parameters p
+    def prior(self, p):
+        ''' Calculates the log prior from the KDE for the parameters p
 
         Inputs
         ------
         p : array
-            Array of the parameters [log_dnu, log_numax, log_teff, bp_rp, eps]
+            Array of the parameters
 
         Returns
         -------
         like : real
             The log likelihood evaluated at p.
 
-        Note:['dnu', 'numax', 'eps',
+        Note: p = ['dnu', 'numax', 'eps',
                      'd02', 'alpha', 'env_height',
                      'env_width', 'mode_width', 'teff',
                      'bp_rp']
         key: [log, log, lin, log, log, log, log, log, log, lin]
         '''
+
+        # Constraint from prior
+        lp = np.log(self.kde.pdf(p))
+        return lp
+
+    def likelihood(self, p):
         log_dnu, log_numax, eps, log_d02, log_alpha, \
             log_env_height, log_env_width, log_mode_width, \
             log_teff, bp_rp = p
-        # Constraint from prior
-        lp = np.log(self.kde.pdf(p))
         # Constraint from input data
         ld = 0.0
         ld += self.normal(log_dnu, *self.log_obs['dnu'])
         ld += self.normal(log_numax, *self.log_obs['numax'])
         ld += self.normal(log_teff, *self.log_obs['teff'])
         ld += self.normal(bp_rp, *self.log_obs['bp_rp'])
+        return ld
 
-        return lp + ld
-
-    def kde_sampler(self, niter=1000, nwalkers=20, burnin=2000):
+    def kde_sampler(self, nwalkers=50):
         ''' Samples from the posterior probability distribution
 
         p(theta | D) propto p(theta) p(D | theta)
@@ -153,11 +157,10 @@ class epsilon():
               self.log_obs['teff'][0],
               self.log_obs['bp_rp'][0]]
         ndim = len(x0)
-        p0 = [np.array(x0) + np.random.rand(ndim)*1e-3 for i in range(nwalkers)]
-        self.sampler = emcee.EnsembleSampler(nwalkers, ndim, self.likelihood,
-                                        threads=self.nthreads)
-        self.sampler.run_mcmc(p0, niter)
-        return self.sampler.chain[:, burnin:, :].reshape((-1, ndim))
+
+        self.fit = pb.mcmc(x0, self.likelihood, self.prior, nwalkers=nwalkers)
+
+        return self.fit()
 
     def to_log10(self, x, xerr):
         if xerr > 0:
@@ -276,7 +279,6 @@ class epsilon():
         self.read_prior_data()
         self.obs_to_log(self.obs)
         self.make_kde(bw_fac=bw_fac)
-        self.samples = self.kde_sampler(niter=niter, burnin=burnin)
+        self.samples = self.kde_sampler()
         result = [self.samples[:,2].mean(), self.samples[:,2].std()]
-        self.sampler.reset()
         return result

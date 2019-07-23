@@ -15,7 +15,7 @@ import scipy.stats as scist
 import astropy.convolution as conv
 import matplotlib.pyplot as plt
 import corner
-import emcee 
+import emcee
 
 def mad(x, axis=0, scale=1.4826):
     """ Compute median absolute deviation
@@ -598,6 +598,31 @@ class asymptotic_fit():
                        show_titles=True, title_kwargs={"fontsize": 12})
         return fig
 
+    def likelihood(self, p):
+        """ Likelihood function for set of model parameters
+
+        Evaluates the likelihood function and applies any priors for a set of
+        model parameters.
+
+        Parameters
+        ----------
+        p : array
+            Array of model parameters
+
+        Returns
+        -------
+        like : float
+            likelihood function at p
+        """
+        logp = self.lp(p)
+
+        if logp == -np.inf:
+            return -np.inf
+
+        mod = self.model(p)
+        like = -1.0 * np.sum(np.log(mod) + self.s / mod)
+        return like + logp
+
     def run(self, burnin=1000, niter=1000):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
@@ -608,8 +633,7 @@ class asymptotic_fit():
             frequency and frequency error.
         """
 
-        self.fit = mcmc(self.f[self.sel], self.s[self.sel], self.model,
-                   self.start, self.lp, nthreads=self.nthreads)
+        self.fit = pb.mcmc(self.start, self.lp, nthreads=self.nthreads)
 
         self.fit(burnin=burnin, niter=niter)  # do the fit with default settings
 
@@ -743,207 +767,3 @@ class Prior(pb.epsilon):
                                   np.log10(p[8]), p[9]]))
         lp += self.pgaussian(p)
         return lp
-
-class mcmc():
-    """ Class for MCMC sampling
-
-    Use EMCEE to fit a provided model to a spectrum.
-
-    Parameters
-    ----------
-    f : float, array
-        Array of frequency bins of the spectrum (muHz)
-    s : array
-        The power at frequencies f
-    model : asy_peakbag.model.model instance
-        Function for computing a spectrum model given a set of parameters.
-    pars_names : list
-        List of parameter names in the asymptotic fit
-    guess : dictionary
-        Dictionary for organizing the initial guess for the asymptotic fir
-        parameters.
-    bounds : array
-        Numpy array of upper and lower boundaries for the asymptotic relation
-        fit. These limits truncate the likelihood function.
-    gaussian : array
-        Numpy array of tuples of mean and sigma for Gaussian
-        priors on each of the fit parameters (To be removed when full
-        KDE is implimented)
-    nthreads : int, optional
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
-
-    Attributes
-    ----------
-    ndim : int
-        Number of fit variables
-    lp : Prior class instance
-        Prior class initialized using model parameter limits, Gaussian
-        paramaters, and the KDE
-    burnin : int
-        Number of steps to take as the burn-in phase. These are discarded at
-        the end of the MCMC run.
-    niter : int
-        Number of steps to take after the burn-in phase. These will be tested
-        for convergence. Once the test is satisfied these steps will will be
-        assumed to be samples of the posterior distribution.
-    nwalkers : int
-        Number of walkers to use in the MCMC fit
-    prior_only : bool
-        Flag for whether or not to just sample the prior, or to sample both
-        sum of the prior and likelihood function. Use to draw initial positions
-        for the walkers.
-    chain : array
-        Numpy array of shape (niter, nwalkers, ndim) with all the MCMC samples
-        drawn after the burn-in phase.
-    flatchain : array
-        A flattened version of the chain array of shape (niter*nwalkers, ndim).
-    lnlike : array
-        Numpy array of shape (niter, nwalkers) of the likelihood at each step
-        of each walker.
-    flatlnlike : array
-        A flattened version of the lnlike array of shape (niter*walkers)
-    """
-
-    def __init__(self, f, s, model, start, lp,
-                 nthreads=1):
-        self.f = f
-        self.s = s
-        self.model = model
-        self.start = start
-        self.nthreads = nthreads
-        self.ndim = len(start)
-        self.lp = lp
-
-        self.niter = None
-        self.nwalkers = None
-        self.burnin = None
-        self.prior_only = None
-        self.chain = None
-        self.flatchain = None
-        self.lnlike = None
-        self.flatlnlike = None
-        self.acceptance = None
-
-
-    def likelihood(self, p):
-        """ Likelihood function for set of model parameters
-
-        Evaluates the likelihood function and applies any priors for a set of
-        model parameters.
-
-        Parameters
-        ----------
-        p : array
-            Array of model parameters
-
-        Returns
-        -------
-        like : float
-            likelihood function at p
-        """
-        logp = self.lp(p)
-
-        if logp == -np.inf:
-            return -np.inf
-
-        mod = self.model(p)
-        like = -1.0 * np.sum(np.log(mod) + self.s / mod)
-        return like + logp
-
-    def convergence_test(self):
-        """ TBD
-        """
-        return True
-
-    def __call__(self, niter=1000, nwalkers=50, burnin=1000, spread=1e-4,
-                 prior_only = False):
-        """ Initialize and run the EMCEE afine invariant sampler
-
-        Parameters
-        ----------
-        niter : int
-            Number of steps for the walkers to take (both burn-in and
-            sampling).
-        nwalkers : int
-            Number of walkers to use in the EMCEE run.
-        spread : float
-            Percent spread around the intial position of the walkers. Small
-            value starts the walkers in a tight ball, large value fills out
-            the range set by parameter bounds.
-
-        Returns
-        -------
-        sampler.flatchain : array
-            The chain of (nwalkers, niter, ndim) flattened to
-            (nwalkers*niter, ndim).
-        """
-
-        # Save these for later
-        self.niter = niter
-        self.nwalkers = nwalkers
-        self.burnin = burnin
-        self.prior_only = True
-
-        import emcee
-
-        # Start walkers in a tight random ball
-        p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
-
-        sampler = emcee.EnsembleSampler(self.nwalkers, self.ndim,
-                                        self.likelihood, threads=self.nthreads)
-        pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
-        pos = self.fold(sampler, pos, spread)
-        sampler.reset()
-        max_n = 20000
-        for sample in sampler.sample(pos, iterations=max_n, progress=True):
-            if sampler.iteration % 100:
-                continue
-            tau = sampler.get_autocorr_time(tol=0)
-            converged = np.all(tau * 20 < sampler.iteration)
-            if converged:
-                break
-
-
-        self.chain = sampler.chain.copy()
-        self.flatchain = sampler.flatchain
-        self.lnlike = sampler.lnprobability
-        self.flatlnlike = sampler.flatlnprobability
-        self.acceptance = sampler.acceptance_fraction
-
-        sampler.reset()  # This hopefully minimizes emcee memory leak
-
-
-    def fold(self, sampler, pos, spread, accept_lim = 0.2):
-        """ Fold low acceptance walkers into main distribution
-
-        At the end of the burn-in, some walkers appear stuck with low
-        acceptance fraction. These can be selected using a threshold, and
-        folded back into the main distribution, estimated based on the median
-        of the walkers with an acceptance fraction above the threshold.
-
-        The stuck walkers are relocated with multivariate Gaussian, with mean
-        equal to the median of the high acceptancew walkers, and a standard
-        deviation equal to the median absolute deviation of these, with a
-        small scaling factor.
-
-        Parameters
-        ----------
-        sampler : emcee sampler object
-            The sampler used in the fit
-        pos : array
-            The final position of the walkers after the burn-in phase
-        spread : float
-            The factor to apply to the walkers that are adjusted
-
-        """
-        idx = sampler.acceptance_fraction < accept_lim
-        nbad = np.shape(pos[idx, :])[0]
-        if nbad > 0:
-            flatchains = sampler.chain[~idx, :, :].reshape((-1, self.ndim))
-            good_med = np.median(flatchains, axis = 0)
-            good_mad = mad(flatchains, axis = 0) * spread
-            pos[idx, :] = np.array([[np.random.uniform(max(self.lp.bounds[j][0], good_med[j]-good_mad[j]),
-                                                       min(self.lp.bounds[j][1], good_med[j]+good_mad[j])
-                                                       ) for j in range(self.ndim)] for n in range(nbad)])
-        return pos
