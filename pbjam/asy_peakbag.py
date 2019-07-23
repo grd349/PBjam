@@ -15,6 +15,7 @@ import scipy.stats as scist
 import astropy.convolution as conv
 import matplotlib.pyplot as plt
 import corner
+import emcee 
 
 def mad(x, axis=0, scale=1.4826):
     """ Compute median absolute deviation
@@ -894,17 +895,15 @@ class mcmc():
         pos, prob, state = sampler.run_mcmc(p0, self.burnin) # Burningham
         pos = self.fold(sampler, pos, spread)
         sampler.reset()
-
-        old_tau = np.inf
-        for i in range(5):
-            print(i)
-            pos, prob, state = sampler.run_mcmc(pos, self.niter) # Sampling
+        max_n = 20000
+        for sample in sampler.sample(pos, iterations=max_n, progress=True):
+            if sampler.iteration % 100:
+                continue
             tau = sampler.get_autocorr_time(tol=0)
-            converged = np.all(tau * 100 < sampler.iteration)
-            converged &= np.all(np.abs(old_tau - tau) / tau < 0.01)
+            converged = np.all(tau * 20 < sampler.iteration)
             if converged:
                 break
-            old_tau = tau
+
 
         self.chain = sampler.chain.copy()
         self.flatchain = sampler.flatchain

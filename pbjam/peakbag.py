@@ -537,6 +537,9 @@ class peakbag():
             The figure containing the plot.
         '''
         dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
+        # make dnu an intger multiple of bw
+        bw = self.f[1] - self.f[0]
+        dnu -= dnu % bw
         numax = self.asy_result['summary'].loc['mean'].numax
         seismology = pg.flatten().to_seismology()
         nmin = np.floor(self.f.min() / dnu) + 1
