@@ -224,12 +224,12 @@ def query_lightkurve(id, lkwargs, use_cached):
     lk_cache = os.path.join(*[os.path.expanduser('~'),
                               '.lightkurve-cache',
                               'mastDownload/*/'])
-    
-    # Remove 
+
+    # Remove
     if isinstance(id, str):
         for prefix in ['KIC','EPIC','TIC','kplr','tic']:
             id = id.strip(prefix)
-    
+
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
     if lkwargs['cadence'] == 'short':
@@ -565,8 +565,8 @@ class session():
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
-                 timeseries=None, psd=None, dictlike=None, store_chains=True, 
-                 nthreads=1, use_cached=False, cadence=None, campaign=None, 
+                 timeseries=None, psd=None, dictlike=None, store_chains=True,
+                 nthreads=1, use_cached=False, cadence=None, campaign=None,
                  sector=None, month=None, quarter=None, make_plots=False,
                  path=None, model_type='simple'):
 
@@ -639,8 +639,8 @@ class session():
         """
 
         for i, st in enumerate(self.stars):
-            try:
-                st(norders=norders, model_type=self.pb_model_type)
-                self.stars[i] = None
-            except:
-                warnings.warn(f'Failed on star {st.ID}')
+            #try:
+            st(norders=norders, model_type=self.pb_model_type)
+            self.stars[i] = None
+            #except:
+            #    warnings.warn(f'Failed on star {st.ID}')

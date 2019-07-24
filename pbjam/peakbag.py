@@ -81,7 +81,7 @@ class peakbag():
         l0, l2 = self.remove_outsiders(l0, l2)
         width = 10**(np.ones(len(l0)) * self.asy_result['summary'].loc['mean'].mode_width).flatten()
         height =  (10**self.asy_result['summary'].loc['mean'].env_height * \
-                 np.exp(-0.5 * (l0 - self.asy_result['summary'].loc['mean'].numax)**2 /
+                 np.exp(-0.5 * (l0 - 10**self.asy_result['summary'].loc['mean'].numax)**2 /
                  (10**self.asy_result['summary'].loc['mean'].env_width)**2)).flatten()
         self.start = {'l0': l0,
                       'l2': l2,
@@ -124,9 +124,9 @@ class peakbag():
             the rung width.
         """
 
-        d02 = self.asy_result['summary'].loc['mean'].d02
+        d02 = 10**self.asy_result['summary'].loc['mean'].d02
         d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
-        w = d02_lw + (extra * self.asy_result['summary'].loc['mean'].dnu)
+        w = d02_lw + (extra * 10**self.asy_result['summary'].loc['mean'].dnu)
         bw = self.f[1] - self.f[0]
         w /= bw
         if verbose:
@@ -262,7 +262,7 @@ class peakbag():
         The use of the Gamma distribution is much more in line with the ethos of
         probabistic programming languages.
         """
-        dnu = self.asy_result['summary'].loc['mean'].dnu
+        dnu = 10**self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
@@ -302,7 +302,7 @@ class peakbag():
         long docs needed to explain.
         """
         warnings.warn('This model is developmental - use carefully')
-        dnu = self.asy_result['summary'].loc['mean'].dnu
+        dnu = 10**self.asy_result['summary'].loc['mean'].dnu
         self.pm_model = pm.Model()
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
@@ -411,6 +411,9 @@ class peakbag():
 
 
     def traceplot(self):
+        '''
+        Will make a pymc3 traceplot.
+        '''
         pm.traceplot(self.samples)
 
     def plot_linewidth(self, thin=10):
@@ -493,11 +496,15 @@ class peakbag():
         return fig
 
     def plot_flat_fit(self, thin=10, alpha=0.2):
+        '''
+        Plots the result of the fit in model space but without the
+        horrible ladder of plot_fit.
+        '''
         n = self.ladder_p.shape[0]
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.snr, 'k-', label='Data', alpha=0.2)
-        dnu = self.asy_result['summary'].loc['mean'].dnu
-        numax = self.asy_result['summary'].loc['mean'].numax
+        dnu = 10**self.asy_result['summary'].loc['mean'].dnu
+        numax = 10**self.asy_result['summary'].loc['mean'].numax
         smoo = dnu * 0.005 / (self.f[1] - self.f[0])
         kernel = conv.Gaussian1DKernel(stddev=smoo)
         smoothed = conv.convolve(self.snr, kernel)
@@ -537,7 +544,10 @@ class peakbag():
             The figure containing the plot.
         '''
         dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
-        numax = self.asy_result['summary'].loc['mean'].numax
+        # make dnu an intger multiple of bw
+        bw = self.f[1] - self.f[0]
+        dnu -= dnu % bw
+        numax = 10**self.asy_result['summary'].loc['mean'].numax
         seismology = pg.flatten().to_seismology()
         nmin = np.floor(self.f.min() / dnu) + 1
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
@@ -553,3 +563,4 @@ class peakbag():
                     xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
         ax.legend(fontsize = 'x-small')
         # TODO need to pass ax to seismo. plot_echelle return fig
+        
