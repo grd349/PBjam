@@ -562,5 +562,5 @@ class peakbag():
         ax.errorbar(pbjam_mean_l2 % dnu, (pbjam_mean_l2 // dnu) * dnu,
                     xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
         ax.legend(fontsize = 'x-small')
+        return fig
         # TODO need to pass ax to seismo. plot_echelle return fig
-        
