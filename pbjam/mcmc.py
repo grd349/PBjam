@@ -102,7 +102,7 @@ class mcmc():
             p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
         else:
             p0 = np.random.randn(self.nwalkers, self.ndim)
-            p0 *= start_samples.std(axis=0)
+            p0 *= start_samples.std(axis=0) * 0.1
             p0 += start_samples.mean(axis=0)
 
         pos, prob, state = self.sampler.run_mcmc(p0, 1000)
@@ -113,6 +113,7 @@ class mcmc():
             if self.sampler.iteration % 500:
                 continue
             if self.converged():
+                print(f'Converged after {self.sampler.iteration} iterations.')
                 break
 
         self.chain = self.sampler.chain.copy()
@@ -142,7 +143,7 @@ class mcmc():
         pos : array
             The final position of the walkers after the burn-in phase.
         accept_lim: float
-            The value below which walkers will be labelled as bad and/or hence 
+            The value below which walkers will be labelled as bad and/or hence
             stuck.
         """
         idx = self.sampler.acceptance_fraction < accept_lim

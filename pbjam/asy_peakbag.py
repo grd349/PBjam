@@ -164,7 +164,7 @@ def get_summary_stats(fit, model, pnames):
                                                50,
                                                50+68.2689492137/2,
                                                50+95.4499736104/2], axis=0)
-    mads =  mad(fit.flatchain, axis=0)
+    mads =  scist.median_absolute_deviation(fit.flatchain, axis=0)
     mle = fit.flatchain[idx,:]
     for i, par in enumerate(pnames):
         z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
@@ -441,7 +441,7 @@ class asymptotic_fit(pb.epsilon):
         nu2_samps = nu0_samps - 10**flatchain[:, 3]
 
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
-        nus_mad = mad(np.array([nu0_samps, nu2_samps]), axis=2)
+        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
 
         #nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
 
@@ -470,7 +470,7 @@ class asymptotic_fit(pb.epsilon):
         smoothed = conv.convolve(self.s, kernel)
         ax.plot(self.f, smoothed, 'k-',
                 label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.start), 'r-',
+        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 'r-',
                 label='Start model', alpha=0.7)
         ax.set_ylim([0, smoothed.max()*1.5])
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
@@ -478,7 +478,7 @@ class asymptotic_fit(pb.epsilon):
         ax.legend()
         return fig
 
-    def plot(self, thin=10):
+    def plot(self, thin=100):
         '''
         Plots the data and some models generated from the samples
         from the posteriod distribution.

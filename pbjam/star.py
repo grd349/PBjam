@@ -1,6 +1,6 @@
 import os
 import lightkurve as lk
-from pbjam.asy_peakbag import asymptotic_fit, envelope_width
+from pbjam.asy_peakbag import asymptotic_fit
 from pbjam.guess_epsilon import epsilon
 from pbjam.peakbag import peakbag
 import numpy as np
