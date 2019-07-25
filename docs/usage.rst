@@ -22,3 +22,6 @@ Advanced
 --------
 It is not strictly necessary to use either the :class:`~pbjam.jar.session` or :class:`~pbjam.star.star` classes. The `Advanced notebook <example-advanced.ipynb>`_ shows an end-to-end walkthrough of the steps that PBjam goes through for peakbagging.
 
+.. note:: 
+    For additional useful examples see the `Examples <https://github.com/grd349/PBjam/tree/master/Examples>`_ directory.
+
