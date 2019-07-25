@@ -14,6 +14,8 @@ Modules in PBjam
    star
    asy_peakbag
    peakbag
+   guess_epsilon
+   mcmc
 
 
 
