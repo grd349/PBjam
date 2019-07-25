@@ -49,7 +49,7 @@ class epsilon():
         import statsmodels.api as sm
         # bw set using CV ML but times two.
         bw = np.array([0.00774255, 0.01441685, 0.04582654,
-                       0.02127414, 0.17830664, 0.84219474,
+                       0.02127414, 0.17830664, 0.54219474,
                        0.04400531, 0.06834085, 0.0054522,
                        0.11864199]) * bw_fac
         self.kde = sm.nonparametric.KDEMultivariate(
@@ -78,7 +78,8 @@ class epsilon():
         return -0.5 * (y - mu)**2 / sigma**2
 
     def prior(self, p):
-        ''' Calculates the log prior from the KDE for the parameters p
+        ''' Calculates the log prior from the KDE for the parameters p and
+        applies some boundaries.
 
         Inputs
         ------
@@ -96,7 +97,9 @@ class epsilon():
                      'bp_rp']
         key: [log, log, lin, log, log, log, log, log, log, lin]
         '''
-
+        # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
+        if p[3] - p[0] > -0.7:
+            return -np.inf
         # Constraint from prior
         lp = np.log(self.kde.pdf(p))
         return lp

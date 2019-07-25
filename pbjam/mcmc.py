@@ -117,11 +117,16 @@ class mcmc():
                 break
 
         self.chain = self.sampler.chain.copy()
-        self.flatchain = self.sampler.flatchain
         self.lnlike = self.sampler.lnprobability
-        self.flatlnlike = self.sampler.flatlnprobability
         self.acceptance = self.sampler.acceptance_fraction
 
+        tau = self.sampler.get_autocorr_time(tol=0).mean()
+        self.flatchain = self.sampler.get_chain(discard=int(tau*5),
+                                                          thin=int(tau/4),
+                                                          flat=True)
+        self.flatlnlike = self.sampler.get_log_prob(discard=int(tau*5),
+                                                          thin=int(tau/4),
+                                                          flat=True)
         self.sampler.reset()  # This hopefully minimizes emcee memory leak
         return self.flatchain
 
