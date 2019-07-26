@@ -10,7 +10,7 @@ setuptools.setup(
     long_description=open("README.rst").read(),
     url="https://pbjam.readthedocs.io/",
     packages=['pbjam'],
-    install_requires=['numpy', 'pandas', 'emcee', 'statsmodels>=0.10.0',
+    install_requires=['numpy', 'pandas', 'emcee==3.0rc2', 'statsmodels>=0.10.0',
                       'lightkurve>=1.0.1', 'astropy', 'scipy>=1.3.0',
                       'psutil', 'corner', 'pymc3', 'matplotlib>=1.5.3'],
     include_package_data=True,
