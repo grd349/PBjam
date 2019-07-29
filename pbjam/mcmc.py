@@ -131,7 +131,7 @@ class mcmc():
         return self.flatchain
 
 
-    def fold(self, pos, accept_lim = 0.2):
+    def fold(self, pos, accept_lim = 0.2, spread=0.1):
         """ Fold low acceptance walkers into main distribution
 
         At the end of the burn-in, some walkers appear stuck with low
