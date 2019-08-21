@@ -119,6 +119,9 @@ class star():
                                            numax=self.numax,
                                            teff=self.teff,
                                            bp_rp=self.bp_rp)
+        self.asy_result['summary'].to_csv(self.bpath + os.sep + f'asy_summary_{self.ID}.csv',
+                                          index=False)
+
         if self.store_chains:
             pass # TODO need to pickle the chains if requested.
         if self.make_plots:
