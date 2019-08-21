@@ -122,7 +122,9 @@ class star():
 
         self.asy_result['summary'].to_csv(self.bpath + os.sep + f'asy_summary_{self.ID}.csv',
                                           index=False)
-                                          
+        self.asy_result['modeID'].to_csv(self.bpath + os.sep + f'asy_modeID_{self.ID}.csv',
+                                          index=False)
+
         if self.store_chains:
             pass # TODO need to pickle the chains if requested.
         if self.make_plots:
