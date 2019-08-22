@@ -67,6 +67,8 @@ class MyCentralWidget(QWidget):
             self.idx += 1
         try:
             self.my_widget.show_image(self.idx)
+            self.main_window.statusBar().showMessage(
+                        f'Star {self.main_window.df.loc[self.idx].ID}')
         except:
             self.main_window.statusBar().showMessage(
                         f'Failed on {self.main_window.df.loc[self.idx].ID}')
@@ -95,7 +97,7 @@ class MyWidget():
 
     def show_image(self, idx):
         id = str(int(self.df.loc[idx].ID))
-        sfile = glob.glob(self.image_dir + os.sep + id + os.sep + 'asy_' + id + '.png')
+        sfile = glob.glob(self.image_dir + os.sep + 'KIC' + id + os.sep + 'asy_KIC' + id + '.png')
         pixmap = QPixmap(sfile[0])
         self.label.setPixmap(pixmap)
         self.label.setScaledContents(True)
