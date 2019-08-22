@@ -95,7 +95,7 @@ class MyWidget():
 
     def show_image(self, idx):
         id = str(int(self.df.loc[idx].ID))
-        sfile = glob.glob(self.image_dir + os.sep + '*' + id + '*.png')
+        sfile = glob.glob(self.image_dir + os.sep + id + os.sep + 'asy_' + id + '.png')
         pixmap = QPixmap(sfile[0])
         self.label.setPixmap(pixmap)
         self.label.setScaledContents(True)
