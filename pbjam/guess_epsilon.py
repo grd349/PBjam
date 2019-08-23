@@ -178,7 +178,7 @@ class epsilon():
                         'teff': self.to_log10(*obs['teff']),
                         'bp_rp': obs['bp_rp']}
 
-    def plot(self, periodogram):
+    def plot(self, periodogram, norders=10):
         '''
         Make a plot of the posterior distribution on the locations
         of the l=0 modes, on top of a
@@ -190,21 +190,31 @@ class epsilon():
         periodogram: Periodogram
             A flattened lightkurve Periodogram object for plotting.
 
+        norders: int
+            Approximate number of orders to prdecit for.
+
         Returns
         -------
 
         fig: Figure
+
+
+        Updates:
+        23/8/19 - grd349 changed plot range and reduced number of predictions.
+                  This should fix #154.
         '''
         fig, ax = plt.subplots(figsize=[16,9])
         periodogram.plot(ax=ax, alpha=0.5, c='gray', label='Data')
         dnu = 10**(self.samples[:, 0].mean())
+        numax = 10**(self.samples[:, 1].mean())
         smoo = periodogram.smooth(filter_width=dnu*0.02)
         smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed Data')
+
         h = np.max(smoo.power.value)
         f = periodogram.frequency.value
         dnu = 10**(self.samples[:, 0].mean())
-        nmin = np.floor(f.min() / dnu)
-        nmax = np.floor(f.max() / dnu)
+        nmin = np.floor(numax / dnu) - int(norders/2)
+        nmax = np.floor(numax / dnu) + int(norders/2)
         self.n = np.arange(nmin-1, nmax+1, 1)
         freq, freq_unc = self.kde_predict(self.n)
         y = np.zeros(len(f))
@@ -213,8 +223,14 @@ class epsilon():
         ax.fill_between(f, y, alpha=0.3, facecolor='navy',
                         edgecolor='none',
                         label=r'$\propto P(\nu_{\ell=0})$')
-        ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, h*1.2])
+        xlim = [numax - dnu * norders/2,
+                numax + dnu * norders/2]
+        if xlim[0] < f.min():
+            xlim[0] = f.min()
+        if xlim[1] > f.max():
+            xlim[1] = f.max()
+        ax.set_xlim(xlim)
         ax.set_title(periodogram.label)
         ax.legend()
         return fig
