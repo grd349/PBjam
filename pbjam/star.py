@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
-import os, glob, warnings, psutil, pickle
+import os, glob, warnings, pickle
 from . import PACKAGEDIR
 import pymc3 as pm
 

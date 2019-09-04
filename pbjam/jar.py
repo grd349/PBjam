@@ -46,7 +46,7 @@ import lightkurve as lk
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import os, glob, warnings, psutil
+import os, glob, warnings
 
 from pbjam.star import star
 
@@ -436,9 +436,9 @@ def lk_to_pg(vardf):
             raise TypeError("Can't handle this type of time series object")
 
 
-def print_memusage(pre='', post=''):
-    process = psutil.Process(os.getpid())
-    print(pre, process.memory_info().rss // 1000, 'Kbytes', post)  # in bytes
+#def print_memusage(pre='', post=''):
+#    process = psutil.Process(os.getpid())
+#    print(pre, process.memory_info().rss // 1000, 'Kbytes', post)  # in bytes
 
 
 class session():
