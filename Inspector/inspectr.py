@@ -156,7 +156,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     df = pd.read_csv(args.target_list, converters={'ID': str, 'error_code': int})
-
+    
+    sys.setrecursionlimit(len(df))
+    
     if df.columns.contains('ID') == False:
         print('CSV file must contain a column named ID')
         sys.exit()
