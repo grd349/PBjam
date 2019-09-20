@@ -46,7 +46,7 @@ import lightkurve as lk
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import os, glob, warnings, psutil
+import os, glob, warnings
 
 from pbjam.star import star
 
@@ -125,7 +125,7 @@ def organize_sess_input(**vardct):
     return vardf
 
 
-def query_mast(id, lkwargs):
+def query_mast(id, cache, lkwargs):
     """ Search for target on MAST server.
 
     Get all the lightcurves available for a target id, using options in kwargs
@@ -151,7 +151,7 @@ def query_mast(id, lkwargs):
         warnings.warn('LightKurve did not return %s cadence data for %s' % (lkwargs['cadence'], id))
         return []
     else:
-        return search_results.download_all()
+        return search_results.download_all(download_dir=cache)
 
 
 def sort_lc(lc):
@@ -199,7 +199,7 @@ def clean_lc(lc):
     return lc
 
 
-def query_lightkurve(id, lkwargs, use_cached):
+def query_lightkurve(id, download_dir, use_cached, lkwargs):
     """ Check cache for fits file, or download it.
 
     Based on use_cached flag, will look in the cache for fits file
@@ -221,9 +221,10 @@ def query_lightkurve(id, lkwargs, use_cached):
     Prioritizes long cadence over short cadence unless otherwise specified.
 
     """
-    lk_cache = os.path.join(*[os.path.expanduser('~'),
-                              '.lightkurve-cache',
-                              'mastDownload/*/'])
+    if not download_dir:
+          cache = os.path.join(*[os.path.expanduser('~'), '.lightkurve-cache'])
+    else:
+          cache = download_dir
 
     # Remove
     if isinstance(id, str):
@@ -233,9 +234,9 @@ def query_lightkurve(id, lkwargs, use_cached):
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
     if lkwargs['cadence'] == 'short':
-        tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_slc.fits')
+        tgtfiles = glob.glob(os.path.join(*[cache, 'mastDownload','*',f'*{str(int(id))}*','*_slc.fits']))
     elif lkwargs['cadence'] == 'long':
-        tgtfiles = glob.glob(lk_cache + f'*{str(int(id))}*/*_llc.fits')
+        tgtfiles = glob.glob(os.path.join(*[cache, 'mastDownload','*',f'*{str(int(id))}*','*_;lc.fits']))
     else:
         raise TypeError('Unrecognized cadence input for %s' % (id))
 
@@ -243,7 +244,7 @@ def query_lightkurve(id, lkwargs, use_cached):
         if ((len(tgtfiles) == 0) and use_cached):
             warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
         print(f'Querying MAST for {id}')
-        lc_col = query_mast(id, lkwargs)
+        lc_col = query_mast(id, cache, lkwargs)
         if len(lc_col) == 0:
             raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
 
@@ -359,7 +360,7 @@ def format_col(vardf, col, key):
         print('Unhandled exception')
 
 
-def lc_to_lk(vardf, use_cached=True):
+def lc_to_lk(vardf, download_dir, use_cached=True):
     """ Convert time series column in dataframe to lk.LightCurve object
 
     Goes through the timeseries column in the dataframe and tries to convert
@@ -392,7 +393,7 @@ def lc_to_lk(vardf, use_cached=True):
             else:
                 D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
                                               'campaign', 'quarter']}
-                lk_lc = query_lightkurve(id, D, use_cached)
+                lk_lc = query_lightkurve(id, download_dir, use_cached, D)
                 vardf.loc[i, key] = lk_lc
         elif vardf.loc[i, key].__module__ == lk.lightcurve.__name__:
             pass
@@ -436,9 +437,9 @@ def lk_to_pg(vardf):
             raise TypeError("Can't handle this type of time series object")
 
 
-def print_memusage(pre='', post=''):
-    process = psutil.Process(os.getpid())
-    print(pre, process.memory_info().rss // 1000, 'Kbytes', post)  # in bytes
+#def print_memusage(pre='', post=''):
+#    process = psutil.Process(os.getpid())
+#    print(pre, process.memory_info().rss // 1000, 'Kbytes', post)  # in bytes
 
 
 class session():
@@ -568,7 +569,7 @@ class session():
                  timeseries=None, psd=None, dictlike=None, store_chains=True,
                  nthreads=1, use_cached=False, cadence=None, campaign=None,
                  sector=None, month=None, quarter=None, make_plots=False,
-                 path=None, model_type='simple'):
+                 path=None, model_type='simple', download_dir=None):
 
         self.nthreads = nthreads
         self.store_chains = store_chains
@@ -599,7 +600,7 @@ class session():
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
 
-        lc_to_lk(vardf, use_cached=use_cached)
+        lc_to_lk(vardf, download_dir, use_cached=use_cached)
         lk_to_pg(vardf)
 
         #print_memusage(pre = 'df setup')

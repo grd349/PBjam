@@ -172,6 +172,7 @@ def get_summary_stats(fit, model, pnames):
              pars_percs[4,i], mads[i]]
         A = {key: z[i] for i, key in enumerate(smry_stats)}
         summary[par] = pd.Series(A)
+    summary = summary.transpose()
     mle_model = model(mle)
     return summary, mle_model
 

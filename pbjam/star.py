@@ -7,7 +7,7 @@ import numpy as np
 import astropy.units as units
 import pandas as pd
 import matplotlib.pyplot as plt
-import os, glob, warnings, psutil, pickle
+import os, glob, warnings, pickle
 from . import PACKAGEDIR
 import pymc3 as pm
 
@@ -121,7 +121,7 @@ class star():
                                            bp_rp=self.bp_rp)
 
         self.asy_result['summary'].to_csv(self.bpath + os.sep + f'asy_summary_{self.ID}.csv',
-                                          index=False)
+                                          index=True)
         self.asy_result['modeID'].to_csv(self.bpath + os.sep + f'asy_modeID_{self.ID}.csv',
                                           index=False)
 
