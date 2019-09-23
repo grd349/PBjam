@@ -7,15 +7,11 @@ in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are ignored.
 
 import numpy as np
 import pbjam as pb
-import os
 import pandas as pd
-from collections import OrderedDict
-from . import PACKAGEDIR
 import scipy.stats as scist
 import astropy.convolution as conv
 import matplotlib.pyplot as plt
 import corner
-import emcee
 
 def get_nmax(numax, dnu, eps):
     """Compute radial order at numax.
@@ -62,6 +58,9 @@ def get_enns(nmax, norders):
 
     below = np.floor(nmax - np.floor(norders/2)).astype(int)
     above = np.floor(nmax + np.ceil(norders/2)).astype(int)
+    
+    # Handling of single input (during fitting), or array input when evaluating
+    # the fit
     if type(below) == np.int64:
         return np.arange(below, above)
     else:
@@ -153,9 +152,8 @@ def get_summary_stats(fit, model, pnames):
     """
 
     summary = pd.DataFrame()
-    smry_stats = ['mle','mean','std', 'skew', '2nd', '16th', '50th', '84th',
-                  '97th', 'MAD']
     idx = np.argmax(fit.flatlnlike)
+    mle = fit.flatchain[idx,:]
     means = np.mean(fit.flatchain, axis = 0)
     stds = np.std(fit.flatchain, axis = 0)
     skewness = scist.skew(fit.flatchain, axis = 0)
@@ -165,7 +163,9 @@ def get_summary_stats(fit, model, pnames):
                                                50+68.2689492137/2,
                                                50+95.4499736104/2], axis=0)
     mads =  scist.median_absolute_deviation(fit.flatchain, axis=0)
-    mle = fit.flatchain[idx,:]
+
+    smry_stats = ['mle','mean','std', 'skew', '2nd', '16th', '50th', '84th',
+                  '97th', 'MAD']
     for i, par in enumerate(pnames):
         z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
              pars_percs[1,i], pars_percs[2,i], pars_percs[3,i],
@@ -369,36 +369,39 @@ class asymptotic_fit(pb.epsilon):
         KDE is implimented).
     """
 
-    def __init__(self, f, snr, start_samples,
-                 teff, bp_rp,
-                 store_chains=True, nthreads=1, norders=8):
-
+    def __init__(self, f, s, start_samples, teff, bp_rp, store_chains=True, 
+                 nthreads=1, norders=8):
+        
+        self.f = f
+        self.s = s
         self.start_samples = start_samples
         self.store_chains = store_chains
         self.nthreads = nthreads
         self.norders = norders
-        self.f = f
-        self.s = snr
+        
         self.pars_names = ['dnu', 'numax', 'eps',
                            'd02', 'alpha', 'env_height',
                            'env_width', 'mode_width', 'teff',
                            'bp_rp']
 
-        summary = start_samples.mean(axis=0)
-        start = [10**(summary[0]), 10**(summary[1]), summary[2],
-                10**(summary[3]), 10**(summary[4]), summary[5],
-                summary[6], summary[7], 10**(summary[8]),
-                summary[9]]
+        means = start_samples.mean(axis=0)
+        start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]), 
+                 10**(means[4]), means[5], means[6], means[7], 10**(means[8]),
+                 means[9]]
         self.start = start
 
         nmax = get_nmax(start[1], start[0], start[2])
-        lower_n = nmax - self.norders/2 - 1.25 + start[2]
-        upper_n = nmax + self.norders/2 + 0.25 + start[2]
-        lower_frequency = lower_n * start[0]
-        upper_frequency = upper_n * start[0]
-        self.sel = np.where((self.f > lower_frequency) & (self.f < upper_frequency))
+        enns = get_enns(nmax, self.norders)
+#        lower_n = nmax - self.norders/2 - 1.25 + start[2]
+#        upper_n = nmax + self.norders/2 + 0.25 + start[2]
+#        lower_frequency = lower_n * start[0]
+#        upper_frequency = upper_n * start[0]
+        lower_frequency = (min(enns) - 1.25 + start[2])* start[0]
+        upper_frequency = (max(enns) + 0.25 + start[2])* start[0]
+        
+        self.sel = (self.f > lower_frequency) & (self.f < upper_frequency)
+        #self.sel = np.where((self.f > lower_frequency) & (self.f < upper_frequency))
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
-
 
         self.modeID = None
         self.summary = None
@@ -444,8 +447,6 @@ class asymptotic_fit(pb.epsilon):
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
         nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
 
-        #nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
-
         ells = [0 if i % 2 else 2 for i in range(2*N)]
 
         nus_med_out = []
@@ -455,8 +456,7 @@ class asymptotic_fit(pb.epsilon):
             nus_med_out += [nus_med[1, i], nus_med[0, i]]
             nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
 
-        modeID = pd.DataFrame({'ell': ells,
-                               'nu_med': nus_med_out,
+        modeID = pd.DataFrame({'ell': ells, 'nu_med': nus_med_out, 
                                'nu_mad': nus_mad_out})
         return modeID
 
@@ -521,8 +521,8 @@ class asymptotic_fit(pb.epsilon):
         Calls corner.corner on the sampling results
         '''
         fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
-                            quantiles=[0.16, 0.5, 0.84],
-                       show_titles=True, title_kwargs={"fontsize": 12})
+                            quantiles=[0.16, 0.5, 0.84], show_titles=True, 
+                            title_kwargs={"fontsize": 12})
         return fig
 
     def likelihood(self, p):
@@ -551,16 +551,13 @@ class asymptotic_fit(pb.epsilon):
         ld = 0.0
         ld += self.normal(p[-2], *self.log_obs['teff'])
         ld += self.normal(p[-1], *self.log_obs['bp_rp'])
+        
         # Constraint from the periodogram
         mod = self.model(p)
         like = -1.0 * np.sum(np.log(mod) + self.s[self.sel] / mod)
         return like + ld
 
-    def run(self,
-            dnu=[1, -1],
-            numax=[1, -1],
-            teff=[1, -1],
-            bp_rp=[1, -1]):
+    def run(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
         Parameters
@@ -572,7 +569,7 @@ class asymptotic_fit(pb.epsilon):
         teff : [real, real]
             Stellar effective temperature and uncertainty
         bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty
+            The Gaia Gbp - Grp color value and uncertainty 
             (probably ~< 0.01 dex).
 
         Returns
@@ -580,10 +577,8 @@ class asymptotic_fit(pb.epsilon):
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
         """
-        self.obs = {'dnu': dnu,
-                    'numax': numax,
-                    'teff': teff,
-                    'bp_rp': bp_rp}
+        
+        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
 
         self.prior = pb.epsilon().prior
@@ -594,8 +589,8 @@ class asymptotic_fit(pb.epsilon):
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
-        self.summary, self.mle_model = get_summary_stats(self.fit,
-                                            self.model, self.pars_names)
+        self.summary, self.mle_model = get_summary_stats(self.fit, self.model, 
+                                                         self.pars_names)
 
         if self.store_chains:
             self.flatchain = self.fit.flatchain

@@ -1,15 +1,10 @@
-import os
-import lightkurve as lk
+import os, warnings
 from pbjam.asy_peakbag import asymptotic_fit
 from pbjam.guess_epsilon import epsilon
 from pbjam.peakbag import peakbag
-import numpy as np
-import astropy.units as units
-import pandas as pd
-import matplotlib.pyplot as plt
-import os, glob, warnings, pickle
 from . import PACKAGEDIR
 import pymc3 as pm
+
 
 class star():
     """ Class for each star to be peakbagged
@@ -34,11 +29,11 @@ class star():
         List of the form [dnu, dnu_error]. For multiple targets, use a list
         of lists.
 
-    teff : list, optional
+    teff : list
         List of the form [teff, teff_error]. For multiple targets, use a list
         of lists.
 
-    bp_rp : list, optional
+    bp_rp : list
         List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
         of lists.
 
@@ -60,13 +55,21 @@ class star():
 
     verbose : bool, optional
         If True, will show error messages on the users terminal if they occur.
+        
+    Attributes
+    ----------
+    f : array
+        Array of power spectrum frequencies
+    s : array
+        power spectrum
+    data_file : str
+        Path to the csv file containing the prior data
     """
 
-    def __init__(self, ID, periodogram,
-                 numax, dnu, teff=None, bp_rp=None,
-                 store_chains=True, nthreads=1,
-                 make_plots=False,
-                 path=None, verbose=False):
+    def __init__(self, ID, periodogram, numax, dnu, teff, bp_rp, nthreads=1, 
+                 path=None, store_chains=True, make_plots=False, 
+                 verbose=False):
+          
         self.ID = ID
         self.pg = periodogram
         self.f = periodogram.frequency.value
@@ -81,18 +84,23 @@ class star():
         self.store_chains = store_chains
         self.make_plots = make_plots
 
-        if path == None:
-            path = os.getcwd()
-        self.bpath = os.path.join(*[path, f'{self.ID}'])
-
-        try:
-            os.mkdir(self.bpath)
-        except OSError:
-            if verbose:
-                warnings.warn(f'Path {self.bpath} already exists - I will try to overwrite ... ')
-
         self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
 
+        self.make_output_dir(path, verbose)
+
+
+    def make_output_dir(self, path, verbose):
+        if path == None:
+            path = os.getcwd()
+        self.path = os.path.join(*[path, f'{self.ID}'])
+
+        try:
+            os.mkdir(self.path)
+        except OSError:
+            if verbose:
+                warnings.warn(f'Path {self.path} already exists - I will try to overwrite ... ')
+          
+          
     def run_epsilon(self, bw_fac=1.0):
         """
         Runs the epsilon code and makes plots if self.make_plots is set.
@@ -102,35 +110,37 @@ class star():
                                            numax=self.numax,
                                            teff=self.teff,
                                            bp_rp=self.bp_rp)
-
+        
+        outpath = os.path.join(*[self.path, 'epsilon'])
         if self.make_plots:
-            self.epsilon.plot(self.pg).savefig(self.bpath + os.sep + f'epsilon_{self.ID}.png')
-            self.epsilon.plot_corner().savefig(self.bpath + os.sep + f'epsilon_corner_{self.ID}.png')
-
+            self.epsilon.plot(self.pg).savefig(outpath + f'_{self.ID}.png')
+            self.epsilon.plot_corner().savefig(outpath + f'_corner_{self.ID}.png')
+            
+            
     def run_asy_peakbag(self, norders=6):
         """
         Runs the asy_peakbag code.
         """
         self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
-                                      self.teff, self.bp_rp,
+                                      self.teff, self.bp_rp, nthreads=1,
                                       store_chains=self.store_chains,
-                                      nthreads=1, norders=norders)
-        self.asy_result = self.asy_fit.run(dnu=self.dnu,
-                                           numax=self.numax,
-                                           teff=self.teff,
-                                           bp_rp=self.bp_rp)
+                                      norders=norders)
+        
+        self.asy_result = self.asy_fit.run(dnu=self.dnu, numax=self.numax,
+                                           teff=self.teff, bp_rp=self.bp_rp)
 
-        self.asy_result['summary'].to_csv(self.bpath + os.sep + f'asy_summary_{self.ID}.csv',
+        outpath = os.path.join(*[self.path, 'asy'])
+        self.asy_result['summary'].to_csv(outpath + f'_summary_{self.ID}.csv',
                                           index=True)
-        self.asy_result['modeID'].to_csv(self.bpath + os.sep + f'asy_modeID_{self.ID}.csv',
+        self.asy_result['modeID'].to_csv(outpath + f'_modeID_{self.ID}.csv',
                                           index=False)
 
         if self.store_chains:
             pass # TODO need to pickle the chains if requested.
         if self.make_plots:
-            self.asy_fit.plot_corner().savefig(self.bpath + os.sep + f'asy_corner_{self.ID}.png')
-            self.asy_fit.plot().savefig(self.bpath + os.sep + f'asy_{self.ID}.png')
-
+            self.asy_fit.plot().savefig(outpath + f'_{self.ID}.png')
+            self.asy_fit.plot_corner().savefig(outpath + f'_corner_{self.ID}.png')
+            
 
     def run_peakbag(self, model_type='simple', tune=1500):
         """
@@ -139,15 +149,16 @@ class star():
         self.peakbag = peakbag(self.f, self.s, self.asy_result)
         self.peakbag.sample(model_type=model_type, tune=tune,
                             cores=self.nthreads)
-        pm.summary(self.peakbag.samples).to_csv(self.bpath + os.sep + f'peakbag_summary_{self.ID}.csv')
+        
+        outpath = os.path.join(*[self.path, 'peakbag'])
+        pm.summary(self.peakbag.samples).to_csv(outpath + f'_summary_{self.ID}.csv')
         if self.store_chains:
             pass # TODO need to pickle the samples if requested.
         if self.make_plots:
-            self.peakbag.plot_flat_fit().savefig(self.bpath + os.sep + f'peakbag_{self.ID}.png')
+            self.peakbag.plot_flat_fit().savefig(outpath + f'_{self.ID}.png')
 
 
-    def __call__(self, bw_fac=1.0, norders=8,
-                 model_type='simple', tune=1500):
+    def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500):
         """ Instead of a _call_ we should just make this a function maybe? """
         self.run_epsilon(bw_fac=bw_fac)
         self.run_asy_peakbag(norders=norders)
