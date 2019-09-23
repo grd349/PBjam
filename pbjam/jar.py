@@ -61,6 +61,7 @@ def organize_sess_dataframe(vardf):
     vardf : Pandas.DataFrame
         Input dataframe
     """
+    
     keys = ['ID', 'numax', 'dnu', 'numax_err', 'dnu_err']
     if not any(x not in keys for x in vardf.keys()):
         raise(KeyError, 'Some of the required keywords were missing.')
@@ -101,8 +102,8 @@ def organize_sess_input(**vardct):
     -------
     vardf : Pandas.DataFrame
         Dataframe containing the inputs from Session class call.
-
     """
+    
     vardf = pd.DataFrame({'ID': np.array(vardct['ID']).reshape((-1, 1)).flatten()})
 
     N = len(vardf)
@@ -137,6 +138,9 @@ def query_mast(id, cache, lkwargs):
     id : string
         Target id, must be resolvable by Lightkurve.
 
+    cache : str
+        Directory to download the lightcurves into.
+
     lkwargs : dictionary containing keywords for the LightKurve search.
         cadence, quarter, campaign, sector, month.
 
@@ -146,6 +150,7 @@ def query_mast(id, cache, lkwargs):
         List of fits files for the requested target
     """
 
+    print(f'Querying MAST for {id}')
     search_results = lk.search_lightcurvefile(target=id, **lkwargs)
     if len(search_results) == 0:
         warnings.warn('LightKurve did not return %s cadence data for %s' % (lkwargs['cadence'], id))
@@ -169,7 +174,6 @@ def sort_lc(lc):
     -------
     lc : Lightkurve.LightCurve instance
         The sorted Lightkurve object
-
     """
 
     sidx = np.argsort(lc.time)
@@ -222,42 +226,45 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
 
     """
     if not download_dir:
-          cache = os.path.join(*[os.path.expanduser('~'), '.lightkurve-cache'])
+          cache_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve-cache'])
     else:
-          cache = download_dir
-
-    # Remove
+          cache_dir = download_dir
+    
     if isinstance(id, str):
         for prefix in ['KIC','EPIC','TIC','kplr','tic']:
-            id = id.strip(prefix)
+            baseid = int(id.strip(prefix))
 
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
+        
     if lkwargs['cadence'] == 'short':
-        tgtfiles = glob.glob(os.path.join(*[cache, 'mastDownload','*',f'*{str(int(id))}*','*_slc.fits']))
+        ext = '*_slc.fits'
     elif lkwargs['cadence'] == 'long':
-        tgtfiles = glob.glob(os.path.join(*[cache, 'mastDownload','*',f'*{str(int(id))}*','*_;lc.fits']))
+        ext = '*_lc.fits'
     else:
         raise TypeError('Unrecognized cadence input for %s' % (id))
+    tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', f'*{str(baseid)}*', ext]))
 
-    if (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
-        if ((len(tgtfiles) == 0) and use_cached):
+    
+    if (use_cached and (len(tgtfiles) != 0)):
+        lc_col = [lk.open(n) for n in tgtfiles]
+    elif (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
+        if (use_cached and (len(tgtfiles) == 0)):
             warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
-        print(f'Querying MAST for {id}')
-        lc_col = query_mast(id, cache, lkwargs)
+        lc_col = query_mast(id, cache_dir, lkwargs)
         if len(lc_col) == 0:
             raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
-
-    elif (use_cached and (len(tgtfiles) != 0)):
-        lc_col = [lk.open(n) for n in tgtfiles]
     else:
-        raise ValueError('Unhandled Exception')
+        raise ValueError('Could not find any cached data, and failed to access MAST')
+    
+    # Perform reduction on first lc of the lc collection and append the rest
     lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
     for i, lc in enumerate(lc_col[1:]):
         lc0 = lc0.append(clean_lc(lc.PDCSAP_FLUX))
+        
     return lc0
 
-
+      
 def arr_to_lk(x, y, name, typ):
     """ LightKurve object from input.
 
@@ -379,10 +386,9 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
 
     """
 
-    tinyoffset = 1e-20  # to avoid cases LC median = 0 (lk doesn't like it)
+    tinyoffset = 1  # to avoid cases LC median = 0 (lk doesn't like it)
     key = 'timeseries'
     for i, id in enumerate(vardf['ID']):
-
         if isinstance(vardf.loc[i, key], str):
             t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
             d += tinyoffset
@@ -392,7 +398,7 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
                 pass
             else:
                 D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
-                                              'campaign', 'quarter']}
+                                                  'campaign', 'quarter']}
                 lk_lc = query_lightkurve(id, download_dir, use_cached, D)
                 vardf.loc[i, key] = lk_lc
         elif vardf.loc[i, key].__module__ == lk.lightcurve.__name__:
@@ -435,11 +441,6 @@ def lk_to_pg(vardf):
             vardf.loc[i, key] = vardf.loc[i, key].flatten()
         else:
             raise TypeError("Can't handle this type of time series object")
-
-
-#def print_memusage(pre='', post=''):
-#    process = psutil.Process(os.getpid())
-#    print(pre, process.memory_info().rss // 1000, 'Kbytes', post)  # in bytes
 
 
 class session():
@@ -585,6 +586,7 @@ class session():
         Argument passed to peakbag, defines which model type to be used to 
         represent the mode linewidths. 
         TODO: which types?
+        
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
@@ -653,12 +655,9 @@ class session():
 
         Parameters
         ----------
-        step : string
-            Which step to perform. Can currently be 'asymptotic_modeid' and
-            'peakbag'. asymptotic_modeid must be run before peakbag.
         norders : int
             Number of orders to include in the fits
-
+            
         """
 
         for i, st in enumerate(self.stars):
