@@ -459,8 +459,8 @@ class session():
     as a list of length 2 for each star. This should contain the parameter
     value and it's error.
 
-    For multiple target all the above can be provided as lists, but the
-    easiest way is to simply provide a dataframe from csv file.
+    For multiple targets all the above can be provided as lists, but the
+    easiest way is to simply provide a dataframe from a csv file.
 
     Examples
     --------
@@ -472,14 +472,14 @@ class session():
     >>> jam_sess()
 
     Peakbagging run for multiple targets:
-    jam_sess = pbjam.session(dictlike = mydataframe)
-    jam_sess()
+    >>> jam_sess = pbjam.session(dictlike = mydataframe)
+    >>> jam_sess()
 
     By default, PBjam will download all the available data, favoring long
     cadence. Cadence and specific observing seasons (quarter, month, campagin,
     sector) can be specified for more detailed control. The data is downloaded
     using the Lightkurve API, and cleaned on the timeseries level by removing
-    NaNs and outliers and flattening the lightcurve (again using LightKurve's
+    NaNs, and outliers, and flattening the lightcurve (again using LightKurve's
     API). Note that the flattening process may impact the appearance of the
     granulation background.
 
@@ -528,41 +528,63 @@ class session():
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
 
-    use_cached : bool
+    use_cached : bool, optional
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
 
-    cadence : string
+    cadence : string, optional
         Argument for lightkurve to download correct data type. Can be 'short'
         or 'long'. 'long' is default setting, so if you're looking at main
         sequence stars, make sure to manually set 'short'.
-
-    month : int
-        Argument for lightkurve when requesting Kepler short cadence data.
-
-    quarter : int
-        Argument for lightkurve when requesting Kepler data.
-
-    campaign : int
+    
+    campaign : int, optional
         Argument for lightkurve when requesting K2 data.
 
-    sector : int
+    sector : int, optional
         Argument for lightkurve when requesting TESS data.
 
+    month : int, optional
+        Argument for lightkurve when requesting Kepler short cadence data.
+
+    quarter : int, optional
+        Argument for lightkurve when requesting Kepler data.
+
+    make_plots : bool, optional
+        Whether or not to automatically generate diagnostic plots for the 
+        different stages of the peakbagging process
+    
+    path : str, optional
+        Path to store the plots and results for the various stages of the 
+        peakbagging process
+    
+    download_dir : str, optional
+        Directory to cache lightkurve downloads. Lightkurve will place the fits
+        files in the default lightkurve cache path in your home directory. 
+    
+    model_type : str, optional
+        Argument passed to peakbag, defines which model type to be used to 
+        represent the mode linewidths. 
+        TODO: which types?
+    
     Attributes
     ----------
-    nthreads : int, optional
+    nthreads : int
         Number of multiprocessing threads to use to perform the fit. For long
         cadence data 1 is best, more will just add parallelization overhead.
         Untested on short cadence.
 
-    store_chains : bool, optional
+    store_chains : bool
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
 
     stars : list
         Session will store star class instances in this list, based on the
         requested targets.
+
+    pb_model_type : str
+        Argument passed to peakbag, defines which model type to be used to 
+        represent the mode linewidths. 
+        TODO: which types?
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
@@ -575,8 +597,6 @@ class session():
         self.store_chains = store_chains
         self.stars = []
         self.pb_model_type = model_type
-
-        #print_memusage(pre = 'Session init start')
 
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
             if isinstance(dictlike, str):
@@ -600,14 +620,16 @@ class session():
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
 
+        # Take whatever is in the timeseries column of vardf and make it an
+        # lk.lightcurve object or None
         lc_to_lk(vardf, download_dir, use_cached=use_cached)
+        
+        # Take whatever is in the timeseries column of vardf and turn it into
+        # a periodogram object in the periodogram column.
         lk_to_pg(vardf)
 
-        #print_memusage(pre = 'df setup')
 
         for i in range(len(vardf)):
-            #print_memusage(pre = f'Initializing star {i}')
-
             self.stars.append(star(ID=vardf.loc[i, 'ID'],
                                    periodogram=vardf.loc[i, 'psd'],
                                    numax=vardf.loc[i, ['numax', 'numax_err']].values,
@@ -640,8 +662,10 @@ class session():
         """
 
         for i, st in enumerate(self.stars):
-            #try:
-            st(norders=norders, model_type=self.pb_model_type)
-            self.stars[i] = None
-            #except:
-            #    warnings.warn(f'Failed on star {st.ID}')
+            try:
+                st(norders=norders, model_type=self.pb_model_type)
+                self.stars[i] = None
+            except Exception as ex:
+                 message = "Star {st.ID} produced an exception of type {0} occurred. Arguments:\n{1!r}".format(type(ex).__name__, ex.args)
+                 print(message)
+            
