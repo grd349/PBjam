@@ -226,13 +226,16 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
 
     """
     if not download_dir:
-          cache_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve-cache'])
+          cache_dir = os.path.join(*[os.path.expanduser('~'), 
+                                     '.lightkurve-cache'])
     else:
           cache_dir = download_dir
     
     if isinstance(id, str):
+        baseid = id
         for prefix in ['KIC','EPIC','TIC','kplr','tic']:
-            baseid = int(id.strip(prefix))
+            baseid = baseid.replace(prefix, '')
+        baseid = str(int(baseid))
 
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
@@ -243,7 +246,8 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
         ext = '*_lc.fits'
     else:
         raise TypeError('Unrecognized cadence input for %s' % (id))
-    tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', f'*{str(baseid)}*', ext]))
+    tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', 
+                                        f'*{baseid}*', ext]))
 
     
     if (use_cached and (len(tgtfiles) != 0)):
@@ -665,6 +669,6 @@ class session():
                 st(norders=norders, model_type=self.pb_model_type)
                 self.stars[i] = None
             except Exception as ex:
-                 message = "Star {st.ID} produced an exception of type {0} occurred. Arguments:\n{1!r}".format(type(ex).__name__, ex.args)
+                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
                  print(message)
             
