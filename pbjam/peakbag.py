@@ -76,13 +76,19 @@ class peakbag():
         asymptotic peakbagging) and builds a dictionary of starting values
         for the peakbagging methods.
         """
-        l0 = self.asy_result['modeID'].loc[self.asy_result['modeID'].ell == 0].nu_med.values.flatten()
-        l2 = self.asy_result['modeID'].loc[self.asy_result['modeID'].ell == 2].nu_med.values.flatten()
+        
+        idxl0 = self.asy_result['modeID'].ell == 0
+        idxl2 = self.asy_result['modeID'].ell == 2
+        
+        l0 = self.asy_result['modeID'].loc[idxl0, 'nu_med'].values.flatten()
+        l2 = self.asy_result['modeID'].loc[idxl2, 'nu_med'].values.flatten()
+        
         l0, l2 = self.remove_outsiders(l0, l2)
-        width = 10**(np.ones(len(l0)) * self.asy_result['summary'].loc['mean'].mode_width).flatten()
-        height =  (10**self.asy_result['summary'].loc['mean'].env_height * \
-                 np.exp(-0.5 * (l0 - 10**self.asy_result['summary'].loc['mean'].numax)**2 /
-                 (10**self.asy_result['summary'].loc['mean'].env_width)**2)).flatten()
+        
+        width = 10**(np.ones(len(l0)) * self.asy_result['summary'].loc['mode_width', 'mean']).flatten()
+        height =  (10**self.asy_result['summary'].loc['env_height', 'mean'] * \
+                 np.exp(-0.5 * (l0 - 10**self.asy_result['summary'].loc['numax', 'mean'])**2 /
+                 (10**self.asy_result['summary'].loc['env_width', 'mean'])**2)).flatten()
         self.start = {'l0': l0,
                       'l2': l2,
                       'width0': width,
@@ -124,9 +130,9 @@ class peakbag():
             the rung width.
         """
 
-        d02 = 10**self.asy_result['summary'].loc['mean'].d02
-        d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mean'].mode_width
-        w = d02_lw + (extra * 10**self.asy_result['summary'].loc['mean'].dnu)
+        d02 = 10**self.asy_result['summary'].loc['d02','mean']
+        d02_lw = d02 + lw_fac * 10**self.asy_result['summary'].loc['mode_width', 'mean']
+        w = d02_lw + (extra * 10**self.asy_result['summary'].loc['dnu', 'mean'])
         bw = self.f[1] - self.f[0]
         w /= bw
         if verbose:
@@ -262,7 +268,7 @@ class peakbag():
         The use of the Gamma distribution is much more in line with the ethos of
         probabistic programming languages.
         """
-        dnu = 10**self.asy_result['summary'].loc['mean'].dnu
+        dnu = 10**self.asy_result['summary'].loc['dnu', 'mean']
         self.pm_model = pm.Model()
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
@@ -302,7 +308,7 @@ class peakbag():
         long docs needed to explain.
         """
         warnings.warn('This model is developmental - use carefully')
-        dnu = 10**self.asy_result['summary'].loc['mean'].dnu
+        dnu = 10**self.asy_result['summary'].loc['dnu', 'mean']
         self.pm_model = pm.Model()
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
@@ -503,8 +509,8 @@ class peakbag():
         n = self.ladder_p.shape[0]
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.snr, 'k-', label='Data', alpha=0.2)
-        dnu = 10**self.asy_result['summary'].loc['mean'].dnu
-        numax = 10**self.asy_result['summary'].loc['mean'].numax
+        dnu = 10**self.asy_result['summary'].loc['dnu', 'mean']
+        numax = 10**self.asy_result['summary'].loc['numax', 'mean']
         smoo = dnu * 0.005 / (self.f[1] - self.f[0])
         kernel = conv.Gaussian1DKernel(stddev=smoo)
         smoothed = conv.convolve(self.snr, kernel)
@@ -547,7 +553,7 @@ class peakbag():
         # make dnu an intger multiple of bw
         bw = self.f[1] - self.f[0]
         dnu -= dnu % bw
-        numax = 10**self.asy_result['summary'].loc['mean'].numax
+        numax = 10**self.asy_result['summary'].loc['numax', 'mean']
         seismology = pg.flatten().to_seismology()
         nmin = np.floor(self.f.min() / dnu) + 1
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,

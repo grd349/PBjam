@@ -164,7 +164,7 @@ def get_summary_stats(fit, model, pnames):
                                                50+95.4499736104/2], axis=0)
     mads =  scist.median_absolute_deviation(fit.flatchain, axis=0)
 
-    smry_stats = ['mle','mean','std', 'skew', '2nd', '16th', '50th', '84th',
+    smry_stats = ['mle', 'mean', 'std', 'skew', '2nd', '16th', '50th', '84th',
                   '97th', 'MAD']
     for i, par in enumerate(pnames):
         z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
