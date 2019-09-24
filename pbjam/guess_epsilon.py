@@ -1,14 +1,8 @@
 import numpy as np
 import pandas as pd
-import os
-import emcee
+import os, corner
 import matplotlib.pyplot as plt
-import warnings
-import corner
-
 from . import PACKAGEDIR
-
-from scipy.stats import gaussian_kde
 from .mcmc import mcmc
 
 class epsilon():
@@ -18,7 +12,7 @@ class epsilon():
 
     '''
     def __init__(self, nthreads=1, verbose=False, bw_fac=1):
-        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
+        self.data_file = os.path.join(*[PACKAGEDIR,'data', 'prior_data.csv'])
         self.obs = []
         self.samples = []
         self.verbose = verbose
@@ -91,10 +85,9 @@ class epsilon():
         like : real
             The log likelihood evaluated at p.
 
-        Note: p = ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
+        Note: p = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+                   'env_width', 'mode_width', 'teff', 'bp_rp']
+        
         key: [log, log, lin, log, log, log, log, log, log, lin]
         '''
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
@@ -210,8 +203,7 @@ class epsilon():
         y = np.zeros(len(f))
         for i in range(len(self.n)):
             y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
-        ax.fill_between(f, y, alpha=0.3, facecolor='navy',
-                        edgecolor='none',
+        ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
                         label=r'$\propto P(\nu_{\ell=0})$')
         ax.set_xlim([f.min(), f.max()])
         ax.set_ylim([0, h*1.2])
@@ -279,10 +271,7 @@ class epsilon():
         result : array-like
             [estimate of epsilon, unceritainty on estimate]
         '''
-        self.obs = {'dnu': dnu,
-                    'numax': numax,
-                    'teff': teff,
-                    'bp_rp': bp_rp}
+        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
 
         self.samples = self.kde_sampler()

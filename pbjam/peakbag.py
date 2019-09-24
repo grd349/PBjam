@@ -89,12 +89,8 @@ class peakbag():
         height =  (10**self.asy_result['summary'].loc['env_height', 'mean'] * \
                  np.exp(-0.5 * (l0 - 10**self.asy_result['summary'].loc['numax', 'mean'])**2 /
                  (10**self.asy_result['summary'].loc['env_width', 'mean'])**2)).flatten()
-        self.start = {'l0': l0,
-                      'l2': l2,
-                      'width0': width,
-                      'width2': width,
-                      'height0': height,
-                      'height2': height*0.7,
+        self.start = {'l0': l0, 'l2': l2, 'width0': width, 'width2': width,
+                      'height0': height, 'height2': height*0.7,
                       'back': np.ones(len(l0))}
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
@@ -229,12 +225,9 @@ class peakbag():
         -------
         fig : figure
         """
-        mod = self.model(self.start['l0'],
-                         self.start['l2'],
-                         self.start['width0'],
-                         self.start['width2'],
-                         self.start['height0'],
-                         self.start['height2'],
+        mod = self.model(self.start['l0'], self.start['l2'], 
+                         self.start['width0'], self.start['width2'],
+                         self.start['height0'], self.start['height2'],
                          self.start['back'])
         n = self.ladder_p.shape[0]
         fig, ax = plt.subplots(n, figsize=[16,9])
@@ -268,6 +261,7 @@ class peakbag():
         The use of the Gamma distribution is much more in line with the ethos of
         probabistic programming languages.
         """
+        
         dnu = 10**self.asy_result['summary'].loc['dnu', 'mean']
         self.pm_model = pm.Model()
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
@@ -275,30 +269,24 @@ class peakbag():
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
         back_fac = 0.4 # Lognorrmal prior on back has std=0.4.
         with self.pm_model:
-            l0 = pm.Normal('l0', self.start['l0'],
-                            dnu*dnu_fac,
+            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac,
                             shape=len(self.start['l0']))
-            l2 = pm.Normal('l2', self.start['l2'],
-                            dnu*dnu_fac,
+            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac,
                             shape=len(self.start['l2']))
             width0 = pm.Lognormal('width0', np.log(self.start['width0']),
-                                    width_fac,
-                                    shape=len(self.start['l2']))
+                                    width_fac, shape=len(self.start['l2']))
             width2 = pm.Lognormal('width2', np.log(self.start['width2']),
-                                    width_fac,
-                                    shape=len(self.start['l2']))
+                                    width_fac, shape=len(self.start['l2']))
             height0 = pm.Lognormal('height0', np.log(self.start['height0']),
-                                    height_fac,
-                                    shape=len(self.start['l0']))
+                                    height_fac, shape=len(self.start['l0']))
             height2 = pm.Lognormal('height2', np.log(self.start['height2']),
-                                    height_fac,
-                                    shape=len(self.start['l2']))
-            back = pm.Lognormal('back', np.log(1.0),
-                                back_fac,
+                                    height_fac, shape=len(self.start['l2']))
+            back = pm.Lognormal('back', np.log(1.0), back_fac,
                                 shape=len(self.start['l2']))
 
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
-            yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
+            yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit,
+                            observed=self.ladder_p)
 
 
     def model_gp(self):
@@ -314,11 +302,9 @@ class peakbag():
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
         back_fac = 0.5 # Lognorrmal prior on back has std=0.5.
         with self.pm_model:
-            l0 = pm.Normal('l0', self.start['l0'],
-                            dnu*dnu_fac,
+            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac,
                             shape=len(self.start['l0']))
-            l2 = pm.Normal('l2', self.start['l2'],
-                            dnu*dnu_fac,
+            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac,
                             shape=len(self.start['l2']))
             # Place a GP over the l=0 mode widths ...
             m0 = pm.Normal('gradient0', 0, 10)
@@ -327,8 +313,7 @@ class peakbag():
             ls = pm.Lognormal('ls', np.log(0.3), 1.0)
             mean_func0 = pm.gp.mean.Linear(coeffs=m0, intercept=c0)
             cov_func0 = sigma0 * pm.gp.cov.ExpQuad(1, ls=ls)
-            self.gp0 = pm.gp.Latent(cov_func=cov_func0,
-                                   mean_func=mean_func0)
+            self.gp0 = pm.gp.Latent(cov_func=cov_func0, mean_func=mean_func0)
             ln_width0 = self.gp0.prior('ln_width0', X=self.n)
             width0 = pm.Deterministic('width0', pm.math.exp(ln_width0))
             # and on the l=2 mode widths
@@ -337,23 +322,20 @@ class peakbag():
             sigma2 = pm.Lognormal('sigma2', np.log(1.0), 1.0)
             mean_func2 = pm.gp.mean.Linear(coeffs=m2, intercept=c2)
             cov_func2 = sigma2 * pm.gp.cov.ExpQuad(1, ls=ls)
-            self.gp2 = pm.gp.Latent(cov_func=cov_func2,
-                                   mean_func=mean_func2)
+            self.gp2 = pm.gp.Latent(cov_func=cov_func2, mean_func=mean_func2)
             ln_width2 = self.gp2.prior('ln_width2', X=self.n)
             width2 = pm.Deterministic('width2', pm.math.exp(ln_width2))
             #Carry on
             height0 = pm.Lognormal('height0', np.log(self.start['height0']),
-                                    height_fac,
-                                    shape=len(self.start['l0']))
+                                    height_fac, shape=len(self.start['l0']))
             height2 = pm.Lognormal('height2', np.log(self.start['height2']),
-                                    height_fac,
-                                    shape=len(self.start['l2']))
-            back = pm.Lognormal('back', np.log(1.0),
-                                back_fac,
+                                    height_fac, shape=len(self.start['l2']))
+            back = pm.Lognormal('back', np.log(1.0), back_fac,
                                 shape=len(self.start['l2']))
 
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
-            yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_p)
+            yobs = pm.Gamma('yobs', alpha=1, beta=1.0/limit, 
+                            observed=self.ladder_p)
 
     def sample(self, model_type='simple',
                      tune=2000,
@@ -406,9 +388,8 @@ class peakbag():
                     warnings.warn('Did not converge!')
                     break
                 with self.pm_model:
-                    self.samples = pm.sample(tune=tune * niter,
-                                             start=self.start,
-                                             cores=cores,
+                    self.samples = pm.sample(tune=tune * niter, 
+                                             start=self.start, cores=cores,
                                              init=self.init_sampler,
                                              target_accept=target_accept,
                                              progressbar=True)

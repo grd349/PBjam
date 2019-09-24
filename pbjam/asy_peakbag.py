@@ -494,20 +494,19 @@ class asymptotic_fit(pb.epsilon):
         fig: Figure
             The figure element containing the plots.
         '''
+        
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
         smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
         kernel = conv.Gaussian1DKernel(stddev=smoo)
         smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-',
-                label='Smoothed', lw=3, alpha=0.6)
+        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
         ax.plot(self.f[self.sel], self.model(self.flatchain[0, :]), 'r-',
                 label='Model', alpha=0.2)
         for i in np.arange(thin, len(self.flatchain), thin):
             ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
                     alpha=0.2)
-        freqs = self.modeID['nu_med']
-        for f in freqs:
+        for f in self.modeID['nu_med']:
             ax.axvline(f, c='k', linestyle='--')
         ax.set_ylim([0, smoothed.max()*1.5])
         ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
@@ -520,6 +519,7 @@ class asymptotic_fit(pb.epsilon):
         '''
         Calls corner.corner on the sampling results
         '''
+        
         fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
                             quantiles=[0.16, 0.5, 0.84], show_titles=True, 
                             title_kwargs={"fontsize": 12})
@@ -547,6 +547,7 @@ class asymptotic_fit(pb.epsilon):
             log_env_height, log_env_width, log_mode_width, \
             log_teff, bp_rp = p
         """
+        
         # Constraint from input obs
         ld = 0.0
         ld += self.normal(p[-2], *self.log_obs['teff'])
