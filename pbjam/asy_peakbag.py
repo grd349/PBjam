@@ -9,11 +9,8 @@ import numpy as np
 import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
-import astropy.convolution as conv
-import matplotlib.pyplot as plt
-import corner
 
-def get_nmax(numax, dnu, eps):
+def get_nmax(dnu, numax, eps):
     """Compute radial order at numax.
 
     Compute the radial order at numax, which in this implimentation of the
@@ -91,7 +88,7 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
         Array of l=0 mode frequencies from the asymptotic relation (muHz).
 
     """
-    nmax = get_nmax(numax, dnu, eps)
+    nmax = get_nmax(dnu, numax, eps)
     enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
 
@@ -369,47 +366,52 @@ class asymptotic_fit(pb.epsilon):
         KDE is implimented).
     """
 
-    def __init__(self, f, s, start_samples, teff, bp_rp, store_chains=True, 
-                 nthreads=1, norders=8):
+    def __init__(self, starinst, epsinst=None, norders=6, store_chains=False, 
+                 nthreads=1):
         
-        self.f = f
-        self.s = s
-        self.start_samples = start_samples
+        self.f = starinst.f
+        self.s = starinst.s
         self.store_chains = store_chains
         self.nthreads = nthreads
         self.norders = norders
-        
-        self.pars_names = ['dnu', 'numax', 'eps',
-                           'd02', 'alpha', 'env_height',
-                           'env_width', 'mode_width', 'teff',
-                           'bp_rp']
+            
+        self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+                          'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        means = start_samples.mean(axis=0)
+        if epsinst:
+            self.start_samples = epsinst.samples
+            self.prior = epsinst.prior
+        elif hasattr(starinst, 'epsilon'):
+            self.start_samples = starinst.epsilon.samples
+            self.prior = starinst.epsilon.prior
+        else:
+            raise ValueError("Asy_peakbag won't run without samples of the prior")
+
+        means = self.start_samples.mean(axis=0)
         start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]), 
                  10**(means[4]), means[5], means[6], means[7], 10**(means[8]),
                  means[9]]
         self.start = start
 
-        nmax = get_nmax(start[1], start[0], start[2])
+        nmax = get_nmax(*start[:3])
         enns = get_enns(nmax, self.norders)
-#        lower_n = nmax - self.norders/2 - 1.25 + start[2]
-#        upper_n = nmax + self.norders/2 + 0.25 + start[2]
-#        lower_frequency = lower_n * start[0]
-#        upper_frequency = upper_n * start[0]
+
         lower_frequency = (min(enns) - 1.25 + start[2])* start[0]
         upper_frequency = (max(enns) + 0.25 + start[2])* start[0]
         
         self.sel = (self.f > lower_frequency) & (self.f < upper_frequency)
-        #self.sel = np.where((self.f > lower_frequency) & (self.f < upper_frequency))
+
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
 
         self.modeID = None
         self.summary = None
-        self.flatchain = None
+        self.samples = None
         self.lnlike_fin = None
         self.lnprior_fin = None
         self.mle_model = None
         self.acceptance = None
+        
+        starinst.asy_fit = self
 
 
     def get_modeIDs(self, fit, N):
@@ -460,70 +462,7 @@ class asymptotic_fit(pb.epsilon):
                                'nu_mad': nus_mad_out})
         return modeID
 
-    def plot_start(self):
-        '''
-        Plots the starting model as a diagnotstic.
-        '''
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-',
-                label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 'r-',
-                label='Start model', alpha=0.7)
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend()
-        return fig
 
-    def plot(self, thin=100):
-        '''
-        Plots the data and some models generated from the samples
-        from the posteriod distribution.
-
-        Parameters
-        ----------
-        thin: int
-            Thins the samples of the posterior in order to speed up plotting.
-
-        Returns
-        -------
-        fig: Figure
-            The figure element containing the plots.
-        '''
-        
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.flatchain[0, :]), 'r-',
-                label='Model', alpha=0.2)
-        for i in np.arange(thin, len(self.flatchain), thin):
-            ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
-                    alpha=0.2)
-        for f in self.modeID['nu_med']:
-            ax.axvline(f, c='k', linestyle='--')
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend(loc=1)
-        return fig
-
-    def plot_corner(self):
-        '''
-        Calls corner.corner on the sampling results
-        '''
-        
-        fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
-                            quantiles=[0.16, 0.5, 0.84], show_titles=True, 
-                            title_kwargs={"fontsize": 12})
-        return fig
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -558,7 +497,7 @@ class asymptotic_fit(pb.epsilon):
         like = -1.0 * np.sum(np.log(mod) + self.s[self.sel] / mod)
         return like + ld
 
-    def run(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
         Parameters
@@ -582,7 +521,7 @@ class asymptotic_fit(pb.epsilon):
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
 
-        self.prior = pb.epsilon().prior
+        
         self.fit = pb.mcmc(self.start_samples.mean(axis=0), self.likelihood,
                            self.prior, nthreads=self.nthreads)
 
@@ -591,15 +530,111 @@ class asymptotic_fit(pb.epsilon):
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
         self.summary, self.mle_model = get_summary_stats(self.fit, self.model, 
-                                                         self.pars_names)
+                                                         self.par_names)
 
         if self.store_chains:
-            self.flatchain = self.fit.flatchain
+            self.samples = self.fit.flatchain
             self.lnlike_fin = self.fit.flatlnlike
         else:
-            self.flatchain = self.fit.chain[:,-1,:]
+            self.samples = self.fit.chain[:,-1,:]
             self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
             self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
+        
         return {'modeID': self.modeID, 'summary': self.summary}
+
+
+#    def plot_start(self):
+#        '''
+#        Plots the starting model as a diagnotstic.
+#        '''
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+#        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+#        kernel = conv.Gaussian1DKernel(stddev=smoo)
+#        smoothed = conv.convolve(self.s, kernel)
+#        ax.plot(self.f, smoothed, 'k-',
+#                label='Smoothed', lw=3, alpha=0.6)
+#        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 'r-',
+#                label='Start model', alpha=0.7)
+#        ax.set_ylim([0, smoothed.max()*1.5])
+#        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#        ax.set_ylabel(r'SNR')
+#        ax.legend()
+#        return fig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#    def plot(self, thin=100):
+#        '''
+#        Plots the data and some models generated from the samples
+#        from the posteriod distribution.
+#
+#        Parameters
+#        ----------
+#        thin: int
+#            Thins the samples of the posterior in order to speed up plotting.
+#
+#        Returns
+#        -------
+#        fig: Figure
+#            The figure element containing the plots.
+#        '''
+#        
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+#        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+#        kernel = conv.Gaussian1DKernel(stddev=smoo)
+#        smoothed = conv.convolve(self.s, kernel)
+#        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
+#        ax.plot(self.f[self.sel], self.model(self.flatchain[0, :]), 'r-',
+#                label='Model', alpha=0.2)
+#        for i in np.arange(thin, len(self.flatchain), thin):
+#            ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
+#                    alpha=0.2)
+#        for f in self.modeID['nu_med']:
+#            ax.axvline(f, c='k', linestyle='--')
+#        ax.set_ylim([0, smoothed.max()*1.5])
+#        ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
+#        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#        ax.set_ylabel(r'SNR')
+#        ax.legend(loc=1)
+#        return fig
+#
+#    def plot_corner(self):
+#        '''
+#        Calls corner.corner on the sampling results
+#        '''
+#        
+#        fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
+#                            quantiles=[0.16, 0.5, 0.84], show_titles=True, 
+#                            title_kwargs={"fontsize": 12})
+#        return fig

@@ -1,9 +1,10 @@
-import os, warnings
+import os, warnings, sys
 from pbjam.asy_peakbag import asymptotic_fit
 from pbjam.guess_epsilon import epsilon
 from pbjam.peakbag import peakbag
 from . import PACKAGEDIR
 import pymc3 as pm
+from .plotting import plot_corner, plot_spectrum
 
 
 class star():
@@ -66,9 +67,8 @@ class star():
         Path to the csv file containing the prior data
     """
 
-    def __init__(self, ID, periodogram, numax, dnu, teff, bp_rp, nthreads=1, 
-                 path=None, store_chains=True, make_plots=False, 
-                 verbose=False):
+    def __init__(self, ID, periodogram, numax, dnu, teff, bp_rp, path=None, 
+                 prior_file = None):
           
         self.ID = ID
         self.pg = periodogram
@@ -80,13 +80,15 @@ class star():
         self.teff = teff
         self.bp_rp = bp_rp
 
-        self.nthreads = nthreads
-        self.store_chains = store_chains
-        self.make_plots = make_plots
-
-        self.data_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-
-        self.make_output_dir(path, verbose)
+        self.path = path
+        
+        if not prior_file:
+            self.prior_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+        else:
+            self.prior_file = prior_file
+        
+        self.plot_corner = plot_corner
+        self.plot_spectrum = plot_spectrum
 
 
     def make_output_dir(self, path, verbose):
@@ -101,65 +103,72 @@ class star():
                 warnings.warn(f'Path {self.path} already exists - I will try to overwrite ... ')
           
           
-    def run_epsilon(self, bw_fac=1.0):
+    def run_epsilon(self, bw_fac=1.0, make_plots=False):
         """
         Runs the epsilon code and makes plots if self.make_plots is set.
         """
-        self.epsilon = epsilon(bw_fac=bw_fac)
-        self.epsilon_result = self.epsilon(dnu=self.dnu,
-                                           numax=self.numax,
-                                           teff=self.teff,
-                                           bp_rp=self.bp_rp)
+        epsilon(self, bw_fac=bw_fac)
         
-        outpath = os.path.join(*[self.path, 'epsilon'])
-        if self.make_plots:
-            self.epsilon.plot(self.pg).savefig(outpath + f'_{self.ID}.png')
-            self.epsilon.plot_corner().savefig(outpath + f'_corner_{self.ID}.png')
+        self.epsilon(dnu=self.dnu, numax=self.numax, teff=self.teff, 
+                     bp_rp=self.bp_rp)
+        
+        if make_plots:
+            self.plot_corner(self, self.epsilon, make_plots)
+            self.plot_spectrum(self, self.epsilon, make_plots)
+             
             
-            
-    def run_asy_peakbag(self, norders=6):
+    def run_asy_peakbag(self, norders=None, make_plots=False, 
+                        store_chains=False, nthreads=1):
         """
         Runs the asy_peakbag code.
         """
-        self.asy_fit = asymptotic_fit(self.f, self.s, self.epsilon.samples,
-                                      self.teff, self.bp_rp, nthreads=1,
-                                      store_chains=self.store_chains,
-                                      norders=norders)
         
-        self.asy_result = self.asy_fit.run(dnu=self.dnu, numax=self.numax,
-                                           teff=self.teff, bp_rp=self.bp_rp)
+        asymptotic_fit(self, self.epsilon, norders=norders, 
+                       store_chains=store_chains, nthreads=nthreads)
+        
+        self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff, 
+                     bp_rp=self.bp_rp)
+        
+        outpath = lambda x: os.path.join(*[self.path, x])
+        self.asy_fit.summary.to_csv(outpath(f'{type(self).__name__}_summary_{self.ID}.csv'),
+                                    index=True)
+        self.asy_fit.modeID.to_csv(outpath(f'{type(self).__name__}_modeID_{self.ID}.csv'),
+                                   index=False)
 
-        outpath = os.path.join(*[self.path, 'asy'])
-        self.asy_result['summary'].to_csv(outpath + f'_summary_{self.ID}.csv',
-                                          index=True)
-        self.asy_result['modeID'].to_csv(outpath + f'_modeID_{self.ID}.csv',
-                                          index=False)
-
-        if self.store_chains:
+        if store_chains:
             pass # TODO need to pickle the chains if requested.
-        if self.make_plots:
-            self.asy_fit.plot().savefig(outpath + f'_{self.ID}.png')
-            self.asy_fit.plot_corner().savefig(outpath + f'_corner_{self.ID}.png')
+        if make_plots:
+            self.plot_spectrum(self, self.asy_fit, make_plots)#.savefig(outpath + f'_{self.ID}.png')
+            self.plot_corner(self, self.asy_fit, make_plots)#.savefig(outpath + f'_corner_{self.ID}.png')
             
 
-    def run_peakbag(self, model_type='simple', tune=1500):
+    def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, make_plots=False, store_chains=False):
         """
         Runs peakbag on the given star.
         """
-        self.peakbag = peakbag(self.f, self.s, self.asy_result)
-        self.peakbag.sample(model_type=model_type, tune=tune,
-                            cores=self.nthreads)
+        self.peakbag = peakbag(self, self.asy_fit)
+        self.peakbag.sample(model_type=model_type, tune=tune, nthreads=nthreads)
         
-        outpath = os.path.join(*[self.path, 'peakbag'])
-        pm.summary(self.peakbag.samples).to_csv(outpath + f'_summary_{self.ID}.csv')
-        if self.store_chains:
+        outpath = lambda x: os.path.join(*[self.path, x])
+        pm.summary(self.peakbag.samples).to_csv(outpath(f'{type(self).__name__}_summary_{self.ID}.csv'))
+        if store_chains:
             pass # TODO need to pickle the samples if requested.
-        if self.make_plots:
-            self.peakbag.plot_flat_fit().savefig(outpath + f'_{self.ID}.png')
+        if make_plots:
+            self.plot_spectrum(self, self.peakbag, make_plots)
+            #self.peakbag.plot_flat_fit().savefig(outpath + f'_{self.ID}.png')
 
 
-    def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500):
-        """ Instead of a _call_ we should just make this a function maybe? """
-        self.run_epsilon(bw_fac=bw_fac)
-        self.run_asy_peakbag(norders=norders)
-        self.run_peakbag(model_type=model_type, tune=tune)
+    def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500, 
+                 verbose=False, make_plots=True, store_chains=True, nthreads=1):
+        """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
+        
+        self.make_output_dir(self.path, verbose) 
+        print('Running epsilon')
+        self.run_epsilon(bw_fac=bw_fac, make_plots=make_plots)          
+   
+        print('epsilon complete')
+        self.run_asy_peakbag(norders=norders, make_plots=make_plots, 
+                             store_chains=store_chains, nthreads=nthreads)
+        
+        print('asy complete')
+        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads, make_plots=make_plots, store_chains=store_chains)

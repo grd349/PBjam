@@ -1,8 +1,5 @@
 import numpy as np
 import pandas as pd
-import os, corner
-import matplotlib.pyplot as plt
-from . import PACKAGEDIR
 from .mcmc import mcmc
 
 class epsilon():
@@ -11,18 +8,21 @@ class epsilon():
     TODO: See the docs for full information. (especially example_advanced)
 
     '''
-    def __init__(self, nthreads=1, verbose=False, bw_fac=1):
-        self.data_file = os.path.join(*[PACKAGEDIR,'data', 'prior_data.csv'])
-        self.obs = []
-        self.samples = []
+    def __init__(self, starinst, nthreads=1, verbose=False, bw_fac=1): 
+        self.prior_file = starinst.prior_file        
         self.verbose = verbose
         self.nthreads = nthreads
-        self.read_prior_data()
+        self.obs = []
+        self.samples = []
+        self.par_names = []
+        self.read_prior_data()   
         self.make_kde(bw_fac=bw_fac)
+        
+        starinst.epsilon = self
 
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
-        self.prior_data = pd.read_csv(self.data_file)
+        self.prior_data = pd.read_csv(self.prior_file)
         self.prior_data = self.prior_data.dropna()
 
     def make_kde(self, bw_fac=1.0):
@@ -35,10 +35,8 @@ class epsilon():
         likelihood estimate.
 
         '''
-        self.cols = ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
+        self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+                     'env_width', 'mode_width', 'teff', 'bp_rp']
         # key: [log, log, lin, log, log, log, log, log, log, lin]
         import statsmodels.api as sm
         # bw set using CV ML but times two.
@@ -47,9 +45,11 @@ class epsilon():
                        0.04400531, 0.06834085, 0.0054522,
                        0.11864199]) * bw_fac
         self.kde = sm.nonparametric.KDEMultivariate(
-                            data=self.prior_data[self.cols].values,
+                            data=self.prior_data[self.par_names].values,
                             var_type='cccccccccc',
                             bw=bw)
+
+
 
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood
@@ -102,15 +102,15 @@ class epsilon():
         Calculates the likelihood of the observed properties given
         the proposed parameters p.
         '''
-        log_dnu, log_numax, eps, log_d02, log_alpha, \
-            log_env_height, log_env_width, log_mode_width, \
-            log_teff, bp_rp = p
+        #log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
+        #     log_env_width, log_mode_width, log_teff, bp_rp = p
+            
         # Constraint from input data
         ld = 0.0
-        ld += self.normal(log_dnu, *self.log_obs['dnu'])
-        ld += self.normal(log_numax, *self.log_obs['numax'])
-        ld += self.normal(log_teff, *self.log_obs['teff'])
-        ld += self.normal(bp_rp, *self.log_obs['bp_rp'])
+        ld += self.normal(p[0], *self.log_obs['dnu'])
+        ld += self.normal(p[1], *self.log_obs['numax'])
+        ld += self.normal(p[8], *self.log_obs['teff'])
+        ld += self.normal(p[9], *self.log_obs['bp_rp'])
         return ld
 
     def kde_sampler(self, nwalkers=50):
@@ -139,6 +139,7 @@ class epsilon():
         '''
         if self.verbose:
             print('Running KDE sampler')
+            
         x0 = [self.log_obs['dnu'][0], #log10 dnu
               self.log_obs['numax'][0], #log10 numax
               1.0, # eps
@@ -171,54 +172,6 @@ class epsilon():
                         'teff': self.to_log10(*obs['teff']),
                         'bp_rp': obs['bp_rp']}
 
-    def plot(self, periodogram):
-        '''
-        Make a plot of the posterior distribution on the locations
-        of the l=0 modes, on top of a
-        `lightkurve` periodogram object passed by the user.
-
-        Parameters
-        ----------
-
-        periodogram: Periodogram
-            A flattened lightkurve Periodogram object for plotting.
-
-        Returns
-        -------
-
-        fig: Figure
-        '''
-        fig, ax = plt.subplots(figsize=[16,9])
-        periodogram.plot(ax=ax, alpha=0.5, c='gray', label='Data')
-        dnu = 10**(self.samples[:, 0].mean())
-        smoo = periodogram.smooth(filter_width=dnu*0.02)
-        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed Data')
-        h = np.max(smoo.power.value)
-        f = periodogram.frequency.value
-        dnu = 10**(self.samples[:, 0].mean())
-        nmin = np.floor(f.min() / dnu)
-        nmax = np.floor(f.max() / dnu)
-        self.n = np.arange(nmin-1, nmax+1, 1)
-        freq, freq_unc = self.kde_predict(self.n)
-        y = np.zeros(len(f))
-        for i in range(len(self.n)):
-            y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
-        ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
-                        label=r'$\propto P(\nu_{\ell=0})$')
-        ax.set_xlim([f.min(), f.max()])
-        ax.set_ylim([0, h*1.2])
-        ax.set_title(periodogram.label)
-        ax.legend()
-        return fig
-
-    def plot_corner(self):
-        '''
-        Makes a nice corner plot using corner.corner
-        '''
-        fig = corner.corner(self.samples, labels=self.cols,  quantiles=[0.16, 0.5, 0.84],
-                       show_titles=True, title_kwargs={"fontsize": 12})
-        return fig
-
     def kde_predict(self, n):
         '''
         Predict the frequencies from the kde method samples.
@@ -250,8 +203,8 @@ class epsilon():
         freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self,
-                dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], 
+                 bp_rp=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
 
@@ -275,5 +228,58 @@ class epsilon():
         self.obs_to_log(self.obs)
 
         self.samples = self.kde_sampler()
-        result = [self.samples[:,2].mean(), self.samples[:,2].std()]
-        return result
+        self.result = [self.samples[:,2].mean(), self.samples[:,2].std()]
+        
+
+#    def plot(self, periodogram):
+#        '''
+#        Make a plot of the posterior distribution on the locations
+#        of the l=0 modes, on top of a
+#        `lightkurve` periodogram object passed by the user.
+#
+#        Parameters
+#        ----------
+#
+#        periodogram: Periodogram
+#            A flattened lightkurve Periodogram object for plotting.
+#
+#        Returns
+#        -------
+#
+#        fig: Figure
+#        '''
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        periodogram.plot(ax=ax, alpha=0.5, c='gray', label='Data')
+#        
+#        dnu = 10**(self.samples[:, 0].mean())
+#        smoo = periodogram.smooth(filter_width=dnu*0.02)
+#        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed Data')
+#        
+#        h = np.max(smoo.power.value)
+#        f = periodogram.frequency.value
+#        dnu = 10**(self.samples[:, 0].mean())
+#        
+#        nmin = np.floor(f.min() / dnu)
+#        nmax = np.floor(f.max() / dnu)
+#        self.n = np.arange(nmin-1, nmax+1, 1)
+#        
+#        freq, freq_unc = self.kde_predict(self.n)
+#        y = np.zeros(len(f))
+#        for i in range(len(self.n)):
+#            y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
+#        ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
+#                        label=r'$\propto P(\nu_{\ell=0})$')
+#        ax.set_xlim([f.min(), f.max()])
+#        ax.set_ylim([0, h*1.2])
+#        ax.set_title(periodogram.label)
+#        ax.legend()
+#        return fig
+
+#    def plot_corner(self):
+#        '''
+#        Makes a nice corner plot using corner.corner
+#        '''
+#        fig = corner.corner(self.samples, labels=self.cols, show_titles=True, 
+#                            quantiles=[0.16, 0.5, 0.84], 
+#                            title_kwargs={"fontsize": 12})
+#        return fig

@@ -594,16 +594,12 @@ class session():
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
-                 timeseries=None, psd=None, dictlike=None, store_chains=True,
-                 nthreads=1, use_cached=False, cadence=None, campaign=None,
-                 sector=None, month=None, quarter=None, make_plots=False,
-                 path=None, model_type='simple', download_dir=None):
+                 timeseries=None, psd=None, dictlike=None, use_cached=False, 
+                 cadence=None, campaign=None, sector=None, month=None, 
+                 quarter=None, path=None, download_dir=None):
 
-        self.nthreads = nthreads
-        self.store_chains = store_chains
         self.stars = []
-        self.pb_model_type = model_type
-
+        
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
             if isinstance(dictlike, str):
                 vardf = pd.read_csv(dictlike)
@@ -642,16 +638,15 @@ class session():
                                    dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
-                                   store_chains=store_chains,
-                                   nthreads=self.nthreads,
-                                   make_plots=make_plots,
                                    path=path))
 
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
-    def __call__(self, norders=8):
+    def __call__(self, bw_fac=1, tune=1500, norders=8, model_type='simple', 
+                 verbose=False, nthreads=1, store_chains=False, 
+                 make_plots=False):
         """ The doitall script
 
         Calling session will by default do asymptotic mode ID and peakbagging
@@ -663,11 +658,18 @@ class session():
             Number of orders to include in the fits
             
         """
+        
+        self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
             try:
-                st(norders=norders, model_type=self.pb_model_type)
+                st(bw_fac=bw_fac, tune=tune, norders=norders, 
+                   model_type=self.pb_model_type, verbose=verbose, 
+                   make_plots=make_plots, store_chains=store_chains, 
+                   nthreads=nthreads)
+                
                 self.stars[i] = None
+                
             except Exception as ex:
                  message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
                  print(message)
