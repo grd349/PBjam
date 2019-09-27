@@ -6,69 +6,90 @@ from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
 import pymc3 as pm
 
-def plot_corner(self, stage, savefig=False):
-   
-    '''
-    Makes a nice corner plot using corner.corner
-    '''
-        
-    fig = corner.corner(stage.samples, labels=stage.par_names,
-                        show_titles=True, quantiles=[0.16, 0.5, 0.84],
-                        title_kwargs={"fontsize": 12})
+class plotting():
     
-    outpath = os.path.join(*[self.path, type(stage).__name__ + '_corner_' + str(self.ID) + '.png'])    
-
-    if savefig:
-        fig.savefig(outpath)
-    return fig
+    def __init__(self):
+        pass
+    
+    def plot_corner(self, path=None, ID=None, savefig=False):
+       
+        '''
+        Makes a nice corner plot using corner.corner
+        '''
         
+        fig = corner.corner(self.samples, labels=self.par_names,
+                            show_titles=True, quantiles=[0.16, 0.5, 0.84],
+                            title_kwargs={"fontsize": 12})
+        
+        # TODO there should be a check if path is full filepath or just dir
+        if path and ID:
+            outpath = os.path.join(*[path,  type(self).__name__+ '_corner_' + str(ID) + '.png'])
+            if savefig:
+                fig.savefig(outpath)
+                
+        return fig
 
-def plot_spectrum(self, stage=None, savefig=False):
 
-    # The raw and smoothed spectrum will always be plotted
-    fig, ax = plt.subplots(figsize=[16,9])
-    ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-    fac = 0.005 * self.dnu[0]  / (self.f[1] - self.f[0])
-    kernel = conv.Gaussian1DKernel(stddev=fac)
-    smoo = conv.convolve(self.s, kernel)
-    ax.plot(self.f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
-
-    if stage:
-        outpath = os.path.join(*[self.path, f'{type(stage).__name__}_{str(self.ID)}.png'])
-
-        # Overplot epsilon diagnostic       
-        if type(stage) == pbjam.guess_epsilon.epsilon:
+    def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
+    
+        if not pg and hasattr(self, 'pg'):
+            pg = self.pg
+        
+        if pg:
+            f = pg.frequency.value
+            s = pg.power.value
+            
+        elif hasattr(self, 'f') & hasattr(self, 's'):
+            f = self.f
+            s = self.s            
+        else:
+            raise ValueError('Unable to plot spectrum.')
+            
+        # The raw and smoothed spectrum will always be plotted
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(f, s, 'k-', label='Data', alpha=0.2)
+        fac = 0.1 / (f[1] - f[0]) #0.005 * self.dnu[0]  / (f[1] - f[0])
+        kernel = conv.Gaussian1DKernel(stddev=fac)
+        smoo = conv.convolve(s, kernel)
+        ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
+    
+        # Overplot kde diagnostic  
+    
+        if type(self) == pbjam.star:
+             xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
+         
+        elif type(self) == pbjam.kde:
             h = max(smoo)
-            dnu = 10**(np.median(stage.samples[:, 0]))
-            nmin = np.floor(min(self.f) / dnu)
-            nmax = np.floor(max(self.f) / dnu)
+            dnu = 10**(np.median(self.samples[:, 0]))
+            nmin = np.floor(min(f) / dnu)
+            nmax = np.floor(max(f) / dnu)
             enns = np.arange(nmin-1, nmax+1, 1)
-            freq, freq_sigma = stage.kde_predict(enns)
-            y = np.zeros(len(self.f))
+            freq, freq_sigma = self.kde_predict(enns)
+            y = np.zeros(len(f))
             for i in range(len(enns)):
-                y += 0.8 * h * np.exp(-0.5 * (freq[i] - self.f)**2 / freq_sigma[i]**2)
-            ax.fill_between(self.f, y, alpha=0.3, facecolor='navy', edgecolor='none',
+                y += 0.8 * h * np.exp(-0.5 * (freq[i] - f)**2 / freq_sigma[i]**2)
+            ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
                             label=r'$\propto P(\nu_{\ell=0})$')
             xlim = [min(freq)-dnu, max(freq)+dnu]
-
+    
         # Overplot asy_peakbag diagnostic        
-        if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
+        elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
             for j in np.arange(-50,0):
                 if j==-1:
                     label='Model'
                 else:
                     label=None
-                ax.plot(self.f[stage.sel], stage.model(stage.samples[j, :]), 
-                        'r-', alpha=0.1)
-            for f in stage.modeID['nu_med']:
-                ax.axvline(f, c='k', linestyle='--')
-            dnu = 10**stage.summary.loc['dnu', '50th']
-            xlim = [min(self.f[stage.sel])-dnu, 
-                    max(self.f[stage.sel])+dnu]
+                ax.plot(f[self.sel], self.model(self.samples[j, :]), 'r-', 
+                        alpha=0.1)
+            for nu in self.modeID['nu_med']:
+                ax.axvline(nu, c='k', linestyle='--')
+            dnu = 10**self.summary.loc['dnu', '50th']
+            xlim = [min(f[self.sel])-dnu, 
+                    max(f[self.sel])+dnu]
             
         # Overplot peakbag diagnostic    
-        if type(stage) == pbjam.peakbag:  
-            n = stage.ladder_s.shape[0]                
+        elif type(self) == pbjam.peakbag:  
+            n = self.ladder_s.shape[0]                
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2', 
                          'back']
             for i in range(n):
@@ -77,45 +98,44 @@ def plot_spectrum(self, stage=None, savefig=False):
                         label='Model'
                     else:
                         label=None
-                    mod = stage.model(*[stage.samples[x][j] for x in par_names])
-                    ax.plot(stage.ladder_f[i, :], mod[i, :], c='r', alpha=0.1, label=label)
+                    mod = self.model(*[self.samples[x][j] for x in par_names])
+                    ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1, 
+                            label=label)
                     
-            dnu = 10**self.asy_fit.summary.loc['dnu', '50th']        
-            xlim = [min(self.f[self.asy_fit.sel])-dnu, 
-                    max(self.f[self.asy_fit.sel])+dnu]
-
-    else:
-        outpath = os.path.join(*[self.path, f'{str(self.ID)}.png'])
-        xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
-
-
-
-    ax.set_ylim([0, smoo.max()*1.5])
-    ax.set_xlim([max([min(self.f), xlim[0]]), min([max(self.f), xlim[1]])])
-    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-    ax.set_ylabel(r'SNR')
-    ax.legend(loc=1)
+            dnu = 10**self.asy_result.summary.loc['dnu', '50th']        
+            xlim = [min(f[self.asy_result.sel])-dnu, 
+                    max(f[self.asy_result.sel])+dnu]
+        else:
+            raise ValueError('Unrecognized class type')
+      
+        outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
     
-    if savefig:
-        fig.savefig(outpath)
+        ax.set_ylim([0, smoo.max()*1.5])
+        ax.set_xlim([max([min(f), xlim[0]]), min([max(f), xlim[1]])])
+        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        ax.set_ylabel(r'SNR')
+        ax.legend(loc=1)
+    
+        if savefig:
+            fig.savefig(outpath)
 
 
-def plot_trace(stage):
-    '''
-    Will make a pymc3 traceplot.
-    '''
-    import pymc3 as pm
-    
-    if type(stage) == pbjam.guess_epsilon.epsilon:
-        # TODO - make this work for epsilon
-        print('Traceplot for epsilon not yet implimented')
-    
-    if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
-        # TODO - make this work for asy_peakbag
-        print('Traceplot for asy_peakbag not yet implimented')
-    
-    if type(stage) == pbjam.peakbag:
-        pm.traceplot(stage.samples)
+    def plot_trace(stage):
+        '''
+        Will make a pymc3 traceplot.
+        '''
+        import pymc3 as pm
+        
+        if type(stage) == pbjam.kde.kde:
+            # TODO - make this work for kde
+            print('Traceplot for kde not yet implimented')
+        
+        if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
+            # TODO - make this work for asy_peakbag
+            print('Traceplot for asy_peakbag not yet implimented')
+        
+        if type(stage) == pbjam.peakbag:
+            pm.traceplot(stage.samples)
 
 
 # Asy_peakbag  

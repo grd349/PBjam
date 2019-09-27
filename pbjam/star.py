@@ -1,13 +1,12 @@
-import os, warnings, sys
-from pbjam.asy_peakbag import asymptotic_fit
-from pbjam.guess_epsilon import epsilon
-from pbjam.peakbag import peakbag
-from . import PACKAGEDIR
+import os, warnings
+from .asy_peakbag import asymptotic_fit
+from .kde import kde
+from .peakbag import peakbag
 import pymc3 as pm
-from .plotting import plot_corner, plot_spectrum
+from .jar import get_priorpath
+from pbjam.plotting import plotting
 
-
-class star():
+class star(plotting):
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
@@ -67,13 +66,13 @@ class star():
         Path to the csv file containing the prior data
     """
 
-    def __init__(self, ID, periodogram, numax, dnu, teff, bp_rp, path=None, 
+    def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None, 
                  prior_file = None):
           
         self.ID = ID
-        self.pg = periodogram
-        self.f = periodogram.frequency.value
-        self.s = periodogram.power.value
+        self.pg = pg
+        self.f = pg.frequency.value
+        self.s = pg.power.value
 
         self.numax = numax
         self.dnu = dnu
@@ -83,13 +82,10 @@ class star():
         self.path = path
         
         if not prior_file:
-            self.prior_file = os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+            self.prior_file = get_priorpath() #os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
         else:
             self.prior_file = prior_file
-        
-        self.plot_corner = plot_corner
-        self.plot_spectrum = plot_spectrum
-
+    
 
     def make_output_dir(self, path, verbose):
         if path == None:
@@ -103,18 +99,24 @@ class star():
                 warnings.warn(f'Path {self.path} already exists - I will try to overwrite ... ')
           
           
-    def run_epsilon(self, bw_fac=1.0, make_plots=False):
+    def run_kde(self, bw_fac=1.0, make_plots=False):
         """
-        Runs the epsilon code and makes plots if self.make_plots is set.
+        Runs the kde code and makes plots if self.make_plots is set.
         """
-        epsilon(self, bw_fac=bw_fac)
         
-        self.epsilon(dnu=self.dnu, numax=self.numax, teff=self.teff, 
-                     bp_rp=self.bp_rp)
+        # Init
+        kde(self, bw_fac=bw_fac)
         
+        # Call
+        self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff, 
+                 bp_rp=self.bp_rp)
+        
+        # Store
         if make_plots:
-            self.plot_corner(self, self.epsilon, make_plots)
-            self.plot_spectrum(self, self.epsilon, make_plots)
+            self.kde.plot_corner(path=self.path, ID=self.ID, 
+                                 savefig=make_plots)
+            self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID, 
+                                       savefig=make_plots)
              
             
     def run_asy_peakbag(self, norders=None, make_plots=False, 
@@ -123,12 +125,17 @@ class star():
         Runs the asy_peakbag code.
         """
         
-        asymptotic_fit(self, self.epsilon, norders=norders, 
+        # Init
+        print('Init asy')
+        asymptotic_fit(self, self.kde, norders=norders, 
                        store_chains=store_chains, nthreads=nthreads)
         
+        # Call
+        print('Call asy')
         self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff, 
                      bp_rp=self.bp_rp)
         
+        # Store
         outpath = lambda x: os.path.join(*[self.path, x])
         self.asy_fit.summary.to_csv(outpath(f'{type(self).__name__}_summary_{self.ID}.csv'),
                                     index=True)
@@ -138,23 +145,30 @@ class star():
         if store_chains:
             pass # TODO need to pickle the chains if requested.
         if make_plots:
-            self.plot_spectrum(self, self.asy_fit, make_plots)#.savefig(outpath + f'_{self.ID}.png')
-            self.plot_corner(self, self.asy_fit, make_plots)#.savefig(outpath + f'_corner_{self.ID}.png')
+            self.asy_fit.plot_spectrum(path=self.path, ID=self.ID, 
+                                       savefig=make_plots)#.savefig(outpath + f'_{self.ID}.png')
+            self.asy_fit.plot_corner(path=self.path, ID=self.ID, 
+                                       savefig=make_plots)#.savefig(outpath + f'_corner_{self.ID}.png')
             
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, make_plots=False, store_chains=False):
         """
         Runs peakbag on the given star.
         """
+        # Init
         self.peakbag = peakbag(self, self.asy_fit)
+        
+        # Call
         self.peakbag.sample(model_type=model_type, tune=tune, nthreads=nthreads)
         
+        # Store
         outpath = lambda x: os.path.join(*[self.path, x])
         pm.summary(self.peakbag.samples).to_csv(outpath(f'{type(self).__name__}_summary_{self.ID}.csv'))
         if store_chains:
             pass # TODO need to pickle the samples if requested.
         if make_plots:
-            self.plot_spectrum(self, self.peakbag, make_plots)
+            self.peakbag.plot_spectrum(path=self.path, ID=self.ID, 
+                                       savefig=make_plots)
             #self.peakbag.plot_flat_fit().savefig(outpath + f'_{self.ID}.png')
 
 
@@ -163,10 +177,10 @@ class star():
         """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
         
         self.make_output_dir(self.path, verbose) 
-        print('Running epsilon')
-        self.run_epsilon(bw_fac=bw_fac, make_plots=make_plots)          
+        print('Running kde')
+        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
    
-        print('epsilon complete')
+        print('kde complete')
         self.run_asy_peakbag(norders=norders, make_plots=make_plots, 
                              store_chains=store_chains, nthreads=nthreads)
         

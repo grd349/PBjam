@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import warnings
 import astropy.convolution as conv
 from astropy import units as u
+from pbjam.plotting import plotting
 
-class peakbag():
+class peakbag(plotting):
     """
     Class for PBjam peakbagging.
 
@@ -64,6 +65,7 @@ class peakbag():
         self.f = starinst.f
         self.s = starinst.s
         self.asy_result = asyinst
+
 
         if init:
             self.make_start()

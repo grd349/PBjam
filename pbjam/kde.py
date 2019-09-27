@@ -1,29 +1,71 @@
 import numpy as np
 import pandas as pd
 from .mcmc import mcmc
+from . import PACKAGEDIR
+import os
+from .plotting import plotting
+import warnings
+import statsmodels.api as sm
 
-class epsilon():
+
+def default_priorpath():
+    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+
+class kde(plotting):
     ''' A class to predict epsilon.
 
     TODO: See the docs for full information. (especially example_advanced)
 
     '''
-    def __init__(self, starinst, nthreads=1, verbose=False, bw_fac=1): 
-        self.prior_file = starinst.prior_file        
+    def __init__(self, starinst=None, nthreads=1, verbose=False, bw_fac=1): 
+        
+        if starinst:
+            self.prior_file = starinst.prior_file  
+            self.f = starinst.f
+            self.s = starinst.s
+            self.pg = starinst.pg
+            starinst.kde = self
+        else:
+            self.prior_file = default_priorpath()
+        
         self.verbose = verbose
         self.nthreads = nthreads
         self.obs = []
         self.samples = []
         self.par_names = []
+        self.bw_fac = bw_fac
+      
         self.read_prior_data()   
-        self.make_kde(bw_fac=bw_fac)
+                
         
-        starinst.epsilon = self
-
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
         self.prior_data = pd.read_csv(self.prior_file)
         self.prior_data = self.prior_data.dropna()
+
+
+    def select_prior_data(self, numax=None, nsigma=4):
+        ''' Selects only the useful prior data based on proximity to estimated
+            numax.
+        Inputs
+        ------
+        numax: length 2 list [numax, numax_err]
+            The estimate of numax together with uncertainty in log space.
+            If numax==None then no selection will be made - all data will
+            be used (you probably don't want to do this).
+        '''
+        if not numax:
+            return self.prior_data
+        
+        idx = np.abs(self.prior_data.numax - numax[0]) < nsigma * numax[1]
+                
+        if len(self.prior_data[idx]) < 100:
+            warnings.warn('You have less than 100 data points in your prior')
+        if len(self.prior_data[idx]) > 1000:
+            warnings.warn('You have lots data points in your prior - estimating' +
+                            ' the KDE band width will be slow!')
+        
+        self.prior_data = self.prior_data.loc[idx]
 
     def make_kde(self, bw_fac=1.0):
         ''' Takes the prior data and constructs a KDE function
@@ -36,21 +78,30 @@ class epsilon():
 
         '''
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff', 'bp_rp']
+                          'env_width', 'mode_width', 'teff', 'bp_rp']
         # key: [log, log, lin, log, log, log, log, log, log, lin]
-        import statsmodels.api as sm
+        
         # bw set using CV ML but times two.
-        bw = np.array([0.00774255, 0.01441685, 0.04582654,
-                       0.02127414, 0.17830664, 0.54219474,
-                       0.04400531, 0.06834085, 0.0054522,
-                       0.11864199]) * bw_fac
+        if self.log_obs['numax'][1] < 0:
+            bw = np.array([0.00774255, 0.01441685, 0.04582654,
+                           0.02127414, 0.17830664, 0.54219474,
+                           0.04400531, 0.06834085, 0.0054522,
+                           0.11864199]) * self.bw_fac
+        else:
+            if self.verbose:
+                print('Selecting sensible stars ... for kde')
+                print(f'Full data set length {len(self.prior_data)}')
+            self.select_prior_data(self.log_obs['numax'])
+            if self.verbose:
+                print(f'Selected data set length {len(self.prior_data)}')
+            bw = 'cv_ml'
+
         self.kde = sm.nonparametric.KDEMultivariate(
                             data=self.prior_data[self.par_names].values,
                             var_type='cccccccccc',
                             bw=bw)
-
-
-
+       
+        
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood
 
@@ -226,60 +277,10 @@ class epsilon():
         '''
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
+        
+        self.make_kde()
+
 
         self.samples = self.kde_sampler()
         self.result = [self.samples[:,2].mean(), self.samples[:,2].std()]
         
-
-#    def plot(self, periodogram):
-#        '''
-#        Make a plot of the posterior distribution on the locations
-#        of the l=0 modes, on top of a
-#        `lightkurve` periodogram object passed by the user.
-#
-#        Parameters
-#        ----------
-#
-#        periodogram: Periodogram
-#            A flattened lightkurve Periodogram object for plotting.
-#
-#        Returns
-#        -------
-#
-#        fig: Figure
-#        '''
-#        fig, ax = plt.subplots(figsize=[16,9])
-#        periodogram.plot(ax=ax, alpha=0.5, c='gray', label='Data')
-#        
-#        dnu = 10**(self.samples[:, 0].mean())
-#        smoo = periodogram.smooth(filter_width=dnu*0.02)
-#        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed Data')
-#        
-#        h = np.max(smoo.power.value)
-#        f = periodogram.frequency.value
-#        dnu = 10**(self.samples[:, 0].mean())
-#        
-#        nmin = np.floor(f.min() / dnu)
-#        nmax = np.floor(f.max() / dnu)
-#        self.n = np.arange(nmin-1, nmax+1, 1)
-#        
-#        freq, freq_unc = self.kde_predict(self.n)
-#        y = np.zeros(len(f))
-#        for i in range(len(self.n)):
-#            y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
-#        ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
-#                        label=r'$\propto P(\nu_{\ell=0})$')
-#        ax.set_xlim([f.min(), f.max()])
-#        ax.set_ylim([0, h*1.2])
-#        ax.set_title(periodogram.label)
-#        ax.legend()
-#        return fig
-
-#    def plot_corner(self):
-#        '''
-#        Makes a nice corner plot using corner.corner
-#        '''
-#        fig = corner.corner(self.samples, labels=self.cols, show_titles=True, 
-#                            quantiles=[0.16, 0.5, 0.84], 
-#                            title_kwargs={"fontsize": 12})
-#        return fig

@@ -9,6 +9,8 @@ import numpy as np
 import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
+from pbjam.kde import kde
+from pbjam.plotting import plotting
 
 def get_nmax(dnu, numax, eps):
     """Compute radial order at numax.
@@ -320,7 +322,7 @@ class asymp_spec_model():
         return self.model(*p)
 
 
-class asymptotic_fit(pb.epsilon):
+class asymptotic_fit(kde, plotting):
     """ Class for fitting a spectrum based on the asymptotic relation.
 
     Parameters
@@ -366,7 +368,7 @@ class asymptotic_fit(pb.epsilon):
         KDE is implimented).
     """
 
-    def __init__(self, starinst, epsinst=None, norders=6, store_chains=False, 
+    def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False, 
                  nthreads=1):
         
         self.f = starinst.f
@@ -374,18 +376,23 @@ class asymptotic_fit(pb.epsilon):
         self.store_chains = store_chains
         self.nthreads = nthreads
         self.norders = norders
+        
             
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        if epsinst:
-            self.start_samples = epsinst.samples
-            self.prior = epsinst.prior
-        elif hasattr(starinst, 'epsilon'):
-            self.start_samples = starinst.epsilon.samples
-            self.prior = starinst.epsilon.prior
+        if kdeinst:
+            self.start_samples = kdeinst.samples
+            self.prior = kdeinst.prior
+        elif hasattr(starinst, 'kde'):
+            self.start_samples = starinst.kde.samples
+            self.prior = starinst.kde.prior
         else:
             raise ValueError("Asy_peakbag won't run without samples of the prior")
+
+
+
+
 
         means = self.start_samples.mean(axis=0)
         start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]), 
@@ -410,7 +417,7 @@ class asymptotic_fit(pb.epsilon):
         self.lnprior_fin = None
         self.mle_model = None
         self.acceptance = None
-        
+                
         starinst.asy_fit = self
 
 
