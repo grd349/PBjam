@@ -44,7 +44,7 @@ class kde(plotting):
         self.prior_data = self.prior_data.dropna()
 
 
-    def select_prior_data(self, numax=None, nsigma=4):
+    def select_prior_data(self, numax=None, nsigma=7):
         ''' Selects only the useful prior data based on proximity to estimated
             numax.
         Inputs

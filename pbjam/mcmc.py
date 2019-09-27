@@ -70,8 +70,8 @@ class mcmc():
         """
         tau = self.sampler.get_autocorr_time(tol=0)
         converged = np.all(tau * nfactor < self.sampler.iteration)
-        #return converged
-        return True
+        return converged
+        
 
     def __call__(self, max_iter=20000, spread=1e-4, start_samples=[]):
         """ Initialize and run the EMCEE afine invariant sampler
