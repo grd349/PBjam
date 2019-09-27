@@ -1,9 +1,10 @@
 import setuptools
 
+exec(open('pbjam/version.py').read())
 
 setuptools.setup(
     name="pbjam",
-    version="0.1.0",
+    version=__version__,
     author="Martin Nielsen, Guy Davies, Oliver Hall",
     author_email="m.b.nielsen.1@bham.ac.uk",
     description="A package for peakbagging solar-like oscillators",
