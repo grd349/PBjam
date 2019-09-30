@@ -62,7 +62,7 @@ def get_enns(nmax, norders):
 
     below = np.floor(nmax - np.floor(norders/2)).astype(int)
     above = np.floor(nmax + np.ceil(norders/2)).astype(int)
-    if type(below) == np.int64:
+    if type(below) != np.ndarray:
         return np.arange(below, above)
     else:
         return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)
