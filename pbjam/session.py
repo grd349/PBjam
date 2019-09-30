@@ -47,7 +47,7 @@ import numpy as np
 import astropy.units as units
 import pandas as pd
 import os, glob, warnings
-from pbjam.star import star
+from .star import star
 
 
 def organize_sess_dataframe(vardf):

@@ -9,8 +9,8 @@ import numpy as np
 import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
-from pbjam.kde import kde
-from pbjam.plotting import plotting
+from .priors import kde
+from .plotting import plotting
 
 def get_nmax(dnu, numax, eps):
     """Compute radial order at numax.
