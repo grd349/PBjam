@@ -60,7 +60,7 @@ def get_enns(nmax, norders):
     
     # Handling of single input (during fitting), or array input when evaluating
     # the fit
-    if type(below) == np.int64:
+    if type(below) != np.ndarray:
         return np.arange(below, above)
     else:
         return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)
