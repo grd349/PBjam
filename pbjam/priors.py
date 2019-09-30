@@ -1,60 +1,73 @@
 import numpy as np
 import pandas as pd
-import os
-import emcee
-import matplotlib.pyplot as plt
-import warnings
-import corner
-
-from . import PACKAGEDIR
-
-from scipy.stats import gaussian_kde
 from .mcmc import mcmc
+from . import PACKAGEDIR
+import os
+from .plotting import plotting
+import warnings
+import statsmodels.api as sm
 
-class kde():
-    ''' A class to predict epsilon using a KDE.
+
+def default_priorpath():
+    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+
+class kde(plotting):
+    ''' A class to predict epsilon.
 
     TODO: See the docs for full information. (especially example_advanced)
 
     '''
-    def __init__(self, nthreads=1, verbose=False, bw_fac=1):
-        self.data_file = PACKAGEDIR + os.sep + 'data' + os.sep + 'prior_data.csv'
-        self.obs = []
-        self.samples = []
+    def __init__(self, starinst=None, nthreads=1, verbose=False, bw_fac=1): 
+        
+        if starinst:
+            self.prior_file = starinst.prior_file  
+            self.f = starinst.f
+            self.s = starinst.s
+            self.pg = starinst.pg
+            starinst.kde = self
+        else:
+            self.prior_file = default_priorpath()
+        
         self.verbose = verbose
         self.nthreads = nthreads
+        self.obs = []
+        self.samples = []
+        self.par_names = []
         self.bw_fac = bw_fac
-        self.read_prior_data()
-
-
+      
+        self.read_prior_data()   
+                
+        
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
-        self.prior_data = pd.read_csv(self.data_file)
+        self.prior_data = pd.read_csv(self.prior_file)
         self.prior_data = self.prior_data.dropna()
+
 
     def select_prior_data(self, numax=None, nsigma=7):
         ''' Selects only the useful prior data based on proximity to estimated
             numax.
-
         Inputs
         ------
-
         numax: length 2 list [numax, numax_err]
             The estimate of numax together with uncertainty in log space.
             If numax==None then no selection will be made - all data will
             be used (you probably don't want to do this).
         '''
-        if numax == None:
-            return
-        self.prior_data = self.prior_data.loc[np.abs(self.prior_data.numax -
-                                                numax[0]) < nsigma * numax[1]]
-        if len(self.prior_data) < 100:
+        if not numax:
+            return self.prior_data
+        
+        idx = np.abs(self.prior_data.numax - numax[0]) < nsigma * numax[1]
+                
+        if len(self.prior_data[idx]) < 100:
             warnings.warn('You have less than 100 data points in your prior')
-        if len(self.prior_data) > 1000:
+        if len(self.prior_data[idx]) > 1000:
             warnings.warn('You have lots data points in your prior - estimating' +
                             ' the KDE band width will be slow!')
+        
+        self.prior_data = self.prior_data.loc[idx]
 
-    def make_kde(self):
+    def make_kde(self, bw_fac=1.0):
         ''' Takes the prior data and constructs a KDE function
 
         TODO: add details on the band width determination - see example
@@ -64,12 +77,10 @@ class kde():
         likelihood estimate.
 
         '''
-        self.cols = ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
+        self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+                          'env_width', 'mode_width', 'teff', 'bp_rp']
         # key: [log, log, lin, log, log, log, log, log, log, lin]
-        import statsmodels.api as sm
+        
         # bw set using CV ML but times two.
         if self.log_obs['numax'][1] < 0:
             bw = np.array([0.00774255, 0.01441685, 0.04582654,
@@ -86,10 +97,11 @@ class kde():
             bw = 'cv_ml'
 
         self.kde = sm.nonparametric.KDEMultivariate(
-                            data=self.prior_data[self.cols].values,
+                            data=self.prior_data[self.par_names].values,
                             var_type='cccccccccc',
                             bw=bw)
-
+       
+        
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood
 
@@ -124,10 +136,9 @@ class kde():
         like : real
             The log likelihood evaluated at p.
 
-        Note: p = ['dnu', 'numax', 'eps',
-                     'd02', 'alpha', 'env_height',
-                     'env_width', 'mode_width', 'teff',
-                     'bp_rp']
+        Note: p = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+                   'env_width', 'mode_width', 'teff', 'bp_rp']
+        
         key: [log, log, lin, log, log, log, log, log, log, lin]
         '''
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
@@ -142,15 +153,15 @@ class kde():
         Calculates the likelihood of the observed properties given
         the proposed parameters p.
         '''
-        log_dnu, log_numax, eps, log_d02, log_alpha, \
-            log_env_height, log_env_width, log_mode_width, \
-            log_teff, bp_rp = p
+        #log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
+        #     log_env_width, log_mode_width, log_teff, bp_rp = p
+            
         # Constraint from input data
         ld = 0.0
-        ld += self.normal(log_dnu, *self.log_obs['dnu'])
-        ld += self.normal(log_numax, *self.log_obs['numax'])
-        ld += self.normal(log_teff, *self.log_obs['teff'])
-        ld += self.normal(bp_rp, *self.log_obs['bp_rp'])
+        ld += self.normal(p[0], *self.log_obs['dnu'])
+        ld += self.normal(p[1], *self.log_obs['numax'])
+        ld += self.normal(p[8], *self.log_obs['teff'])
+        ld += self.normal(p[9], *self.log_obs['bp_rp'])
         return ld
 
     def kde_sampler(self, nwalkers=50):
@@ -179,6 +190,7 @@ class kde():
         '''
         if self.verbose:
             print('Running KDE sampler')
+            
         x0 = [self.log_obs['dnu'][0], #log10 dnu
               self.log_obs['numax'][0], #log10 numax
               1.0, # eps
@@ -211,55 +223,6 @@ class kde():
                         'teff': self.to_log10(*obs['teff']),
                         'bp_rp': obs['bp_rp']}
 
-    def plot(self, periodogram):
-        '''
-        Make a plot of the posterior distribution on the locations
-        of the l=0 modes, on top of a
-        `lightkurve` periodogram object passed by the user.
-
-        Parameters
-        ----------
-
-        periodogram: Periodogram
-            A flattened lightkurve Periodogram object for plotting.
-
-        Returns
-        -------
-
-        fig: Figure
-        '''
-        fig, ax = plt.subplots(figsize=[16,9])
-        periodogram.plot(ax=ax, alpha=0.5, c='gray', label='Data')
-        dnu = 10**(self.samples[:, 0].mean())
-        smoo = periodogram.smooth(filter_width=dnu*0.02)
-        smoo.plot(ax=ax, c='k', alpha=0.4, lw=3, label='Smoothed Data')
-        h = np.max(smoo.power.value)
-        f = periodogram.frequency.value
-        dnu = 10**(self.samples[:, 0].mean())
-        nmin = np.floor(f.min() / dnu)
-        nmax = np.floor(f.max() / dnu)
-        self.n = np.arange(nmin-1, nmax+1, 1)
-        freq, freq_unc = self.kde_predict(self.n)
-        y = np.zeros(len(f))
-        for i in range(len(self.n)):
-            y += h * 0.8 * np.exp(-0.5 * (freq[i] - f)**2 / freq_unc[i]**2)
-        ax.fill_between(f, y, alpha=0.3, facecolor='navy',
-                        edgecolor='none',
-                        label=r'$\propto P(\nu_{\ell=0})$')
-        ax.set_xlim([f.min(), f.max()])
-        ax.set_ylim([0, h*1.2])
-        ax.set_title(periodogram.label)
-        ax.legend()
-        return fig
-
-    def plot_corner(self):
-        '''
-        Makes a nice corner plot using corner.corner
-        '''
-        fig = corner.corner(self.samples, labels=self.cols,  quantiles=[0.16, 0.5, 0.84],
-                       show_titles=True, title_kwargs={"fontsize": 12})
-        return fig
-
     def kde_predict(self, n):
         '''
         Predict the frequencies from the kde method samples.
@@ -291,8 +254,8 @@ class kde():
         freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self,
-                dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], 
+                 bp_rp=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
 
@@ -312,14 +275,12 @@ class kde():
         result : array-like
             [estimate of epsilon, unceritainty on estimate]
         '''
-        self.obs = {'dnu': dnu,
-                    'numax': numax,
-                    'teff': teff,
-                    'bp_rp': bp_rp}
+        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
-
+        
         self.make_kde()
 
+
         self.samples = self.kde_sampler()
-        result = [self.samples[:,2].mean(), self.samples[:,2].std()]
-        return result
+        self.result = [self.samples[:,2].mean(), self.samples[:,2].std()]
+        

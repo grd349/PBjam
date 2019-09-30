@@ -7,17 +7,12 @@ in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are ignored.
 
 import numpy as np
 import pbjam as pb
-import os
 import pandas as pd
-from collections import OrderedDict
-from . import PACKAGEDIR
 import scipy.stats as scist
-import astropy.convolution as conv
-import matplotlib.pyplot as plt
-import corner
-import emcee
+from .priors import kde
+from .plotting import plotting
 
-def get_nmax(numax, dnu, eps):
+def get_nmax(dnu, numax, eps):
     """Compute radial order at numax.
 
     Compute the radial order at numax, which in this implimentation of the
@@ -62,6 +57,9 @@ def get_enns(nmax, norders):
 
     below = np.floor(nmax - np.floor(norders/2)).astype(int)
     above = np.floor(nmax + np.ceil(norders/2)).astype(int)
+    
+    # Handling of single input (during fitting), or array input when evaluating
+    # the fit
     if type(below) != np.ndarray:
         return np.arange(below, above)
     else:
@@ -92,7 +90,7 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
         Array of l=0 mode frequencies from the asymptotic relation (muHz).
 
     """
-    nmax = get_nmax(numax, dnu, eps)
+    nmax = get_nmax(dnu, numax, eps)
     enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
 
@@ -153,9 +151,8 @@ def get_summary_stats(fit, model, pnames):
     """
 
     summary = pd.DataFrame()
-    smry_stats = ['mle','mean','std', 'skew', '2nd', '16th', '50th', '84th',
-                  '97th', 'MAD']
     idx = np.argmax(fit.flatlnlike)
+    mle = fit.flatchain[idx,:]
     means = np.mean(fit.flatchain, axis = 0)
     stds = np.std(fit.flatchain, axis = 0)
     skewness = scist.skew(fit.flatchain, axis = 0)
@@ -165,7 +162,9 @@ def get_summary_stats(fit, model, pnames):
                                                50+68.2689492137/2,
                                                50+95.4499736104/2], axis=0)
     mads =  scist.median_absolute_deviation(fit.flatchain, axis=0)
-    mle = fit.flatchain[idx,:]
+
+    smry_stats = ['mle', 'mean', 'std', 'skew', '2nd', '16th', '50th', '84th',
+                  '97th', 'MAD']
     for i, par in enumerate(pnames):
         z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
              pars_percs[1,i], pars_percs[2,i], pars_percs[3,i],
@@ -323,7 +322,7 @@ class asymp_spec_model():
         return self.model(*p)
 
 
-class asymptotic_fit(pb.epsilon):
+class asymptotic_fit(kde, plotting):
     """ Class for fitting a spectrum based on the asymptotic relation.
 
     Parameters
@@ -369,44 +368,57 @@ class asymptotic_fit(pb.epsilon):
         KDE is implimented).
     """
 
-    def __init__(self, f, snr, start_samples,
-                 teff, bp_rp,
-                 store_chains=True, nthreads=1, norders=8):
-
-        self.start_samples = start_samples
+    def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False, 
+                 nthreads=1):
+        
+        self.f = starinst.f
+        self.s = starinst.s
         self.store_chains = store_chains
         self.nthreads = nthreads
         self.norders = norders
-        self.f = f
-        self.s = snr
-        self.pars_names = ['dnu', 'numax', 'eps',
-                           'd02', 'alpha', 'env_height',
-                           'env_width', 'mode_width', 'teff',
-                           'bp_rp']
+        
+            
+        self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+                          'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        summary = start_samples.mean(axis=0)
-        start = [10**(summary[0]), 10**(summary[1]), summary[2],
-                10**(summary[3]), 10**(summary[4]), summary[5],
-                summary[6], summary[7], 10**(summary[8]),
-                summary[9]]
+        if kdeinst:
+            self.start_samples = kdeinst.samples
+            self.prior = kdeinst.prior
+        elif hasattr(starinst, 'kde'):
+            self.start_samples = starinst.kde.samples
+            self.prior = starinst.kde.prior
+        else:
+            raise ValueError("Asy_peakbag won't run without samples of the prior")
+
+
+
+
+
+        means = self.start_samples.mean(axis=0)
+        start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]), 
+                 10**(means[4]), means[5], means[6], means[7], 10**(means[8]),
+                 means[9]]
         self.start = start
 
-        nmax = get_nmax(start[1], start[0], start[2])
-        lower_n = nmax - self.norders/2 - 1.25 + start[2]
-        upper_n = nmax + self.norders/2 + 0.25 + start[2]
-        lower_frequency = lower_n * start[0]
-        upper_frequency = upper_n * start[0]
-        self.sel = np.where((self.f > lower_frequency) & (self.f < upper_frequency))
-        self.model = asymp_spec_model(self.f[self.sel], self.norders)
+        nmax = get_nmax(*start[:3])
+        enns = get_enns(nmax, self.norders)
 
+        lower_frequency = (min(enns) - 1.25 + start[2])* start[0]
+        upper_frequency = (max(enns) + 0.25 + start[2])* start[0]
+        
+        self.sel = (self.f > lower_frequency) & (self.f < upper_frequency)
+
+        self.model = asymp_spec_model(self.f[self.sel], self.norders)
 
         self.modeID = None
         self.summary = None
-        self.flatchain = None
+        self.samples = None
         self.lnlike_fin = None
         self.lnprior_fin = None
         self.mle_model = None
         self.acceptance = None
+                
+        starinst.asy_fit = self
 
 
     def get_modeIDs(self, fit, N):
@@ -444,8 +456,6 @@ class asymptotic_fit(pb.epsilon):
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
         nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
 
-        #nus_std = np.std(np.array([nu0_samps, nu2_samps]), axis=2)
-
         ells = [0 if i % 2 else 2 for i in range(2*N)]
 
         nus_med_out = []
@@ -455,75 +465,11 @@ class asymptotic_fit(pb.epsilon):
             nus_med_out += [nus_med[1, i], nus_med[0, i]]
             nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
 
-        modeID = pd.DataFrame({'ell': ells,
-                               'nu_med': nus_med_out,
+        modeID = pd.DataFrame({'ell': ells, 'nu_med': nus_med_out, 
                                'nu_mad': nus_mad_out})
         return modeID
 
-    def plot_start(self):
-        '''
-        Plots the starting model as a diagnotstic.
-        '''
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-',
-                label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 'r-',
-                label='Start model', alpha=0.7)
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend()
-        return fig
 
-    def plot(self, thin=100):
-        '''
-        Plots the data and some models generated from the samples
-        from the posteriod distribution.
-
-        Parameters
-        ----------
-        thin: int
-            Thins the samples of the posterior in order to speed up plotting.
-
-        Returns
-        -------
-        fig: Figure
-            The figure element containing the plots.
-        '''
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-',
-                label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.flatchain[0, :]), 'r-',
-                label='Model', alpha=0.2)
-        for i in np.arange(thin, len(self.flatchain), thin):
-            ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
-                    alpha=0.2)
-        freqs = self.modeID['nu_med']
-        for f in freqs:
-            ax.axvline(f, c='k', linestyle='--')
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend(loc=1)
-        return fig
-
-    def plot_corner(self):
-        '''
-        Calls corner.corner on the sampling results
-        '''
-        fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
-                            quantiles=[0.16, 0.5, 0.84],
-                       show_titles=True, title_kwargs={"fontsize": 12})
-        return fig
 
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
@@ -547,20 +493,18 @@ class asymptotic_fit(pb.epsilon):
             log_env_height, log_env_width, log_mode_width, \
             log_teff, bp_rp = p
         """
+        
         # Constraint from input obs
         ld = 0.0
         ld += self.normal(p[-2], *self.log_obs['teff'])
         ld += self.normal(p[-1], *self.log_obs['bp_rp'])
+        
         # Constraint from the periodogram
         mod = self.model(p)
         like = -1.0 * np.sum(np.log(mod) + self.s[self.sel] / mod)
         return like + ld
 
-    def run(self,
-            dnu=[1, -1],
-            numax=[1, -1],
-            teff=[1, -1],
-            bp_rp=[1, -1]):
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
         Parameters
@@ -572,7 +516,7 @@ class asymptotic_fit(pb.epsilon):
         teff : [real, real]
             Stellar effective temperature and uncertainty
         bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty
+            The Gaia Gbp - Grp color value and uncertainty 
             (probably ~< 0.01 dex).
 
         Returns
@@ -580,13 +524,11 @@ class asymptotic_fit(pb.epsilon):
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
         """
-        self.obs = {'dnu': dnu,
-                    'numax': numax,
-                    'teff': teff,
-                    'bp_rp': bp_rp}
+        
+        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
 
-        self.prior = pb.epsilon().prior
+        
         self.fit = pb.mcmc(self.start_samples.mean(axis=0), self.likelihood,
                            self.prior, nthreads=self.nthreads)
 
@@ -594,16 +536,112 @@ class asymptotic_fit(pb.epsilon):
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
-        self.summary, self.mle_model = get_summary_stats(self.fit,
-                                            self.model, self.pars_names)
+        self.summary, self.mle_model = get_summary_stats(self.fit, self.model, 
+                                                         self.par_names)
 
         if self.store_chains:
-            self.flatchain = self.fit.flatchain
+            self.samples = self.fit.flatchain
             self.lnlike_fin = self.fit.flatlnlike
         else:
-            self.flatchain = self.fit.chain[:,-1,:]
+            self.samples = self.fit.chain[:,-1,:]
             self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
             self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
+        
         return {'modeID': self.modeID, 'summary': self.summary}
+
+
+#    def plot_start(self):
+#        '''
+#        Plots the starting model as a diagnotstic.
+#        '''
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+#        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+#        kernel = conv.Gaussian1DKernel(stddev=smoo)
+#        smoothed = conv.convolve(self.s, kernel)
+#        ax.plot(self.f, smoothed, 'k-',
+#                label='Smoothed', lw=3, alpha=0.6)
+#        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 'r-',
+#                label='Start model', alpha=0.7)
+#        ax.set_ylim([0, smoothed.max()*1.5])
+#        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#        ax.set_ylabel(r'SNR')
+#        ax.legend()
+#        return fig
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#    def plot(self, thin=100):
+#        '''
+#        Plots the data and some models generated from the samples
+#        from the posteriod distribution.
+#
+#        Parameters
+#        ----------
+#        thin: int
+#            Thins the samples of the posterior in order to speed up plotting.
+#
+#        Returns
+#        -------
+#        fig: Figure
+#            The figure element containing the plots.
+#        '''
+#        
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+#        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+#        kernel = conv.Gaussian1DKernel(stddev=smoo)
+#        smoothed = conv.convolve(self.s, kernel)
+#        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
+#        ax.plot(self.f[self.sel], self.model(self.flatchain[0, :]), 'r-',
+#                label='Model', alpha=0.2)
+#        for i in np.arange(thin, len(self.flatchain), thin):
+#            ax.plot(self.f[self.sel], self.model(self.flatchain[i, :]), 'r-',
+#                    alpha=0.2)
+#        for f in self.modeID['nu_med']:
+#            ax.axvline(f, c='k', linestyle='--')
+#        ax.set_ylim([0, smoothed.max()*1.5])
+#        ax.set_xlim([self.f[self.sel].min(), self.f[self.sel].max()])
+#        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#        ax.set_ylabel(r'SNR')
+#        ax.legend(loc=1)
+#        return fig
+#
+#    def plot_corner(self):
+#        '''
+#        Calls corner.corner on the sampling results
+#        '''
+#        
+#        fig = corner.corner(self.fit.flatchain, labels=self.pars_names,
+#                            quantiles=[0.16, 0.5, 0.84], show_titles=True, 
+#                            title_kwargs={"fontsize": 12})
+#        return fig
