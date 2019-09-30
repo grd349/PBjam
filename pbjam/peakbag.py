@@ -3,11 +3,8 @@
 
 import numpy as np
 import pymc3 as pm
-import matplotlib.pyplot as plt
 import warnings
-import astropy.convolution as conv
-from astropy import units as u
-from pbjam.plotting import plotting
+from .plotting import plotting
 
 class peakbag(plotting):
     """
@@ -398,193 +395,178 @@ class peakbag(plotting):
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    def plot_start_model(self):
-        """
-        Plots the model generated from the starting parameters
-
-        Returns
-        -------
-        fig : figure
-        """
-        mod = self.model(self.start['l0'], self.start['l2'], 
-                         self.start['width0'], self.start['width2'],
-                         self.start['height0'], self.start['height2'],
-                         self.start['back'])
-        n = self.ladder_s.shape[0]
-        fig, ax = plt.subplots(n, figsize=[16,9])
-        for i in range(n):
-            ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
-            ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r')
-        return fig
-
-
-    def traceplot(self):
-        '''
-        Will make a pymc3 traceplot.
-        '''
-        pm.traceplot(self.samples)
-
-    def plot_linewidth(self, thin=10):
-        """
-        Plots the estimated line width as a function of scaled n.
-        """
-        fig, ax = plt.subplots(1, 2, figsize=[16,9])
-
-        if self.gp0 != []:
-            from pymc3.gp.util import plot_gp_dist
-
-            n_new = np.linspace(-0.2, 1.2, 100)[:,None]
-            with self.pm_model:
-                f_pred0 = self.gp0.conditional("f_pred0", n_new)
-                f_pred2 = self.gp2.conditional("f_pred2", n_new)
-                self.pred_samples = pm.sample_posterior_predictive(self.samples,
-                               vars=[f_pred0, f_pred2], samples=1000)
-            plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
-            plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
-
-            for i in range(0, len(self.samples), thin):
-                ax[0].scatter(self.n,
-                              self.samples['ln_width0'][i, :], c='k', alpha=0.3)
-                ax[1].scatter(self.n,
-                              self.samples['ln_width2'][i, :], c='k', alpha=0.3)
-
-
-        else:
-            for i in range(0, len(self.samples), thin):
-                ax[0].scatter(self.n,
-                              np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
-                ax[1].scatter(self.n,
-                              np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
-
-        ax[0].set_xlabel('normalised order')
-        ax[1].set_xlabel('normalised order')
-        ax[0].set_ylabel('ln line width')
-        ax[1].set_ylabel('ln line width')
-        ax[0].set_title('Radial modes')
-        ax[1].set_title('Quadrupole modes')
-        return fig
-
-    def plot_height(self, thin=10):
-        """
-        Plots the estimated mode height.
-        """
-        fig, ax = plt.subplots(figsize=[16,9])
-        for i in range(0, len(self.samples), thin):
-            ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
-            ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
-        return fig
-
-    def plot_fit(self, thin=10, alpha=0.2):
-        """
-        Plots the ladder data and models from the samples
-
-        Parameters
-        ----------
-        thin: int
-            Uses every other thin'th value from the samkles, i.e. [::thin].
-        alpha: float64
-            The alpha to use for plotting the models from samples.
-        """
-        n = self.ladder_s.shape[0]
-        fig, ax = plt.subplots(n, figsize=[16,9])
-        for i in range(n):
-            for j in range(0, len(self.samples), thin):
-                mod = self.model(self.samples['l0'][j],
-                                 self.samples['l2'][j],
-                                 self.samples['width0'][j],
-                                 self.samples['width2'][j],
-                                 self.samples['height0'][j],
-                                 self.samples['height2'][j],
-                                 self.samples['back'][j])
-                ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
-            ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
-            ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
-        ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        fig.tight_layout()
-        return fig
-
-    def plot_flat_fit(self, thin=10, alpha=0.2):
-        '''
-        Plots the result of the fit in model space but without the
-        horrible ladder of plot_fit.
-        '''
-        n = self.ladder_s.shape[0]
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
-        numax = 10**self.asy_result.summary.loc['numax', 'mean']
-        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-',
-                label='Smoothed', lw=3, alpha=0.6)
-        for i in range(n):
-            for j in range(0, len(self.samples), thin):
-                mod = self.model(self.samples['l0'][j],
-                                 self.samples['l2'][j],
-                                 self.samples['width0'][j],
-                                 self.samples['width2'][j],
-                                 self.samples['height0'][j],
-                                 self.samples['height2'][j],
-                                 self.samples['back'][j])
-                ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlim([max([self.f.min(),numax-(n+2)/2*dnu]), min([numax+(n+2)/2*dnu,self.f.max()])])
-        #ax.set_xlim([self.f.min(), self.f.max()])
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend(loc=1)
-        return fig
-
-    def plot_echelle(self, pg):
-        '''
-        Plots an echelle diagram with mode frequencies over plotted.
-
-        Parameters
-        ----------
-        pg : periodogram
-            A lightkurve periodogram (we use the plot echelle method
-            of the periodogram (well actually seismology) class)
-
-        Returns
-        -------
-        fig : figure
-            The figure containing the plot.
-        '''
-        dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
-        # make dnu an intger multiple of bw
-        bw = self.f[1] - self.f[0]
-        dnu -= dnu % bw
-        numax = 10**self.asy_result.summary.loc['numax', 'mean']
-        seismology = pg.flatten().to_seismology()
-        nmin = np.floor(self.f.min() / dnu) + 1
-        ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
-                                     numax=numax * u.uHz,
-                                     minimum_frequency=dnu*nmin)
-        pbjam_mean_l0 = self.samples['l0'].mean(axis=0)
-        pbjam_std_l0 = self.samples['l0'].std(axis=0)
-        pbjam_mean_l2 = self.samples['l2'].mean(axis=0)
-        pbjam_std_l2 = self.samples['l2'].std(axis=0)
-        ax.errorbar(pbjam_mean_l0 % dnu, (pbjam_mean_l0 // dnu) * dnu,
-                    xerr=pbjam_std_l0, fmt='ro', alpha=0.5, label=r'$\ell=0$')
-        ax.errorbar(pbjam_mean_l2 % dnu, (pbjam_mean_l2 // dnu) * dnu,
-                    xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
-        ax.legend(fontsize = 'x-small')
-        #return fig
-        # TODO need to pass ax to seismo. plot_echelle return fig
+#
+#    def plot_start_model(self):
+#        """
+#        Plots the model generated from the starting parameters
+#
+#        Returns
+#        -------
+#        fig : figure
+#        """
+#        mod = self.model(self.start['l0'], self.start['l2'], 
+#                         self.start['width0'], self.start['width2'],
+#                         self.start['height0'], self.start['height2'],
+#                         self.start['back'])
+#        n = self.ladder_s.shape[0]
+#        fig, ax = plt.subplots(n, figsize=[16,9])
+#        for i in range(n):
+#            ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
+#            ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r')
+#        return fig
+#
+#
+#    def traceplot(self):
+#        '''
+#        Will make a pymc3 traceplot.
+#        '''
+#        pm.traceplot(self.samples)
+#
+#    def plot_linewidth(self, thin=10):
+#        """
+#        Plots the estimated line width as a function of scaled n.
+#        """
+#        fig, ax = plt.subplots(1, 2, figsize=[16,9])
+#
+#        if self.gp0 != []:
+#            from pymc3.gp.util import plot_gp_dist
+#
+#            n_new = np.linspace(-0.2, 1.2, 100)[:,None]
+#            with self.pm_model:
+#                f_pred0 = self.gp0.conditional("f_pred0", n_new)
+#                f_pred2 = self.gp2.conditional("f_pred2", n_new)
+#                self.pred_samples = pm.sample_posterior_predictive(self.samples,
+#                               vars=[f_pred0, f_pred2], samples=1000)
+#            plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
+#            plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
+#
+#            for i in range(0, len(self.samples), thin):
+#                ax[0].scatter(self.n,
+#                              self.samples['ln_width0'][i, :], c='k', alpha=0.3)
+#                ax[1].scatter(self.n,
+#                              self.samples['ln_width2'][i, :], c='k', alpha=0.3)
+#
+#
+#        else:
+#            for i in range(0, len(self.samples), thin):
+#                ax[0].scatter(self.n,
+#                              np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
+#                ax[1].scatter(self.n,
+#                              np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
+#
+#        ax[0].set_xlabel('normalised order')
+#        ax[1].set_xlabel('normalised order')
+#        ax[0].set_ylabel('ln line width')
+#        ax[1].set_ylabel('ln line width')
+#        ax[0].set_title('Radial modes')
+#        ax[1].set_title('Quadrupole modes')
+#        return fig
+#
+#    def plot_height(self, thin=10):
+#        """
+#        Plots the estimated mode height.
+#        """
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        for i in range(0, len(self.samples), thin):
+#            ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
+#            ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
+#        return fig
+#
+#    def plot_fit(self, thin=10, alpha=0.2):
+#        """
+#        Plots the ladder data and models from the samples
+#
+#        Parameters
+#        ----------
+#        thin: int
+#            Uses every other thin'th value from the samkles, i.e. [::thin].
+#        alpha: float64
+#            The alpha to use for plotting the models from samples.
+#        """
+#        n = self.ladder_s.shape[0]
+#        fig, ax = plt.subplots(n, figsize=[16,9])
+#        for i in range(n):
+#            for j in range(0, len(self.samples), thin):
+#                mod = self.model(self.samples['l0'][j],
+#                                 self.samples['l2'][j],
+#                                 self.samples['width0'][j],
+#                                 self.samples['width2'][j],
+#                                 self.samples['height0'][j],
+#                                 self.samples['height2'][j],
+#                                 self.samples['back'][j])
+#                ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
+#            ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
+#            ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
+#        ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#        fig.tight_layout()
+#        return fig
+#
+#    def plot_flat_fit(self, thin=10, alpha=0.2):
+#        '''
+#        Plots the result of the fit in model space but without the
+#        horrible ladder of plot_fit.
+#        '''
+#        n = self.ladder_s.shape[0]
+#        fig, ax = plt.subplots(figsize=[16,9])
+#        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+#        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
+#        numax = 10**self.asy_result.summary.loc['numax', 'mean']
+#        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
+#        kernel = conv.Gaussian1DKernel(stddev=smoo)
+#        smoothed = conv.convolve(self.s, kernel)
+#        ax.plot(self.f, smoothed, 'k-',
+#                label='Smoothed', lw=3, alpha=0.6)
+#        for i in range(n):
+#            for j in range(0, len(self.samples), thin):
+#                mod = self.model(self.samples['l0'][j],
+#                                 self.samples['l2'][j],
+#                                 self.samples['width0'][j],
+#                                 self.samples['width2'][j],
+#                                 self.samples['height0'][j],
+#                                 self.samples['height2'][j],
+#                                 self.samples['back'][j])
+#                ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
+#        ax.set_ylim([0, smoothed.max()*1.5])
+#        ax.set_xlim([max([self.f.min(),numax-(n+2)/2*dnu]), min([numax+(n+2)/2*dnu,self.f.max()])])
+#        #ax.set_xlim([self.f.min(), self.f.max()])
+#        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#        ax.set_ylabel(r'SNR')
+#        ax.legend(loc=1)
+#        return fig
+#
+#    def plot_echelle(self, pg):
+#        '''
+#        Plots an echelle diagram with mode frequencies over plotted.
+#
+#        Parameters
+#        ----------
+#        pg : periodogram
+#            A lightkurve periodogram (we use the plot echelle method
+#            of the periodogram (well actually seismology) class)
+#
+#        Returns
+#        -------
+#        fig : figure
+#            The figure containing the plot.
+#        '''
+#        dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
+#        # make dnu an intger multiple of bw
+#        bw = self.f[1] - self.f[0]
+#        dnu -= dnu % bw
+#        numax = 10**self.asy_result.summary.loc['numax', 'mean']
+#        seismology = pg.flatten().to_seismology()
+#        nmin = np.floor(self.f.min() / dnu) + 1
+#        ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
+#                                     numax=numax * u.uHz,
+#                                     minimum_frequency=dnu*nmin)
+#        pbjam_mean_l0 = self.samples['l0'].mean(axis=0)
+#        pbjam_std_l0 = self.samples['l0'].std(axis=0)
+#        pbjam_mean_l2 = self.samples['l2'].mean(axis=0)
+#        pbjam_std_l2 = self.samples['l2'].std(axis=0)
+#        ax.errorbar(pbjam_mean_l0 % dnu, (pbjam_mean_l0 // dnu) * dnu,
+#                    xerr=pbjam_std_l0, fmt='ro', alpha=0.5, label=r'$\ell=0$')
+#        ax.errorbar(pbjam_mean_l2 % dnu, (pbjam_mean_l2 // dnu) * dnu,
+#                    xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
+#        ax.legend(fontsize = 'x-small')
+#        #return fig
+#        # TODO need to pass ax to seismo. plot_echelle return fig

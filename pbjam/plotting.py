@@ -58,7 +58,7 @@ class plotting():
         if type(self) == pbjam.star:
              xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
          
-        elif type(self) == pbjam.kde:
+        elif type(self) == pbjam.priors.kde:
             h = max(smoo)
             dnu = 10**(np.median(self.samples[:, 0]))
             nmin = np.floor(min(f) / dnu)
@@ -126,7 +126,7 @@ class plotting():
         '''
         import pymc3 as pm
         
-        if type(stage) == pbjam.kde.kde:
+        if type(stage) == pbjam.priors.kde:
             # TODO - make this work for kde
             print('Traceplot for kde not yet implimented')
         

@@ -1,10 +1,10 @@
 import os, warnings
 from .asy_peakbag import asymptotic_fit
-from .kde import kde
+from .priors import kde
 from .peakbag import peakbag
 import pymc3 as pm
 from .jar import get_priorpath
-from pbjam.plotting import plotting
+from .plotting import plotting
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -177,12 +177,11 @@ class star(plotting):
         """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
         
         self.make_output_dir(self.path, verbose) 
-        print('Running kde')
+
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
    
-        print('kde complete')
         self.run_asy_peakbag(norders=norders, make_plots=make_plots, 
                              store_chains=store_chains, nthreads=nthreads)
         
-        print('asy complete')
-        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads, make_plots=make_plots, store_chains=store_chains)
+        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads, 
+                         make_plots=make_plots, store_chains=store_chains)
