@@ -42,3 +42,4 @@ Main Contributors
 Chaos Engineers
 ^^^^^^^^^^^^^^^
 - `Warrick Ball <https://github.com/warrickball>`_ 
+- Alex Lyttle
