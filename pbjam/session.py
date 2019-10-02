@@ -633,7 +633,7 @@ class session():
 
         for i in range(len(vardf)):
             self.stars.append(star(ID=vardf.loc[i, 'ID'],
-                                   periodogram=vardf.loc[i, 'psd'],
+                                   pg=vardf.loc[i, 'psd'],
                                    numax=vardf.loc[i, ['numax', 'numax_err']].values,
                                    dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,

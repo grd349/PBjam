@@ -93,7 +93,7 @@ class star(plotting):
         self.path = os.path.join(*[path, f'{self.ID}'])
 
         try:
-            os.mkdir(self.path)
+            os.makedirs(self.path)
         except OSError:
             if verbose:
                 warnings.warn(f'Path {self.path} already exists - I will try to overwrite ... ')
