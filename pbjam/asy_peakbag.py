@@ -166,9 +166,9 @@ def get_summary_stats(fit, model, pnames):
     smry_stats = ['mle', 'mean', 'std', 'skew', '2nd', '16th', '50th', '84th',
                   '97th', 'MAD']
     for i, par in enumerate(pnames):
-        z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0,i],
-             pars_percs[1,i], pars_percs[2,i], pars_percs[3,i],
-             pars_percs[4,i], mads[i]]
+        z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0, i],
+             pars_percs[1, i], pars_percs[2, i], pars_percs[3, i],
+             pars_percs[4, i], mads[i]]
         A = {key: z[i] for i, key in enumerate(smry_stats)}
         summary[par] = pd.Series(A)
     summary = summary.transpose()
@@ -369,7 +369,7 @@ class asymptotic_fit(kde, plotting):
     """
 
     def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False, 
-                 nthreads=1):
+                 nthreads=1, path=None):
         
         self.f = starinst.f
         self.s = starinst.s
@@ -377,7 +377,6 @@ class asymptotic_fit(kde, plotting):
         self.nthreads = nthreads
         self.norders = norders
         
-            
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
@@ -389,9 +388,6 @@ class asymptotic_fit(kde, plotting):
             self.prior = starinst.kde.prior
         else:
             raise ValueError("Asy_peakbag won't run without samples of the prior")
-
-
-
 
 
         means = self.start_samples.mean(axis=0)
@@ -539,13 +535,13 @@ class asymptotic_fit(kde, plotting):
         self.summary, self.mle_model = get_summary_stats(self.fit, self.model, 
                                                          self.par_names)
 
-        if self.store_chains:
-            self.samples = self.fit.flatchain
-            self.lnlike_fin = self.fit.flatlnlike
-        else:
-            self.samples = self.fit.chain[:,-1,:]
-            self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
-            self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
+        #if self.store_chains:
+        self.samples = self.fit.flatchain
+        #    self.lnlike_fin = self.fit.flatlnlike
+        #else:
+        #    self.samples = self.fit.chain[:,-1,:]
+        #    self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
+        #    self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
         

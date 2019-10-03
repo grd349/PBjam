@@ -1,10 +1,11 @@
-import os, warnings
+import os
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
 import pymc3 as pm
 from .jar import get_priorpath
 from .plotting import plotting
+import pandas as pd
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -79,25 +80,35 @@ class star(plotting):
         self.teff = teff
         self.bp_rp = bp_rp
 
-        self.path = path
-        
+        self.make_output_dir(path)
+
         if not prior_file:
-            self.prior_file = get_priorpath() #os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+            self.prior_file = get_priorpath() 
         else:
             self.prior_file = prior_file
     
+    def make_output_dir(self, path):
+        
+        # Check if self has path attribute
+        if not hasattr(self, 'path'):
+            self.path = None
+            
+        if isinstance(self.path, str):  # If yes, do nothing
+            pass
+        else:  # If not, assume path should be cwd+ID
+            self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
+        
+        # If path is str, presume user wants to override self.path
+        if isinstance(path, str):
+            self.path =os.path.join(*[path, f'{self.ID}'])
 
-    def make_output_dir(self, path, verbose):
-        if path == None:
-            path = os.getcwd()
-        self.path = os.path.join(*[path, f'{self.ID}'])
-
-        try:
-            os.makedirs(self.path)
-        except OSError:
-            if verbose:
-                warnings.warn(f'Path {self.path} already exists - I will try to overwrite ... ')
-          
+        # Check if self.path exists, if not try to create it
+        if not os.path.isdir(self.path):
+            try:
+                os.makedirs(self.path)
+            except Exception as ex:
+                message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+                print(message)
           
     def run_kde(self, bw_fac=1.0, make_plots=False):
         """
@@ -139,14 +150,16 @@ class star(plotting):
                                     index=True)
         self.asy_fit.modeID.to_csv(outpath(f'{type(self).__name__}_modeID_{self.ID}.csv'),
                                    index=False)
-
-        if store_chains:
-            pass # TODO need to pickle the chains if requested.
+        
         if make_plots:
             self.asy_fit.plot_spectrum(path=self.path, ID=self.ID, 
-                                       savefig=make_plots)#.savefig(outpath + f'_{self.ID}.png')
+                                       savefig=make_plots)
             self.asy_fit.plot_corner(path=self.path, ID=self.ID, 
-                                       savefig=make_plots)#.savefig(outpath + f'_corner_{self.ID}.png')
+                                       savefig=make_plots)
+        
+        if store_chains:
+            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'{type(self).__name__}_chains_{self.ID}.csv'), index=False) 
+        
             
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, make_plots=False, store_chains=False):
@@ -157,7 +170,7 @@ class star(plotting):
         self.peakbag = peakbag(self, self.asy_fit)
         
         # Call
-        self.peakbag.sample(model_type=model_type, tune=tune, nthreads=nthreads)
+        self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
         
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
@@ -167,15 +180,12 @@ class star(plotting):
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID, 
                                        savefig=make_plots)
-            #self.peakbag.plot_flat_fit().savefig(outpath + f'_{self.ID}.png')
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500, 
                  verbose=False, make_plots=True, store_chains=True, nthreads=1):
         """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
         
-        self.make_output_dir(self.path, verbose) 
-
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
    
         self.run_asy_peakbag(norders=norders, make_plots=make_plots, 

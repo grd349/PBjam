@@ -11,60 +11,61 @@ import statsmodels.api as sm
 def default_priorpath():
     return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
 
+
 class kde(plotting):
     ''' A class to predict epsilon.
 
     TODO: See the docs for full information. (especially example_advanced)
 
     '''
-    def __init__(self, starinst=None, nthreads=1, verbose=False, bw_fac=1): 
-        
+    def __init__(self, starinst=None, nthreads=1, verbose=False, bw_fac=1):
+
         if starinst:
-            self.prior_file = starinst.prior_file  
+            self.prior_file = starinst.prior_file
             self.f = starinst.f
             self.s = starinst.s
             self.pg = starinst.pg
             starinst.kde = self
         else:
             self.prior_file = default_priorpath()
-        
+
         self.verbose = verbose
         self.nthreads = nthreads
         self.obs = []
         self.samples = []
         self.par_names = []
         self.bw_fac = bw_fac
-      
-        self.read_prior_data()   
-                
-        
+
+        self.read_prior_data()
+
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
         self.prior_data = pd.read_csv(self.prior_file)
         self.prior_data = self.prior_data.dropna()
 
-
     def select_prior_data(self, numax=None, nsigma=7):
         ''' Selects only the useful prior data based on proximity to estimated
             numax.
+
         Inputs
         ------
         numax: length 2 list [numax, numax_err]
             The estimate of numax together with uncertainty in log space.
             If numax==None then no selection will be made - all data will
             be used (you probably don't want to do this).
+
         '''
         if not numax:
             return self.prior_data
-        
+
         idx = np.abs(self.prior_data.numax - numax[0]) < nsigma * numax[1]
-                
+
         if len(self.prior_data[idx]) < 100:
             warnings.warn('You have less than 100 data points in your prior')
         if len(self.prior_data[idx]) > 1000:
             warnings.warn('You have lots data points in your prior - estimating' +
-                            ' the KDE band width will be slow!')
-        
+                          ' the KDE band width will be slow!')
+
         self.prior_data = self.prior_data.loc[idx]
 
     def make_kde(self, bw_fac=1.0):
@@ -79,8 +80,7 @@ class kde(plotting):
         '''
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
-        # key: [log, log, lin, log, log, log, log, log, log, lin]
-        
+
         # bw set using CV ML but times two.
         if self.log_obs['numax'][1] < 0:
             bw = np.array([0.00774255, 0.01441685, 0.04582654,
@@ -100,8 +100,7 @@ class kde(plotting):
                             data=self.prior_data[self.par_names].values,
                             var_type='cccccccccc',
                             bw=bw)
-       
-        
+
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood
 
@@ -138,7 +137,7 @@ class kde(plotting):
 
         Note: p = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                    'env_width', 'mode_width', 'teff', 'bp_rp']
-        
+
         key: [log, log, lin, log, log, log, log, log, log, lin]
         '''
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
@@ -153,9 +152,9 @@ class kde(plotting):
         Calculates the likelihood of the observed properties given
         the proposed parameters p.
         '''
-        #log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
+        # log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
         #     log_env_width, log_mode_width, log_teff, bp_rp = p
-            
+
         # Constraint from input data
         ld = 0.0
         ld += self.normal(p[0], *self.log_obs['dnu'])
@@ -190,15 +189,15 @@ class kde(plotting):
         '''
         if self.verbose:
             print('Running KDE sampler')
-            
-        x0 = [self.log_obs['dnu'][0], #log10 dnu
-              self.log_obs['numax'][0], #log10 numax
-              1.0, # eps
-              np.log10(0.1 * self.obs['dnu'][0]), # log10 d02
-              -2.0, # log10 alpha
-              1.0, #log10 env height
-              1.0, #log10 env width,
-              -1.0, #log10 mode width
+
+        x0 = [self.log_obs['dnu'][0],  # log10 dnu
+              self.log_obs['numax'][0],  # log10 numax
+              1.0,  # eps
+              np.log10(0.1 * self.obs['dnu'][0]),  # log10 d02
+              -2.0,  # log10 alpha
+              1.0,  # log10 env height
+              1.0,  # log10 env width,
+              -1.0,  # log10 mode width
               self.log_obs['teff'][0],
               self.log_obs['bp_rp'][0]]
 
@@ -254,7 +253,7 @@ class kde(plotting):
         freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], 
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1],
                  bp_rp=[1, -1]):
         ''' Calls the relevant defined method and returns an estimate of
         epsilon.
@@ -276,11 +275,11 @@ class kde(plotting):
             [estimate of epsilon, unceritainty on estimate]
         '''
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
+
         self.obs_to_log(self.obs)
-        
+
         self.make_kde()
 
-
         self.samples = self.kde_sampler()
-        self.result = [self.samples[:,2].mean(), self.samples[:,2].std()]
-        
+
+        self.result = [self.samples[:, 2].mean(), self.samples[:, 2].std()]
