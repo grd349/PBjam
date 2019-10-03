@@ -1,4 +1,4 @@
-import os, warnings
+import os
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
@@ -80,26 +80,35 @@ class star(plotting):
         self.teff = teff
         self.bp_rp = bp_rp
 
-        self.make_output_dir(path) 
+        self.make_output_dir(path)
 
         if not prior_file:
             self.prior_file = get_priorpath() 
         else:
             self.prior_file = prior_file
     
-
     def make_output_dir(self, path):
-        if path == None:
-            path = os.getcwd()
-            
-        self.path = os.path.join(*[path, f'{self.ID}'])
-
-        try:
-            os.makedirs(self.path)
-        except Exception as ex:
-            message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
-            print(message)    
         
+        # Check if self has path attribute
+        if not hasattr(self, 'path'):
+            self.path = None
+            
+        if isinstance(self.path, str):  # If yes, do nothing
+            pass
+        else:  # If not, assume path should be cwd+ID
+            self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
+        
+        # If path is str, presume user wants to override self.path
+        if isinstance(path, str):
+            self.path =os.path.join(*[path, f'{self.ID}'])
+
+        # Check if self.path exists, if not try to create it
+        if not os.path.isdir(self.path):
+            try:
+                os.makedirs(self.path)
+            except Exception as ex:
+                message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+                print(message)
           
     def run_kde(self, bw_fac=1.0, make_plots=False):
         """
@@ -161,7 +170,7 @@ class star(plotting):
         self.peakbag = peakbag(self, self.asy_fit)
         
         # Call
-        self.peakbag.sample(model_type=model_type, tune=tune, nthreads=nthreads)
+        self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
         
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])

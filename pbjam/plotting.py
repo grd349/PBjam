@@ -11,6 +11,7 @@ class plotting():
     def __init__(self):
         pass
     
+    
     def plot_corner(self, path=None, ID=None, savefig=False):
        
         '''
@@ -107,9 +108,7 @@ class plotting():
                     max(f[self.asy_result.sel])+dnu]
         else:
             raise ValueError('Unrecognized class type')
-      
-        outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
-    
+        
         ax.set_ylim([0, smoo.max()*1.5])
         ax.set_xlim([max([min(f), xlim[0]]), min([max(f), xlim[1]])])
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
@@ -117,6 +116,7 @@ class plotting():
         ax.legend(loc=1)
     
         if savefig:
+            outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
             fig.savefig(outpath)
 
 

@@ -57,12 +57,11 @@ class peakbag(plotting):
         'summary' are summary statistics from the asymptotic_fit.
         See asy_peakbag asymptotic_fit for more details.
     """
-    def __init__(self, starinst, asyinst, init=True):
+    def __init__(self, starinst, asyinst, init=True, path=None):
 
         self.f = starinst.f
         self.s = starinst.s
         self.asy_result = asyinst
-
 
         if init:
             self.make_start()
@@ -71,6 +70,7 @@ class peakbag(plotting):
         
         starinst.peakbag = self
 
+        
     def make_start(self):
         """
         Function uses the information in self.asy_result (the result of the
@@ -343,7 +343,7 @@ class peakbag(plotting):
             
             
 
-    def sample(self, model_type='simple', tune=1500, nthreads=1, maxiter=4, 
+    def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4, 
                      advi=False):
         """
         Function to perform the sampling of a defined model.
