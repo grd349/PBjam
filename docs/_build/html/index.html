@@ -13,6 +13,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Installation" href="setup.html" />
@@ -39,9 +41,9 @@
 <a class="reference external image-reference" href="https://pbjam.readthedocs.io/en/latest/?badge=latest"><img alt="Documentation Status" src="https://readthedocs.org/projects/pbjam/badge/?version=latest" /></a>
 <a class="reference external image-reference" href="https://github.com/grd349/PBjam/blob/master/LICENSE"><img alt="http://img.shields.io/badge/license-MIT-blue.svg?style=flat" src="http://img.shields.io/badge/license-MIT-blue.svg?style=flat" /></a>
 <a class="reference external image-reference" href="https://github.com/grd349/PBjam/issues"><img alt="https://img.shields.io/github/issues-closed/grd349/PBjam.svg" src="https://img.shields.io/github/issues-closed/grd349/PBjam.svg" /></a>
-<p>PBjam is toolbox for modeling the oscillation spectra of solar-like stars. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies.</p>
+<p>PBjam is toolbox for modeling the oscillation spectra of solar-like oscillators. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies.</p>
 <p>Currently, the mode identification is based on fitting the asymptotic relation to the l=2,0 pairs, relying on the cumulative sum of prior knowledge gained from NASA’s Kepler mission to inform the fitting process.</p>
-<p>Modeling the modes, or ‘peakbagging’, is done using the HMC sampler from <a class="reference external" href="https://docs.pymc.io/">pymc3</a>, which fits a Lorentzian to each of the identified modes, with much fewer priors in place. This allows for a more accurate model of the spectrum of frequencies, than the heavily parameterized models like the asymptotic relation.</p>
+<p>Modeling the modes, or ‘peakbagging’, is done using the HMC sampler from <a class="reference external" href="https://docs.pymc.io/">pymc3</a>, which fits a Lorentzian to each of the identified modes, with much fewer priors than during he mode ID process. This allows for a more accurate model of the spectrum of frequencies, than the heavily parameterized models like the asymptotic relation.</p>
 <p>Read the docs at <a class="reference external" href="http://pbjam.readthedocs.io/">pbjam.readthedocs.io</a>.</p>
 <div class="toctree-wrapper compound">
 <ul>
@@ -54,9 +56,7 @@
 </div>
 <div class="section" id="contributing">
 <h2>Contributing<a class="headerlink" href="#contributing" title="Permalink to this headline">¶</a></h2>
-<p>PBjam is open source and we welcome contributions, large or small.</p>
-<p>If you spot any bugs, have ideas for optimizing the code, want new nifty features, feel free to submit issues on the <a class="reference external" href="https://github.com/grd349/PBjam/issues">GitHub repo</a>.</p>
-<p>If you wish to contribute to PBjam, create a fork, make the changes and create a pull requests. The update will be reviewed by the main authors before merging.</p>
+<p>If you want to raise and issue or contribute code to PBjam, see the <a class="reference external" href="CONTRIBUTING.rst">guidelines on contributing</a>.</p>
 </div>
 <div class="section" id="authors">
 <h2>Authors<a class="headerlink" href="#authors" title="Permalink to this headline">¶</a></h2>
@@ -72,12 +72,9 @@
 <h3>Chaos Engineers<a class="headerlink" href="#chaos-engineers" title="Permalink to this headline">¶</a></h3>
 <ul class="simple">
 <li><a class="reference external" href="https://github.com/warrickball">Warrick Ball</a></li>
+<li>Alex Lyttle</li>
 </ul>
 </div>
-</div>
-<div class="section" id="acknowledgments">
-<h2>Acknowledgments<a class="headerlink" href="#acknowledgments" title="Permalink to this headline">¶</a></h2>
-<p>PBjam relies heavily on many open source software packages to operate.</p>
 </div>
 </div>
 <div class="section" id="indices-and-tables">

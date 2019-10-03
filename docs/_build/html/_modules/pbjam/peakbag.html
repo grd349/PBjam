@@ -13,6 +13,8 @@
     <script type="text/javascript" src="../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
    
@@ -37,15 +39,32 @@
 
 <span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
 <span class="kn">import</span> <span class="nn">pymc3</span> <span class="k">as</span> <span class="nn">pm</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
 <span class="kn">import</span> <span class="nn">warnings</span>
+<span class="kn">from</span> <span class="nn">.plotting</span> <span class="k">import</span> <span class="n">plotting</span>
 
-<div class="viewcode-block" id="peakbag"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag">[docs]</a><span class="k">class</span> <span class="nc">peakbag</span><span class="p">():</span>
+<div class="viewcode-block" id="peakbag"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag">[docs]</a><span class="k">class</span> <span class="nc">peakbag</span><span class="p">(</span><span class="n">plotting</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Class for PBjam peakbagging.</span>
 
 <span class="sd">    This class allows for simple manipulation of the data, the fitting of a</span>
-<span class="sd">    pymc3 model to the data, and some plotting of results functionality.</span>
+<span class="sd">    PyMC3 model to the data, and some plotting of results functionality.</span>
+
+<span class="sd">    Examples</span>
+<span class="sd">    --------</span>
+<span class="sd">    Star API interaction (recommended)</span>
+
+<span class="sd">    &gt;&gt;&gt; from pbjam import star</span>
+<span class="sd">    &gt;&gt;&gt; star = pb.star(kic, pg, numax, dnu, teff, bp_rp, store_chains=True, nthreads=4)</span>
+<span class="sd">    &gt;&gt;&gt; star.run_epsilon()</span>
+<span class="sd">    &gt;&gt;&gt; star.run_asy_peakbag(norders=7)</span>
+<span class="sd">    &gt;&gt;&gt; star.run_peakbag()</span>
+
+<span class="sd">    Lower level API interaction.</span>
+
+<span class="sd">    &gt;&gt;&gt; import PBjam</span>
+<span class="sd">    &gt;&gt;&gt; pbag = pbjam.peakbag(frequency, snr, asy_result)</span>
+<span class="sd">    &gt;&gt;&gt; pbag.sample(model_type=&#39;simple&#39;, cores=4)</span>
+<span class="sd">    &gt;&gt;&gt; pbag.plot_fit()</span>
 
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -56,115 +75,143 @@
 <span class="sd">        Array of SNR values for the frequency bins in f (dimensionless).</span>
 <span class="sd">    asy_result : asy_result</span>
 <span class="sd">        The result from the asy_peakbag method.</span>
+<span class="sd">    init : bool</span>
+<span class="sd">        If true runs make_start and trim_ladder to prepare starting</span>
+<span class="sd">        guesses for sampling and transforms the data onto a ladder.</span>
 
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
-<span class="sd">    f : float, array</span>
+<span class="sd">    f : float, ndarray</span>
 <span class="sd">        Array of frequency bins of the spectrum (muHz). Truncated to the range</span>
 <span class="sd">        around numax.</span>
-<span class="sd">    snr : float, array</span>
+<span class="sd">    snr : float, ndarray</span>
 <span class="sd">        Array of SNR values for the frequency bins in f (dimensionless).</span>
 <span class="sd">    asy_result : asy_result</span>
 <span class="sd">        The result from the asy_peakbag method.</span>
-
-
-<span class="sd">    Example useage:</span>
-<span class="sd">        from pbjam import star</span>
-<span class="sd">        from pbjam import peakbag</span>
-<span class="sd">        import pymc3 as pm</span>
-
-<span class="sd">        # ... define a star in the pbjam star class ...</span>
-<span class="sd">        star.asymptotic_modeid(norders = 7)</span>
-<span class="sd">        pb = peakbag.peakbag(star.f, star.s, star.asy_result)</span>
-<span class="sd">        pb.sample(model_type=&#39;width_gp&#39;, cores=4, tune=5000)</span>
-<span class="sd">        pm.summary(pb.samples)</span>
+<span class="sd">        This is a dictionary of &#39;modeID&#39; and &#39;summary&#39;.</span>
+<span class="sd">        &#39;modeID&#39; is a DataFrame with a list of modes and basic properties.</span>
+<span class="sd">        &#39;summary&#39; are summary statistics from the asymptotic_fit.</span>
+<span class="sd">        See asy_peakbag asymptotic_fit for more details.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">f</span><span class="p">,</span> <span class="n">snr</span><span class="p">,</span> <span class="n">asy_result</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">f</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">snr</span> <span class="o">=</span> <span class="n">snr</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span> <span class="o">=</span> <span class="n">asy_result</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">starinst</span><span class="p">,</span> <span class="n">asyinst</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">starinst</span><span class="o">.</span><span class="n">f</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">starinst</span><span class="o">.</span><span class="n">s</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span> <span class="o">=</span> <span class="n">asyinst</span>
 
         <span class="k">if</span> <span class="n">init</span><span class="p">:</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">make_start</span><span class="p">()</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">trim_ladder</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span> <span class="o">=</span> <span class="p">[]</span> <span class="c1"># Used for gp linewidth info.</span>
+        
+        <span class="n">starinst</span><span class="o">.</span><span class="n">peakbag</span> <span class="o">=</span> <span class="bp">self</span>
 
+        
 <div class="viewcode-block" id="peakbag.make_start"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.make_start">[docs]</a>    <span class="k">def</span> <span class="nf">make_start</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Function uses the information in self.asy_result (the result of the</span>
-<span class="sd">        asymptotic peakbagging) and builds a disctionary of starting values</span>
+<span class="sd">        asymptotic peakbagging) and builds a dictionary of starting values</span>
 <span class="sd">        for the peakbagging methods.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">l0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;modeID&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;modeID&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">ell</span> <span class="o">==</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">nu_med</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="n">l2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;modeID&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;modeID&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">ell</span> <span class="o">==</span> <span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">nu_med</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        
+        <span class="n">idxl0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">modeID</span><span class="o">.</span><span class="n">ell</span> <span class="o">==</span> <span class="mi">0</span>
+        <span class="n">idxl2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">modeID</span><span class="o">.</span><span class="n">ell</span> <span class="o">==</span> <span class="mi">2</span>
+        
+        <span class="n">l0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">modeID</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idxl0</span><span class="p">,</span> <span class="s1">&#39;nu_med&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">l2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">modeID</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">idxl2</span><span class="p">,</span> <span class="s1">&#39;nu_med&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">values</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        
         <span class="n">l0</span><span class="p">,</span> <span class="n">l2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">remove_outsiders</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">)</span>
-        <span class="n">width</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l0</span><span class="p">))</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mode_width</span><span class="p">)</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="n">height</span> <span class="o">=</span>  <span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">env_height</span> <span class="o">*</span> \
-                 <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">l0</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">numax</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span>
-                 <span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">env_width</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;l0&#39;</span><span class="p">:</span> <span class="n">l0</span><span class="p">,</span>
-                      <span class="s1">&#39;l2&#39;</span><span class="p">:</span> <span class="n">l2</span><span class="p">,</span>
-                      <span class="s1">&#39;width0&#39;</span><span class="p">:</span> <span class="n">width</span><span class="p">,</span>
-                      <span class="s1">&#39;width2&#39;</span><span class="p">:</span> <span class="n">width</span><span class="p">,</span>
-                      <span class="s1">&#39;height0&#39;</span><span class="p">:</span> <span class="n">height</span><span class="p">,</span>
-                      <span class="s1">&#39;height2&#39;</span><span class="p">:</span> <span class="n">height</span><span class="o">*</span><span class="mf">0.7</span><span class="p">,</span>
+        
+        <span class="n">width</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l0</span><span class="p">))</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mode_width&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">])</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="n">height</span> <span class="o">=</span>  <span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;env_height&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">]</span> <span class="o">*</span> \
+                 <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">(</span><span class="n">l0</span> <span class="o">-</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;numax&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span> <span class="o">/</span>
+                 <span class="p">(</span><span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;env_width&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">])</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">.</span><span class="n">flatten</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">start</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;l0&#39;</span><span class="p">:</span> <span class="n">l0</span><span class="p">,</span> <span class="s1">&#39;l2&#39;</span><span class="p">:</span> <span class="n">l2</span><span class="p">,</span> <span class="s1">&#39;width0&#39;</span><span class="p">:</span> <span class="n">width</span><span class="p">,</span> <span class="s1">&#39;width2&#39;</span><span class="p">:</span> <span class="n">width</span><span class="p">,</span>
+                      <span class="s1">&#39;height0&#39;</span><span class="p">:</span> <span class="n">height</span><span class="p">,</span> <span class="s1">&#39;height2&#39;</span><span class="p">:</span> <span class="n">height</span><span class="o">*</span><span class="mf">0.7</span><span class="p">,</span>
                       <span class="s1">&#39;back&#39;</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">l0</span><span class="p">))}</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">n</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]))[:,</span> <span class="kc">None</span><span class="p">]</span></div>
 
-    <span class="k">def</span> <span class="nf">remove_outsiders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">):</span>
+<div class="viewcode-block" id="peakbag.remove_outsiders"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.remove_outsiders">[docs]</a>    <span class="k">def</span> <span class="nf">remove_outsiders</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">):</span>
+        <span class="sd">&#39;&#39;&#39;</span>
+<span class="sd">        Drops modes where the guess frequency is outside of the supplied</span>
+<span class="sd">        frequency range.</span>
+<span class="sd">        &#39;&#39;&#39;</span>
         <span class="n">sel</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">logical_and</span><span class="p">(</span><span class="n">l0</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="o">.</span><span class="n">max</span><span class="p">(),</span> <span class="n">l0</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="o">.</span><span class="n">min</span><span class="p">()))</span>
-        <span class="k">return</span> <span class="n">l0</span><span class="p">[</span><span class="n">sel</span><span class="p">],</span> <span class="n">l2</span><span class="p">[</span><span class="n">sel</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">l0</span><span class="p">[</span><span class="n">sel</span><span class="p">],</span> <span class="n">l2</span><span class="p">[</span><span class="n">sel</span><span class="p">]</span></div>
 
-<div class="viewcode-block" id="peakbag.trim_ladder"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.trim_ladder">[docs]</a>    <span class="k">def</span> <span class="nf">trim_ladder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lw_fac</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
+<div class="viewcode-block" id="peakbag.trim_ladder"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.trim_ladder">[docs]</a>    <span class="k">def</span> <span class="nf">trim_ladder</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">lw_fac</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">extra</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        This function selects only the orders in the ladders that have modes</span>
-<span class="sd">        that age to be fitted, i.e., it trims the ladder.</span>
+<span class="sd">        This function makes ladders and then selects only the orders</span>
+<span class="sd">        in the ladders that have modes that are to be fitted,</span>
+<span class="sd">        i.e, it trims the ladder.</span>
+
+<span class="sd">        Each ladder rung is constructed so that the central frequency is</span>
+<span class="sd">        the mid point between the l=0 and l=2 modes as determined by the</span>
+<span class="sd">        info in the asy_result dictionary.</span>
+
+<span class="sd">        The width of the rung is determined by d02, line width, and some</span>
+<span class="sd">        parameters lw_fac and extra.  The basic calculation is the width is:</span>
+<span class="sd">        d02 + (lw_fac * line_width) + (extra * dnu)</span>
+
+<span class="sd">        Parameters</span>
+<span class="sd">        ----------</span>
+<span class="sd">        lw_fac: float</span>
+<span class="sd">            The factor by which the mode line width is multiplied in order</span>
+<span class="sd">            to contribute to the rung width.</span>
+<span class="sd">        extra: float</span>
+<span class="sd">            The factor by which dnu is multiplied in order to contribute to</span>
+<span class="sd">            the rung width.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">d02</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">d02</span>
-        <span class="n">d02_lw</span> <span class="o">=</span> <span class="n">d02</span> <span class="o">+</span> <span class="n">lw_fac</span> <span class="o">*</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">mode_width</span>
-        <span class="n">w</span> <span class="o">=</span> <span class="n">d02_lw</span> <span class="o">+</span> <span class="p">(</span><span class="n">extra</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dnu</span><span class="p">)</span>
+
+        <span class="n">d02</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;d02&#39;</span><span class="p">,</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span>
+        <span class="n">d02_lw</span> <span class="o">=</span> <span class="n">d02</span> <span class="o">+</span> <span class="n">lw_fac</span> <span class="o">*</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mode_width&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">]</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">d02_lw</span> <span class="o">+</span> <span class="p">(</span><span class="n">extra</span> <span class="o">*</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">])</span>
         <span class="n">bw</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
         <span class="n">w</span> <span class="o">/=</span> <span class="n">bw</span>
+        <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;w = {int(w)}&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;bw = </span><span class="si">{bw}</span><span class="s1">&#39;</span><span class="p">)</span>
         <span class="n">ladder_trim_f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">)])</span>
-        <span class="n">ladder_trim_p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">)])</span>
+        <span class="n">ladder_trim_s</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">([</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">)])</span>
         <span class="k">for</span> <span class="n">idx</span><span class="p">,</span> <span class="n">freq</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]):</span>
             <span class="n">loc_mid_02</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">-</span> <span class="p">(</span><span class="n">freq</span> <span class="o">-</span> <span class="n">d02</span><span class="o">/</span><span class="mf">2.0</span><span class="p">)))</span>
             <span class="k">if</span> <span class="n">loc_mid_02</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-                <span class="c1"># TODO warnings.warn(&#39;Possible problem with frequency range! Check ...&#39;)</span>
-                <span class="c1"># What if mode outside of frequency range???</span>
-                <span class="nb">print</span><span class="p">(</span><span class="n">freq</span><span class="p">,</span> <span class="n">d02</span><span class="o">/</span><span class="mf">2.0</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="o">.</span><span class="n">min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="o">.</span><span class="n">max</span><span class="p">)</span>
-                <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Holy cow batman - mode outside frequency range&#39;</span><span class="p">)</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Did not find optimal rung location&#39;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;loc_mid_02 = </span><span class="si">{loc_mid_02}</span><span class="s1">&#39;</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;w/2 = {int(w/2)}&#39;</span><span class="p">)</span>
             <span class="n">ladder_trim_f</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> \
                 <span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">[</span><span class="n">loc_mid_02</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="o">/</span><span class="mi">2</span><span class="p">):</span> <span class="n">loc_mid_02</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">)]</span>
-            <span class="n">ladder_trim_p</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> \
-                <span class="bp">self</span><span class="o">.</span><span class="n">snr</span><span class="p">[</span><span class="n">loc_mid_02</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="o">/</span><span class="mi">2</span><span class="p">):</span> <span class="n">loc_mid_02</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="p">]</span>
+            <span class="n">ladder_trim_s</span><span class="p">[</span><span class="n">idx</span><span class="p">,</span> <span class="p">:]</span> <span class="o">=</span> \
+                <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">[</span><span class="n">loc_mid_02</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="o">/</span><span class="mi">2</span><span class="p">):</span> <span class="n">loc_mid_02</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="o">/</span><span class="mi">2</span><span class="p">)</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">w</span><span class="p">)</span> <span class="p">]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span> <span class="o">=</span> <span class="n">ladder_trim_f</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span> <span class="o">=</span> <span class="n">ladder_trim_p</span></div>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ladder_s</span> <span class="o">=</span> <span class="n">ladder_trim_s</span></div>
 
 <div class="viewcode-block" id="peakbag.lor"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.lor">[docs]</a>    <span class="k">def</span> <span class="nf">lor</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">freq</span><span class="p">,</span> <span class="n">w</span><span class="p">,</span> <span class="n">h</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        This function calculates a lorentzian for each rung of the frequency</span>
 <span class="sd">        ladder.  The ladder is a 2D array.  freq, w, and h should be 1D arrays</span>
-<span class="sd">        of length that matches the height of the ladder.  No checkes are made</span>
+<span class="sd">        of length that matches the height of the ladder.  No checks are made</span>
 <span class="sd">        for this so as to reduce overheads.</span>
 
 <span class="sd">         Parameters</span>
 <span class="sd">         ----------</span>
-<span class="sd">         freq : float, array</span>
+<span class="sd">         freq : float, ndarray</span>
 <span class="sd">            A length H array of Lorentzian central frequencies where H is the</span>
 <span class="sd">            height of self.ladder_f .</span>
-<span class="sd">         w : float, array</span>
-<span class="sd">            A length H array of Lorentzian widths.</span>
-<span class="sd">         h : float, array</span>
-<span class="sd">            A length H array of Lorentzian heights.</span>
+<span class="sd">         w : float, ndarray</span>
+<span class="sd">            A length H array of Lorentzian width where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
+<span class="sd">         h : float, ndarray</span>
+<span class="sd">            A length H array of Lorentzian heightswhere H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
 <span class="sd">        lorentzians : float, ladder</span>
 <span class="sd">           A ladder containing one Lorentzian per rung.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">diff</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="o">.</span><span class="n">T</span> <span class="o">-</span> <span class="n">freq</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
-        <span class="n">norm</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="mf">4.0</span> <span class="o">/</span> <span class="n">w</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="n">diff</span>
+        <span class="n">norm</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="mf">4.0</span> <span class="o">/</span> <span class="n">w</span><span class="o">**</span><span class="mi">2</span> <span class="o">*</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="o">.</span><span class="n">T</span> <span class="o">-</span> <span class="n">freq</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span>
         <span class="k">return</span> <span class="n">h</span> <span class="o">/</span> <span class="n">norm</span></div>
 
 <div class="viewcode-block" id="peakbag.model"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.model">[docs]</a>    <span class="k">def</span> <span class="nf">model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">,</span> <span class="n">width0</span><span class="p">,</span> <span class="n">width2</span><span class="p">,</span> <span class="n">height0</span><span class="p">,</span> <span class="n">height2</span><span class="p">,</span> <span class="n">back</span><span class="p">):</span>
@@ -174,178 +221,166 @@
 
 <span class="sd">        Parameters</span>
 <span class="sd">        ----------</span>
-<span class="sd">        l0 : float, array</span>
+<span class="sd">        l0 : float, ndarray</span>
 <span class="sd">            A length H array of l=0 mode central frequencies where H is the</span>
 <span class="sd">            height of self.ladder_f .</span>
-<span class="sd">        l2 : float, array</span>
-<span class="sd">            A length H array of l=2 mode central frequencies.</span>
-<span class="sd">        width0 : float, array</span>
-<span class="sd">            A length H array of l=0 mode widths.</span>
-<span class="sd">        width2 : float, array</span>
-<span class="sd">            A length H array of l=2 mode widths.</span>
-<span class="sd">        height0 : float, array</span>
-<span class="sd">            A length H array of l=0 mode heights.</span>
-<span class="sd">        height2 : float, array</span>
-<span class="sd">            A length H array of l=2 mode heights.</span>
-<span class="sd">        back : float, array</span>
-<span class="sd">            A length H array of background values.</span>
+<span class="sd">        l2 : float, ndarray</span>
+<span class="sd">            A length H array of l=2 mode central frequencies where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
+<span class="sd">        width0 : float, ndarray</span>
+<span class="sd">            A length H array of l=0 mode widths where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
+<span class="sd">        width2 : float, ndarray</span>
+<span class="sd">            A length H array of l=2 mode widths where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
+<span class="sd">        height0 : float, ndarray</span>
+<span class="sd">            A length H array of l=0 mode heights where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
+<span class="sd">        height2 : float, ndarray</span>
+<span class="sd">            A length H array of l=2 mode heights where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
+<span class="sd">        back : float, ndarray</span>
+<span class="sd">            A length H array of background values where H is the</span>
+<span class="sd">            height of self.ladder_f .</span>
 
 <span class="sd">        Returns</span>
 <span class="sd">        -------</span>
-<span class="sd">        mod : float, ladder</span>
-<span class="sd">            A ladder containing the calculted model.</span>
+<span class="sd">        mod : float, ndarray</span>
+<span class="sd">            A 2D array (or &#39;ladder&#39;) containing the calculated model.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">mod</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span><span class="o">.</span><span class="n">T</span> <span class="o">*</span> <span class="n">back</span>
         <span class="n">mod</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lor</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">width0</span><span class="p">,</span> <span class="n">height0</span><span class="p">)</span>
         <span class="n">mod</span> <span class="o">+=</span> <span class="bp">self</span><span class="o">.</span><span class="n">lor</span><span class="p">(</span><span class="n">l2</span><span class="p">,</span> <span class="n">width2</span><span class="p">,</span> <span class="n">height2</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">mod</span><span class="o">.</span><span class="n">T</span></div>
 
-<div class="viewcode-block" id="peakbag.plot_start_model"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.plot_start_model">[docs]</a>    <span class="k">def</span> <span class="nf">plot_start_model</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+
+
+<span class="c1">#    def simple(self):</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        Creates a simple peakbagging model in PyMC3&#39;s self.pm_model which is</span>
+<span class="c1">#        an instance of pm.Model().</span>
+<span class="c1">#</span>
+<span class="c1">#        The simple model has three parameters per mode (freq, w, h) and one</span>
+<span class="c1">#        back parameter per rung of the frequency ladder.</span>
+<span class="c1">#</span>
+<span class="c1">#        All parameters are independent.  For a model with additional constraints</span>
+<span class="c1">#        see model_gp.</span>
+<span class="c1">#</span>
+<span class="c1">#        Priors on parameters are defined as follows:</span>
+<span class="c1">#            lX ~ Normal(log(start[lX]), dnu*0.1)</span>
+<span class="c1">#            widthX ~ Lognormal(log(start[widthX]), 1.0)</span>
+<span class="c1">#            heightX ~ Lognormal(log(start[height0]), 0.4)</span>
+<span class="c1">#            back ~ Lognormal(log(1), 0.5)</span>
+<span class="c1">#</span>
+<span class="c1">#        The equivalent likelihood function of the observed data is dealt with</span>
+<span class="c1">#        using a Gamma distribution where alpha=1 and beta=1/limit where limit</span>
+<span class="c1">#        is the model of the spectrum proposed.  Using this gamma distirbution</span>
+<span class="c1">#        is the equivalent of stating that observed/model is distributed as</span>
+<span class="c1">#        chi squared two degrees of freedom (see Anderson 1990 for more details).</span>
+<span class="c1">#        The use of the Gamma distribution is much more in line with the ethos of</span>
+<span class="c1">#        probabistic programming languages.</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        </span>
+<span class="c1">#        dnu = 10**self.asy_result.summary.loc[&#39;dnu&#39;, &#39;mean&#39;]</span>
+<span class="c1">#        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.</span>
+<span class="c1">#        width_fac = 1.0 # Lognorrmal prior on width has std=1.0.</span>
+<span class="c1">#        height_fac = 0.4 # Lognorrmal prior on height has std=0.4.</span>
+<span class="c1">#        back_fac = 0.4 # Lognorrmal prior on back has std=0.4.    </span>
+<span class="c1">#        N = len(self.start[&#39;l2&#39;])</span>
+<span class="c1">#        </span>
+<span class="c1">#        with self.pm_model:</span>
+<span class="c1">#            </span>
+<span class="c1">#            width0 = pm.Lognormal(&#39;width0&#39;, mu=np.log(self.start[&#39;width0&#39;]),</span>
+<span class="c1">#                                  sigma=width_fac, shape=N)</span>
+<span class="c1">#            width2 = pm.Lognormal(&#39;width2&#39;, mu=np.log(self.start[&#39;width2&#39;]),</span>
+<span class="c1">#                                  sigma=width_fac, shape=N)</span>
+<span class="c1">#            </span>
+<span class="c1">#            l0 = pm.Normal(&#39;l0&#39;, self.start[&#39;l0&#39;], dnu*dnu_fac, shape=N)</span>
+<span class="c1">#            </span>
+<span class="c1">#            l2 = pm.Normal(&#39;l2&#39;, self.start[&#39;l2&#39;], dnu*dnu_fac, shape=N)</span>
+<span class="c1">#           </span>
+<span class="c1">#            height0 = pm.Lognormal(&#39;height0&#39;, mu=np.log(self.start[&#39;height0&#39;]),</span>
+<span class="c1">#                                    sigma=height_fac, shape=N)</span>
+<span class="c1">#            height2 = pm.Lognormal(&#39;height2&#39;, mu=np.log(self.start[&#39;height2&#39;]),</span>
+<span class="c1">#                                    sigma=height_fac, shape=N)</span>
+<span class="c1">#            back = pm.Lognormal(&#39;back&#39;, mu=np.log(1.0), sigma=back_fac, shape=N)</span>
+<span class="c1">#</span>
+<span class="c1">#            limit = self.model(l0, l2, width0, width2, height0, height2, back)</span>
+<span class="c1">#            </span>
+<span class="c1">#            pm.Gamma(&#39;yobs&#39;, alpha=1, beta=1.0/limit, observed=self.ladder_s)</span>
+
+
+<div class="viewcode-block" id="peakbag.init_model"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.init_model">[docs]</a>    <span class="k">def</span> <span class="nf">init_model</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Plots the model generated from the starting parameters</span>
+<span class="sd">        TODO - Need to describe what is happening here.</span>
+<span class="sd">        Complete docs when model is settled on.  Probably quiet a</span>
+<span class="sd">        long docs needed to explain.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">mod</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">],</span>
-                         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">],</span>
-                         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width0&#39;</span><span class="p">],</span>
-                         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width2&#39;</span><span class="p">],</span>
-                         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">],</span>
-                         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">],</span>
-                         <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;back&#39;</span><span class="p">])</span>
-        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span><span class="mi">9</span><span class="p">])</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-            <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
-            <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">mod</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">fig</span></div>
-
-<div class="viewcode-block" id="peakbag.simple"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.simple">[docs]</a>    <span class="k">def</span> <span class="nf">simple</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Creates a simple peakbagging model in pymc3&#39;s self.pm_model which is</span>
-<span class="sd">        an instance of pm.Model().</span>
-
-<span class="sd">        The simple model has three parameters per mode (freq, w, h) and one</span>
-<span class="sd">        back parameter per rung of the frequency ladder.</span>
-
-<span class="sd">        All parameters are independent.  For a model with additional constraints</span>
-<span class="sd">        see model_gp.</span>
-
-<span class="sd">        Priors on parameters are defined as follows:</span>
-<span class="sd">            l0 ~ Normal(start[l0], dnu*0.1)</span>
-<span class="sd">            l2 ~ Normal(start[l2], dnu*0.1)</span>
-<span class="sd">            width0 ~ HalfNormal(wfac * start[width0])</span>
-<span class="sd">            width2 ~ HalfNormal(wfac * start[width2])</span>
-<span class="sd">            height0 ~ HalfNormal(hfac * start[height0])</span>
-<span class="sd">            height2 ~ HalfNormal(hfac * start[height2])</span>
-<span class="sd">            back ~ Normal(1, 0.2)</span>
-
-<span class="sd">        The likelihood function of the observed data is dealt with using a</span>
-<span class="sd">        Gamma distribution where alpha=1 and beta=1/limit where limit is the</span>
-<span class="sd">        model of the spectrum proposed.  Using this gamma distirbution is the</span>
-<span class="sd">        equivalent of stating that observed/model is distributed as chi squared</span>
-<span class="sd">        two degrees of freedom.</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">dnu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dnu</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
+        
+        
+        <span class="n">dnu</span> <span class="o">=</span> <span class="mi">10</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;dnu&#39;</span><span class="p">,</span> <span class="s1">&#39;mean&#39;</span><span class="p">]</span>
+        <span class="n">dnu_fac</span> <span class="o">=</span> <span class="mf">0.03</span> <span class="c1"># Prior on mode frequency has width 3% of Dnu.</span>
+        <span class="n">height_fac</span> <span class="o">=</span> <span class="mf">0.4</span> <span class="c1"># Lognorrmal prior on height has std=0.4.</span>
+        <span class="n">width_fac</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="c1"># Lognorrmal prior on width has std=1.0.</span>
+        <span class="n">back_fac</span> <span class="o">=</span> <span class="mf">0.5</span> <span class="c1"># Lognorrmal prior on back has std=0.5.</span>
+        <span class="n">N</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">])</span>
+        
         <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-            <span class="n">l0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l0&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="mf">0.1</span><span class="p">,</span>
-                              <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]))</span>
-            <span class="n">l2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l2&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="mf">0.1</span><span class="p">,</span>
-                              <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">width0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;width0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width0&#39;</span><span class="p">]),</span> <span class="mf">1.0</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">width2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;width2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width2&#39;</span><span class="p">]),</span> <span class="mf">1.0</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">height0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">]),</span>
-                                    <span class="mf">0.4</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]))</span>
-            <span class="n">height2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">]),</span>
-                                    <span class="mf">0.4</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">back</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;back&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
+            
+            <span class="k">if</span> <span class="n">model_type</span> <span class="o">!=</span> <span class="s1">&#39;model_gp&#39;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">model_type</span> <span class="o">!=</span> <span class="s1">&#39;simple&#39;</span><span class="p">:</span>
+                    <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Model not defined - using simple model&#39;</span><span class="p">)</span>
+                <span class="n">width0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;width0&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width0&#39;</span><span class="p">]),</span>
+                                  <span class="n">sigma</span><span class="o">=</span><span class="n">width_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+                <span class="n">width2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;width2&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width2&#39;</span><span class="p">]),</span>
+                                  <span class="n">sigma</span><span class="o">=</span><span class="n">width_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+                
+                <span class="bp">self</span><span class="o">.</span><span class="n">init_sampler</span> <span class="o">=</span> <span class="s1">&#39;adapt_diag&#39;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">target_accept</span> <span class="o">=</span> <span class="mf">0.9</span>
+                                
+            <span class="k">elif</span> <span class="n">model_type</span> <span class="o">==</span> <span class="s1">&#39;model_gp&#39;</span><span class="p">:</span>
+                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;This model is developmental - use carefully&#39;</span><span class="p">)</span>
+                <span class="c1"># Place a GP over the l=0 mode widths ...</span>
+                <span class="n">m0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;gradient0&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+                <span class="n">c0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;intercept0&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+                <span class="n">sigma0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;sigma0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="mf">1.0</span><span class="p">)</span>
+                <span class="n">ls</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;ls&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">0.3</span><span class="p">),</span> <span class="mf">1.0</span><span class="p">)</span>
+                <span class="n">mean_func0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">mean</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">coeffs</span><span class="o">=</span><span class="n">m0</span><span class="p">,</span> <span class="n">intercept</span><span class="o">=</span><span class="n">c0</span><span class="p">)</span>
+                <span class="n">cov_func0</span> <span class="o">=</span> <span class="n">sigma0</span> <span class="o">*</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">cov</span><span class="o">.</span><span class="n">ExpQuad</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="n">ls</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">Latent</span><span class="p">(</span><span class="n">cov_func</span><span class="o">=</span><span class="n">cov_func0</span><span class="p">,</span> <span class="n">mean_func</span><span class="o">=</span><span class="n">mean_func0</span><span class="p">)</span>
+                <span class="n">ln_width0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span><span class="o">.</span><span class="n">prior</span><span class="p">(</span><span class="s1">&#39;ln_width0&#39;</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">)</span>
+                <span class="n">width0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;width0&#39;</span><span class="p">,</span> <span class="n">pm</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">ln_width0</span><span class="p">))</span>
+                <span class="c1"># and on the l=2 mode widths</span>
+                <span class="n">m2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;gradient2&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+                <span class="n">c2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;intercept2&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
+                <span class="n">sigma2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;sigma2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="mf">1.0</span><span class="p">)</span>
+                <span class="n">mean_func2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">mean</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">coeffs</span><span class="o">=</span><span class="n">m2</span><span class="p">,</span> <span class="n">intercept</span><span class="o">=</span><span class="n">c2</span><span class="p">)</span>
+                <span class="n">cov_func2</span> <span class="o">=</span> <span class="n">sigma2</span> <span class="o">*</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">cov</span><span class="o">.</span><span class="n">ExpQuad</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="n">ls</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">gp2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">Latent</span><span class="p">(</span><span class="n">cov_func</span><span class="o">=</span><span class="n">cov_func2</span><span class="p">,</span> <span class="n">mean_func</span><span class="o">=</span><span class="n">mean_func2</span><span class="p">)</span>
+                <span class="n">ln_width2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp2</span><span class="o">.</span><span class="n">prior</span><span class="p">(</span><span class="s1">&#39;ln_width2&#39;</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">)</span>
+                <span class="n">width2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;width2&#39;</span><span class="p">,</span> <span class="n">pm</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">ln_width2</span><span class="p">))</span>
+                
+                <span class="bp">self</span><span class="o">.</span><span class="n">init_sampler</span> <span class="o">=</span> <span class="s1">&#39;advi+adapt_diag&#39;</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">target_accept</span> <span class="o">=</span> <span class="mf">0.99</span>
+                
+
+            <span class="n">l0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l0&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="n">dnu_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+            
+            <span class="n">l2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l2&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="n">dnu_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+            
+            <span class="n">height0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height0&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">]),</span>
+                                    <span class="n">sigma</span><span class="o">=</span><span class="n">height_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">height2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height2&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">]),</span>
+                                    <span class="n">sigma</span><span class="o">=</span><span class="n">height_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
+            <span class="n">back</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;back&#39;</span><span class="p">,</span> <span class="n">mu</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="n">sigma</span><span class="o">=</span><span class="n">back_fac</span><span class="p">,</span> <span class="n">shape</span><span class="o">=</span><span class="n">N</span><span class="p">)</span>
 
             <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">,</span> <span class="n">width0</span><span class="p">,</span> <span class="n">width2</span><span class="p">,</span> <span class="n">height0</span><span class="p">,</span> <span class="n">height2</span><span class="p">,</span> <span class="n">back</span><span class="p">)</span>
-            <span class="n">yobs</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Gamma</span><span class="p">(</span><span class="s1">&#39;yobs&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="o">/</span><span class="n">limit</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="p">)</span></div>
+            <span class="n">pm</span><span class="o">.</span><span class="n">Gamma</span><span class="p">(</span><span class="s1">&#39;yobs&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="o">/</span><span class="n">limit</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_s</span><span class="p">)</span></div>
+            
+            
 
-    <span class="k">def</span> <span class="nf">model_hr</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">dnu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dnu</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-            <span class="n">l0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l0&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="mf">0.1</span><span class="p">,</span>
-                              <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]))</span>
-            <span class="n">l2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l2&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="mf">0.1</span><span class="p">,</span>
-                              <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">width0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;width0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width0&#39;</span><span class="p">]),</span> <span class="mf">0.2</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">width2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;width2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;width2&#39;</span><span class="p">]),</span> <span class="mf">0.2</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">height0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">]),</span>
-                                    <span class="mf">0.4</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">height20</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height20&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">0.7</span><span class="p">),</span> <span class="mf">0.1</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]),</span>
-                                    <span class="n">startval</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">one</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span><span class="o">*</span><span class="mf">0.7</span><span class="p">)</span>
-            <span class="n">height2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;height2&#39;</span><span class="p">,</span> <span class="n">height0</span> <span class="o">*</span> <span class="n">height20</span><span class="p">)</span>
-            <span class="n">back</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;back&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">,</span> <span class="n">width0</span><span class="p">,</span> <span class="n">width2</span><span class="p">,</span> <span class="n">height0</span><span class="p">,</span> <span class="n">height2</span><span class="p">,</span> <span class="n">back</span><span class="p">)</span>
-            <span class="n">yobs</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Gamma</span><span class="p">(</span><span class="s1">&#39;yobs&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="o">/</span><span class="n">limit</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="p">)</span>
-
-<div class="viewcode-block" id="peakbag.model_gp"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.model_gp">[docs]</a>    <span class="k">def</span> <span class="nf">model_gp</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        TODO</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;This model is developmental - use carefully&#39;</span><span class="p">)</span>
-        <span class="n">dnu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">[</span><span class="s1">&#39;summary&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="s1">&#39;mean&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">dnu</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
-
-        <span class="n">hfac</span> <span class="o">=</span> <span class="mf">10.0</span>
-        <span class="n">wfac</span> <span class="o">=</span> <span class="mf">1.0</span>
-        <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-            <span class="n">l0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l0&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="mf">0.1</span><span class="p">,</span>
-                              <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">]))</span>
-            <span class="n">l2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;l2&#39;</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">],</span> <span class="n">dnu</span><span class="o">*</span><span class="mf">0.1</span><span class="p">,</span>
-                              <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="c1"># Place a GP over the l=0 mode widths ...</span>
-            <span class="n">m0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;gradient0&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-            <span class="n">c0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;intercept0&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-            <span class="n">sigma0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;sigma0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="mf">0.3</span><span class="p">)</span>
-            <span class="n">ls</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;ls&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">0.3</span><span class="p">),</span> <span class="mf">0.2</span><span class="p">)</span>
-            <span class="n">mean_func0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">mean</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">coeffs</span><span class="o">=</span><span class="n">m0</span><span class="p">,</span> <span class="n">intercept</span><span class="o">=</span><span class="n">c0</span><span class="p">)</span>
-            <span class="n">cov_func0</span> <span class="o">=</span> <span class="n">sigma0</span> <span class="o">*</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">cov</span><span class="o">.</span><span class="n">ExpQuad</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="n">ls</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">Latent</span><span class="p">(</span><span class="n">cov_func</span><span class="o">=</span><span class="n">cov_func0</span><span class="p">,</span>
-                                   <span class="n">mean_func</span><span class="o">=</span><span class="n">mean_func0</span><span class="p">)</span>
-            <span class="n">ln_width0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span><span class="o">.</span><span class="n">prior</span><span class="p">(</span><span class="s1">&#39;ln_width0&#39;</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">)</span>
-            <span class="n">width0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;width0&#39;</span><span class="p">,</span> <span class="n">pm</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">ln_width0</span><span class="p">))</span>
-            <span class="c1"># and on the l=2 mode widths</span>
-            <span class="n">m2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;gradient2&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-            <span class="n">c2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;intercept2&#39;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-            <span class="n">sigma2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;sigma2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="mf">1.0</span><span class="p">),</span> <span class="mf">0.3</span><span class="p">)</span>
-            <span class="n">mean_func2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">mean</span><span class="o">.</span><span class="n">Linear</span><span class="p">(</span><span class="n">coeffs</span><span class="o">=</span><span class="n">m2</span><span class="p">,</span> <span class="n">intercept</span><span class="o">=</span><span class="n">c2</span><span class="p">)</span>
-            <span class="n">cov_func2</span> <span class="o">=</span> <span class="n">sigma2</span> <span class="o">*</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">cov</span><span class="o">.</span><span class="n">ExpQuad</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">ls</span><span class="o">=</span><span class="n">ls</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">gp2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">gp</span><span class="o">.</span><span class="n">Latent</span><span class="p">(</span><span class="n">cov_func</span><span class="o">=</span><span class="n">cov_func2</span><span class="p">,</span>
-                                   <span class="n">mean_func</span><span class="o">=</span><span class="n">mean_func2</span><span class="p">)</span>
-            <span class="n">ln_width2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp2</span><span class="o">.</span><span class="n">prior</span><span class="p">(</span><span class="s1">&#39;ln_width2&#39;</span><span class="p">,</span> <span class="n">X</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">)</span>
-            <span class="n">width2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Deterministic</span><span class="p">(</span><span class="s1">&#39;width2&#39;</span><span class="p">,</span> <span class="n">pm</span><span class="o">.</span><span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">ln_width2</span><span class="p">))</span>
-            <span class="c1">#Carry on</span>
-            <span class="n">height0</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height0&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">]),</span>
-                                    <span class="mf">0.4</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">height2</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Lognormal</span><span class="p">(</span><span class="s1">&#39;height2&#39;</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">]),</span>
-                                    <span class="mf">0.4</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-            <span class="n">back</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Normal</span><span class="p">(</span><span class="s1">&#39;back&#39;</span><span class="p">,</span> <span class="mf">1.0</span><span class="p">,</span> <span class="mf">0.3</span><span class="p">,</span>
-                                    <span class="n">shape</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">]))</span>
-
-            <span class="n">limit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="n">l0</span><span class="p">,</span> <span class="n">l2</span><span class="p">,</span> <span class="n">width0</span><span class="p">,</span> <span class="n">width2</span><span class="p">,</span> <span class="n">height0</span><span class="p">,</span> <span class="n">height2</span><span class="p">,</span> <span class="n">back</span><span class="p">)</span>
-            <span class="n">yobs</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Gamma</span><span class="p">(</span><span class="s1">&#39;yobs&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">beta</span><span class="o">=</span><span class="mf">1.0</span><span class="o">/</span><span class="n">limit</span><span class="p">,</span> <span class="n">observed</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="p">)</span></div>
-
-<div class="viewcode-block" id="peakbag.sample"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.sample">[docs]</a>    <span class="k">def</span> <span class="nf">sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span>
-                     <span class="n">tune</span><span class="o">=</span><span class="mi">2000</span><span class="p">,</span>
-                     <span class="n">target_accept</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
-                     <span class="n">cores</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                     <span class="n">maxiter</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
-                     <span class="n">advi</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">maxiter</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> 
+                     <span class="n">advi</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
         <span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Function to perform the sampling of a defined model.</span>
 
@@ -363,24 +398,21 @@
 <span class="sd">            Number of cores to use - passed to pm.sample</span>
 
 <span class="sd">        &quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="n">model_type</span> <span class="o">==</span> <span class="s1">&#39;simple&#39;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">simple</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="n">model_type</span> <span class="o">==</span> <span class="s1">&#39;model_gp&#39;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">model_gp</span><span class="p">()</span>
-        <span class="k">elif</span> <span class="n">model_type</span> <span class="o">==</span> <span class="s1">&#39;model_hr&#39;</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">model_hr</span><span class="p">()</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Model not defined &#39;</span><span class="p">)</span>
-
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">Model</span><span class="p">()</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">init_model</span><span class="p">(</span><span class="n">model_type</span><span class="o">=</span><span class="n">model_type</span><span class="p">)</span>
+      
         <span class="k">if</span> <span class="n">advi</span><span class="p">:</span>
             <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-                <span class="n">mean_field</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="mi">100000</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;fullrank_advi&#39;</span><span class="p">,</span>
+                <span class="n">cb</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">callbacks</span><span class="o">.</span><span class="n">CheckParametersConvergence</span><span class="p">(</span><span class="n">every</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+                                                             <span class="n">diff</span><span class="o">=</span><span class="s1">&#39;absolute&#39;</span><span class="p">,</span>
+                                                             <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.01</span><span class="p">)</span>
+                
+                <span class="n">mean_field</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">n</span><span class="o">=</span><span class="mi">200000</span><span class="p">,</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;fullrank_advi&#39;</span><span class="p">,</span>
                                     <span class="n">start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span>
-                                    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">pm</span><span class="o">.</span><span class="n">callbacks</span><span class="o">.</span><span class="n">CheckParametersConvergence</span><span class="p">(</span><span class="n">every</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
-                                                                                       <span class="n">diff</span><span class="o">=</span><span class="s1">&#39;absolute&#39;</span><span class="p">,</span>
-                                                                                       <span class="n">tolerance</span><span class="o">=</span><span class="mf">0.1</span><span class="p">)])</span>
+                                    <span class="n">callbacks</span><span class="o">=</span><span class="p">[</span><span class="n">cb</span><span class="p">])</span>
                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">mean_field</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="mi">1000</span><span class="p">)</span>
-
         <span class="k">else</span><span class="p">:</span>
             <span class="n">Rhat_max</span> <span class="o">=</span> <span class="mi">10</span>
             <span class="n">niter</span> <span class="o">=</span> <span class="mi">1</span>
@@ -389,90 +421,93 @@
                     <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="s1">&#39;Did not converge!&#39;</span><span class="p">)</span>
                     <span class="k">break</span>
                 <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-                    <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">tune</span><span class="o">=</span><span class="n">tune</span> <span class="o">*</span> <span class="n">niter</span><span class="p">,</span>
-                                             <span class="c1">#start=self.start,</span>
-                                             <span class="n">cores</span><span class="o">=</span><span class="n">cores</span><span class="p">,</span>
-                                             <span class="n">init</span><span class="o">=</span><span class="s1">&#39;adapt_diag&#39;</span><span class="p">,</span>
-                                             <span class="n">target_accept</span><span class="o">=</span><span class="n">target_accept</span><span class="p">,</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">samples</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">tune</span><span class="o">=</span><span class="n">tune</span> <span class="o">*</span> <span class="n">niter</span><span class="p">,</span> <span class="n">cores</span><span class="o">=</span><span class="n">nthreads</span><span class="p">,</span>
+                                             <span class="n">start</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">start</span><span class="p">,</span> 
+                                             <span class="n">init</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_sampler</span><span class="p">,</span>
+                                             <span class="n">target_accept</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">target_accept</span><span class="p">,</span>
                                              <span class="n">progressbar</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
                 <span class="n">Rhat_max</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">([</span><span class="n">v</span><span class="o">.</span><span class="n">max</span><span class="p">()</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">pm</span><span class="o">.</span><span class="n">diagnostics</span><span class="o">.</span><span class="n">gelman_rubin</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span><span class="o">.</span><span class="n">items</span><span class="p">()])</span>
                 <span class="n">niter</span> <span class="o">+=</span> <span class="mi">1</span></div>
 
 
-    <span class="k">def</span> <span class="nf">traceplot</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
-        <span class="n">pm</span><span class="o">.</span><span class="n">traceplot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span>
 
-<div class="viewcode-block" id="peakbag.plot_linewidth"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.plot_linewidth">[docs]</a>    <span class="k">def</span> <span class="nf">plot_linewidth</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        TODO</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span><span class="mi">9</span><span class="p">])</span>
-
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span> <span class="o">!=</span> <span class="p">[]:</span>
-            <span class="kn">from</span> <span class="nn">pymc3.gp.util</span> <span class="k">import</span> <span class="n">plot_gp_dist</span>
-
-            <span class="n">n_new</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linspace</span><span class="p">(</span><span class="o">-</span><span class="mf">0.2</span><span class="p">,</span> <span class="mf">1.2</span><span class="p">,</span> <span class="mi">100</span><span class="p">)[:,</span><span class="kc">None</span><span class="p">]</span>
-            <span class="k">with</span> <span class="bp">self</span><span class="o">.</span><span class="n">pm_model</span><span class="p">:</span>
-                <span class="n">f_pred0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp0</span><span class="o">.</span><span class="n">conditional</span><span class="p">(</span><span class="s2">&quot;f_pred0&quot;</span><span class="p">,</span> <span class="n">n_new</span><span class="p">)</span>
-                <span class="n">f_pred2</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gp2</span><span class="o">.</span><span class="n">conditional</span><span class="p">(</span><span class="s2">&quot;f_pred2&quot;</span><span class="p">,</span> <span class="n">n_new</span><span class="p">)</span>
-                <span class="bp">self</span><span class="o">.</span><span class="n">pred_samples</span> <span class="o">=</span> <span class="n">pm</span><span class="o">.</span><span class="n">sample_posterior_predictive</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span>
-                               <span class="nb">vars</span><span class="o">=</span><span class="p">[</span><span class="n">f_pred0</span><span class="p">,</span> <span class="n">f_pred2</span><span class="p">],</span> <span class="n">samples</span><span class="o">=</span><span class="mi">1000</span><span class="p">)</span>
-            <span class="n">plot_gp_dist</span><span class="p">(</span><span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">pred_samples</span><span class="p">[</span><span class="s2">&quot;f_pred0&quot;</span><span class="p">],</span> <span class="n">n_new</span><span class="p">)</span>
-            <span class="n">plot_gp_dist</span><span class="p">(</span><span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">pred_samples</span><span class="p">[</span><span class="s2">&quot;f_pred2&quot;</span><span class="p">],</span> <span class="n">n_new</span><span class="p">)</span>
-
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">),</span> <span class="n">thin</span><span class="p">):</span>
-                <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">,</span>
-                              <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;ln_width0&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
-                <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">,</span>
-                              <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;ln_width2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
-
-
-        <span class="k">else</span><span class="p">:</span>
-            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">),</span> <span class="n">thin</span><span class="p">):</span>
-                <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">,</span>
-                              <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;width0&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
-                <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">n</span><span class="p">,</span>
-                              <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;width2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:]),</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.3</span><span class="p">)</span>
-
-        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;normalised order&#39;</span><span class="p">)</span>
-        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;normalised order&#39;</span><span class="p">)</span>
-        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;ln line width&#39;</span><span class="p">)</span>
-        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;ln line width&#39;</span><span class="p">)</span>
-        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Radial modes&#39;</span><span class="p">)</span>
-        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Quadrupole modes&#39;</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">fig</span></div>
-
-<div class="viewcode-block" id="peakbag.plot_height"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.plot_height">[docs]</a>    <span class="k">def</span> <span class="nf">plot_height</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        TODO</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span><span class="mi">9</span><span class="p">])</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">),</span> <span class="n">thin</span><span class="p">):</span>
-            <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:])</span>
-            <span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">][</span><span class="n">i</span><span class="p">,</span> <span class="p">:])</span>
-        <span class="k">return</span> <span class="n">fig</span></div>
-
-<div class="viewcode-block" id="peakbag.plot_fit"><a class="viewcode-back" href="../../peakbag.html#pbjam.peakbag.peakbag.plot_fit">[docs]</a>    <span class="k">def</span> <span class="nf">plot_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">thin</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="mf">0.2</span><span class="p">):</span>
-        <span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        TODO</span>
-<span class="sd">        &quot;&quot;&quot;</span>
-        <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
-        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">[</span><span class="mi">16</span><span class="p">,</span><span class="mi">9</span><span class="p">])</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">):</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">),</span> <span class="n">thin</span><span class="p">):</span>
-                <span class="n">mod</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">model</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;l0&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;l2&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;width0&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;width2&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;height0&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;height2&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">],</span>
-                                 <span class="bp">self</span><span class="o">.</span><span class="n">samples</span><span class="p">[</span><span class="s1">&#39;back&#39;</span><span class="p">][</span><span class="n">j</span><span class="p">])</span>
-                <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">mod</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;r&#39;</span><span class="p">,</span> <span class="n">alpha</span><span class="o">=</span><span class="n">alpha</span><span class="p">)</span>
-            <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="bp">self</span><span class="o">.</span><span class="n">ladder_p</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="p">:],</span> <span class="n">c</span><span class="o">=</span><span class="s1">&#39;k&#39;</span><span class="p">)</span>
-            <span class="n">ax</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">ladder_f</span><span class="p">[</span><span class="n">i</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">]])</span>
-        <span class="n">ax</span><span class="p">[</span><span class="n">n</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="sa">r</span><span class="s1">&#39;Frequency ($\mu \rm Hz$)&#39;</span><span class="p">)</span>
-        <span class="n">fig</span><span class="o">.</span><span class="n">tight_layout</span><span class="p">()</span>
-        <span class="k">return</span> <span class="n">fig</span></div></div>
+<span class="c1">#</span>
+<span class="c1">#    def plot_start_model(self):</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        Plots the model generated from the starting parameters</span>
+<span class="c1">#</span>
+<span class="c1">#        Returns</span>
+<span class="c1">#        -------</span>
+<span class="c1">#        fig : figure</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        mod = self.model(self.start[&#39;l0&#39;], self.start[&#39;l2&#39;], </span>
+<span class="c1">#                         self.start[&#39;width0&#39;], self.start[&#39;width2&#39;],</span>
+<span class="c1">#                         self.start[&#39;height0&#39;], self.start[&#39;height2&#39;],</span>
+<span class="c1">#                         self.start[&#39;back&#39;])</span>
+<span class="c1">#        n = self.ladder_s.shape[0]</span>
+<span class="c1">#        fig, ax = plt.subplots(n, figsize=[16,9])</span>
+<span class="c1">#        for i in range(n):</span>
+<span class="c1">#            ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c=&#39;k&#39;)</span>
+<span class="c1">#            ax[i].plot(self.ladder_f[i, :], mod[i, :], c=&#39;r&#39;)</span>
+<span class="c1">#        return fig</span>
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#    def traceplot(self):</span>
+<span class="c1">#        &#39;&#39;&#39;</span>
+<span class="c1">#        Will make a pymc3 traceplot.</span>
+<span class="c1">#        &#39;&#39;&#39;</span>
+<span class="c1">#        pm.traceplot(self.samples)</span>
+<span class="c1">#</span>
+<span class="c1">#    def plot_linewidth(self, thin=10):</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        Plots the estimated line width as a function of scaled n.</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        fig, ax = plt.subplots(1, 2, figsize=[16,9])</span>
+<span class="c1">#</span>
+<span class="c1">#        if self.gp0 != []:</span>
+<span class="c1">#            from pymc3.gp.util import plot_gp_dist</span>
+<span class="c1">#</span>
+<span class="c1">#            n_new = np.linspace(-0.2, 1.2, 100)[:,None]</span>
+<span class="c1">#            with self.pm_model:</span>
+<span class="c1">#                f_pred0 = self.gp0.conditional(&quot;f_pred0&quot;, n_new)</span>
+<span class="c1">#                f_pred2 = self.gp2.conditional(&quot;f_pred2&quot;, n_new)</span>
+<span class="c1">#                self.pred_samples = pm.sample_posterior_predictive(self.samples,</span>
+<span class="c1">#                               vars=[f_pred0, f_pred2], samples=1000)</span>
+<span class="c1">#            plot_gp_dist(ax[0], self.pred_samples[&quot;f_pred0&quot;], n_new)</span>
+<span class="c1">#            plot_gp_dist(ax[1], self.pred_samples[&quot;f_pred2&quot;], n_new)</span>
+<span class="c1">#</span>
+<span class="c1">#            for i in range(0, len(self.samples), thin):</span>
+<span class="c1">#                ax[0].scatter(self.n,</span>
+<span class="c1">#                              self.samples[&#39;ln_width0&#39;][i, :], c=&#39;k&#39;, alpha=0.3)</span>
+<span class="c1">#                ax[1].scatter(self.n,</span>
+<span class="c1">#                              self.samples[&#39;ln_width2&#39;][i, :], c=&#39;k&#39;, alpha=0.3)</span>
+<span class="c1">#</span>
+<span class="c1">#</span>
+<span class="c1">#        else:</span>
+<span class="c1">#            for i in range(0, len(self.samples), thin):</span>
+<span class="c1">#                ax[0].scatter(self.n,</span>
+<span class="c1">#                              np.log(self.samples[&#39;width0&#39;][i, :]), c=&#39;k&#39;, alpha=0.3)</span>
+<span class="c1">#                ax[1].scatter(self.n,</span>
+<span class="c1">#                              np.log(self.samples[&#39;width2&#39;][i, :]), c=&#39;k&#39;, alpha=0.3)</span>
+<span class="c1">#</span>
+<span class="c1">#        ax[0].set_xlabel(&#39;normalised order&#39;)</span>
+<span class="c1">#        ax[1].set_xlabel(&#39;normalised order&#39;)</span>
+<span class="c1">#        ax[0].set_ylabel(&#39;ln line width&#39;)</span>
+<span class="c1">#        ax[1].set_ylabel(&#39;ln line width&#39;)</span>
+<span class="c1">#        ax[0].set_title(&#39;Radial modes&#39;)</span>
+<span class="c1">#        ax[1].set_title(&#39;Quadrupole modes&#39;)</span>
+<span class="c1">#        return fig</span>
+<span class="c1">#</span>
+<span class="c1">#    def plot_height(self, thin=10):</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        Plots the estimated mode height.</span>
+<span class="c1">#        &quot;&quot;&quot;</span>
+<span class="c1">#        fig, ax = plt.subplots(figsize=[16,9])</span>
+<span class="c1">#        for i in range(0, len(self.samples), thin):</span>
+<span class="c1">#            ax.scatter(self.samples[&#39;l0&#39;][i, :], self.samples[&#39;height0&#39;][i, :])</span>
+<span class="c1">#            ax.scatter(self.samples[&#39;l2&#39;][i, :], self.samples[&#39;height2&#39;][i, :])</span>
+<span class="c1">#        return fig</span>
+<span class="c1">#</span>
 </pre></div>
 
           </div>

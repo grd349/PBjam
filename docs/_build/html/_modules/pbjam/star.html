@@ -13,6 +13,8 @@
     <script type="text/javascript" src="../../_static/jquery.js"></script>
     <script type="text/javascript" src="../../_static/underscore.js"></script>
     <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="../../genindex.html" />
     <link rel="search" title="Search" href="../../search.html" />
    
@@ -33,19 +35,15 @@
             
   <h1>Source code for pbjam.star</h1><div class="highlight"><pre>
 <span></span><span class="kn">import</span> <span class="nn">os</span>
-<span class="kn">import</span> <span class="nn">lightkurve</span> <span class="k">as</span> <span class="nn">lk</span>
-<span class="kn">from</span> <span class="nn">pbjam.asy_peakbag</span> <span class="k">import</span> <span class="n">asymptotic_fit</span><span class="p">,</span> <span class="n">envelope_width</span>
-<span class="kn">from</span> <span class="nn">pbjam.guess_epsilon</span> <span class="k">import</span> <span class="n">epsilon</span>
-<span class="kn">from</span> <span class="nn">pbjam.peakbag</span> <span class="k">import</span> <span class="n">peakbag</span>
-<span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
-<span class="kn">import</span> <span class="nn">astropy.units</span> <span class="k">as</span> <span class="nn">units</span>
-<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
-<span class="kn">import</span> <span class="nn">matplotlib.pyplot</span> <span class="k">as</span> <span class="nn">plt</span>
-<span class="kn">import</span> <span class="nn">os</span><span class="o">,</span> <span class="nn">glob</span><span class="o">,</span> <span class="nn">warnings</span><span class="o">,</span> <span class="nn">psutil</span><span class="o">,</span> <span class="nn">pickle</span>
-<span class="kn">from</span> <span class="nn">.</span> <span class="k">import</span> <span class="n">PACKAGEDIR</span>
+<span class="kn">from</span> <span class="nn">.asy_peakbag</span> <span class="k">import</span> <span class="n">asymptotic_fit</span>
+<span class="kn">from</span> <span class="nn">.priors</span> <span class="k">import</span> <span class="n">kde</span>
+<span class="kn">from</span> <span class="nn">.peakbag</span> <span class="k">import</span> <span class="n">peakbag</span>
 <span class="kn">import</span> <span class="nn">pymc3</span> <span class="k">as</span> <span class="nn">pm</span>
+<span class="kn">from</span> <span class="nn">.jar</span> <span class="k">import</span> <span class="n">get_priorpath</span>
+<span class="kn">from</span> <span class="nn">.plotting</span> <span class="k">import</span> <span class="n">plotting</span>
+<span class="kn">import</span> <span class="nn">pandas</span> <span class="k">as</span> <span class="nn">pd</span>
 
-<div class="viewcode-block" id="star"><a class="viewcode-back" href="../../star.html#pbjam.star.star">[docs]</a><span class="k">class</span> <span class="nc">star</span><span class="p">():</span>
+<div class="viewcode-block" id="star"><a class="viewcode-back" href="../../star.html#pbjam.star.star">[docs]</a><span class="k">class</span> <span class="nc">star</span><span class="p">(</span><span class="n">plotting</span><span class="p">):</span>
     <span class="sd">&quot;&quot;&quot; Class for each star to be peakbagged</span>
 
 <span class="sd">    Additional attributes are added for each step of the peakbagging process</span>
@@ -53,106 +51,184 @@
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
 <span class="sd">    ID : string, int</span>
-<span class="sd">        Target identifier, if custom timeseries/periodogram is provided, it</span>
-<span class="sd">        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)</span>
-<span class="sd">    f : float, array</span>
-<span class="sd">        Array of frequency bins of the spectrum (muHz)</span>
-<span class="sd">    s : array</span>
-<span class="sd">        The power at frequencies f</span>
+<span class="sd">        Target identifier. If custom timeseries/periodogram is provided, it</span>
+<span class="sd">        must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.).</span>
+
+<span class="sd">    periodogram : lightkurve.periodogram.Periodogram object</span>
+<span class="sd">        A lightkurve periodogram object containing frequencies in units of</span>
+<span class="sd">        microhertz and power (in arbitrary units).</span>
+
 <span class="sd">    numax : list</span>
-<span class="sd">        List of the form [numax, numax_error], list of lists for multiple</span>
-<span class="sd">        targets</span>
+<span class="sd">        List of the form [numax, numax_error]. For multiple targets, use a list</span>
+<span class="sd">        of lists.</span>
+
 <span class="sd">    dnu : list</span>
-<span class="sd">        List of the form [dnu, dnu_error], list of lists for multiple targets</span>
-<span class="sd">    teff : list, optional</span>
-<span class="sd">        List of the form [teff, teff_error], list of lists for multiple targets</span>
-<span class="sd">    bp_rp : list, optional</span>
-<span class="sd">        List of the form [bp_rp, bp_rp_error], list of lists for multiple</span>
-<span class="sd">        targets</span>
+<span class="sd">        List of the form [dnu, dnu_error]. For multiple targets, use a list</span>
+<span class="sd">        of lists.</span>
+
+<span class="sd">    teff : list</span>
+<span class="sd">        List of the form [teff, teff_error]. For multiple targets, use a list</span>
+<span class="sd">        of lists.</span>
+
+<span class="sd">    bp_rp : list</span>
+<span class="sd">        List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list</span>
+<span class="sd">        of lists.</span>
+
 <span class="sd">    store_chains : bool, optional</span>
 <span class="sd">        Flag for storing all the full set of samples from the MCMC run.</span>
 <span class="sd">        Warning, if running multiple targets, make sure you have enough memory.</span>
+
 <span class="sd">    nthreads : int, optional</span>
 <span class="sd">        Number of multiprocessing threads to use to perform the fit. For long</span>
 <span class="sd">        cadence data 1 is best, more will just add parallelization overhead.</span>
 <span class="sd">        Untested on short cadence.</span>
 
+<span class="sd">    make_plots : bool, optional</span>
+<span class="sd">        If True, will save figures when calling methods in `star`.</span>
+
+<span class="sd">    path : str, optional</span>
+<span class="sd">        The path at which to store output. If no path is set but make_plots is</span>
+<span class="sd">        True, output will be saved in the current working directory.</span>
+
+<span class="sd">    verbose : bool, optional</span>
+<span class="sd">        If True, will show error messages on the users terminal if they occur.</span>
+<span class="sd">        </span>
 <span class="sd">    Attributes</span>
 <span class="sd">    ----------</span>
-<span class="sd">    TODO</span>
+<span class="sd">    f : array</span>
+<span class="sd">        Array of power spectrum frequencies</span>
+<span class="sd">    s : array</span>
+<span class="sd">        power spectrum</span>
+<span class="sd">    data_file : str</span>
+<span class="sd">        Path to the csv file containing the prior data</span>
 <span class="sd">    &quot;&quot;&quot;</span>
 
-    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ID</span><span class="p">,</span> <span class="n">periodogram</span><span class="p">,</span>
-                 <span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bp_rp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-                 <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span>
-                 <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
-                 <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ID</span><span class="p">,</span> <span class="n">pg</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> 
+                 <span class="n">prior_file</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
+          
         <span class="bp">self</span><span class="o">.</span><span class="n">ID</span> <span class="o">=</span> <span class="n">ID</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">pg</span> <span class="o">=</span> <span class="n">periodogram</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">periodogram</span><span class="o">.</span><span class="n">frequency</span><span class="o">.</span><span class="n">value</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">periodogram</span><span class="o">.</span><span class="n">power</span><span class="o">.</span><span class="n">value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pg</span> <span class="o">=</span> <span class="n">pg</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">f</span> <span class="o">=</span> <span class="n">pg</span><span class="o">.</span><span class="n">frequency</span><span class="o">.</span><span class="n">value</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">s</span> <span class="o">=</span> <span class="n">pg</span><span class="o">.</span><span class="n">power</span><span class="o">.</span><span class="n">value</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">numax</span> <span class="o">=</span> <span class="n">numax</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dnu</span> <span class="o">=</span> <span class="n">dnu</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">teff</span> <span class="o">=</span> <span class="n">teff</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">bp_rp</span> <span class="o">=</span> <span class="n">bp_rp</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span> <span class="o">=</span> <span class="n">nthreads</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span> <span class="o">=</span> <span class="n">store_chains</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">make_plots</span> <span class="o">=</span> <span class="n">make_plots</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">make_output_dir</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
 
-        <span class="k">if</span> <span class="n">path</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">path</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{self.ID}</span><span class="s1">&#39;</span><span class="p">])</span>
-        <span class="k">try</span><span class="p">:</span>
-            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span><span class="p">)</span>
-        <span class="k">except</span> <span class="ne">OSError</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">verbose</span><span class="p">:</span>
-                <span class="n">warnings</span><span class="o">.</span><span class="n">warn</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;Path </span><span class="si">{self.bpath}</span><span class="s1"> already exists - I will try to overwrite ... &#39;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">prior_file</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_file</span> <span class="o">=</span> <span class="n">get_priorpath</span><span class="p">()</span> 
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">prior_file</span> <span class="o">=</span> <span class="n">prior_file</span>
+    
+    <span class="k">def</span> <span class="nf">make_output_dir</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">):</span>
+        
+        <span class="c1"># Check if self has path attribute</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="s1">&#39;path&#39;</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="kc">None</span>
+            
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>  <span class="c1"># If yes, do nothing</span>
+            <span class="k">pass</span>
+        <span class="k">else</span><span class="p">:</span>  <span class="c1"># If not, assume path should be cwd+ID</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">os</span><span class="o">.</span><span class="n">getcwd</span><span class="p">(),</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{self.ID}</span><span class="s1">&#39;</span><span class="p">])</span>
+        
+        <span class="c1"># If path is str, presume user wants to override self.path</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">path</span> <span class="o">=</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">path</span><span class="p">,</span> <span class="n">f</span><span class="s1">&#39;</span><span class="si">{self.ID}</span><span class="s1">&#39;</span><span class="p">])</span>
 
-        <span class="bp">self</span><span class="o">.</span><span class="n">data_file</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="n">PACKAGEDIR</span><span class="p">,</span> <span class="s1">&#39;data&#39;</span><span class="p">,</span> <span class="s1">&#39;prior_data.csv&#39;</span><span class="p">])</span>
+        <span class="c1"># Check if self.path exists, if not try to create it</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isdir</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">):</span>
+            <span class="k">try</span><span class="p">:</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">)</span>
+            <span class="k">except</span> <span class="ne">Exception</span> <span class="k">as</span> <span class="n">ex</span><span class="p">:</span>
+                <span class="n">message</span> <span class="o">=</span> <span class="s2">&quot;Star </span><span class="si">{0}</span><span class="s2"> produced an exception of type </span><span class="si">{1}</span><span class="s2"> occurred. Arguments:</span><span class="se">\n</span><span class="si">{2!r}</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> <span class="nb">type</span><span class="p">(</span><span class="n">ex</span><span class="p">)</span><span class="o">.</span><span class="vm">__name__</span><span class="p">,</span> <span class="n">ex</span><span class="o">.</span><span class="n">args</span><span class="p">)</span>
+                <span class="nb">print</span><span class="p">(</span><span class="n">message</span><span class="p">)</span>
+          
+<div class="viewcode-block" id="star.run_kde"><a class="viewcode-back" href="../../star.html#pbjam.star.star.run_kde">[docs]</a>    <span class="k">def</span> <span class="nf">run_kde</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bw_fac</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs the kde code and makes plots if self.make_plots is set.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="c1"># Init</span>
+        <span class="n">kde</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bw_fac</span><span class="o">=</span><span class="n">bw_fac</span><span class="p">)</span>
+        
+        <span class="c1"># Call</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">kde</span><span class="p">(</span><span class="n">dnu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dnu</span><span class="p">,</span> <span class="n">numax</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numax</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">teff</span><span class="p">,</span> 
+                 <span class="n">bp_rp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bp_rp</span><span class="p">)</span>
+        
+        <span class="c1"># Store</span>
+        <span class="k">if</span> <span class="n">make_plots</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kde</span><span class="o">.</span><span class="n">plot_corner</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> 
+                                 <span class="n">savefig</span><span class="o">=</span><span class="n">make_plots</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">kde</span><span class="o">.</span><span class="n">plot_spectrum</span><span class="p">(</span><span class="n">pg</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">pg</span><span class="p">,</span> <span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> 
+                                       <span class="n">savefig</span><span class="o">=</span><span class="n">make_plots</span><span class="p">)</span></div>
+             
+            
+<div class="viewcode-block" id="star.run_asy_peakbag"><a class="viewcode-back" href="../../star.html#pbjam.star.star.run_asy_peakbag">[docs]</a>    <span class="k">def</span> <span class="nf">run_asy_peakbag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> 
+                        <span class="n">store_chains</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs the asy_peakbag code.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        
+        <span class="c1"># Init</span>
+        <span class="n">asymptotic_fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">kde</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">,</span> 
+                       <span class="n">store_chains</span><span class="o">=</span><span class="n">store_chains</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="n">nthreads</span><span class="p">)</span>
+        
+        <span class="c1"># Call</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="p">(</span><span class="n">dnu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dnu</span><span class="p">,</span> <span class="n">numax</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numax</span><span class="p">,</span> <span class="n">teff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">teff</span><span class="p">,</span> 
+                     <span class="n">bp_rp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bp_rp</span><span class="p">)</span>
+        
+        <span class="c1"># Store</span>
+        <span class="n">outpath</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">x</span><span class="p">])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">summary</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">outpath</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;{type(self).__name__}_summary_</span><span class="si">{self.ID}</span><span class="s1">.csv&#39;</span><span class="p">),</span>
+                                    <span class="n">index</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">modeID</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">outpath</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;{type(self).__name__}_modeID_</span><span class="si">{self.ID}</span><span class="s1">.csv&#39;</span><span class="p">),</span>
+                                   <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">make_plots</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">plot_spectrum</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> 
+                                       <span class="n">savefig</span><span class="o">=</span><span class="n">make_plots</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">plot_corner</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> 
+                                       <span class="n">savefig</span><span class="o">=</span><span class="n">make_plots</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="n">store_chains</span><span class="p">:</span>
+            <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span> <span class="n">columns</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">par_names</span><span class="p">)</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">outpath</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;{type(self).__name__}_chains_</span><span class="si">{self.ID}</span><span class="s1">.csv&#39;</span><span class="p">),</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> </div>
+        
+            
 
-    <span class="k">def</span> <span class="nf">run_epsilon</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bw_fac</span><span class="o">=</span><span class="mf">1.0</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span> <span class="o">=</span> <span class="n">epsilon</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">epsilon_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="p">(</span><span class="n">dnu</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">dnu</span><span class="p">,</span>
-                                           <span class="n">numax</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">numax</span><span class="p">,</span>
-                                           <span class="n">teff</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">teff</span><span class="p">,</span>
-                                           <span class="n">bp_rp</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">bp_rp</span><span class="p">,</span>
-                                           <span class="n">bw_fac</span><span class="o">=</span><span class="n">bw_fac</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_plots</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pg</span><span class="p">)</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;epsilon_</span><span class="si">{self.ID}</span><span class="s1">.png&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="o">.</span><span class="n">plot_corner</span><span class="p">()</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;epsilon_corner_</span><span class="si">{self.ID}</span><span class="s1">.png&#39;</span><span class="p">)</span>
-
-    <span class="k">def</span> <span class="nf">run_asy_peakbag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span> <span class="n">burnin</span><span class="o">=</span><span class="mi">1000</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span> <span class="o">=</span> <span class="n">asymptotic_fit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">epsilon</span><span class="o">.</span><span class="n">samples</span><span class="p">,</span>
-                                      <span class="bp">self</span><span class="o">.</span><span class="n">teff</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bp_rp</span><span class="p">,</span>
-                                      <span class="n">store_chains</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span><span class="p">,</span>
-                                      <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">burnin</span><span class="o">=</span><span class="n">burnin</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span><span class="p">:</span>
-            <span class="k">pass</span> <span class="c1"># TODO</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_plots</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">plot_corner</span><span class="p">()</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;asy_corner_</span><span class="si">{self.ID}</span><span class="s1">.png&#39;</span><span class="p">)</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;asy_</span><span class="si">{self.ID}</span><span class="s1">.png&#39;</span><span class="p">)</span>
+<div class="viewcode-block" id="star.run_peakbag"><a class="viewcode-back" href="../../star.html#pbjam.star.star.run_peakbag">[docs]</a>    <span class="k">def</span> <span class="nf">run_peakbag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">make_plots</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">store_chains</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Runs peakbag on the given star.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Init</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span> <span class="o">=</span> <span class="n">peakbag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_fit</span><span class="p">)</span>
+        
+        <span class="c1"># Call</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span><span class="p">(</span><span class="n">model_type</span><span class="o">=</span><span class="n">model_type</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="n">tune</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="n">nthreads</span><span class="p">)</span>
+        
+        <span class="c1"># Store</span>
+        <span class="n">outpath</span> <span class="o">=</span> <span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="o">*</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">x</span><span class="p">])</span>
+        <span class="n">pm</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">outpath</span><span class="p">(</span><span class="n">f</span><span class="s1">&#39;{type(self).__name__}_summary_</span><span class="si">{self.ID}</span><span class="s1">.csv&#39;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">store_chains</span><span class="p">:</span>
+            <span class="k">pass</span> <span class="c1"># TODO need to pickle the samples if requested.</span>
+        <span class="k">if</span> <span class="n">make_plots</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span><span class="o">.</span><span class="n">plot_spectrum</span><span class="p">(</span><span class="n">path</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">path</span><span class="p">,</span> <span class="n">ID</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ID</span><span class="p">,</span> 
+                                       <span class="n">savefig</span><span class="o">=</span><span class="n">make_plots</span><span class="p">)</span></div>
 
 
-    <span class="k">def</span> <span class="nf">run_peakbag</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="mi">1500</span><span class="p">):</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span> <span class="o">=</span> <span class="n">peakbag</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">f</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">s</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">asy_result</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">model_type</span><span class="o">=</span><span class="n">model_type</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="n">tune</span><span class="p">,</span>
-                            <span class="n">cores</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">nthreads</span><span class="p">)</span>
-        <span class="n">pm</span><span class="o">.</span><span class="n">summary</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span><span class="o">.</span><span class="n">samples</span><span class="p">)</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;peakbag_summary_</span><span class="si">{self.ID}</span><span class="s1">.csv&#39;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">store_chains</span><span class="p">:</span>
-            <span class="k">pass</span> <span class="c1"># TODO</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">make_plots</span><span class="p">:</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">peakbag</span><span class="o">.</span><span class="n">plot_fit</span><span class="p">()</span><span class="o">.</span><span class="n">savefig</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">bpath</span> <span class="o">+</span> <span class="n">os</span><span class="o">.</span><span class="n">sep</span> <span class="o">+</span> <span class="n">f</span><span class="s1">&#39;peakbag_</span><span class="si">{self.ID}</span><span class="s1">.png&#39;</span><span class="p">)</span>
-
-
-    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bw_fac</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span>
-                 <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="mi">1500</span><span class="p">):</span>
-        <span class="sd">&#39;&#39;&#39; TODO &#39;&#39;&#39;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">run_epsilon</span><span class="p">(</span><span class="n">bw_fac</span><span class="o">=</span><span class="n">bw_fac</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">run_asy_peakbag</span><span class="p">(</span><span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">run_peakbag</span><span class="p">(</span><span class="n">model_type</span><span class="o">=</span><span class="n">model_type</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="n">tune</span><span class="p">)</span></div>
+    <span class="k">def</span> <span class="nf">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bw_fac</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span> <span class="n">norders</span><span class="o">=</span><span class="mi">8</span><span class="p">,</span> <span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="mi">1500</span><span class="p">,</span> 
+                 <span class="n">verbose</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">make_plots</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">1</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot; Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?&quot;&quot;&quot;</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_kde</span><span class="p">(</span><span class="n">bw_fac</span><span class="o">=</span><span class="n">bw_fac</span><span class="p">,</span> <span class="n">make_plots</span><span class="o">=</span><span class="n">make_plots</span><span class="p">)</span>          
+   
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_asy_peakbag</span><span class="p">(</span><span class="n">norders</span><span class="o">=</span><span class="n">norders</span><span class="p">,</span> <span class="n">make_plots</span><span class="o">=</span><span class="n">make_plots</span><span class="p">,</span> 
+                             <span class="n">store_chains</span><span class="o">=</span><span class="n">store_chains</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="n">nthreads</span><span class="p">)</span>
+        
+        <span class="bp">self</span><span class="o">.</span><span class="n">run_peakbag</span><span class="p">(</span><span class="n">model_type</span><span class="o">=</span><span class="n">model_type</span><span class="p">,</span> <span class="n">tune</span><span class="o">=</span><span class="n">tune</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="n">nthreads</span><span class="p">,</span> 
+                         <span class="n">make_plots</span><span class="o">=</span><span class="n">make_plots</span><span class="p">,</span> <span class="n">store_chains</span><span class="o">=</span><span class="n">store_chains</span><span class="p">)</span></div>
 </pre></div>
 
           </div>

@@ -13,9 +13,11 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="jar" href="jar.html" />
+    <link rel="next" title="session" href="session.html" />
     <link rel="prev" title="User Guide" href="usage.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -35,16 +37,20 @@
             
   <div class="section" id="api">
 <h1>API<a class="headerlink" href="#api" title="Permalink to this headline">¶</a></h1>
-<p>PBjam is can be roughly divided into two parts, the mode ID and the peakbagging stages. PBjam currently supports mode ID with the <a class="reference internal" href="asy_peakbag.html#module-pbjam.asy_peakbag" title="pbjam.asy_peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">asy_peakbag</span></code></a> module, and peakbagging with the <a class="reference internal" href="peakbag.html#module-pbjam.peakbag" title="pbjam.peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">peakbag</span></code></a> module. Additional methods for these steps may be added to PBjam in the future.</p>
-<p>The <a class="reference internal" href="jar.html#module-pbjam.jar" title="pbjam.jar"><code class="xref py py-mod docutils literal notranslate"><span class="pre">jar</span></code></a> and <a class="reference internal" href="star.html#module-pbjam.star" title="pbjam.star"><code class="xref py py-mod docutils literal notranslate"><span class="pre">star</span></code></a> modules are wrappers for many of the methods in <a class="reference internal" href="asy_peakbag.html#module-pbjam.asy_peakbag" title="pbjam.asy_peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">asy_peakbag</span></code></a> and <a class="reference internal" href="peakbag.html#module-pbjam.peakbag" title="pbjam.peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">peakbag</span></code></a>, to help set up the analysis of one or more stars in a pipeline-like fashion.</p>
+<p>PBjam can be roughly divided into two parts, the mode ID and the peakbagging stages. PBjam currently supports mode ID with the <a class="reference internal" href="asy_peakbag.html#module-pbjam.asy_peakbag" title="pbjam.asy_peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">asy_peakbag</span></code></a> module, and peakbagging with the <a class="reference internal" href="peakbag.html#module-pbjam.peakbag" title="pbjam.peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">peakbag</span></code></a> module. Additional methods for these steps may be added to PBjam in the future.</p>
+<p>The <a class="reference internal" href="session.html#module-pbjam.session" title="pbjam.session"><code class="xref py py-mod docutils literal notranslate"><span class="pre">session</span></code></a> and <a class="reference internal" href="star.html#module-pbjam.star" title="pbjam.star"><code class="xref py py-mod docutils literal notranslate"><span class="pre">star</span></code></a> modules are wrappers for many of the methods in <a class="reference internal" href="asy_peakbag.html#module-pbjam.asy_peakbag" title="pbjam.asy_peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">asy_peakbag</span></code></a> and <a class="reference internal" href="peakbag.html#module-pbjam.peakbag" title="pbjam.peakbag"><code class="xref py py-mod docutils literal notranslate"><span class="pre">peakbag</span></code></a>, to help set up the analysis of one or more stars in a pipeline-like fashion.</p>
 <div class="section" id="modules-in-pbjam">
 <h2>Modules in PBjam<a class="headerlink" href="#modules-in-pbjam" title="Permalink to this headline">¶</a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="jar.html">jar</a></li>
+<li class="toctree-l1"><a class="reference internal" href="session.html">session</a></li>
 <li class="toctree-l1"><a class="reference internal" href="star.html">star</a></li>
 <li class="toctree-l1"><a class="reference internal" href="asy_peakbag.html">asy_peakbag</a></li>
 <li class="toctree-l1"><a class="reference internal" href="peakbag.html">peakbag</a></li>
+<li class="toctree-l1"><a class="reference internal" href="priors.html">priors</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mcmc.html">mcmc</a></li>
+<li class="toctree-l1"><a class="reference internal" href="plotting.html">plotting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="jar.html">jar</a></li>
 </ul>
 </div>
 </div>
@@ -80,7 +86,7 @@
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
       <li>Previous: <a href="usage.html" title="previous chapter">User Guide</a></li>
-      <li>Next: <a href="jar.html" title="next chapter">jar</a></li>
+      <li>Next: <a href="session.html" title="next chapter">session</a></li>
   </ul></li>
 </ul>
 </div>

@@ -13,9 +13,11 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="License" href="license.html" />
+    <link rel="next" title="priors" href="priors.html" />
     <link rel="prev" title="asy_peakbag" href="asy_peakbag.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
@@ -37,10 +39,26 @@
 <span id="peakbag"></span><h1>peakbag<a class="headerlink" href="#module-pbjam.peakbag" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="pbjam.peakbag.peakbag">
-<em class="property">class </em><code class="descclassname">pbjam.peakbag.</code><code class="descname">peakbag</code><span class="sig-paren">(</span><em>f</em>, <em>snr</em>, <em>asy_result</em>, <em>init=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">pbjam.peakbag.</code><code class="descname">peakbag</code><span class="sig-paren">(</span><em>starinst</em>, <em>asyinst</em>, <em>init=True</em>, <em>path=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag" title="Permalink to this definition">¶</a></dt>
 <dd><p>Class for PBjam peakbagging.</p>
 <p>This class allows for simple manipulation of the data, the fitting of a
-pymc3 model to the data, and some plotting of results functionality.</p>
+PyMC3 model to the data, and some plotting of results functionality.</p>
+<p class="rubric">Examples</p>
+<p>Star API interaction (recommended)</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span> <span class="nn">pbjam</span> <span class="k">import</span> <span class="n">star</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">star</span> <span class="o">=</span> <span class="n">pb</span><span class="o">.</span><span class="n">star</span><span class="p">(</span><span class="n">kic</span><span class="p">,</span> <span class="n">pg</span><span class="p">,</span> <span class="n">numax</span><span class="p">,</span> <span class="n">dnu</span><span class="p">,</span> <span class="n">teff</span><span class="p">,</span> <span class="n">bp_rp</span><span class="p">,</span> <span class="n">store_chains</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">nthreads</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">star</span><span class="o">.</span><span class="n">run_epsilon</span><span class="p">()</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">star</span><span class="o">.</span><span class="n">run_asy_peakbag</span><span class="p">(</span><span class="n">norders</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">star</span><span class="o">.</span><span class="n">run_peakbag</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Lower level API interaction.</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">import</span> <span class="nn">PBjam</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pbag</span> <span class="o">=</span> <span class="n">pbjam</span><span class="o">.</span><span class="n">peakbag</span><span class="p">(</span><span class="n">frequency</span><span class="p">,</span> <span class="n">snr</span><span class="p">,</span> <span class="n">asy_result</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pbag</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="n">model_type</span><span class="o">=</span><span class="s1">&#39;simple&#39;</span><span class="p">,</span> <span class="n">cores</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">pbag</span><span class="o">.</span><span class="n">plot_fit</span><span class="p">()</span>
+</pre></div>
+</div>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -50,6 +68,8 @@ pymc3 model to the data, and some plotting of results functionality.</p>
 around numax.</li>
 <li><strong>snr</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – Array of SNR values for the frequency bins in f (dimensionless).</li>
 <li><strong>asy_result</strong> (<em>asy_result</em>) – The result from the asy_peakbag method.</li>
+<li><strong>init</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a>) – If true runs make_start and trim_ladder to prepare starting
+guesses for sampling and transforms the data onto a ladder.</li>
 </ul>
 </td>
 </tr>
@@ -64,7 +84,7 @@ around numax.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)">float</a>, array</td>
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)">float</a>, ndarray</td>
 </tr>
 </tbody>
 </table>
@@ -78,7 +98,7 @@ around numax.</p>
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
-<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)">float</a>, array</td>
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)">float</a>, ndarray</td>
 </tr>
 </tbody>
 </table>
@@ -87,7 +107,11 @@ around numax.</p>
 <dl class="attribute">
 <dt id="pbjam.peakbag.peakbag.asy_result">
 <code class="descname">asy_result</code><a class="headerlink" href="#pbjam.peakbag.peakbag.asy_result" title="Permalink to this definition">¶</a></dt>
-<dd><p>The result from the asy_peakbag method.</p>
+<dd><p>The result from the asy_peakbag method.
+This is a dictionary of ‘modeID’ and ‘summary’.
+‘modeID’ is a DataFrame with a list of modes and basic properties.
+‘summary’ are summary statistics from the asymptotic_fit.
+See asy_peakbag asymptotic_fit for more details.</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
@@ -98,34 +122,32 @@ around numax.</p>
 </table>
 </dd></dl>
 
-<dl class="docutils">
-<dt>Example useage:</dt>
-<dd><p class="first">from pbjam import star
-from pbjam import peakbag
-import pymc3 as pm</p>
-<p class="last"># … define a star in the pbjam star class …
-star.asymptotic_modeid(norders = 7)
-pb = peakbag.peakbag(star.f, star.s, star.asy_result)
-pb.sample(model_type=’width_gp’, cores=4, tune=5000)
-pm.summary(pb.samples)</p>
-</dd>
-</dl>
+<dl class="method">
+<dt id="pbjam.peakbag.peakbag.init_model">
+<code class="descname">init_model</code><span class="sig-paren">(</span><em>model_type</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.init_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.init_model" title="Permalink to this definition">¶</a></dt>
+<dd><p>TODO - Need to describe what is happening here.
+Complete docs when model is settled on.  Probably quiet a
+long docs needed to explain.</p>
+</dd></dl>
+
 <dl class="method">
 <dt id="pbjam.peakbag.peakbag.lor">
 <code class="descname">lor</code><span class="sig-paren">(</span><em>freq</em>, <em>w</em>, <em>h</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.lor"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.lor" title="Permalink to this definition">¶</a></dt>
 <dd><p>This function calculates a lorentzian for each rung of the frequency
 ladder.  The ladder is a 2D array.  freq, w, and h should be 1D arrays
-of length that matches the height of the ladder.  No checkes are made
+of length that matches the height of the ladder.  No checks are made
 for this so as to reduce overheads.</p>
 <blockquote>
 <div><dl class="docutils">
-<dt>freq <span class="classifier-delimiter">:</span> <span class="classifier">float, array</span></dt>
+<dt>freq <span class="classifier-delimiter">:</span> <span class="classifier">float, ndarray</span></dt>
 <dd>A length H array of Lorentzian central frequencies where H is the
 height of self.ladder_f .</dd>
-<dt>w <span class="classifier-delimiter">:</span> <span class="classifier">float, array</span></dt>
-<dd>A length H array of Lorentzian widths.</dd>
-<dt>h <span class="classifier-delimiter">:</span> <span class="classifier">float, array</span></dt>
-<dd>A length H array of Lorentzian heights.</dd>
+<dt>w <span class="classifier-delimiter">:</span> <span class="classifier">float, ndarray</span></dt>
+<dd>A length H array of Lorentzian width where H is the
+height of self.ladder_f .</dd>
+<dt>h <span class="classifier-delimiter">:</span> <span class="classifier">float, ndarray</span></dt>
+<dd>A length H array of Lorentzian heightswhere H is the
+height of self.ladder_f .</dd>
 </dl>
 </div></blockquote>
 <table class="docutils field-list" frame="void" rules="none">
@@ -144,7 +166,7 @@ height of self.ladder_f .</dd>
 <dt id="pbjam.peakbag.peakbag.make_start">
 <code class="descname">make_start</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.make_start"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.make_start" title="Permalink to this definition">¶</a></dt>
 <dd><p>Function uses the information in self.asy_result (the result of the
-asymptotic peakbagging) and builds a disctionary of starting values
+asymptotic peakbagging) and builds a dictionary of starting values
 for the peakbagging methods.</p>
 </dd></dl>
 
@@ -158,21 +180,27 @@ for each rung of self.ladder_f .</p>
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first simple">
-<li><strong>l0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of l=0 mode central frequencies where H is the
+<li><strong>l0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of l=0 mode central frequencies where H is the
 height of self.ladder_f .</li>
-<li><strong>l2</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of l=2 mode central frequencies.</li>
-<li><strong>width0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of l=0 mode widths.</li>
-<li><strong>width2</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of l=2 mode widths.</li>
-<li><strong>height0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of l=0 mode heights.</li>
-<li><strong>height2</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of l=2 mode heights.</li>
-<li><strong>back</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – A length H array of background values.</li>
+<li><strong>l2</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of l=2 mode central frequencies where H is the
+height of self.ladder_f .</li>
+<li><strong>width0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of l=0 mode widths where H is the
+height of self.ladder_f .</li>
+<li><strong>width2</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of l=2 mode widths where H is the
+height of self.ladder_f .</li>
+<li><strong>height0</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of l=0 mode heights where H is the
+height of self.ladder_f .</li>
+<li><strong>height2</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of l=2 mode heights where H is the
+height of self.ladder_f .</li>
+<li><strong>back</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>ndarray</em>) – A length H array of background values where H is the
+height of self.ladder_f .</li>
 </ul>
 </td>
 </tr>
-<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>mod</strong> – A ladder containing the calculted model.</p>
+<tr class="field-even field"><th class="field-name">Returns:</th><td class="field-body"><p class="first"><strong>mod</strong> – A 2D array (or ‘ladder’) containing the calculated model.</p>
 </td>
 </tr>
-<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)">float</a>, ladder</p>
+<tr class="field-odd field"><th class="field-name">Return type:</th><td class="field-body"><p class="first last"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)">float</a>, ndarray</p>
 </td>
 </tr>
 </tbody>
@@ -180,88 +208,38 @@ height of self.ladder_f .</li>
 </dd></dl>
 
 <dl class="method">
-<dt id="pbjam.peakbag.peakbag.model_gp">
-<code class="descname">model_gp</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.model_gp"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.model_gp" title="Permalink to this definition">¶</a></dt>
-<dd><p>TODO</p>
+<dt id="pbjam.peakbag.peakbag.remove_outsiders">
+<code class="descname">remove_outsiders</code><span class="sig-paren">(</span><em>l0</em>, <em>l2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.remove_outsiders"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.remove_outsiders" title="Permalink to this definition">¶</a></dt>
+<dd><p>Drops modes where the guess frequency is outside of the supplied
+frequency range.</p>
 </dd></dl>
 
 <dl class="method">
-<dt id="pbjam.peakbag.peakbag.plot_fit">
-<code class="descname">plot_fit</code><span class="sig-paren">(</span><em>thin=10</em>, <em>alpha=0.2</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.plot_fit"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.plot_fit" title="Permalink to this definition">¶</a></dt>
-<dd><p>TODO</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="pbjam.peakbag.peakbag.plot_height">
-<code class="descname">plot_height</code><span class="sig-paren">(</span><em>thin=10</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.plot_height"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.plot_height" title="Permalink to this definition">¶</a></dt>
-<dd><p>TODO</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="pbjam.peakbag.peakbag.plot_linewidth">
-<code class="descname">plot_linewidth</code><span class="sig-paren">(</span><em>thin=10</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.plot_linewidth"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.plot_linewidth" title="Permalink to this definition">¶</a></dt>
-<dd><p>TODO</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="pbjam.peakbag.peakbag.plot_start_model">
-<code class="descname">plot_start_model</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.plot_start_model"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.plot_start_model" title="Permalink to this definition">¶</a></dt>
-<dd><p>Plots the model generated from the starting parameters</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="pbjam.peakbag.peakbag.sample">
-<code class="descname">sample</code><span class="sig-paren">(</span><em>model_type='simple'</em>, <em>tune=2000</em>, <em>target_accept=0.8</em>, <em>cores=1</em>, <em>maxiter=4</em>, <em>advi=True</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.sample"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.sample" title="Permalink to this definition">¶</a></dt>
-<dd><p>Function to perform the sampling of a defined model.</p>
+<dt id="pbjam.peakbag.peakbag.trim_ladder">
+<code class="descname">trim_ladder</code><span class="sig-paren">(</span><em>lw_fac=10</em>, <em>extra=0.01</em>, <em>verbose=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.trim_ladder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.trim_ladder" title="Permalink to this definition">¶</a></dt>
+<dd><p>This function makes ladders and then selects only the orders
+in the ladders that have modes that are to be fitted,
+i.e, it trims the ladder.</p>
+<p>Each ladder rung is constructed so that the central frequency is
+the mid point between the l=0 and l=2 modes as determined by the
+info in the asy_result dictionary.</p>
+<p>The width of the rung is determined by d02, line width, and some
+parameters lw_fac and extra.  The basic calculation is the width is:
+d02 + (lw_fac * line_width) + (extra * dnu)</p>
 <table class="docutils field-list" frame="void" rules="none">
 <col class="field-name" />
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>model_type</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a>) – Defaults to ‘simple’.
-Can be either ‘simple’ or ‘model_gp’ which sets the type of model
-to be fitted to the data.</li>
-<li><strong>tune</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Numer of tuning steps passed to pm.sample</li>
-<li><strong>target_accept</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – Target acceptance fraction passed to pm.sample</li>
-<li><strong>cores</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Number of cores to use - passed to pm.sample</li>
+<li><strong>lw_fac</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – The factor by which the mode line width is multiplied in order
+to contribute to the rung width.</li>
+<li><strong>extra</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a>) – The factor by which dnu is multiplied in order to contribute to
+the rung width.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
-</dd></dl>
-
-<dl class="method">
-<dt id="pbjam.peakbag.peakbag.simple">
-<code class="descname">simple</code><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.simple"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.simple" title="Permalink to this definition">¶</a></dt>
-<dd><p>Creates a simple peakbagging model in pymc3’s self.pm_model which is
-an instance of pm.Model().</p>
-<p>The simple model has three parameters per mode (freq, w, h) and one
-back parameter per rung of the frequency ladder.</p>
-<p>All parameters are independent.  For a model with additional constraints
-see model_gp.</p>
-<dl class="docutils">
-<dt>Priors on parameters are defined as follows:</dt>
-<dd>l0 ~ Normal(start[l0], dnu*0.1)
-l2 ~ Normal(start[l2], dnu*0.1)
-width0 ~ HalfNormal(wfac * start[width0])
-width2 ~ HalfNormal(wfac * start[width2])
-height0 ~ HalfNormal(hfac * start[height0])
-height2 ~ HalfNormal(hfac * start[height2])
-back ~ Normal(1, 0.2)</dd>
-</dl>
-<p>The likelihood function of the observed data is dealt with using a
-Gamma distribution where alpha=1 and beta=1/limit where limit is the
-model of the spectrum proposed.  Using this gamma distirbution is the
-equivalent of stating that observed/model is distributed as chi squared
-two degrees of freedom.</p>
-</dd></dl>
-
-<dl class="method">
-<dt id="pbjam.peakbag.peakbag.trim_ladder">
-<code class="descname">trim_ladder</code><span class="sig-paren">(</span><em>lw_fac=10</em>, <em>extra=0.01</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/peakbag.html#peakbag.trim_ladder"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.peakbag.peakbag.trim_ladder" title="Permalink to this definition">¶</a></dt>
-<dd><p>This function selects only the orders in the ladders that have modes
-that age to be fitted, i.e., it trims the ladder.</p>
 </dd></dl>
 
 </dd></dl>
@@ -299,7 +277,7 @@ that age to be fitted, i.e., it trims the ladder.</p>
   <li><a href="index.html">Documentation overview</a><ul>
   <li><a href="api.html">API</a><ul>
       <li>Previous: <a href="asy_peakbag.html" title="previous chapter">asy_peakbag</a></li>
-      <li>Next: <a href="license.html" title="next chapter">License</a></li>
+      <li>Next: <a href="priors.html" title="next chapter">priors</a></li>
   </ul></li>
   </ul></li>
 </ul>

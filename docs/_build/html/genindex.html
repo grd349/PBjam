@@ -14,6 +14,8 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="#" />
     <link rel="search" title="Search" href="search.html" />
    
@@ -42,6 +44,7 @@
  | <a href="#D"><strong>D</strong></a>
  | <a href="#F"><strong>F</strong></a>
  | <a href="#G"><strong>G</strong></a>
+ | <a href="#I"><strong>I</strong></a>
  | <a href="#K"><strong>K</strong></a>
  | <a href="#L"><strong>L</strong></a>
  | <a href="#M"><strong>M</strong></a>
@@ -57,7 +60,7 @@
 <h2 id="A">A</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.arr_to_lk">arr_to_lk() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.arr_to_lk">arr_to_lk() (in module pbjam.session)</a>
 </li>
       <li><a href="peakbag.html#pbjam.peakbag.peakbag.asy_result">asy_result (pbjam.peakbag.peakbag attribute)</a>
 </li>
@@ -78,22 +81,16 @@
       <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.bounds">bounds (pbjam.asy_peakbag.asymptotic_fit attribute)</a>
 </li>
   </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.burnin">burnin (pbjam.asy_peakbag.mcmc attribute)</a>
-</li>
-  </ul></td>
 </tr></table>
 
 <h2 id="C">C</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.chain">chain (pbjam.asy_peakbag.mcmc attribute)</a>
+      <li><a href="session.html#pbjam.session.clean_lc">clean_lc() (in module pbjam.session)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.clean_lc">clean_lc() (in module pbjam.jar)</a>
-</li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.convergence_test">convergence_test() (pbjam.asy_peakbag.mcmc method)</a>
+      <li><a href="mcmc.html#pbjam.mcmc.mcmc.converged">converged() (pbjam.mcmc.mcmc method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -101,7 +98,7 @@
 <h2 id="D">D</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.Prior.data_file">data_file (pbjam.asy_peakbag.Prior attribute)</a>
+      <li><a href="star.html#pbjam.star.star.data_file">data_file (pbjam.star.star attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -116,16 +113,14 @@
 </li>
         <li><a href="peakbag.html#pbjam.peakbag.peakbag.f">(pbjam.peakbag.peakbag attribute)</a>
 </li>
+        <li><a href="star.html#pbjam.star.star.f">(pbjam.star.star attribute)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.flatchain">flatchain (pbjam.asy_peakbag.mcmc attribute)</a>
+      <li><a href="mcmc.html#pbjam.mcmc.mcmc.fold">fold() (pbjam.mcmc.mcmc method)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.flatlnlike">flatlnlike (pbjam.asy_peakbag.mcmc attribute)</a>
-</li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.fold">fold() (pbjam.asy_peakbag.mcmc method)</a>
-</li>
-      <li><a href="jar.html#pbjam.jar.format_col">format_col() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.format_col">format_col() (in module pbjam.session)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -148,10 +143,24 @@
   </ul></td>
 </tr></table>
 
+<h2 id="I">I</h2>
+<table style="width: 100%" class="indextable genindextable"><tr>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="peakbag.html#pbjam.peakbag.peakbag.init_model">init_model() (pbjam.peakbag.peakbag method)</a>
+</li>
+  </ul></td>
+</tr></table>
+
 <h2 id="K">K</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.Prior.kde">kde (pbjam.asy_peakbag.Prior attribute)</a>
+      <li><a href="priors.html#pbjam.priors.kde">kde (class in pbjam.priors)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="priors.html#pbjam.priors.kde.kde_predict">kde_predict() (pbjam.priors.kde method)</a>
+</li>
+      <li><a href="priors.html#pbjam.priors.kde.kde_sampler">kde_sampler() (pbjam.priors.kde method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -159,15 +168,19 @@
 <h2 id="L">L</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.lc_to_lk">lc_to_lk() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.lc_to_lk">lc_to_lk() (in module pbjam.session)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.likelihood">likelihood() (pbjam.asy_peakbag.mcmc method)</a>
+      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.likelihood">likelihood() (pbjam.asy_peakbag.asymptotic_fit method)</a>
+
+      <ul>
+        <li><a href="priors.html#pbjam.priors.kde.likelihood">(pbjam.priors.kde method)</a>
 </li>
-      <li><a href="jar.html#pbjam.jar.lk_to_pg">lk_to_pg() (in module pbjam.jar)</a>
-</li>
+      </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.lnlike">lnlike (pbjam.asy_peakbag.mcmc attribute)</a>
+      <li><a href="session.html#pbjam.session.lk_to_pg">lk_to_pg() (in module pbjam.session)</a>
+</li>
+      <li><a href="mcmc.html#pbjam.mcmc.mcmc.logpost">logpost() (pbjam.mcmc.mcmc method)</a>
 </li>
       <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.lor">lor() (pbjam.asy_peakbag.asymp_spec_model method)</a>
 
@@ -175,19 +188,17 @@
         <li><a href="peakbag.html#pbjam.peakbag.peakbag.lor">(pbjam.peakbag.peakbag method)</a>
 </li>
       </ul></li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.lp">lp (pbjam.asy_peakbag.mcmc attribute)</a>
-</li>
   </ul></td>
 </tr></table>
 
 <h2 id="M">M</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mad">mad() (in module pbjam.asy_peakbag)</a>
+      <li><a href="priors.html#pbjam.priors.kde.make_kde">make_kde() (pbjam.priors.kde method)</a>
 </li>
       <li><a href="peakbag.html#pbjam.peakbag.peakbag.make_start">make_start() (pbjam.peakbag.peakbag method)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc">mcmc (class in pbjam.asy_peakbag)</a>
+      <li><a href="mcmc.html#pbjam.mcmc.mcmc">mcmc (class in pbjam.mcmc)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -199,25 +210,19 @@
         <li><a href="peakbag.html#pbjam.peakbag.peakbag.model">(pbjam.peakbag.peakbag method)</a>
 </li>
       </ul></li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.model_gp">model_gp() (pbjam.peakbag.peakbag method)</a>
-</li>
   </ul></td>
 </tr></table>
 
 <h2 id="N">N</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.ndim">ndim (pbjam.asy_peakbag.mcmc attribute)</a>
-</li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.niter">niter (pbjam.asy_peakbag.mcmc attribute)</a>
+      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.norders">norders (pbjam.asy_peakbag.asymp_spec_model attribute)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.norders">norders (pbjam.asy_peakbag.asymp_spec_model attribute)</a>
+      <li><a href="priors.html#pbjam.priors.kde.normal">normal() (pbjam.priors.kde method)</a>
 </li>
-      <li><a href="jar.html#pbjam.jar.session.nthreads">nthreads (pbjam.jar.session attribute)</a>
-</li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.nwalkers">nwalkers (pbjam.asy_peakbag.mcmc attribute)</a>
+      <li><a href="session.html#pbjam.session.session.nthreads">nthreads (pbjam.session.session attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -225,11 +230,13 @@
 <h2 id="O">O</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.organize_sess_dataframe">organize_sess_dataframe() (in module pbjam.jar)</a>
+      <li><a href="priors.html#pbjam.priors.kde.obs_to_log">obs_to_log() (pbjam.priors.kde method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.organize_sess_input">organize_sess_input() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.organize_sess_dataframe">organize_sess_dataframe() (in module pbjam.session)</a>
+</li>
+      <li><a href="session.html#pbjam.session.organize_sess_input">organize_sess_input() (in module pbjam.session)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -241,35 +248,37 @@
 </li>
       <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymp_spec_model.pair">pair() (pbjam.asy_peakbag.asymp_spec_model method)</a>
 </li>
+      <li><a href="session.html#pbjam.session.session.pb_model_type">pb_model_type (pbjam.session.session attribute)</a>
+</li>
       <li><a href="asy_peakbag.html#module-pbjam.asy_peakbag">pbjam.asy_peakbag (module)</a>
 </li>
       <li><a href="jar.html#module-pbjam.jar">pbjam.jar (module)</a>
 </li>
+      <li><a href="mcmc.html#module-pbjam.mcmc">pbjam.mcmc (module)</a>
+</li>
       <li><a href="peakbag.html#module-pbjam.peakbag">pbjam.peakbag (module)</a>
 </li>
-      <li><a href="star.html#module-pbjam.star">pbjam.star (module)</a>
-</li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.Prior.pbound">pbound() (pbjam.asy_peakbag.Prior method)</a>
-</li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag">peakbag (class in pbjam.peakbag)</a>
+      <li><a href="plotting.html#module-pbjam.plotting">pbjam.plotting (module)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.Prior.pgaussian">pgaussian() (pbjam.asy_peakbag.Prior method)</a>
+      <li><a href="priors.html#module-pbjam.priors">pbjam.priors (module)</a>
 </li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.plot_fit">plot_fit() (pbjam.peakbag.peakbag method)</a>
+      <li><a href="session.html#module-pbjam.session">pbjam.session (module)</a>
 </li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.plot_height">plot_height() (pbjam.peakbag.peakbag method)</a>
+      <li><a href="star.html#module-pbjam.star">pbjam.star (module)</a>
 </li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.plot_linewidth">plot_linewidth() (pbjam.peakbag.peakbag method)</a>
+      <li><a href="peakbag.html#pbjam.peakbag.peakbag">peakbag (class in pbjam.peakbag)</a>
 </li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.plot_start_model">plot_start_model() (pbjam.peakbag.peakbag method)</a>
+      <li><a href="plotting.html#pbjam.plotting.plot_echelle">plot_echelle() (in module pbjam.plotting)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.Prior">Prior (class in pbjam.asy_peakbag)</a>
+      <li><a href="plotting.html#pbjam.plotting.plot_height">plot_height() (in module pbjam.plotting)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.Prior.prior_data">prior_data (pbjam.asy_peakbag.Prior attribute)</a>
+      <li><a href="plotting.html#pbjam.plotting.plot_ladder">plot_ladder() (in module pbjam.plotting)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.mcmc.prior_only">prior_only (pbjam.asy_peakbag.mcmc attribute)</a>
+      <li><a href="plotting.html#pbjam.plotting.plot_linewidth">plot_linewidth() (in module pbjam.plotting)</a>
+</li>
+      <li><a href="priors.html#pbjam.priors.kde.prior">prior() (pbjam.priors.kde method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -277,11 +286,11 @@
 <h2 id="Q">Q</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.query_lightkurve">query_lightkurve() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.query_lightkurve">query_lightkurve() (in module pbjam.session)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="jar.html#pbjam.jar.query_mast">query_mast() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.query_mast">query_mast() (in module pbjam.session)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -289,7 +298,17 @@
 <h2 id="R">R</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.run">run() (pbjam.asy_peakbag.asymptotic_fit method)</a>
+      <li><a href="priors.html#pbjam.priors.kde.read_prior_data">read_prior_data() (pbjam.priors.kde method)</a>
+</li>
+      <li><a href="peakbag.html#pbjam.peakbag.peakbag.remove_outsiders">remove_outsiders() (pbjam.peakbag.peakbag method)</a>
+</li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="star.html#pbjam.star.star.run_asy_peakbag">run_asy_peakbag() (pbjam.star.star method)</a>
+</li>
+      <li><a href="star.html#pbjam.star.star.run_kde">run_kde() (pbjam.star.star method)</a>
+</li>
+      <li><a href="star.html#pbjam.star.star.run_peakbag">run_peakbag() (pbjam.star.star method)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -298,30 +317,28 @@
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.s">s (pbjam.asy_peakbag.asymptotic_fit attribute)</a>
+
+      <ul>
+        <li><a href="star.html#pbjam.star.star.s">(pbjam.star.star attribute)</a>
 </li>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.sample">sample() (pbjam.peakbag.peakbag method)</a>
-</li>
+      </ul></li>
       <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.sel">sel (pbjam.asy_peakbag.asymptotic_fit attribute)</a>
 </li>
-      <li><a href="jar.html#pbjam.jar.session">session (class in pbjam.jar)</a>
+      <li><a href="priors.html#pbjam.priors.kde.select_prior_data">select_prior_data() (pbjam.priors.kde method)</a>
 </li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.set_bounds">set_bounds() (pbjam.asy_peakbag.asymptotic_fit method)</a>
-</li>
-      <li><a href="asy_peakbag.html#pbjam.asy_peakbag.asymptotic_fit.set_gaussian_pars">set_gaussian_pars() (pbjam.asy_peakbag.asymptotic_fit method)</a>
+      <li><a href="session.html#pbjam.session.session">session (class in pbjam.session)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="peakbag.html#pbjam.peakbag.peakbag.simple">simple() (pbjam.peakbag.peakbag method)</a>
-</li>
       <li><a href="peakbag.html#pbjam.peakbag.peakbag.snr">snr (pbjam.peakbag.peakbag attribute)</a>
 </li>
-      <li><a href="jar.html#pbjam.jar.sort_lc">sort_lc() (in module pbjam.jar)</a>
+      <li><a href="session.html#pbjam.session.sort_lc">sort_lc() (in module pbjam.session)</a>
 </li>
       <li><a href="star.html#pbjam.star.star">star (class in pbjam.star)</a>
 </li>
-      <li><a href="jar.html#pbjam.jar.session.stars">stars (pbjam.jar.session attribute)</a>
+      <li><a href="session.html#pbjam.session.session.stars">stars (pbjam.session.session attribute)</a>
 </li>
-      <li><a href="jar.html#pbjam.jar.session.store_chains">store_chains (pbjam.jar.session attribute)</a>
+      <li><a href="session.html#pbjam.session.session.store_chains">store_chains (pbjam.session.session attribute)</a>
 </li>
   </ul></td>
 </tr></table>
@@ -329,7 +346,7 @@
 <h2 id="T">T</h2>
 <table style="width: 100%" class="indextable genindextable"><tr>
   <td style="width: 33%; vertical-align: top;"><ul>
-      <li><a href="star.html#pbjam.star.star.TODO">TODO (pbjam.star.star attribute)</a>
+      <li><a href="priors.html#pbjam.priors.kde.to_log10">to_log10() (pbjam.priors.kde method)</a>
 </li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>

@@ -13,10 +13,12 @@
     <script type="text/javascript" src="_static/jquery.js"></script>
     <script type="text/javascript" src="_static/underscore.js"></script>
     <script type="text/javascript" src="_static/doctools.js"></script>
+    <script async="async" type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.1/MathJax.js?config=TeX-AMS-MML_HTMLorMML"></script>
+    <script type="text/x-mathjax-config">MathJax.Hub.Config({"tex2jax": {"inlineMath": [["$", "$"], ["\\(", "\\)"]], "processEscapes": true, "ignoreClass": "document", "processClass": "math|output_area"}})</script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="asy_peakbag" href="asy_peakbag.html" />
-    <link rel="prev" title="jar" href="jar.html" />
+    <link rel="prev" title="session" href="session.html" />
    
   <link rel="stylesheet" href="_static/custom.css" type="text/css" />
   
@@ -37,7 +39,7 @@
 <span id="star"></span><h1>star<a class="headerlink" href="#module-pbjam.star" title="Permalink to this headline">¶</a></h1>
 <dl class="class">
 <dt id="pbjam.star.star">
-<em class="property">class </em><code class="descclassname">pbjam.star.</code><code class="descname">star</code><span class="sig-paren">(</span><em>ID</em>, <em>periodogram</em>, <em>numax</em>, <em>dnu</em>, <em>teff=None</em>, <em>bp_rp=None</em>, <em>store_chains=True</em>, <em>nthreads=1</em>, <em>make_plots=False</em>, <em>path=None</em>, <em>verbose=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/star.html#star"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.star.star" title="Permalink to this definition">¶</a></dt>
+<em class="property">class </em><code class="descclassname">pbjam.star.</code><code class="descname">star</code><span class="sig-paren">(</span><em>ID</em>, <em>pg</em>, <em>numax</em>, <em>dnu</em>, <em>teff</em>, <em>bp_rp</em>, <em>path=None</em>, <em>prior_file=None</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/star.html#star"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.star.star" title="Permalink to this definition">¶</a></dt>
 <dd><p>Class for each star to be peakbagged</p>
 <p>Additional attributes are added for each step of the peakbagging process</p>
 <table class="docutils field-list" frame="void" rules="none">
@@ -45,30 +47,91 @@
 <col class="field-body" />
 <tbody valign="top">
 <tr class="field-odd field"><th class="field-name">Parameters:</th><td class="field-body"><ul class="first last simple">
-<li><strong>ID</strong> (<em>string</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Target identifier, if custom timeseries/periodogram is provided, it
-must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.)</li>
-<li><strong>f</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.7)"><em>float</em></a><em>, </em><em>array</em>) – Array of frequency bins of the spectrum (muHz)</li>
-<li><strong>s</strong> (<em>array</em>) – The power at frequencies f</li>
-<li><strong>numax</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [numax, numax_error], list of lists for multiple
-targets</li>
-<li><strong>dnu</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [dnu, dnu_error], list of lists for multiple targets</li>
-<li><strong>teff</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em>) – List of the form [teff, teff_error], list of lists for multiple targets</li>
-<li><strong>bp_rp</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a><em>, </em><em>optional</em>) – List of the form [bp_rp, bp_rp_error], list of lists for multiple
-targets</li>
+<li><strong>ID</strong> (<em>string</em><em>, </em><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a>) – Target identifier. If custom timeseries/periodogram is provided, it
+must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.).</li>
+<li><strong>periodogram</strong> (<em>lightkurve.periodogram.Periodogram object</em>) – A lightkurve periodogram object containing frequencies in units of
+microhertz and power (in arbitrary units).</li>
+<li><strong>numax</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [numax, numax_error]. For multiple targets, use a list
+of lists.</li>
+<li><strong>dnu</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [dnu, dnu_error]. For multiple targets, use a list
+of lists.</li>
+<li><strong>teff</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [teff, teff_error]. For multiple targets, use a list
+of lists.</li>
+<li><strong>bp_rp</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.7)"><em>list</em></a>) – List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
+of lists.</li>
 <li><strong>store_chains</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – Flag for storing all the full set of samples from the MCMC run.
 Warning, if running multiple targets, make sure you have enough memory.</li>
 <li><strong>nthreads</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.7)"><em>int</em></a><em>, </em><em>optional</em>) – Number of multiprocessing threads to use to perform the fit. For long
 cadence data 1 is best, more will just add parallelization overhead.
 Untested on short cadence.</li>
+<li><strong>make_plots</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, will save figures when calling methods in <cite>star</cite>.</li>
+<li><strong>path</strong> (<a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)"><em>str</em></a><em>, </em><em>optional</em>) – The path at which to store output. If no path is set but make_plots is
+True, output will be saved in the current working directory.</li>
+<li><strong>verbose</strong> (<a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.7)"><em>bool</em></a><em>, </em><em>optional</em>) – If True, will show error messages on the users terminal if they occur.</li>
 </ul>
 </td>
 </tr>
 </tbody>
 </table>
 <dl class="attribute">
-<dt id="pbjam.star.star.TODO">
-<code class="descname">TODO</code><a class="headerlink" href="#pbjam.star.star.TODO" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
+<dt id="pbjam.star.star.f">
+<code class="descname">f</code><a class="headerlink" href="#pbjam.star.star.f" title="Permalink to this definition">¶</a></dt>
+<dd><p>Array of power spectrum frequencies</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body">array</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pbjam.star.star.s">
+<code class="descname">s</code><a class="headerlink" href="#pbjam.star.star.s" title="Permalink to this definition">¶</a></dt>
+<dd><p>power spectrum</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body">array</td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="attribute">
+<dt id="pbjam.star.star.data_file">
+<code class="descname">data_file</code><a class="headerlink" href="#pbjam.star.star.data_file" title="Permalink to this definition">¶</a></dt>
+<dd><p>Path to the csv file containing the prior data</p>
+<table class="docutils field-list" frame="void" rules="none">
+<col class="field-name" />
+<col class="field-body" />
+<tbody valign="top">
+<tr class="field-odd field"><th class="field-name">Type:</th><td class="field-body"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.7)">str</a></td>
+</tr>
+</tbody>
+</table>
+</dd></dl>
+
+<dl class="method">
+<dt id="pbjam.star.star.run_asy_peakbag">
+<code class="descname">run_asy_peakbag</code><span class="sig-paren">(</span><em>norders=None</em>, <em>make_plots=False</em>, <em>store_chains=False</em>, <em>nthreads=1</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/star.html#star.run_asy_peakbag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.star.star.run_asy_peakbag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs the asy_peakbag code.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pbjam.star.star.run_kde">
+<code class="descname">run_kde</code><span class="sig-paren">(</span><em>bw_fac=1.0</em>, <em>make_plots=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/star.html#star.run_kde"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.star.star.run_kde" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs the kde code and makes plots if self.make_plots is set.</p>
+</dd></dl>
+
+<dl class="method">
+<dt id="pbjam.star.star.run_peakbag">
+<code class="descname">run_peakbag</code><span class="sig-paren">(</span><em>model_type='simple'</em>, <em>tune=1500</em>, <em>nthreads=1</em>, <em>make_plots=False</em>, <em>store_chains=False</em><span class="sig-paren">)</span><a class="reference internal" href="_modules/pbjam/star.html#star.run_peakbag"><span class="viewcode-link">[source]</span></a><a class="headerlink" href="#pbjam.star.star.run_peakbag" title="Permalink to this definition">¶</a></dt>
+<dd><p>Runs peakbag on the given star.</p>
+</dd></dl>
 
 </dd></dl>
 
@@ -104,7 +167,7 @@ Untested on short cadence.</li>
 <ul>
   <li><a href="index.html">Documentation overview</a><ul>
   <li><a href="api.html">API</a><ul>
-      <li>Previous: <a href="jar.html" title="previous chapter">jar</a></li>
+      <li>Previous: <a href="session.html" title="previous chapter">session</a></li>
       <li>Next: <a href="asy_peakbag.html" title="next chapter">asy_peakbag</a></li>
   </ul></li>
   </ul></li>
