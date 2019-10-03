@@ -20,13 +20,13 @@ Requirements
 - numpy
 - scipy v1.3.0 or later
 - pandas
-- emcee
-- lightkurve v1.0.1 or later
+- emcee v3.0rc2
+- lightkurve v1.2.0 or later
 - astropy
 - pymc3
-- statsmodels v.0.10.0 or later
+- statsmodels v0.10.0 or later
+- matplotlib v1.5.3 or later
 - corner
-
 
 
 
