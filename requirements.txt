@@ -4,7 +4,7 @@ statsmodels>=0.10.0
 matplotlib>=1.5.3
 pandas
 emcee==3.0rc2
-lightkurve==1.2.0
+lightkurve==1.1.1
 astropy
 corner
 pymc3
