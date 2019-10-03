@@ -539,13 +539,13 @@ class asymptotic_fit(kde, plotting):
         self.summary, self.mle_model = get_summary_stats(self.fit, self.model, 
                                                          self.par_names)
 
-        if self.store_chains:
-            self.samples = self.fit.flatchain
-            self.lnlike_fin = self.fit.flatlnlike
-        else:
-            self.samples = self.fit.chain[:,-1,:]
-            self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
-            self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
+        #if self.store_chains:
+        self.samples = self.fit.flatchain
+        #    self.lnlike_fin = self.fit.flatlnlike
+        #else:
+        #    self.samples = self.fit.chain[:,-1,:]
+        #    self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
+        #    self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
         
