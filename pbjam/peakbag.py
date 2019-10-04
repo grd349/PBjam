@@ -59,6 +59,7 @@ class peakbag(plotting):
     """
     def __init__(self, starinst, asyinst, init=True, path=None):
 
+        self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
         self.asy_result = asyinst
@@ -392,6 +393,8 @@ class peakbag(plotting):
                                              progressbar=True)
                 Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
                 niter += 1
+            
+        self.summary = pm.summary(self.samples)
 
 
 
