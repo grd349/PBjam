@@ -371,6 +371,7 @@ class asymptotic_fit(kde, plotting):
     def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False, 
                  nthreads=1, path=None):
         
+        self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
         self.store_chains = store_chains
