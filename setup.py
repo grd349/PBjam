@@ -11,7 +11,7 @@ setuptools.setup(
     long_description=open("README.rst").read(),
     url="https://pbjam.readthedocs.io/",
     packages=['pbjam'],
-    install_requires=open('requirements.txt', 'r').read().splitlines(),
+    install_requires=open('requirements.txt').read().splitlines(),
     include_package_data=True,
     license="MIT",
     classifiers=[
