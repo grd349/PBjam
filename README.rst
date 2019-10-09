@@ -42,4 +42,5 @@ Main Contributors
 Chaos Engineers
 ^^^^^^^^^^^^^^^
 - `Warrick Ball <https://github.com/warrickball>`_ 
-- Alex Lyttle
+- `Alex Lyttle <https://github.com/alexlyttle>`_
+- `Joel Ong <https://github.com/darthoctopus>`_

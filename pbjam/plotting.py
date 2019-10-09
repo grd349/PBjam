@@ -5,13 +5,86 @@ import numpy as np
 from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
 import pymc3 as pm
+from .jar import get_percentiles
 
 class plotting():
     
     def __init__(self):
         pass
     
+    def plot_echelle(self, pg=None):
+        '''
+        Plots an echelle diagram with mode frequencies over plotted.
     
+        Parameters
+        ----------
+        pg : periodogram
+            A lightkurve periodogram (we use the plot echelle method
+            of the periodogram (well actually seismology) class)
+    
+        Returns
+        -------
+        fig : figure
+            The figure containing the plot.
+        '''
+                
+        freqs = {'l'+str(i): {} for i in range(4)}
+        
+        if type(self) == pbjam.star:
+            dnu = self.dnu[0]
+            numax = self.numax[0]
+            
+        elif type(self) == pbjam.priors.kde:  
+            dnu = 10**np.median(self.samples[:,0])
+            numax = 10**np.median(self.samples[:,1])
+            
+        elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
+            dnu = 10**self.summary.loc['dnu', '50th']
+            numax = 10**self.summary.loc['numax', '50th']
+            
+            for l in np.arange(4):
+                idx = self.modeID.ell == l
+                freqs['l'+str(l)] = {'nu': self.modeID.loc[idx, 'nu_med'],
+                                     'err': self.modeID.loc[idx, 'nu_mad']}
+                
+        elif type(self) == pbjam.peakbag:  
+            numax = 10**self.asy_result.summary.loc['numax', '50th']
+            for l in np.arange(4):
+                ell = 'l'+str(l)
+                freqs[ell] = {'nu': self.summary.filter(like=ell, axis=0).loc[:, 'mean'],
+                              'err': self.summary.filter(like=ell, axis=0).loc[:, 'sd']}
+            dnu = np.median(np.diff(freqs['l0']['nu']))
+            
+        else:
+            raise ValueError('Unrecognized class type')
+            
+        # make dnu an intger multiple of bw
+        dnu -= dnu % (self.f[1] - self.f[0])
+        nmin = np.floor(self.f.min() / dnu) + 1
+        
+        if pg:
+            peri = pg
+        elif hasattr(self, 'pg'):
+            peri = self.pg
+        else:
+            raise ValueError('Need spectrum to plot echelle diagram')
+            
+        seismology = peri.flatten().to_seismology()
+        
+        ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
+                                     numax=numax * u.uHz,
+                                     minimum_frequency=dnu*nmin)
+
+        cols = ['C0', 'C1', 'C2', 'C3']
+        print(freqs)
+        for l in np.arange(4):
+            ell = 'l'+str(l)
+            if len(freqs[ell].nu) > 0:
+                nu = freqs[ell]['nu']
+                err = freqs[ell]['err']
+                ax.errorbar(nu%dnu, (nu//dnu) * dnu, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l))
+        ax.legend(fontsize = 'x-small')
+        
     def plot_corner(self, path=None, ID=None, savefig=False):
        
         '''
@@ -244,38 +317,3 @@ def plot_ladder(self, thin=10, alpha=0.2):
 
 
 
-def plot_echelle(self, pg):
-    '''
-    Plots an echelle diagram with mode frequencies over plotted.
-
-    Parameters
-    ----------
-    pg : periodogram
-        A lightkurve periodogram (we use the plot echelle method
-        of the periodogram (well actually seismology) class)
-
-    Returns
-    -------
-    fig : figure
-        The figure containing the plot.
-    '''
-    
-    dnu = np.median(np.diff(np.sort(self.samples['l0'].mean(axis=0))))
-    # make dnu an intger multiple of bw
-    bw = self.f[1] - self.f[0]
-    dnu -= dnu % bw
-    numax = 10**self.asy_result['summary'].loc['numax', 'mean']
-    seismology = pg.flatten().to_seismology()
-    nmin = np.floor(self.f.min() / dnu) + 1
-    ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
-                                 numax=numax * u.uHz,
-                                 minimum_frequency=dnu*nmin)
-    pbjam_mean_l0 = self.samples['l0'].mean(axis=0)
-    pbjam_std_l0 = self.samples['l0'].std(axis=0)
-    pbjam_mean_l2 = self.samples['l2'].mean(axis=0)
-    pbjam_std_l2 = self.samples['l2'].std(axis=0)
-    ax.errorbar(pbjam_mean_l0 % dnu, (pbjam_mean_l0 // dnu) * dnu,
-                xerr=pbjam_std_l0, fmt='ro', alpha=0.5, label=r'$\ell=0$')
-    ax.errorbar(pbjam_mean_l2 % dnu, (pbjam_mean_l2 // dnu) * dnu,
-                xerr=pbjam_std_l2, fmt='gs', alpha=0.5, label=r'$\ell=2$')
-    ax.legend(fontsize = 'x-small')

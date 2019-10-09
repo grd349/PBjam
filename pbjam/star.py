@@ -146,9 +146,9 @@ class star(plotting):
         
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
-        self.asy_fit.summary.to_csv(outpath(f'{type(self).__name__}_summary_{self.ID}.csv'),
+        self.asy_fit.summary.to_csv(outpath(f'asy_fit_summary_{self.ID}.csv'),
                                     index=True)
-        self.asy_fit.modeID.to_csv(outpath(f'{type(self).__name__}_modeID_{self.ID}.csv'),
+        self.asy_fit.modeID.to_csv(outpath(f'asy_fit_modeID_{self.ID}.csv'),
                                    index=False)
         
         if make_plots:
@@ -158,7 +158,7 @@ class star(plotting):
                                        savefig=make_plots)
         
         if store_chains:
-            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'{type(self).__name__}_chains_{self.ID}.csv'), index=False) 
+            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asy_peakbag_chains_{self.ID}.csv'), index=False) 
         
             
 
@@ -174,7 +174,8 @@ class star(plotting):
         
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
-        pm.summary(self.peakbag.samples).to_csv(outpath(f'{type(self).__name__}_summary_{self.ID}.csv'))
+        self.peakbag.summary.to_csv(outpath(f'peakbag_summary_{self.ID}.csv'))
+        
         if store_chains:
             pass # TODO need to pickle the samples if requested.
         if make_plots:
