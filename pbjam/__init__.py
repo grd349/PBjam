@@ -4,6 +4,7 @@
 import os
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 
+from .version import __version__
 from .priors import kde
 from .session import session
 from .asy_peakbag import asymp_spec_model
