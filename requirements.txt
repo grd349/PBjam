@@ -5,8 +5,7 @@ matplotlib>=1.5.3
 pandas
 emcee==3.0rc2
 lightkurve==1.2.0
-astropy
+astropy==3.2.1
 corner
 pymc3
 nbsphinx
-psutil
