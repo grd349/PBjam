@@ -399,7 +399,7 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
         if isinstance(vardf.loc[i, key], str):
             t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
             d += tinyoffset
-            vardf.loc[i, key] = arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
+            vardf.at[i, key] = arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
         elif not vardf.loc[i, key]:
             if vardf.loc[i, 'psd']:
                 pass
@@ -440,13 +440,13 @@ def lk_to_pg(vardf):
     for i, id in enumerate(vardf['ID']):
         if isinstance(vardf.loc[i, key], str):
             f, s = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
-            vardf.loc[i, key] = arr_to_lk(f, s, vardf.loc[i, 'ID'], key)
+            vardf.at[i, key] = arr_to_lk(f, s, vardf.loc[i, 'ID'], key)
         elif not vardf.loc[i, key]:
             lk_lc = vardf.loc[i, 'timeseries']
-            vardf.loc[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
+            vardf.at[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
 
         elif vardf.loc[i, key].__module__ == lk.periodogram.__name__:
-            vardf.loc[i, key] = vardf.loc[i, key].flatten()
+            vardf.at[i, key] = vardf.loc[i, key].flatten()
         else:
             raise TypeError("Can't handle this type of time series object")
 

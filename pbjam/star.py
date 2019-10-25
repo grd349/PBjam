@@ -2,7 +2,6 @@ import os
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
-import pymc3 as pm
 from .jar import get_priorpath
 from .plotting import plotting
 import pandas as pd

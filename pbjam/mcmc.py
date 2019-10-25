@@ -38,7 +38,7 @@ class mcmc():
         self.sampler = emcee.EnsembleSampler(self.nwalkers,
                                              self.ndim,
                                              self.logpost,
-                                             threads=self.nthreads)
+                                             threads=1)
 
         self.chain = None
         self.flatchain = None
@@ -111,11 +111,13 @@ class mcmc():
             if self.converged():
                 print(f'Converged after {self.sampler.iteration} iterations.')
                 break
-
+        #print(vars(self.sampler))
         self.chain = self.sampler.chain.copy()
+        #print(np.shape(self.chain))
         self.lnlike = self.sampler.lnprobability
+        #print(np.shape(self.lnlike))
         self.acceptance = self.sampler.acceptance_fraction
-
+        #print(np.shape(self.acceptance))
         tau = self.sampler.get_autocorr_time(tol=0).mean()
         self.flatchain = self.sampler.get_chain(discard=int(tau*5),
                                                           thin=int(tau/4),
@@ -123,7 +125,8 @@ class mcmc():
         self.flatlnlike = self.sampler.get_log_prob(discard=int(tau*5),
                                                           thin=int(tau/4),
                                                           flat=True)
-        
+        #print(np.shape(self.flatchain))
+        #print(np.shape(self.flatlnlike))
         self.sampler.reset()  # This hopefully minimizes emcee memory leak
         return self.flatchain
 
