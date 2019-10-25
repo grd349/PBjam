@@ -5,7 +5,6 @@ import numpy as np
 from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
 import pymc3 as pm
-from .jar import get_percentiles
 
 class plotting():
     
@@ -128,7 +127,6 @@ class plotting():
         ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
     
         # Overplot kde diagnostic  
-    
         if type(self) == pbjam.star:
              xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
          
@@ -144,8 +142,9 @@ class plotting():
                 y += 0.8 * h * np.exp(-0.5 * (freq[i] - f)**2 / freq_sigma[i]**2)
             ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
                             label=r'$\propto P(\nu_{\ell=0})$')
+
             xlim = [min(freq)-dnu, max(freq)+dnu]
-    
+            
         # Overplot asy_peakbag diagnostic        
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
             for j in np.arange(-50,0):
@@ -181,7 +180,7 @@ class plotting():
                     max(f[self.asy_result.sel])+dnu]
         else:
             raise ValueError('Unrecognized class type')
-        
+
         ax.set_ylim([0, smoo.max()*1.5])
         ax.set_xlim([max([min(f), xlim[0]]), min([max(f), xlim[1]])])
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
@@ -216,15 +215,19 @@ class plotting():
         '''
         Plots the starting model as a diagnotstic.
         '''
+             
+        dnu = 10**np.median(self.start_samples, axis=0)[0]
+        xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = self.start[0] * 0.005 / (self.f[1] - self.f[0])
+        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
         kernel = conv.Gaussian1DKernel(stddev=smoo)
         smoothed = conv.convolve(self.s, kernel)
         ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
         ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 
                 'r-', label='Start model', alpha=0.7)
         ax.set_ylim([0, smoothed.max()*1.5])
+        ax.set_xlim(xlim)
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
         ax.set_ylabel(r'SNR')
         ax.legend()
@@ -234,9 +237,6 @@ class plotting():
  
       
 # Peakbag
-        
-
-
 def plot_linewidth(self, thin=10):
     """
     Plots the estimated line width as a function of scaled n.

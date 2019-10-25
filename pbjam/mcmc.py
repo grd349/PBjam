@@ -25,15 +25,12 @@ class mcmc():
 
     """
 
-    def __init__(self, start,
-                 likelihood, lp,
-                 nwalkers=50,
-                 nthreads=1):
+    def __init__(self, start, likelihood, prior, nwalkers=50, nthreads=1):
+        
         self.start = start
-
         self.ndim = len(start)
         self.likelihood = likelihood
-        self.lp = lp
+        self.lp = prior
 
         self.nwalkers = nwalkers
         self.nthreads = nthreads
@@ -126,6 +123,7 @@ class mcmc():
         self.flatlnlike = self.sampler.get_log_prob(discard=int(tau*5),
                                                           thin=int(tau/4),
                                                           flat=True)
+        
         self.sampler.reset()  # This hopefully minimizes emcee memory leak
         return self.flatchain
 

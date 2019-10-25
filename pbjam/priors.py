@@ -68,7 +68,7 @@ class kde(plotting):
 
         self.prior_data = self.prior_data.loc[idx]
 
-    def make_kde(self, bw_fac=1.0):
+    def make_kde(self):
         ''' Takes the prior data and constructs a KDE function
 
         TODO: add details on the band width determination - see example
@@ -81,25 +81,24 @@ class kde(plotting):
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        # bw set using CV ML but times two.
-        if self.log_obs['numax'][1] < 0:
-            bw = np.array([0.00774255, 0.01441685, 0.04582654,
-                           0.02127414, 0.17830664, 0.54219474,
-                           0.04400531, 0.06834085, 0.0054522,
-                           0.11864199]) * self.bw_fac
+        self.select_prior_data(self.log_obs['numax'])
+        if self.verbose:
+                print(f'Selected data set length {len(self.prior_data)}')
+                
+        if self.bw_fac != 1:    
+            from statsmodels.nonparametric.bandwidths import select_bandwidth
+            bw = select_bandwidth(self.prior_data[self.par_names].values, 
+                                  bw = 'scott', 
+                                  kernel=None) * self.bw_fac
         else:
             if self.verbose:
                 print('Selecting sensible stars ... for kde')
                 print(f'Full data set length {len(self.prior_data)}')
-            self.select_prior_data(self.log_obs['numax'])
-            if self.verbose:
-                print(f'Selected data set length {len(self.prior_data)}')
             bw = 'cv_ml'
 
         self.kde = sm.nonparametric.KDEMultivariate(
                             data=self.prior_data[self.par_names].values,
-                            var_type='cccccccccc',
-                            bw=bw)
+                            var_type='cccccccccc', bw=bw)
 
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood

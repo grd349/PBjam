@@ -225,18 +225,19 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
     Prioritizes long cadence over short cadence unless otherwise specified.
 
     """
+    
     if not download_dir:
-          cache_dir = os.path.join(*[os.path.expanduser('~'), 
+        cache_dir = os.path.join(*[os.path.expanduser('~'), 
                                      '.lightkurve-cache'])
     else:
-          cache_dir = download_dir
+        cache_dir = download_dir
     
     if isinstance(id, str):
         baseid = id
         for prefix in ['KIC','EPIC','TIC','kplr','tic']:
             baseid = baseid.replace(prefix, '')
         baseid = str(int(baseid))
-
+    
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
         
@@ -249,13 +250,15 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
     tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', 
                                         f'*{baseid}*', ext]))
 
-    
+
     if (use_cached and (len(tgtfiles) != 0)):
         lc_col = [lk.open(n) for n in tgtfiles]
     elif (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
         if (use_cached and (len(tgtfiles) == 0)):
             warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
+
         lc_col = query_mast(id, cache_dir, lkwargs)
+
         if len(lc_col) == 0:
             raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
     else:
@@ -404,7 +407,8 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
                 D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
                                                   'campaign', 'quarter']}
                 lk_lc = query_lightkurve(id, download_dir, use_cached, D)
-                vardf.loc[i, key] = lk_lc
+                vardf.at[i, key] = lk_lc
+
         elif vardf.loc[i, key].__module__ == lk.lightcurve.__name__:
             pass
         else:
@@ -624,10 +628,12 @@ class session():
 
         # Take whatever is in the timeseries column of vardf and make it an
         # lk.lightcurve object or None
+
         lc_to_lk(vardf, download_dir, use_cached=use_cached)
         
         # Take whatever is in the timeseries column of vardf and turn it into
         # a periodogram object in the periodogram column.
+
         lk_to_pg(vardf)
 
 
