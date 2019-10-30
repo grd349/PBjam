@@ -41,9 +41,9 @@ class kde(plotting):
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
         self.prior_data = pd.read_csv(self.prior_file)
-        self.prior_data = self.prior_data.dropna()
+        #self.prior_data = self.prior_data.dropna()
 
-    def select_prior_data(self, numax=None, nsigma=7):
+    def select_prior_data(self, numax=None, nsigma=1):
         ''' Selects only the useful prior data based on proximity to estimated
             numax.
 
@@ -58,15 +58,21 @@ class kde(plotting):
         if not numax:
             return self.prior_data
 
-        idx = np.abs(self.prior_data.numax - numax[0]) < nsigma * numax[1]
-
-        if len(self.prior_data[idx]) < 100:
-            warnings.warn('You have less than 100 data points in your prior')
+        # If the number of targets in the range considered for the prior is 
+        # less than 100, the range will be expanded until it ~100. This is 
+        # to ensure that the KDE can be constructed. Note: does not ensure
+        # that the KDE is finite at the location of your target
+       
+        idx = np.zeros(len(self.prior_data), dtype = bool)
+        while len(self.prior_data[idx]) < 100:
+            nsigma += 0.5
+            idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+            
         if len(self.prior_data[idx]) > 1000:
             warnings.warn('You have lots data points in your prior - estimating' +
                           ' the KDE band width will be slow!')
 
-        self.prior_data = self.prior_data.loc[idx]
+        self.prior_data = self.prior_data[idx]
 
     def make_kde(self):
         ''' Takes the prior data and constructs a KDE function
@@ -82,6 +88,7 @@ class kde(plotting):
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
         self.select_prior_data(self.log_obs['numax'])
+        
         if self.verbose:
                 print(f'Selected data set length {len(self.prior_data)}')
                 
@@ -274,7 +281,7 @@ class kde(plotting):
             [estimate of epsilon, unceritainty on estimate]
         '''
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-
+        
         self.obs_to_log(self.obs)
 
         self.make_kde()

@@ -668,15 +668,15 @@ class session():
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
-            try:
-                st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                   model_type=self.pb_model_type, verbose=verbose, 
-                   make_plots=make_plots, store_chains=store_chains, 
-                   nthreads=nthreads)
+            #try:
+            st(bw_fac=bw_fac, tune=tune, norders=norders, 
+               model_type=self.pb_model_type, verbose=verbose, 
+               make_plots=make_plots, store_chains=store_chains, 
+               nthreads=nthreads)
+            
+            self.stars[i] = None
                 
-                self.stars[i] = None
-                
-            except Exception as ex:
-                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                 print(message)
+            #except Exception as ex:
+            #     message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+            #     print(message)
             

@@ -113,7 +113,7 @@ class star(plotting):
         """
         Runs the kde code and makes plots if self.make_plots is set.
         """
-        
+        print('Starting KDE estimation')
         # Init
         kde(self, bw_fac=bw_fac)
         
@@ -134,7 +134,7 @@ class star(plotting):
         """
         Runs the asy_peakbag code.
         """
-        
+        print('Starting Asy_peakbag')
         # Init
         asymptotic_fit(self, self.kde, norders=norders, 
                        store_chains=store_chains, nthreads=nthreads)
@@ -165,6 +165,8 @@ class star(plotting):
         """
         Runs peakbag on the given star.
         """
+        
+        print('Starting peakbagging run')
         # Init
         self.peakbag = peakbag(self, self.asy_fit)
         

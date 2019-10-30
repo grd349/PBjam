@@ -57,9 +57,9 @@ class mcmc():
         loglike = self.likelihood(p)
         return logp + loglike
 
-    def converged(self, nfactor=20):
+    def stationarity(self, nfactor=20):
         """
-        Tests to see if convergence metrics are satified.
+        Tests to see if stationarity metrics are satified.
 
         nfactor should be nearer 100 follwing the emcee docs
         but in PBjam useage I get better than reasonable results
@@ -92,41 +92,57 @@ class mcmc():
             The chain of (nwalkers, niter, ndim) flattened to
             (nwalkers*niter, ndim).
         """
+        nsteps = 1000
 
         # Start walkers in a tight random ball
         if len(start_samples) == 0:
-            p0 = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
+            # Do this in the case of KDE
+            pos = np.array([self.start + (np.random.randn(self.ndim) * spread) for i in range(self.nwalkers)])
         else:
-            p0 = np.random.randn(self.nwalkers, self.ndim)
-            p0 *= start_samples.std(axis=0) * 0.1
-            p0 += start_samples.mean(axis=0)
-
-        pos, prob, state = self.sampler.run_mcmc(p0, 1000)
-        pos = self.fold(pos, spread)
+            # Do this in the case of Asy_peakbag, should be replaced with the actual sample
+            pos = np.random.randn(self.nwalkers, self.ndim)
+            pos *= start_samples.std(axis=0) * 0.1
+            pos += start_samples.mean(axis=0)
+        
+        # Burn in
+        pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
+        # Fold in the low acceptance rate chains
+        pos = self.fold(pos, spread=spread)
+        # Reset sampler
         self.sampler.reset()
 
-        for sample in self.sampler.sample(pos, iterations=max_iter, progress=True):
-            if self.sampler.iteration % 500:
-                continue
-            if self.converged():
-                print(f'Converged after {self.sampler.iteration} iterations.')
+        # Run with burnt-in positions        
+        pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
+        while not self.stationarity():            
+            pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
+            print(f'Steps taken: {self.sampler.iteration}')
+            if self.sampler.iteration == max_iter:
                 break
-        #print(vars(self.sampler))
-        self.chain = self.sampler.chain.copy()
-        #print(np.shape(self.chain))
-        self.lnlike = self.sampler.lnprobability
-        #print(np.shape(self.lnlike))
+        if self.sampler.iteration < max_iter:
+            print(f'Chains reached stationary state after {self.sampler.iteration} iterations.')
+        elif self.sampler.iteration == max_iter:
+            print(f'Sampler stopped at {max_iter} (maximum). Chains did not necessarily reach a stationary state.')
+        else:
+            print('Unhandled exception')
+
+        # Estimate autocorrelation time
+        tau = self.sampler.get_autocorr_time(tol=0, discard = nsteps).mean()
+                
+        self.fold(pos, spread=spread)
+        pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=100, store=True)
+       
         self.acceptance = self.sampler.acceptance_fraction
-        #print(np.shape(self.acceptance))
-        tau = self.sampler.get_autocorr_time(tol=0).mean()
-        self.flatchain = self.sampler.get_chain(discard=int(tau*5),
-                                                          thin=int(tau/4),
-                                                          flat=True)
-        self.flatlnlike = self.sampler.get_log_prob(discard=int(tau*5),
-                                                          thin=int(tau/4),
-                                                          flat=True)
-        #print(np.shape(self.flatchain))
-        #print(np.shape(self.flatlnlike))
+        
+        # 3D chains
+        discard = int(tau*5)
+        thin = int(tau/4)
+        self.chain = self.sampler.get_chain(discard=discard, thin=thin, flat=False)
+        self.lnlike = self.sampler.get_log_prob(discard=discard, thin=thin, flat=False)
+        
+        # 2D chains
+        self.flatchain = self.sampler.get_chain(discard=discard, thin=thin, flat=True)
+        self.flatlnlike = self.sampler.get_log_prob(discard=discard, thin=thin, flat=True)
+
         self.sampler.reset()  # This hopefully minimizes emcee memory leak
         return self.flatchain
 
