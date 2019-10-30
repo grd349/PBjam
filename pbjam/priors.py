@@ -67,6 +67,8 @@ class kde(plotting):
         while len(self.prior_data[idx]) < 100:
             nsigma += 0.5
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+            if nsigma > 100:
+                break
             
         if len(self.prior_data[idx]) > 1000:
             warnings.warn('You have lots data points in your prior - estimating' +
