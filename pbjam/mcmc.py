@@ -106,7 +106,7 @@ class mcmc():
         
         # Burn in
         pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
-        # Fold in the low acceptance rate chains
+        # Fold in low AR chains
         pos = self.fold(pos, spread=spread)
         # Reset sampler
         self.sampler.reset()
@@ -125,14 +125,16 @@ class mcmc():
         else:
             print('Unhandled exception')
 
-        # Estimate autocorrelation time
-        tau = self.sampler.get_autocorr_time(tol=0, discard = nsteps).mean()
-                
+        # Fold in low AR chains and run a little bit to update emcee                
         self.fold(pos, spread=spread)
         pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=100, store=True)
        
+        # Final acceptance
         self.acceptance = self.sampler.acceptance_fraction
-        
+
+        # Estimate autocorrelation time       
+        tau = self.sampler.get_autocorr_time(tol=0, discard = nsteps).mean()
+
         # 3D chains
         discard = int(tau*5)
         thin = int(tau/4)
