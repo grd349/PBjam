@@ -1,23 +1,25 @@
-""" Setup jam sessions and perform mode ID and peakbagging
+""" Setup PBjam sessions and perform mode ID and peakbagging
 
-This jar contains the input layer for setting up jam sessions for peakbagging
-solar-like oscillators. This is the easiest way to handle targets in PBjam.
+This module contains the input layer for setting up PBjam sessions for 
+peakbagging solar-like oscillators. This is the easiest way to handle targets 
+in PBjam.
 
 It's possible to manually initiate star class instances and do all the fitting
 that way, but it's simpler to just use the session class, which handles
 everything, including formatting of the inputs.
 
 A jam session is started by initializing the session class instance with a
-target ID, numax, and a large separation. Additional parameters like the
-effective surface temperature of the star, are optional but help convergence.
+target ID, numax, a large separation, effective temperature and Gaia bp_rp 
+color. 
 
 Lists of the above can be provided for multiple targets, but it's often simpler
 to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv
 for a template.
 
-Custom timeseries or periodogram can be provided as either file pathnames,
+Custom timeseries or periodograms can be provided as either file pathnames,
 numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
-nothing is provided PBjam will download the data automatically.
+nothing is provided PBjam will download the data automatically using 
+LightKurve.
 
 Specific quarters, campgains or sectors can be requested with the relevant
 keyword (i.e., 'quarter' for KIC, etc.). If none of these are provided, PBjam
@@ -27,16 +29,16 @@ Once initialized, the session class contains a list of star class instances
 for each requested target, with associated spectra for each.
 
 The next step is to perform a mode ID on the spectra. At the moment PBjam
-only supports use of the asymptotic relation mode ID method.
+only supports use of the asymptotic relation mode ID method. Additional methods
+can be added in future.
 
 Finally the peakbagging method takes the output from the modeID and performs
-a proper HMC peakbagging run.
+a proper HMC peakbagging run to get the unparameterized mode frequencies.
 
 Plotting the results of each stage is also possible.
 
 Note
 ----
-Target IDs must be resolvable by Lightkurve
 
 For automatic download the long cadence data set is used by default, so set
 the cadence to 'short' for main-sequence targets.
@@ -225,18 +227,19 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
     Prioritizes long cadence over short cadence unless otherwise specified.
 
     """
+    
     if not download_dir:
-          cache_dir = os.path.join(*[os.path.expanduser('~'), 
+        cache_dir = os.path.join(*[os.path.expanduser('~'), 
                                      '.lightkurve-cache'])
     else:
-          cache_dir = download_dir
+        cache_dir = download_dir
     
     if isinstance(id, str):
         baseid = id
         for prefix in ['KIC','EPIC','TIC','kplr','tic']:
             baseid = baseid.replace(prefix, '')
         baseid = str(int(baseid))
-
+    
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
         
@@ -249,13 +252,15 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
     tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', 
                                         f'*{baseid}*', ext]))
 
-    
+
     if (use_cached and (len(tgtfiles) != 0)):
         lc_col = [lk.open(n) for n in tgtfiles]
     elif (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
         if (use_cached and (len(tgtfiles) == 0)):
             warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
+
         lc_col = query_mast(id, cache_dir, lkwargs)
+
         if len(lc_col) == 0:
             raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
     else:
@@ -396,7 +401,7 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
         if isinstance(vardf.loc[i, key], str):
             t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
             d += tinyoffset
-            vardf.loc[i, key] = arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
+            vardf.at[i, key] = arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
         elif not vardf.loc[i, key]:
             if vardf.loc[i, 'psd']:
                 pass
@@ -404,7 +409,8 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
                 D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
                                                   'campaign', 'quarter']}
                 lk_lc = query_lightkurve(id, download_dir, use_cached, D)
-                vardf.loc[i, key] = lk_lc
+                vardf.at[i, key] = lk_lc
+
         elif vardf.loc[i, key].__module__ == lk.lightcurve.__name__:
             pass
         else:
@@ -436,13 +442,13 @@ def lk_to_pg(vardf):
     for i, id in enumerate(vardf['ID']):
         if isinstance(vardf.loc[i, key], str):
             f, s = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
-            vardf.loc[i, key] = arr_to_lk(f, s, vardf.loc[i, 'ID'], key)
+            vardf.at[i, key] = arr_to_lk(f, s, vardf.loc[i, 'ID'], key)
         elif not vardf.loc[i, key]:
             lk_lc = vardf.loc[i, 'timeseries']
-            vardf.loc[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
+            vardf.at[i, key] = lk_lc.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
 
         elif vardf.loc[i, key].__module__ == lk.periodogram.__name__:
-            vardf.loc[i, key] = vardf.loc[i, key].flatten()
+            vardf.at[i, key] = vardf.loc[i, key].flatten()
         else:
             raise TypeError("Can't handle this type of time series object")
 
@@ -624,10 +630,12 @@ class session():
 
         # Take whatever is in the timeseries column of vardf and make it an
         # lk.lightcurve object or None
+
         lc_to_lk(vardf, download_dir, use_cached=use_cached)
         
         # Take whatever is in the timeseries column of vardf and turn it into
         # a periodogram object in the periodogram column.
+
         lk_to_pg(vardf)
 
 
@@ -662,15 +670,15 @@ class session():
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
-            try:
-                st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                   model_type=self.pb_model_type, verbose=verbose, 
-                   make_plots=make_plots, store_chains=store_chains, 
-                   nthreads=nthreads)
+            #try:
+            st(bw_fac=bw_fac, tune=tune, norders=norders, 
+               model_type=self.pb_model_type, verbose=verbose, 
+               make_plots=make_plots, store_chains=store_chains, 
+               nthreads=nthreads)
+            
+            self.stars[i] = None
                 
-                self.stars[i] = None
-                
-            except Exception as ex:
-                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                 print(message)
+            #except Exception as ex:
+            #     message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+            #     print(message)
             

@@ -41,9 +41,9 @@ class kde(plotting):
     def read_prior_data(self):
         ''' Read in the prior data from self.data_file '''
         self.prior_data = pd.read_csv(self.prior_file)
-        self.prior_data = self.prior_data.dropna()
+        #self.prior_data = self.prior_data.dropna()
 
-    def select_prior_data(self, numax=None, nsigma=7):
+    def select_prior_data(self, numax=None, nsigma=1):
         ''' Selects only the useful prior data based on proximity to estimated
             numax.
 
@@ -58,17 +58,25 @@ class kde(plotting):
         if not numax:
             return self.prior_data
 
-        idx = np.abs(self.prior_data.numax - numax[0]) < nsigma * numax[1]
-
-        if len(self.prior_data[idx]) < 100:
-            warnings.warn('You have less than 100 data points in your prior')
+        # If the number of targets in the range considered for the prior is 
+        # less than 100, the range will be expanded until it ~100. This is 
+        # to ensure that the KDE can be constructed. Note: does not ensure
+        # that the KDE is finite at the location of your target
+       
+        idx = np.zeros(len(self.prior_data), dtype = bool)
+        while len(self.prior_data[idx]) < 100:
+            nsigma += 0.5
+            idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+            if nsigma > 100:
+                break
+            
         if len(self.prior_data[idx]) > 1000:
             warnings.warn('You have lots data points in your prior - estimating' +
                           ' the KDE band width will be slow!')
 
-        self.prior_data = self.prior_data.loc[idx]
+        self.prior_data = self.prior_data[idx]
 
-    def make_kde(self, bw_fac=1.0):
+    def make_kde(self):
         ''' Takes the prior data and constructs a KDE function
 
         TODO: add details on the band width determination - see example
@@ -81,25 +89,25 @@ class kde(plotting):
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        # bw set using CV ML but times two.
-        if self.log_obs['numax'][1] < 0:
-            bw = np.array([0.00774255, 0.01441685, 0.04582654,
-                           0.02127414, 0.17830664, 0.54219474,
-                           0.04400531, 0.06834085, 0.0054522,
-                           0.11864199]) * self.bw_fac
+        self.select_prior_data(self.log_obs['numax'])
+        
+        if self.verbose:
+                print(f'Selected data set length {len(self.prior_data)}')
+                
+        if self.bw_fac != 1:    
+            from statsmodels.nonparametric.bandwidths import select_bandwidth
+            bw = select_bandwidth(self.prior_data[self.par_names].values, 
+                                  bw = 'scott', 
+                                  kernel=None) * self.bw_fac
         else:
             if self.verbose:
                 print('Selecting sensible stars ... for kde')
                 print(f'Full data set length {len(self.prior_data)}')
-            self.select_prior_data(self.log_obs['numax'])
-            if self.verbose:
-                print(f'Selected data set length {len(self.prior_data)}')
             bw = 'cv_ml'
 
         self.kde = sm.nonparametric.KDEMultivariate(
                             data=self.prior_data[self.par_names].values,
-                            var_type='cccccccccc',
-                            bw=bw)
+                            var_type='cccccccccc', bw=bw)
 
     def normal(self, y, mu, sigma):
         ''' Returns normal log likelihood
@@ -275,7 +283,7 @@ class kde(plotting):
             [estimate of epsilon, unceritainty on estimate]
         '''
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-
+        
         self.obs_to_log(self.obs)
 
         self.make_kde()
