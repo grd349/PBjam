@@ -17,7 +17,7 @@ class star(plotting):
         Target identifier. If custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.).
 
-    periodogram : lightkurve.periodogram.Periodogram object
+    pg : lightkurve.periodogram.Periodogram object
         A lightkurve periodogram object containing frequencies in units of
         microhertz and power (in arbitrary units).
 
@@ -81,7 +81,7 @@ class star(plotting):
 
         self.make_output_dir(path)
 
-        if not prior_file:
+        if prior_file is None:
             self.prior_file = get_priorpath() 
         else:
             self.prior_file = prior_file
@@ -102,7 +102,7 @@ class star(plotting):
             self.path =os.path.join(*[path, f'{self.ID}'])
 
         # Check if self.path exists, if not try to create it
-        if not os.path.isdir(self.path):
+        if os.path.isdir(self.path) is None:
             try:
                 os.makedirs(self.path)
             except Exception as ex:

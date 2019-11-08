@@ -8,3 +8,6 @@ lightkurve>=1.2.0
 astropy>=3.2.1
 corner
 pymc3
+hdbscan
+sklearn
+
