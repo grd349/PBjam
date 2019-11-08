@@ -17,7 +17,7 @@ class star(plotting):
         Target identifier. If custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.).
 
-    periodogram : lightkurve.periodogram.Periodogram object
+    pg : lightkurve.periodogram.Periodogram object
         A lightkurve periodogram object containing frequencies in units of
         microhertz and power (in arbitrary units).
 
