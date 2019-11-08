@@ -81,7 +81,7 @@ class star(plotting):
 
         self.make_output_dir(path)
 
-        if not prior_file:
+        if prior_file is None:
             self.prior_file = get_priorpath() 
         else:
             self.prior_file = prior_file
@@ -102,7 +102,7 @@ class star(plotting):
             self.path =os.path.join(*[path, f'{self.ID}'])
 
         # Check if self.path exists, if not try to create it
-        if not os.path.isdir(self.path):
+        if os.path.isdir(self.path) is None:
             try:
                 os.makedirs(self.path)
             except Exception as ex:

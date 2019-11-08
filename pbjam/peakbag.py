@@ -63,7 +63,7 @@ class peakbag(plotting):
         self.f = starinst.f
         self.s = starinst.s
         self.asy_result = asyinst
-
+        self.norders = asyinst.norders
         if init:
             self.make_start()
             self.trim_ladder()
