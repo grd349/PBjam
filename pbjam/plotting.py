@@ -15,7 +15,7 @@ available plotting methods.
 
 import matplotlib.pyplot as plt
 import astropy.convolution as conv
-import pbjam, os, corner
+import pbjam, os, corner, warnings
 import numpy as np
 from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
@@ -41,7 +41,7 @@ class plotting():
             Matplotlib figure object
         '''
                 
-        freqs = {'l'+str(i): {} for i in range(4)}
+        freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
         
         if type(self) == pbjam.star:
             dnu = self.dnu[0]
@@ -51,21 +51,23 @@ class plotting():
             dnu = 10**np.median(self.samples[:,0])
             numax = 10**np.median(self.samples[:,1])
             
+            
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
             dnu = 10**self.summary.loc['dnu', '50th']
             numax = 10**self.summary.loc['numax', '50th']
             
             for l in np.arange(4):
                 idx = self.modeID.ell == l
-                freqs['l'+str(l)] = {'nu': self.modeID.loc[idx, 'nu_med'],
-                                     'err': self.modeID.loc[idx, 'nu_mad']}
+                freqs['l'+str(l)]['nu'] = self.modeID.loc[idx, 'nu_med']
+                freqs['l'+str(l)]['err'] = self.modeID.loc[idx, 'nu_mad']
                 
         elif type(self) == pbjam.peakbag:  
             numax = 10**self.asy_result.summary.loc['numax', '50th']
             for l in np.arange(4):
                 ell = 'l'+str(l)
-                freqs[ell] = {'nu': self.summary.filter(like=ell, axis=0).loc[:, 'mean'],
-                              'err': self.summary.filter(like=ell, axis=0).loc[:, 'sd']}
+                freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
+                freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
+                
             dnu = np.median(np.diff(freqs['l0']['nu']))
             
         else:
@@ -87,12 +89,13 @@ class plotting():
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
                                      numax=numax * u.uHz,
                                      minimum_frequency=dnu*nmin)
-
+        
+        # Overplot modes
         cols = ['C0', 'C1', 'C2', 'C3']
-        print(freqs)
+        
         for l in np.arange(4):
             ell = 'l'+str(l)
-            if len(freqs[ell].nu) > 0:
+            if len(freqs[ell]['nu']) > 0:
                 nu = freqs[ell]['nu']
                 err = freqs[ell]['err']
                 ax.errorbar(nu%dnu, (nu//dnu) * dnu, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l))
@@ -118,6 +121,10 @@ class plotting():
         fig : object
             Matplotlib figure object
         '''
+        
+        if not hasattr(self, 'samples'):
+            warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
+            return None
         
         fig = corner.corner(self.samples, labels=self.par_names,
                             show_titles=True, quantiles=[0.16, 0.5, 0.84],
