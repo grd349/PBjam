@@ -44,3 +44,4 @@ Chaos Engineers
 - `Warrick Ball <https://github.com/warrickball>`_ 
 - `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Joel Ong <https://github.com/darthoctopus>`_
+- Bill Chaplin
