@@ -1,3 +1,18 @@
+""" Module for a general set of plotting methods
+
+This module contains a set of plotting methods which are inherited by the 
+different classes of PBjam.
+
+Contains:
+- Spectrum plot, including a best-fit model if available
+- Corner plot, showing the marginalized posteriors of each fit parameter (can become quite big for peakbag stage)
+- Echelle diagram
+
+As each step is completed, the resulting class instance will inherit the 
+available plotting methods.
+
+"""
+
 import matplotlib.pyplot as plt
 import astropy.convolution as conv
 import pbjam, os, corner
@@ -13,18 +28,17 @@ class plotting():
     
     def plot_echelle(self, pg=None):
         '''
-        Plots an echelle diagram with mode frequencies over plotted.
+        Plots an echelle diagram with mode frequencies if available.
     
         Parameters
         ----------
         pg : periodogram
-            A lightkurve periodogram (we use the plot echelle method
-            of the periodogram (well actually seismology) class)
+            A lightkurve periodogram
     
         Returns
         -------
         fig : figure
-            The figure containing the plot.
+            Matplotlib figure object
         '''
                 
         freqs = {'l'+str(i): {} for i in range(4)}
@@ -87,7 +101,22 @@ class plotting():
     def plot_corner(self, path=None, ID=None, savefig=False):
        
         '''
-        Makes a nice corner plot using corner.corner
+        Makes a nice corner plot of the fit parameters
+        
+        Parameters
+        ----------
+        path : str (optional)
+            Used along with savefig, sets the output directory to store the 
+            figure. 
+        ID : str (optional)
+            ID of the target to be included in the filename of the figure.
+        savefig : bool
+            Whether or not to save the figure to disk
+        
+        Returns
+        -------
+        fig : object
+            Matplotlib figure object
         '''
         
         fig = corner.corner(self.samples, labels=self.par_names,
@@ -104,7 +133,30 @@ class plotting():
 
 
     def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
-    
+        """ Plot the power spectrum
+        
+        Plot the power spectrum around the p-mode envelope. Calling this 
+        method from the different classes such as KDE or peakbag, will plot
+        the relevant result from those classes if available.
+        
+        Parameters
+        ----------
+        pg : periodogram
+            A lightkurve periodogram
+        path : str (optional)
+            Used along with savefig, sets the output directory to store the 
+            figure. 
+        ID : str (optional)
+            ID of the target to be included in the filename of the figure.
+        savefig : bool
+            Whether or not to save the figure to disk
+            
+        Returns
+        -------
+        fig : object
+            Matplotlib figure object
+            
+        """
         if not pg and hasattr(self, 'pg'):
             pg = self.pg
         
@@ -190,48 +242,50 @@ class plotting():
         if savefig:
             outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
             fig.savefig(outpath)
+        
+        return fig
 
 
-    def plot_trace(stage):
-        '''
-        Will make a pymc3 traceplot.
-        '''
-        import pymc3 as pm
-        
-        if type(stage) == pbjam.priors.kde:
-            # TODO - make this work for kde
-            print('Traceplot for kde not yet implimented')
-        
-        if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
-            # TODO - make this work for asy_peakbag
-            print('Traceplot for asy_peakbag not yet implimented')
-        
-        if type(stage) == pbjam.peakbag:
-            pm.traceplot(stage.samples)
+def plot_trace(stage):
+    '''
+    Will make a trace plot of the MCMC chains
+    '''
+    import pymc3 as pm
+    
+    if type(stage) == pbjam.priors.kde:
+        # TODO - make this work for kde
+        print('Traceplot for kde not yet implimented')
+    
+    if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
+        # TODO - make this work for asy_peakbag
+        print('Traceplot for asy_peakbag not yet implimented')
+    
+    if type(stage) == pbjam.peakbag:
+        pm.traceplot(stage.samples)
 
 
 # Asy_peakbag  
-    def plot_start(self):
-        '''
-        Plots the starting model as a diagnotstic.
-        '''
-             
-        dnu = 10**np.median(self.start_samples, axis=0)[0]
-        xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 
-                'r-', label='Start model', alpha=0.7)
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlim(xlim)
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend()
-        return fig
+def plot_start(self):
+    '''
+    Plots the starting model as a diagnotstic.
+    '''
+         
+    dnu = 10**np.median(self.start_samples, axis=0)[0]
+    xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
+    fig, ax = plt.subplots(figsize=[16,9])
+    ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+    smoo = dnu * 0.005 / (self.f[1] - self.f[0])
+    kernel = conv.Gaussian1DKernel(stddev=smoo)
+    smoothed = conv.convolve(self.s, kernel)
+    ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
+    ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 
+            'r-', label='Start model', alpha=0.7)
+    ax.set_ylim([0, smoothed.max()*1.5])
+    ax.set_xlim(xlim)
+    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+    ax.set_ylabel(r'SNR')
+    ax.legend()
+    return fig
 
 
  
