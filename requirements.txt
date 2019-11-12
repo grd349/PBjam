@@ -10,4 +10,4 @@ corner
 pymc3
 hdbscan
 sklearn
-
+nbsphinx

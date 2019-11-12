@@ -7,117 +7,116 @@ import astropy.units as u
 import pymc3 as pm
 
 class plotting():
-    
+
     def __init__(self):
         pass
-    
+
     def plot_echelle(self, pg=None):
         '''
         Plots an echelle diagram with mode frequencies over plotted.
-    
+
         Parameters
         ----------
         pg : periodogram
             A lightkurve periodogram (we use the plot echelle method
             of the periodogram (well actually seismology) class)
-    
+
         Returns
         -------
         fig : figure
             The figure containing the plot.
         '''
-                
-        freqs = {'l'+str(i): {} for i in range(4)}
-        
+
+        freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
+
         if type(self) == pbjam.star:
             dnu = self.dnu[0]
             numax = self.numax[0]
-            
-        elif type(self) == pbjam.priors.kde:  
+
+        elif type(self) == pbjam.priors.kde:
             dnu = 10**np.median(self.samples[:,0])
             numax = 10**np.median(self.samples[:,1])
-            
+
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
             dnu = 10**self.summary.loc['dnu', '50th']
             numax = 10**self.summary.loc['numax', '50th']
-            
+
             for l in np.arange(4):
                 idx = self.modeID.ell == l
                 freqs['l'+str(l)] = {'nu': self.modeID.loc[idx, 'nu_med'],
                                      'err': self.modeID.loc[idx, 'nu_mad']}
-                
-        elif type(self) == pbjam.peakbag:  
+
+        elif type(self) == pbjam.peakbag:
             numax = 10**self.asy_result.summary.loc['numax', '50th']
             for l in np.arange(4):
                 ell = 'l'+str(l)
                 freqs[ell] = {'nu': self.summary.filter(like=ell, axis=0).loc[:, 'mean'],
                               'err': self.summary.filter(like=ell, axis=0).loc[:, 'sd']}
             dnu = np.median(np.diff(freqs['l0']['nu']))
-            
+
         else:
             raise ValueError('Unrecognized class type')
-            
+
         # make dnu an intger multiple of bw
         dnu -= dnu % (self.f[1] - self.f[0])
         nmin = np.floor(self.f.min() / dnu) + 1
-        
+
         if pg:
             peri = pg
         elif hasattr(self, 'pg'):
             peri = self.pg
         else:
             raise ValueError('Need spectrum to plot echelle diagram')
-            
+
         seismology = peri.flatten().to_seismology()
-        
+
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
                                      numax=numax * u.uHz,
                                      minimum_frequency=dnu*nmin)
 
-        cols = ['C0', 'C1', 'C2', 'C3']
-        print(freqs)
+        cols = ['C1', 'C2', 'C3', 'C4']
         for l in np.arange(4):
             ell = 'l'+str(l)
-            if len(freqs[ell].nu) > 0:
+            if len(freqs[ell]['nu']) > 0:
                 nu = freqs[ell]['nu']
                 err = freqs[ell]['err']
                 ax.errorbar(nu%dnu, (nu//dnu) * dnu, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l))
         ax.legend(fontsize = 'x-small')
-        
+
     def plot_corner(self, path=None, ID=None, savefig=False):
-       
+
         '''
         Makes a nice corner plot using corner.corner
         '''
-        
+
         fig = corner.corner(self.samples, labels=self.par_names,
                             show_titles=True, quantiles=[0.16, 0.5, 0.84],
                             title_kwargs={"fontsize": 12})
-        
+
         # TODO there should be a check if path is full filepath or just dir
         if path and ID:
             outpath = os.path.join(*[path,  type(self).__name__+ '_corner_' + str(ID) + '.png'])
             if savefig:
                 fig.savefig(outpath)
-                
+
         return fig
 
 
     def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
-    
+
         if not pg and hasattr(self, 'pg'):
             pg = self.pg
-        
+
         if pg:
             f = pg.frequency.value
             s = pg.power.value
-            
+
         elif hasattr(self, 'f') & hasattr(self, 's'):
             f = self.f
-            s = self.s            
+            s = self.s
         else:
             raise ValueError('Unable to plot spectrum.')
-            
+
         # The raw and smoothed spectrum will always be plotted
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(f, s, 'k-', label='Data', alpha=0.2)
@@ -125,11 +124,11 @@ class plotting():
         kernel = conv.Gaussian1DKernel(stddev=fac)
         smoo = conv.convolve(s, kernel)
         ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
-    
-        # Overplot kde diagnostic  
+
+        # Overplot kde diagnostic
         if type(self) == pbjam.star:
              xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
-         
+
         elif type(self) == pbjam.priors.kde:
             h = max(smoo)
             dnu = 10**(np.median(self.samples[:, 0]))
@@ -144,26 +143,26 @@ class plotting():
                             label=r'$\propto P(\nu_{\ell=0})$')
 
             xlim = [min(freq)-dnu, max(freq)+dnu]
-            
-        # Overplot asy_peakbag diagnostic        
+
+        # Overplot asy_peakbag diagnostic
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
             for j in np.arange(-50,0):
                 if j==-1:
                     label='Model'
                 else:
                     label=None
-                ax.plot(f[self.sel], self.model(self.samples[j, :]), 'r-', 
+                ax.plot(f[self.sel], self.model(self.samples[j, :]), 'r-',
                         alpha=0.1)
             for nu in self.modeID['nu_med']:
                 ax.axvline(nu, c='k', linestyle='--')
             dnu = 10**self.summary.loc['dnu', '50th']
-            xlim = [min(f[self.sel])-dnu, 
+            xlim = [min(f[self.sel])-dnu,
                     max(f[self.sel])+dnu]
-            
-        # Overplot peakbag diagnostic    
-        elif type(self) == pbjam.peakbag:  
-            n = self.ladder_s.shape[0]                
-            par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2', 
+
+        # Overplot peakbag diagnostic
+        elif type(self) == pbjam.peakbag:
+            n = self.ladder_s.shape[0]
+            par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
             for i in range(n):
                 for j in range(-50, 0):
@@ -172,11 +171,11 @@ class plotting():
                     else:
                         label=None
                     mod = self.model(*[self.samples[x][j] for x in par_names])
-                    ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1, 
+                    ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=label)
-                    
-            dnu = 10**self.asy_result.summary.loc['dnu', '50th']        
-            xlim = [min(f[self.asy_result.sel])-dnu, 
+
+            dnu = 10**self.asy_result.summary.loc['dnu', '50th']
+            xlim = [min(f[self.asy_result.sel])-dnu,
                     max(f[self.asy_result.sel])+dnu]
         else:
             raise ValueError('Unrecognized class type')
@@ -186,7 +185,7 @@ class plotting():
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
         ax.set_ylabel(r'SNR')
         ax.legend(loc=1)
-    
+
         if savefig:
             outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
             fig.savefig(outpath)
@@ -197,25 +196,25 @@ class plotting():
         Will make a pymc3 traceplot.
         '''
         import pymc3 as pm
-        
+
         if type(stage) == pbjam.priors.kde:
             # TODO - make this work for kde
             print('Traceplot for kde not yet implimented')
-        
+
         if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
             # TODO - make this work for asy_peakbag
             print('Traceplot for asy_peakbag not yet implimented')
-        
+
         if type(stage) == pbjam.peakbag:
             pm.traceplot(stage.samples)
 
 
-# Asy_peakbag  
+# Asy_peakbag
     def plot_start(self):
         '''
         Plots the starting model as a diagnotstic.
         '''
-             
+
         dnu = 10**np.median(self.start_samples, axis=0)[0]
         xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
         fig, ax = plt.subplots(figsize=[16,9])
@@ -224,7 +223,7 @@ class plotting():
         kernel = conv.Gaussian1DKernel(stddev=smoo)
         smoothed = conv.convolve(self.s, kernel)
         ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 
+        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
                 'r-', label='Start model', alpha=0.7)
         ax.set_ylim([0, smoothed.max()*1.5])
         ax.set_xlim(xlim)
@@ -234,8 +233,8 @@ class plotting():
         return fig
 
 
- 
-      
+
+
 # Peakbag
 def plot_linewidth(self, thin=10):
     """
@@ -314,6 +313,3 @@ def plot_ladder(self, thin=10, alpha=0.2):
     ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
     fig.tight_layout()
     return fig
-
-
-
