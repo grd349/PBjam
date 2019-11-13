@@ -91,9 +91,17 @@ class peakbag(plotting):
         height =  (10**self.asy_result.summary.loc['env_height', 'mean'] * \
                  np.exp(-0.5 * (l0 - 10**self.asy_result.summary.loc['numax', 'mean'])**2 /
                  (10**self.asy_result.summary.loc['env_width', 'mean'])**2)).flatten()
-        self.start = {'l0': l0, 'l2': l2, 'width0': width, 'width2': width,
-                      'height0': height, 'height2': height*0.7,
-                      'back': np.ones(len(l0))}
+        back = np.ones(len(l0))
+        
+        self.parnames = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2', 
+                         'back']
+        
+        pars = [l0, l2, width, width, height, 0.7*height, back]
+
+        self.start ={x:y for x,y in zip(self.parnames, pars)}
+#        self.start = {'l0': l0, 'l2': l2, 'width0': width, 'width2': width,
+#                      'height0': height, 'height2': height*0.7,
+#                      'back': np.ones(len(l0))}
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
     def remove_outsiders(self, l0, l2):
@@ -395,83 +403,4 @@ class peakbag(plotting):
                 niter += 1
             
         self.summary = pm.summary(self.samples)
-
-
-
-#
-#    def plot_start_model(self):
-#        """
-#        Plots the model generated from the starting parameters
-#
-#        Returns
-#        -------
-#        fig : figure
-#        """
-#        mod = self.model(self.start['l0'], self.start['l2'], 
-#                         self.start['width0'], self.start['width2'],
-#                         self.start['height0'], self.start['height2'],
-#                         self.start['back'])
-#        n = self.ladder_s.shape[0]
-#        fig, ax = plt.subplots(n, figsize=[16,9])
-#        for i in range(n):
-#            ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
-#            ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r')
-#        return fig
-#
-#
-#    def traceplot(self):
-#        '''
-#        Will make a pymc3 traceplot.
-#        '''
-#        pm.traceplot(self.samples)
-#
-#    def plot_linewidth(self, thin=10):
-#        """
-#        Plots the estimated line width as a function of scaled n.
-#        """
-#        fig, ax = plt.subplots(1, 2, figsize=[16,9])
-#
-#        if self.gp0 != []:
-#            from pymc3.gp.util import plot_gp_dist
-#
-#            n_new = np.linspace(-0.2, 1.2, 100)[:,None]
-#            with self.pm_model:
-#                f_pred0 = self.gp0.conditional("f_pred0", n_new)
-#                f_pred2 = self.gp2.conditional("f_pred2", n_new)
-#                self.pred_samples = pm.sample_posterior_predictive(self.samples,
-#                               vars=[f_pred0, f_pred2], samples=1000)
-#            plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
-#            plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
-#
-#            for i in range(0, len(self.samples), thin):
-#                ax[0].scatter(self.n,
-#                              self.samples['ln_width0'][i, :], c='k', alpha=0.3)
-#                ax[1].scatter(self.n,
-#                              self.samples['ln_width2'][i, :], c='k', alpha=0.3)
-#
-#
-#        else:
-#            for i in range(0, len(self.samples), thin):
-#                ax[0].scatter(self.n,
-#                              np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
-#                ax[1].scatter(self.n,
-#                              np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
-#
-#        ax[0].set_xlabel('normalised order')
-#        ax[1].set_xlabel('normalised order')
-#        ax[0].set_ylabel('ln line width')
-#        ax[1].set_ylabel('ln line width')
-#        ax[0].set_title('Radial modes')
-#        ax[1].set_title('Quadrupole modes')
-#        return fig
-#
-#    def plot_height(self, thin=10):
-#        """
-#        Plots the estimated mode height.
-#        """
-#        fig, ax = plt.subplots(figsize=[16,9])
-#        for i in range(0, len(self.samples), thin):
-#            ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
-#            ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
-#        return fig
-#
+        self.par_names = self.summary.index

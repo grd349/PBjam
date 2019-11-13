@@ -79,30 +79,24 @@ class star(plotting):
         self.teff = teff
         self.bp_rp = bp_rp
 
-        self.make_output_dir(path)
+        self.path = path
+        self.make_output_dir()
 
         if prior_file is None:
             self.prior_file = get_priorpath() 
         else:
             self.prior_file = prior_file
     
-    def make_output_dir(self, path):
+    def make_output_dir(self):
         
-        # Check if self has path attribute
-        if not hasattr(self, 'path'):
-            self.path = None
-            
-        if isinstance(self.path, str):  # If yes, do nothing
-            pass
-        else:  # If not, assume path should be cwd+ID
+        if isinstance(self.path, str):
+            # If path is str, presume user wants to override self.path
+            self.path = os.path.join(*[self.path, f'{self.ID}'])
+        else:
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
         
-        # If path is str, presume user wants to override self.path
-        if isinstance(path, str):
-            self.path =os.path.join(*[path, f'{self.ID}'])
-
         # Check if self.path exists, if not try to create it
-        if os.path.isdir(self.path) is None:
+        if not os.path.isdir(self.path):
             try:
                 os.makedirs(self.path)
             except Exception as ex:
