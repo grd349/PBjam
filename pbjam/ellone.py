@@ -73,7 +73,7 @@ class ellone(plotting):
         
         if pbinst:
             
-            if (not f is None) and (not s is None):
+            if (f is not None) and (s is not None):
                 self.f = f#
                 self.s = s#
             else:
@@ -139,7 +139,7 @@ class ellone(plotting):
         fbin = self.f[:nmax].reshape((-1, nbin)).mean(axis=1)
         return fbin, sbin
     
-    def H0test(self, fbin, sbin, nbin, dnu, reject=0.02): 
+    def H0test(self, fbin, sbin, nbin, dnu, reject=0.1): 
         """ Perform H0 test on SNR spectrum
         
         Parameters
@@ -160,8 +160,9 @@ class ellone(plotting):
         
         Nind = int(dnu/(2*nbin*np.median(np.diff(fbin))))
         g = gammaincc(nbin, nbin*sbin)
-        idx = 1-(1-g)**Nind < reject
-        return idx, g
+        k = 1-(1-g)**Nind
+        idx = k < reject
+        return idx, k
     
     
     def H0_inconsistent(self, dnu, Nmax, rejection_level):
@@ -195,9 +196,9 @@ class ellone(plotting):
         nu = np.array([])
         pH0s = np.array([])
         
-        for nbin in range(1, Nmax):
+        for nbin in range(1, Nmax+1):
             fbin, sbin = self.binning(nbin) 
-            idx, ps = self.H0test(fbin, sbin, dnu, nbin, rejection_level) 
+            idx, ps = self.H0test(fbin, sbin, nbin, dnu, rejection_level) 
             N = np.append(N, np.zeros(len(fbin[idx]))+nbin)
             nu = np.append(nu, fbin[idx])
             pH0s = np.append(pH0s, ps[idx])
@@ -354,7 +355,7 @@ class ellone(plotting):
                 
         return nul1s
 
-    def __call__(self, W, dnu, Nmax = 30, rejection_level = 0.09):
+    def __call__(self, W, dnu, Nmax = 30, rejection_level = 0.1):
         """ Perform all the steps to estimate l=1 frequencies
         
         Check which peaks in the provided spectrum are inconsistent with the
