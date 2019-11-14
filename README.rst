@@ -45,3 +45,5 @@ Chaos Engineers
 - `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Joel Ong <https://github.com/darthoctopus>`_
 - Bill Chaplin
+- `Tanda Li <https://github.com/litanda>`_
+
