@@ -367,7 +367,7 @@ class peakbag(plotting):
             Numer of tuning steps passed to pm.sample
         target_accept : float
             Target acceptance fraction passed to pm.sample
-        cores : int
+        nthreads : int
             Number of cores to use - passed to pm.sample
 
         """

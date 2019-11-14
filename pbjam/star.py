@@ -197,8 +197,25 @@ class star(plotting):
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, 
                     make_plots=False, store_chains=False):
-        """
-        Runs peakbag on the given star.
+        """  Run all stesps involving peakbag.
+        
+        Performs fit using simple lorentzian pairs two subsections of the 
+        power spectrum based on results from asy_peakbag.
+        
+        Parameters
+        ----------
+        model_type : str
+            Defaults to 'simple'.
+            Can be either 'simple' or 'model_gp' which sets the type of model
+            to be fitted to the data.
+        tune : int
+            Numer of tuning steps passed to pm.sample
+        make_plots : bool
+            Whether or not to produce plots of the results.      
+        store_chains : bool
+            Whether or not to store MCMC chains on disk.
+        nthreads : int
+            Number of processes to spin up in pymc3
         """
         
         print('Starting peakbagging run')
@@ -221,7 +238,29 @@ class star(plotting):
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500, 
                  verbose=False, make_plots=True, store_chains=True, nthreads=1):
-        """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
+        """ Perform all the PBjam steps
+        
+        
+        Parameters
+        ----------
+        bw_fac : float
+            Scaling factor for the KDE bandwidth. The bandwidth is 
+            automatically, but may be scaled to adjust for, .e.g, sparsity of
+            the prior sample.
+        norders : int
+            Number of orders to include in the fits
+        model_type : str
+            Defaults to 'simple'. Can be either 'simple' or 'model_gp' which 
+            sets the type of model to be fit for the mode linewidths.
+        tune : int
+            Numer of tuning steps passed to pm.sample
+        verbose : bool
+            Should I say anything?
+        make_plots : bool
+            Whether or not to produce plots of the results.      
+        store_chains : bool
+            Whether or not to store MCMC chains on disk.
+        """
         
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
    
