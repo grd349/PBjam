@@ -58,22 +58,23 @@ class kde(plotting):
         if not numax:
             return self.prior_data
 
-        # If the number of targets in the range considered for the prior is 
-        # less than 100, the range will be expanded until it ~100. This is 
+        # If the number of targets in the range considered for the prior is
+        # less than 100, the range will be expanded until it ~100. This is
         # to ensure that the KDE can be constructed. Note: does not ensure
         # that the KDE is finite at the location of your target
-       
+
         idx = np.zeros(len(self.prior_data), dtype = bool)
         while len(self.prior_data[idx]) < 100:
             nsigma += 0.5
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
             if nsigma > 100:
                 break
-            
+
         if len(self.prior_data[idx]) > 1000:
             warnings.warn('You have lots data points in your prior - estimating' +
                           ' the KDE band width will be slow!')
-
+                          
+        print(f'Using {len(self.prior_data[idx])} data points for the KDE')
         self.prior_data = self.prior_data[idx]
 
     def make_kde(self):
@@ -90,14 +91,14 @@ class kde(plotting):
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
         self.select_prior_data(self.log_obs['numax'])
-        
+
         if self.verbose:
                 print(f'Selected data set length {len(self.prior_data)}')
-                
-        if self.bw_fac != 1:    
+
+        if self.bw_fac != 1:
             from statsmodels.nonparametric.bandwidths import select_bandwidth
-            bw = select_bandwidth(self.prior_data[self.par_names].values, 
-                                  bw = 'scott', 
+            bw = select_bandwidth(self.prior_data[self.par_names].values,
+                                  bw = 'scott',
                                   kernel=None) * self.bw_fac
         else:
             if self.verbose:
@@ -283,7 +284,7 @@ class kde(plotting):
             [estimate of epsilon, unceritainty on estimate]
         '''
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-        
+
         self.obs_to_log(self.obs)
 
         self.make_kde()

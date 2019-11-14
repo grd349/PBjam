@@ -55,7 +55,7 @@ class star(plotting):
 
     verbose : bool, optional
         If True, will show error messages on the users terminal if they occur.
-        
+
     Attributes
     ----------
     f : array
@@ -66,9 +66,9 @@ class star(plotting):
         Path to the csv file containing the prior data
     """
 
-    def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None, 
+    def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None,
                  prior_file = None):
-          
+
         self.ID = ID
         self.pg = pg
         self.f = pg.frequency.value
@@ -83,18 +83,18 @@ class star(plotting):
         self.make_output_dir()
 
         if prior_file is None:
-            self.prior_file = get_priorpath() 
+            self.prior_file = get_priorpath()
         else:
             self.prior_file = prior_file
-    
+
     def make_output_dir(self):
-        
+
         if isinstance(self.path, str):
             # If path is str, presume user wants to override self.path
             self.path = os.path.join(*[self.path, f'{self.ID}'])
         else:
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
-        
+
         # Check if self.path exists, if not try to create it
         if not os.path.isdir(self.path):
             try:
@@ -102,7 +102,7 @@ class star(plotting):
             except Exception as ex:
                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
                 print(message)
-          
+
     def run_kde(self, bw_fac=1.0, make_plots=False):
         """
         Runs the kde code and makes plots if self.make_plots is set.
@@ -110,82 +110,82 @@ class star(plotting):
         print('Starting KDE estimation')
         # Init
         kde(self, bw_fac=bw_fac)
-        
+
         # Call
-        self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff, 
+        self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
                  bp_rp=self.bp_rp)
-        
+
         # Store
         if make_plots:
-            self.kde.plot_corner(path=self.path, ID=self.ID, 
+            self.kde.plot_corner(path=self.path, ID=self.ID,
                                  savefig=make_plots)
-            self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID, 
+            self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
                                        savefig=make_plots)
-             
-            
-    def run_asy_peakbag(self, norders=None, make_plots=False, 
+
+
+    def run_asy_peakbag(self, norders=None, make_plots=False,
                         store_chains=False, nthreads=1):
         """
         Runs the asy_peakbag code.
         """
         print('Starting Asy_peakbag')
         # Init
-        asymptotic_fit(self, self.kde, norders=norders, 
+        self.asy_fit = asymptotic_fit(self, self.kde, norders=norders, 
                        store_chains=store_chains, nthreads=nthreads)
-        
+
         # Call
-        self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff, 
+        self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff,
                      bp_rp=self.bp_rp)
-        
+
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
         self.asy_fit.summary.to_csv(outpath(f'asy_fit_summary_{self.ID}.csv'),
                                     index=True)
         self.asy_fit.modeID.to_csv(outpath(f'asy_fit_modeID_{self.ID}.csv'),
                                    index=False)
-        
+
         if make_plots:
-            self.asy_fit.plot_spectrum(path=self.path, ID=self.ID, 
+            self.asy_fit.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
-            self.asy_fit.plot_corner(path=self.path, ID=self.ID, 
+            self.asy_fit.plot_corner(path=self.path, ID=self.ID,
                                        savefig=make_plots)
-        
+
         if store_chains:
-            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asy_peakbag_chains_{self.ID}.csv'), index=False) 
-        
-            
+            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asy_peakbag_chains_{self.ID}.csv'), index=False)
+
+
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, make_plots=False, store_chains=False):
         """
         Runs peakbag on the given star.
         """
-        
+
         print('Starting peakbagging run')
         # Init
         self.peakbag = peakbag(self, self.asy_fit)
-        
+
         # Call
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
-        
+
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
         self.peakbag.summary.to_csv(outpath(f'peakbag_summary_{self.ID}.csv'))
-        
+
         if store_chains:
             pass # TODO need to pickle the samples if requested.
         if make_plots:
-            self.peakbag.plot_spectrum(path=self.path, ID=self.ID, 
+            self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
 
 
-    def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500, 
+    def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  verbose=False, make_plots=True, store_chains=True, nthreads=1):
         """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
-        
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
-   
-        self.run_asy_peakbag(norders=norders, make_plots=make_plots, 
+
+        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
+
+        self.run_asy_peakbag(norders=norders, make_plots=make_plots,
                              store_chains=store_chains, nthreads=nthreads)
-        
-        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads, 
+
+        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)

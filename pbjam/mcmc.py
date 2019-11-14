@@ -26,7 +26,7 @@ class mcmc():
     """
 
     def __init__(self, start, likelihood, prior, nwalkers=50, nthreads=1):
-        
+
         self.start = start
         self.ndim = len(start)
         self.likelihood = likelihood
@@ -68,7 +68,7 @@ class mcmc():
         tau = self.sampler.get_autocorr_time(tol=0)
         converged = np.all(tau * nfactor < self.sampler.iteration)
         return converged
-        
+
 
     def __call__(self, max_iter=20000, spread=1e-4, start_samples=[]):
         """ Initialize and run the EMCEE afine invariant sampler
@@ -101,9 +101,9 @@ class mcmc():
         else:
             # Do this in the case of Asy_peakbag, should be replaced with the actual sample
             pos = np.random.randn(self.nwalkers, self.ndim)
-            pos *= start_samples.std(axis=0) * 0.1
+            pos *= start_samples.std(axis=0)
             pos += start_samples.mean(axis=0)
-        
+
         # Burn in
         pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
         # Fold in low AR chains
@@ -111,9 +111,9 @@ class mcmc():
         # Reset sampler
         self.sampler.reset()
 
-        # Run with burnt-in positions        
+        # Run with burnt-in positions
         pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
-        while not self.stationarity():            
+        while not self.stationarity():
             pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps)
             print(f'Steps taken: {self.sampler.iteration}')
             if self.sampler.iteration == max_iter:
@@ -125,14 +125,14 @@ class mcmc():
         else:
             print('Unhandled exception')
 
-        # Fold in low AR chains and run a little bit to update emcee                
+        # Fold in low AR chains and run a little bit to update emcee
         self.fold(pos, spread=spread)
         pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=100, store=True)
-       
+
         # Final acceptance
         self.acceptance = self.sampler.acceptance_fraction
 
-        # Estimate autocorrelation time       
+        # Estimate autocorrelation time
         tau = self.sampler.get_autocorr_time(tol=0, discard = nsteps).mean()
 
         # 3D chains
@@ -140,7 +140,7 @@ class mcmc():
         thin = int(tau/4)
         self.chain = self.sampler.get_chain(discard=discard, thin=thin, flat=False)
         self.lnlike = self.sampler.get_log_prob(discard=discard, thin=thin, flat=False)
-        
+
         # 2D chains
         self.flatchain = self.sampler.get_chain(discard=discard, thin=thin, flat=True)
         self.flatlnlike = self.sampler.get_log_prob(discard=discard, thin=thin, flat=True)
