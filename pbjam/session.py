@@ -646,6 +646,11 @@ class session():
 
     quarter : int, optional
         Argument for lightkurve when requesting Kepler data.
+    
+    mission : str, optional
+        Which mission to use data from. Default is all, so if your target has
+        been observed by, e.g., both Kepler and TESS, LightKurve will throw
+        and error.
 
     make_plots : bool, optional
         Whether or not to automatically generate diagnostic plots for the 
@@ -758,15 +763,15 @@ class session():
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
-            #try:
-            st(bw_fac=bw_fac, tune=tune, norders=norders, 
-               model_type=self.pb_model_type, verbose=verbose, 
-               make_plots=make_plots, store_chains=store_chains, 
-               nthreads=nthreads)
-            
-            self.stars[i] = None
+            try:
+                st(bw_fac=bw_fac, tune=tune, norders=norders, 
+                   model_type=self.pb_model_type, verbose=verbose, 
+                   make_plots=make_plots, store_chains=store_chains, 
+                   nthreads=nthreads)
                 
-            #except Exception as ex:
-            #     message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-            #     print(message)
+                self.stars[i] = None
+                    
+            except Exception as ex:
+                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                 print(message)
             
