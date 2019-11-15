@@ -226,63 +226,6 @@ class peakbag(plotting):
         mod += self.lor(l2, width2, height2)
         return mod.T
 
-
-
-#    def simple(self):
-#        """
-#        Creates a simple peakbagging model in PyMC3's self.pm_model which is
-#        an instance of pm.Model().
-#
-#        The simple model has three parameters per mode (freq, w, h) and one
-#        back parameter per rung of the frequency ladder.
-#
-#        All parameters are independent.  For a model with additional constraints
-#        see model_gp.
-#
-#        Priors on parameters are defined as follows:
-#            lX ~ Normal(log(start[lX]), dnu*0.1)
-#            widthX ~ Lognormal(log(start[widthX]), 1.0)
-#            heightX ~ Lognormal(log(start[height0]), 0.4)
-#            back ~ Lognormal(log(1), 0.5)
-#
-#        The equivalent likelihood function of the observed data is dealt with
-#        using a Gamma distribution where alpha=1 and beta=1/limit where limit
-#        is the model of the spectrum proposed.  Using this gamma distirbution
-#        is the equivalent of stating that observed/model is distributed as
-#        chi squared two degrees of freedom (see Anderson 1990 for more details).
-#        The use of the Gamma distribution is much more in line with the ethos of
-#        probabistic programming languages.
-#        """
-#        
-#        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
-#        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
-#        width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
-#        height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
-#        back_fac = 0.4 # Lognorrmal prior on back has std=0.4.    
-#        N = len(self.start['l2'])
-#        
-#        with self.pm_model:
-#            
-#            width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
-#                                  sigma=width_fac, shape=N)
-#            width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
-#                                  sigma=width_fac, shape=N)
-#            
-#            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac, shape=N)
-#            
-#            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac, shape=N)
-#           
-#            height0 = pm.Lognormal('height0', mu=np.log(self.start['height0']),
-#                                    sigma=height_fac, shape=N)
-#            height2 = pm.Lognormal('height2', mu=np.log(self.start['height2']),
-#                                    sigma=height_fac, shape=N)
-#            back = pm.Lognormal('back', mu=np.log(1.0), sigma=back_fac, shape=N)
-#
-#            limit = self.model(l0, l2, width0, width2, height0, height2, back)
-#            
-#            pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
-
-
     def init_model(self, model_type):
         """
         TODO - Need to describe what is happening here.
@@ -301,7 +244,7 @@ class peakbag(plotting):
         with self.pm_model:
             
             if model_type != 'model_gp':
-                if model_type != 'simple':
+                if model_type != 'simple': # defaults to simple if bad input
                     warnings.warn('Model not defined - using simple model')
                 width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
                                   sigma=width_fac, shape=N)
@@ -364,12 +307,13 @@ class peakbag(plotting):
             Can be either 'simple' or 'model_gp' which sets the type of model
             to be fitted to the data.
         tune : int
-            Numer of tuning steps passed to pm.sample
-        target_accept : float
-            Target acceptance fraction passed to pm.sample
-        cores : int
-            Number of cores to use - passed to pm.sample
-
+            Numer of tuning steps passed to pym3.sample
+        nthreads : int
+            Number of cores to use - passed to pym3.sample
+        maxiter : int
+            Number of times to attempt to reach convergence
+        advo : bool
+            Whether or not to fit using the fullrank_advi option in pymc3
         """
         
         self.pm_model = pm.Model()
@@ -404,3 +348,59 @@ class peakbag(plotting):
             
         self.summary = pm.summary(self.samples)
         self.par_names = self.summary.index
+        
+        
+#    def simple(self):
+#        """
+#        Creates a simple peakbagging model in PyMC3's self.pm_model which is
+#        an instance of pm.Model().
+#
+#        The simple model has three parameters per mode (freq, w, h) and one
+#        back parameter per rung of the frequency ladder.
+#
+#        All parameters are independent.  For a model with additional constraints
+#        see model_gp.
+#
+#        Priors on parameters are defined as follows:
+#            lX ~ Normal(log(start[lX]), dnu*0.1)
+#            widthX ~ Lognormal(log(start[widthX]), 1.0)
+#            heightX ~ Lognormal(log(start[height0]), 0.4)
+#            back ~ Lognormal(log(1), 0.5)
+#
+#        The equivalent likelihood function of the observed data is dealt with
+#        using a Gamma distribution where alpha=1 and beta=1/limit where limit
+#        is the model of the spectrum proposed.  Using this gamma distirbution
+#        is the equivalent of stating that observed/model is distributed as
+#        chi squared two degrees of freedom (see Anderson 1990 for more details).
+#        The use of the Gamma distribution is much more in line with the ethos of
+#        probabistic programming languages.
+#        """
+#        
+#        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
+#        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
+#        width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
+#        height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
+#        back_fac = 0.4 # Lognorrmal prior on back has std=0.4.    
+#        N = len(self.start['l2'])
+#        
+#        with self.pm_model:
+#            
+#            width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
+#                                  sigma=width_fac, shape=N)
+#            width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
+#                                  sigma=width_fac, shape=N)
+#            
+#            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac, shape=N)
+#            
+#            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac, shape=N)
+#           
+#            height0 = pm.Lognormal('height0', mu=np.log(self.start['height0']),
+#                                    sigma=height_fac, shape=N)
+#            height2 = pm.Lognormal('height2', mu=np.log(self.start['height2']),
+#                                    sigma=height_fac, shape=N)
+#            back = pm.Lognormal('back', mu=np.log(1.0), sigma=back_fac, shape=N)
+#
+#            limit = self.model(l0, l2, width0, width2, height0, height2, back)
+#            
+#            pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
+

@@ -88,6 +88,19 @@ class star(plotting):
             self.prior_file = prior_file
     
     def make_output_dir(self):
+        """ Make output directory for star
+        
+        Attempts to create an output directory for all the results that PBjam
+        produces. A directory is created when a star class instance is 
+        initialized, so a session might create multiple directories. 
+        
+        The parent directory for these star directories is assumed to be 
+        self.path
+        
+        """
+        
+        if not hasattr(self, 'path'):
+            raise AttributeError("'star' instance must have 'path' attribute")
         
         if isinstance(self.path, str):
             # If path is str, presume user wants to override self.path
@@ -104,8 +117,22 @@ class star(plotting):
                 print(message)
           
     def run_kde(self, bw_fac=1.0, make_plots=False):
-        """
-        Runs the kde code and makes plots if self.make_plots is set.
+        """ Run all steps involving KDE.
+        
+        Starts by creating a KDE based on the prior data sample. Then samples 
+        this KDE for initial starting positions for asy_peakbag. 
+        
+        Also generates plots of the results and stores them in the star
+        directory.
+        
+        Parameters
+        ----------
+        bw_fac : float
+            Scaling factor for the KDE bandwidth. The bandwidth is 
+            automatically, but may be scaled to adjust for, .e.g, sparsity of
+            the prior sample.
+        make_plots : bool
+            Whether or not to produce plots of the results.      
         """
         print('Starting KDE estimation')
         # Init
@@ -125,8 +152,21 @@ class star(plotting):
             
     def run_asy_peakbag(self, norders=None, make_plots=False, 
                         store_chains=False, nthreads=1):
-        """
-        Runs the asy_peakbag code.
+        """ Run all stesps involving asy_peakbag.
+        
+        Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
+        and outputs result plots and a summary of the fit results.
+        
+        Parameters
+        ----------
+        norders : int
+            Number of orders to include in the fits
+        make_plots : bool
+            Whether or not to produce plots of the results.      
+        store_chains : bool
+            Whether or not to store MCMC chains on disk. 
+        nthreads : int
+            Not used currently
         """
         print('Starting Asy_peakbag')
         # Init
@@ -155,9 +195,27 @@ class star(plotting):
         
             
 
-    def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, make_plots=False, store_chains=False):
-        """
-        Runs peakbag on the given star.
+    def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, 
+                    make_plots=False, store_chains=False):
+        """  Run all stesps involving peakbag.
+        
+        Performs fit using simple lorentzian pairs two subsections of the 
+        power spectrum based on results from asy_peakbag.
+        
+        Parameters
+        ----------
+        model_type : str
+            Defaults to 'simple'.
+            Can be either 'simple' or 'model_gp' which sets the type of model
+            to be fitted to the data.
+        tune : int
+            Numer of tuning steps passed to pm.sample
+        make_plots : bool
+            Whether or not to produce plots of the results.      
+        store_chains : bool
+            Whether or not to store MCMC chains on disk.
+        nthreads : int
+            Number of processes to spin up in pymc3
         """
         
         print('Starting peakbagging run')
@@ -180,7 +238,29 @@ class star(plotting):
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500, 
                  verbose=False, make_plots=True, store_chains=True, nthreads=1):
-        """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
+        """ Perform all the PBjam steps
+        
+        
+        Parameters
+        ----------
+        bw_fac : float
+            Scaling factor for the KDE bandwidth. The bandwidth is 
+            automatically, but may be scaled to adjust for, .e.g, sparsity of
+            the prior sample.
+        norders : int
+            Number of orders to include in the fits
+        model_type : str
+            Defaults to 'simple'. Can be either 'simple' or 'model_gp' which 
+            sets the type of model to be fit for the mode linewidths.
+        tune : int
+            Numer of tuning steps passed to pm.sample
+        verbose : bool
+            Should I say anything?
+        make_plots : bool
+            Whether or not to produce plots of the results.      
+        store_chains : bool
+            Whether or not to store MCMC chains on disk.
+        """
         
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
    
