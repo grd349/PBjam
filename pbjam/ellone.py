@@ -33,7 +33,8 @@ from sklearn.utils import shuffle as skshuffle
 import hdbscan as Hdbscan
 import warnings
 from .plotting import plotting
-
+import astropy.units as units
+import lightkurve as lk
 
 class ellone(plotting):
     """ Basic l=1 detection 
@@ -83,13 +84,17 @@ class ellone(plotting):
                 self.s = pbinst.s
                 
             self.norders = pbinst.norders
+            self.pg = pbinst.pg
             self.pbinst = pbinst
             self.res = self.residual()
+            
         
         elif (not f is None) and (not s is None):
             self.f = f
             self.s = s
             self.res = s
+            self.pg = lk.periodogram.Periodogram(f*units.microhertz,
+                                                 units.Quantity(s, None))
         else:
             raise AssertionError('Must provide frequency and spectrum input')
         
@@ -278,9 +283,6 @@ class ellone(plotting):
             Bin factors at which the significant peaks were selected.
         Nmax: int
             Maximum binning factor used in the H0 test
-        Wcut : float
-            Unused. Level at which to cut broad clusters (those unlikely to 
-            be due to a single mode.)
         outlier_limiter : float
             Probability that a sample is an outlier of a cluster. Samples with
             a probability above this are rejected.
@@ -305,19 +307,21 @@ class ellone(plotting):
         ulabels = np.unique(labels)
         
         nus = np.zeros(len(ulabels))
+        nstds = np.zeros(len(ulabels))
         
         for i, u in enumerate(ulabels):
             hdbidx = (labels==u) & (hdbscan.outlier_scores_<outlier_limit) & (hdbscan.probabilities_>cluster_prob) 
             if (len(X[hdbidx,0])==0) or (u == -1):
                 continue
             nus[i] = np.mean(X[hdbidx,0])
+            nstds[i] = np.std(X[hdbidx,0])
             #Wratios[i] = self.span(X[hdbidx,0])/W
     
         self.hdblabels = labels
         self.hdbX = X
         self.hdb_clusterN = np.array([len(labels[labels==i]) for i in ulabels])
         
-        return nus[1:]
+        return nus[1:], nstds[1:]
     
 
     
@@ -354,6 +358,8 @@ class ellone(plotting):
         d01 = (1./2 -0.0056 -0.002*np.log10(dnu))*dnu
         
         nul1s = np.zeros(len(nul0s))
+        nul1s_std = np.zeros(len(nul0s))
+        
         for i in range(len(nul0s)):
             nuidx = (nul0s[i] < self.cluster_means) & (self.cluster_means < nul2s[i]+dnu)
             
@@ -362,11 +368,12 @@ class ellone(plotting):
             
             maxidx = np.argmax(self.hdb_clusterN[1:][nuidx])
             nul1s[i] = self.cluster_means[nuidx][maxidx]
-        
+            nul1s_std[i] = self.cluster_stds[nuidx][maxidx]
+            
             if (nul0s[i] - nul1s[i])/d01 > 0.2:
                 warnings.warn('Cluster nu_l1 exceeds UP estimate by more than 20%')
                 
-        return nul1s
+        return nul1s, nul1s_std
 
     def __call__(self, dnu, Nmax = 30, rejection_level = 0.1):
         """ Perform all the steps to estimate l=1 frequencies
@@ -398,9 +405,9 @@ class ellone(plotting):
         """
         
         nus, counts, pH0s = self.H0_inconsistent(dnu, Nmax, rejection_level)
-        self.cluster_means, _ = self.clustering(nus, counts, Nmax)
-        nul1s = self.get_ell1(dnu)
-        return nul1s
+        self.cluster_means, self.cluster_stds = self.clustering(nus, counts, Nmax)
+        self.nu_l1, self.nu_l1_std = self.get_ell1(dnu)
+        return self.nu_l1
     
          
 # d02 = 10**st.asy_fit.summary.loc['d02', '50th']
