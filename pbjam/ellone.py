@@ -23,6 +23,7 @@ mixed modes are not considered.
 Note
 ----
 It is recommended that pbjam.peakbag be run prior to using this module.
+
 """
 
 import numpy as np
@@ -67,6 +68,7 @@ class ellone(plotting):
     ----
     If not pbjam.peakbag instance is supplied, a spectrum must be supplied 
     instead, in which case the l=2,0 modes may be picked up instead of the l=1.
+    
     """
     
     def __init__(self, pbinst=None, f=None, s=None):
@@ -105,6 +107,7 @@ class ellone(plotting):
         -------
         res : ndarray
             Array of residual power after dividing out the l=2,0 modes
+            
         """
         
         res = self.s.copy()
@@ -132,6 +135,7 @@ class ellone(plotting):
         Note
         ----
         Assumes the frequency bins are equidistant 
+        
         """
         
         nmax = int(len(self.res)/nbin)*nbin
@@ -156,6 +160,7 @@ class ellone(plotting):
             Large separation of the p-modes (muHz)
         reject: float
             Rejection level to use for the H0 test. (~0.1)
+            
         """
         
         Nind = int(dnu/(2*nbin*np.median(np.diff(fbin))))
@@ -191,7 +196,9 @@ class ellone(plotting):
             Bin factors at which the significant peaks were selected.
         pH0s : ndarray
             Probabilities of the peaks that are retained
+            
         """
+        
         N = np.array([])
         nu = np.array([])
         pH0s = np.array([])
@@ -227,7 +234,8 @@ class ellone(plotting):
         Returns
         -------
         X : ndarray
-            Array of samples to be used by HDBscan        
+            Array of samples to be used by HDBscan 
+            
         """
         
         nuidx = (limits[0] < nu) & (nu < limits[1])
@@ -247,7 +255,9 @@ class ellone(plotting):
         -------
         span : float
             Range spanned by the minimum and maximum values in x
+            
         """
+        
         return max(x)-min(x)
     
     def clustering(self, nu, N, Nmax, outlier_limit=0.5, cluster_prob=0.9):
@@ -285,6 +295,7 @@ class ellone(plotting):
         Wratios : ndarray
             Ratio of the span of the cluster and the average mode width of the
             p-modes. (unused)
+            
         """
         
         X = self.clustering_preprocess(nu, N)
@@ -334,6 +345,7 @@ class ellone(plotting):
         frequency based on the Universal Pattern. 
         
         """
+        
         pbsmry = self.pbinst.summary
         N = self.norders
         ell02 = ['l0', 'l2']
@@ -384,6 +396,7 @@ class ellone(plotting):
             Array of estimated frequencies of the l=1 modes. 
         
         """
+        
         nus, counts, pH0s = self.H0_inconsistent(dnu, Nmax, rejection_level)
         self.cluster_means, _ = self.clustering(nus, counts, Nmax)
         nul1s = self.get_ell1(dnu)

@@ -27,7 +27,7 @@ class plotting():
         pass
 
     def plot_echelle(self, pg=None):
-        '''
+        """
 
         Plots an echelle diagram with mode frequencies if available.
     
@@ -40,7 +40,8 @@ class plotting():
         -------
         fig : figure
             Matplotlib figure object
-        '''
+            
+        """
                 
         freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
         
@@ -103,7 +104,7 @@ class plotting():
 
     def plot_corner(self, path=None, ID=None, savefig=False):
 
-        '''
+        """
         Makes a nice corner plot of the fit parameters
         
         Parameters
@@ -120,7 +121,8 @@ class plotting():
         -------
         fig : object
             Matplotlib figure object
-        '''
+            
+        """
         
         if not hasattr(self, 'samples'):
             warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
@@ -255,9 +257,9 @@ class plotting():
 
 
 def plot_trace(stage):
-    '''
-    Will make a trace plot of the MCMC chains
-    '''
+    """ Make a trace plot of the MCMC chains
+    """
+    
     import pymc3 as pm
     
     if type(stage) == pbjam.priors.kde:
@@ -274,9 +276,8 @@ def plot_trace(stage):
 
 # Asy_peakbag  
 def plot_start(self):
-    '''
-    Plots the starting model as a diagnotstic.
-    '''
+    """ Plots the starting model as a diagnotstic.
+    """
          
     dnu = 10**np.median(self.start_samples, axis=0)[0]
     xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
@@ -297,9 +298,9 @@ def plot_start(self):
 
 # Peakbag
 def plot_linewidth(self, thin=10):
+    """ Plot estimated line width as a function of scaled n.
     """
-    Plots the estimated line width as a function of scaled n.
-    """
+    
     fig, ax = plt.subplots(1, 2, figsize=[16,9])
 
     if self.gp0 != []:
@@ -336,9 +337,9 @@ def plot_linewidth(self, thin=10):
     return fig
 
 def plot_height(self, thin=10):
+    """ Plots the estimated mode height.
     """
-    Plots the estimated mode height.
-    """
+    
     fig, ax = plt.subplots(figsize=[16,9])
     for i in range(0, len(self.samples), thin):
         ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
@@ -355,7 +356,9 @@ def plot_ladder(self, thin=10, alpha=0.2):
         Uses every other thin'th value from the samkles, i.e. [::thin].
     alpha: float64
         The alpha to use for plotting the models from samples.
+        
     """
+    
     n = self.ladder_s.shape[0]
     fig, ax = plt.subplots(n, figsize=[16,9])
     for i in range(n):

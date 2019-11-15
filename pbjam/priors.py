@@ -1,23 +1,18 @@
 import numpy as np
 import pandas as pd
 from .mcmc import mcmc
-from . import PACKAGEDIR
-import os
-from .plotting import plotting
 import warnings
+from .plotting import plotting
 import statsmodels.api as sm
-
-
-def default_priorpath():
-    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-
+from .jar import get_priorpath
 
 class kde(plotting):
-    ''' A class to predict epsilon.
+    """ A class to predict epsilon.
 
     TODO: See the docs for full information. (especially example_advanced)
 
-    '''
+    """
+    
     def __init__(self, starinst=None, nthreads=1, verbose=False, bw_fac=1):
 
         if starinst:
@@ -27,7 +22,7 @@ class kde(plotting):
             self.pg = starinst.pg
             starinst.kde = self
         else:
-            self.prior_file = default_priorpath()
+            self.prior_file = get_priorpath()
 
         self.verbose = verbose
         self.nthreads = nthreads
@@ -36,16 +31,10 @@ class kde(plotting):
         self.par_names = []
         self.bw_fac = bw_fac
 
-        self.read_prior_data()
-
-    def read_prior_data(self):
-        ''' Read in the prior data from self.data_file '''
         self.prior_data = pd.read_csv(self.prior_file)
-        #self.prior_data = self.prior_data.dropna()
 
     def select_prior_data(self, numax=None, nsigma=1):
-        ''' Selects only the useful prior data based on proximity to estimated
-            numax.
+        """ Selects useful prior data based on proximity to estimated numax.
 
         Inputs
         ------
@@ -54,7 +43,8 @@ class kde(plotting):
             If numax==None then no selection will be made - all data will
             be used (you probably don't want to do this).
 
-        '''
+        """
+        
         if not numax:
             return self.prior_data
 
@@ -81,7 +71,7 @@ class kde(plotting):
         self.prior_data = self.prior_data[idx]
 
     def make_kde(self):
-        ''' Takes the prior data and constructs a KDE function
+        """ Takes the prior data and constructs a KDE function
 
         TODO: add details on the band width determination - see example
         advanced for a base explaination.
@@ -89,7 +79,8 @@ class kde(plotting):
         I have settled on using the values from a cross validated maximum
         likelihood estimate.
 
-        '''
+        """
+        
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
@@ -114,7 +105,7 @@ class kde(plotting):
                             var_type='cccccccccc', bw=bw)
 
     def normal(self, y, mu, sigma):
-        ''' Returns normal log likelihood
+        """ Returns normal log likelihood
 
         Inputs
         ------
@@ -128,13 +119,15 @@ class kde(plotting):
         Returns
         -------
         log likelihood : real
-        '''
+        
+        """
+        
         if (sigma < 0):
             return 0.0
         return -0.5 * (y - mu)**2 / sigma**2
 
     def prior(self, p):
-        ''' Calculates the log prior from the KDE for the parameters p and
+        """ Calculates the log prior from the KDE for the parameters p and
         applies some boundaries.
 
         Inputs
@@ -151,7 +144,9 @@ class kde(plotting):
                    'env_width', 'mode_width', 'teff', 'bp_rp']
 
         key: [log, log, lin, log, log, log, log, log, log, lin]
-        '''
+        
+        """
+        
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
         if p[3] - p[0] > -0.7:
             return -np.inf
@@ -160,10 +155,13 @@ class kde(plotting):
         return lp
 
     def likelihood(self, p):
-        '''
+        """ Calculate likelihood
+        
         Calculates the likelihood of the observed properties given
         the proposed parameters p.
-        '''
+        
+        """
+        
         # log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
         #     log_env_width, log_mode_width, log_teff, bp_rp = p
 
@@ -176,7 +174,7 @@ class kde(plotting):
         return ld
 
     def kde_sampler(self, nwalkers=50):
-        ''' Samples from the posterior probability distribution
+        """ Samples from the posterior probability distribution
 
         p(theta | D) propto p(theta) p(D | theta)
 
@@ -198,7 +196,8 @@ class kde(plotting):
                      'bp_rp']
         key: [log, log, lin, log, log, log, log, log, log, lin]
 
-        '''
+        """
+        
         if self.verbose:
             print('Running KDE sampler')
 
@@ -218,24 +217,25 @@ class kde(plotting):
         return self.fit()
 
     def to_log10(self, x, xerr):
-        '''
-        Transforms observables into log10 space.
-        '''
+        """ Transforms observables into log10 space.
+        
+        """
+        
         if xerr > 0:
             return [np.log10(x), xerr/x/np.log(10.0)]
         return [x, xerr]
 
     def obs_to_log(self, obs):
-        '''
+        """
         Converted the observed properties into log10 space.
-        '''
+        """
         self.log_obs = {'dnu': self.to_log10(*obs['dnu']),
                         'numax': self.to_log10(*obs['numax']),
                         'teff': self.to_log10(*obs['teff']),
                         'bp_rp': obs['bp_rp']}
 
     def kde_predict(self, n):
-        '''
+        """
         Predict the frequencies from the kde method samples.
 
         The sampler must be run before calling the predict method.
@@ -254,7 +254,9 @@ class kde(plotting):
         frequencies_unc: numpy-array
             A numpy array of length len(n) containting the frequency estimates
             uncertainties.
-        '''
+            
+        """
+        
         if self.samples == []:
             print('Need to run the sampler first')
             return -1, -1
@@ -265,9 +267,9 @@ class kde(plotting):
         freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1],
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], 
                  bp_rp=[1, -1]):
-        ''' Calls the relevant defined method and returns an estimate of
+        """ Calls the relevant defined method and returns an estimate of
         epsilon.
 
         Inputs
@@ -285,7 +287,9 @@ class kde(plotting):
         -------
         result : array-like
             [estimate of epsilon, unceritainty on estimate]
-        '''
+            
+        """
+        
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         
         self.obs_to_log(self.obs)

@@ -64,6 +64,7 @@ class star(plotting):
         power spectrum
     data_file : str
         Path to the csv file containing the prior data
+        
     """
 
     def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None, 
@@ -133,7 +134,9 @@ class star(plotting):
             the prior sample.
         make_plots : bool
             Whether or not to produce plots of the results.      
+            
         """
+        
         print('Starting KDE estimation')
         # Init
         kde(self, bw_fac=bw_fac)
@@ -167,7 +170,9 @@ class star(plotting):
             Whether or not to store MCMC chains on disk. 
         nthreads : int
             Not used currently
+            
         """
+        
         print('Starting Asy_peakbag')
         # Init
         asymptotic_fit(self, self.kde, norders=norders, 
@@ -216,6 +221,7 @@ class star(plotting):
             Whether or not to store MCMC chains on disk.
         nthreads : int
             Number of processes to spin up in pymc3
+            
         """
         
         print('Starting peakbagging run')
@@ -260,6 +266,7 @@ class star(plotting):
             Whether or not to produce plots of the results.      
         store_chains : bool
             Whether or not to store MCMC chains on disk.
+            
         """
         
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
