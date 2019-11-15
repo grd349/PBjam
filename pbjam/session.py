@@ -666,8 +666,8 @@ class session():
     
     model_type : str, optional
         Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. 
-        TODO: which types?
+        represent the mode linewidths. Options are 'simple' or 'model_gp'.
+        
     
     Attributes
     ----------
@@ -686,8 +686,7 @@ class session():
 
     pb_model_type : str
         Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. 
-        TODO: which types?
+        represent the mode linewidths. Options are 'simple' or 'model_gp'.
         
     """
 
