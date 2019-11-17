@@ -3,6 +3,7 @@
 This module fits the asymptotic relation to the p-modes in a frequency range
 around nu_max, the central frequency of the seismic mode envelope,
 in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are ignored.
+
 """
 
 import numpy as np
@@ -31,6 +32,7 @@ def get_nmax(dnu, numax, eps):
     -------
         nmax : float
             non-integer radial order of maximum power of the p-mode envelope
+            
     """
 
     return numax / dnu - eps
@@ -53,6 +55,7 @@ def get_enns(nmax, norders):
     -------
     enns : ndarray
             Numpy array of norders radial orders (integers) around numax (nmax).
+            
     """
 
     below = np.floor(nmax - np.floor(norders/2)).astype(int)
@@ -90,6 +93,7 @@ def asymptotic_relation(numax, dnu, eps, alpha, norders):
         Array of l=0 mode frequencies from the asymptotic relation (muHz).
 
     """
+    
     nmax = get_nmax(dnu, numax, eps)
     enns = get_enns(nmax, norders)
     return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
@@ -119,6 +123,7 @@ def P_envelope(nu, hmax, numax, width):
     -------
     h : float
         Power at frequency nu (in SNR)
+        
     """
     hmax = 10**hmax
     width = 10**width
@@ -148,6 +153,7 @@ def get_summary_stats(fit, model, pnames):
     mle_model : ndarray
         Numpy array with the model spectrum corresponding to the maximum
         likelihood solution.
+        
     """
 
     summary = pd.DataFrame()
@@ -195,6 +201,7 @@ class asymp_spec_model():
 
     norders : int
         Number of radial order to fit
+        
     """
 
     def __init__(self, f, norders):
@@ -218,6 +225,7 @@ class asymp_spec_model():
         -------
         mode : ndarray
             The SNR as a function frequency for a lorentzian.
+            
         """
 
         w = 10**(w)
@@ -249,6 +257,7 @@ class asymp_spec_model():
         -------
         pair_model : array
             The SNR as a function of frequency of a mode pair.
+            
         """
 
         pair_model = self.lor(freq0, h, w)
@@ -296,6 +305,7 @@ class asymp_spec_model():
         -------
         model : ndarray
             spectrum model around the p-mode envelope
+            
         """
 
         f0s = asymptotic_relation(10**numax, 10**dnu, eps, 10**alpha, self.norders)
@@ -317,6 +327,7 @@ class asymp_spec_model():
         -------
         model : array
             spectrum model around the p-mode envelope
+            
         """
 
         return self.model(*p)
@@ -366,6 +377,7 @@ class asymptotic_fit(kde, plotting):
         Numpy array of tuples of mean and sigma for Gaussian
         priors on each of the fit parameters (To be removed when full
         KDE is implimented).
+        
     """
 
     def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False, 
@@ -438,6 +450,7 @@ class asymptotic_fit(kde, plotting):
         modeID : pandas.DataFrame
             Dataframe of radial order, n (best guess), angular degree, l,
             frequency and frequency error.
+            
         """
 
         flatchain = fit.flatchain
@@ -489,6 +502,7 @@ class asymptotic_fit(kde, plotting):
         log_dnu, log_numax, eps, log_d02, log_alpha, \
             log_env_height, log_env_width, log_mode_width, \
             log_teff, bp_rp = p
+            
         """
         
         # Constraint from input obs
@@ -520,6 +534,7 @@ class asymptotic_fit(kde, plotting):
         -------
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
+            
         """
         
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}

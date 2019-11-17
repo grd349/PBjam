@@ -56,7 +56,9 @@ class peakbag(plotting):
         'modeID' is a DataFrame with a list of modes and basic properties.
         'summary' are summary statistics from the asymptotic_fit.
         See asy_peakbag asymptotic_fit for more details.
+        
     """
+    
     def __init__(self, starinst, asyinst, init=True, path=None):
 
         self.pg = starinst.pg
@@ -77,6 +79,7 @@ class peakbag(plotting):
         Function uses the information in self.asy_result (the result of the
         asymptotic peakbagging) and builds a dictionary of starting values
         for the peakbagging methods.
+        
         """
         
         idxl0 = self.asy_result.modeID.ell == 0
@@ -105,10 +108,13 @@ class peakbag(plotting):
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
     def remove_outsiders(self, l0, l2):
-        '''
+        """ Drop outliers
+        
         Drops modes where the guess frequency is outside of the supplied
         frequency range.
-        '''
+        
+        """
+        
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
@@ -134,6 +140,7 @@ class peakbag(plotting):
         extra: float
             The factor by which dnu is multiplied in order to contribute to
             the rung width.
+            
         """
 
         d02 = 10**self.asy_result.summary.loc['d02','mean']
@@ -183,7 +190,9 @@ class peakbag(plotting):
         -------
         lorentzians : float, ladder
            A ladder containing one Lorentzian per rung.
+           
         """
+        
         norm = 1.0 + 4.0 / w**2 * (self.ladder_f.T - freq)**2
         return h / norm
 
@@ -220,7 +229,9 @@ class peakbag(plotting):
         -------
         mod : float, ndarray
             A 2D array (or 'ladder') containing the calculated model.
+            
         """
+        
         mod = np.ones(self.ladder_f.shape).T * back
         mod += self.lor(l0, width0, height0)
         mod += self.lor(l2, width2, height2)
@@ -231,8 +242,8 @@ class peakbag(plotting):
         TODO - Need to describe what is happening here.
         Complete docs when model is settled on.  Probably quiet a
         long docs needed to explain.
-        """
         
+        """
         
         dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
@@ -314,6 +325,7 @@ class peakbag(plotting):
             Number of times to attempt to reach convergence
         advo : bool
             Whether or not to fit using the fullrank_advi option in pymc3
+            
         """
         
         self.pm_model = pm.Model()

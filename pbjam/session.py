@@ -62,6 +62,7 @@ def organize_sess_dataframe(vardf):
     ----------
     vardf : Pandas.DataFrame
         Input dataframe
+        
     """
     
     keys = ['ID', 'numax', 'dnu', 'numax_err', 'dnu_err']
@@ -103,6 +104,7 @@ def organize_sess_input(**vardct):
     -------
     vardf : Pandas.DataFrame
         Dataframe containing the inputs from Session class call.
+        
     """
     
     vardf = pd.DataFrame({'ID': np.array(vardct['ID']).reshape((-1, 1)).flatten()})
@@ -149,6 +151,7 @@ def launch_query(id, cache, lkwargs):
     -------
     search_results : list
         List of fits files for the requested target
+        
     """
 
     print(f'Querying MAST for {id}')
@@ -175,6 +178,7 @@ def sort_lc(lc):
     -------
     lc : Lightkurve.LightCurve instance
         The sorted Lightkurve object
+        
     """
 
     sidx = np.argsort(lc.time)
@@ -198,6 +202,7 @@ def clean_lc(lc):
     -------
     lc : Lightkurve.LightCurve instance
         The cleaned Lightkurve object
+        
     """
 
     lc = lc.remove_nans().normalize().flatten().remove_outliers()
@@ -220,6 +225,7 @@ def set_cadence(lkwargs):
     -------
     ext : str
         Fits file short/long cadence extension
+        
     """
     if not lkwargs['cadence']:
         lkwargs['cadence'] = 'long'
@@ -244,6 +250,7 @@ def set_cache_dir(download_dir):
     -------
     cache_dir : str
         Path to store results from a star
+        
     """
     
     if not download_dir:
@@ -267,6 +274,7 @@ def set_mission(ID, lkwargs):
         ID string of the target
     lkwargs : dict
         Dictionary to be passed to LightKurve
+        
     """
     if lkwargs['mission'] is None:
         if ('kic' in ID.lower()) or ('kplr' in ID.lower()) :
@@ -295,6 +303,7 @@ def lookup_cached_files(id, cache_dir, ext):
     
     return : list
         List of file names matching the search criteria
+        
     """
     
     if isinstance(id, str):
@@ -384,6 +393,7 @@ def arr_to_lk(x, y, name, typ):
         depending on typ.
 
     """
+    
     if typ == 'timeseries':
         return lk.LightCurve(time=x, flux=y, targetid=name)
     elif typ == 'psd':
@@ -426,6 +436,7 @@ def format_col(vardf, col, key):
         Name of column to add to vardf
 
     """
+    
     N = np.shape(vardf['ID'])[0]
 
     col = np.array(col, dtype=object)
@@ -476,8 +487,6 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
     vardf : pandas.DataFrame instance
         Dataframe containing a 'timeseries' column consisting of None, strings
         or Lightkurve.LightCurve objects.
-    Returns
-    -------
 
     """
 
@@ -666,8 +675,8 @@ class session():
     
     model_type : str, optional
         Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. 
-        TODO: which types?
+        represent the mode linewidths. Options are 'simple' or 'model_gp'.
+        
     
     Attributes
     ----------
@@ -686,8 +695,7 @@ class session():
 
     pb_model_type : str
         Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. 
-        TODO: which types?
+        represent the mode linewidths. Options are 'simple' or 'model_gp'.
         
     """
 

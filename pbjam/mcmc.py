@@ -47,9 +47,11 @@ class mcmc():
         self.acceptance = None
 
     def logpost(self, p):
-        '''
+        """ 
+        
         Returns the log posterior probability given parameters p
-        '''
+        
+        """
         logp = self.lp(p)
         if logp == -np.inf:
             return -np.inf
@@ -64,7 +66,9 @@ class mcmc():
         nfactor should be nearer 100 follwing the emcee docs
         but in PBjam useage I get better than reasonable results
         when using 20.
+        
         """
+        
         tau = self.sampler.get_autocorr_time(tol=0)
         converged = np.all(tau * nfactor < self.sampler.iteration)
         return converged
@@ -91,7 +95,9 @@ class mcmc():
         sampler.flatchain : array
             The chain of (nwalkers, niter, ndim) flattened to
             (nwalkers*niter, ndim).
+            
         """
+        
         nsteps = 1000
 
         # Start walkers in a tight random ball
@@ -168,7 +174,9 @@ class mcmc():
         accept_lim: float
             The value below which walkers will be labelled as bad and/or hence
             stuck.
+            
         """
+        
         idx = self.sampler.acceptance_fraction < accept_lim
         nbad = np.shape(pos[idx, :])[0]
         if nbad > 0:
