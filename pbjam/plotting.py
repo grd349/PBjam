@@ -1,6 +1,6 @@
 """ Module for a general set of plotting methods
 
-This module contains a set of plotting methods which are inherited by the 
+This module contains a set of plotting methods which are inherited by the
 different classes of PBjam.
 
 Contains:
@@ -8,7 +8,7 @@ Contains:
 - Corner plot, showing the marginalized posteriors of each fit parameter (can become quite big for peakbag stage)
 - Echelle diagram
 
-As each step is completed, the resulting class instance will inherit the 
+As each step is completed, the resulting class instance will inherit the
 available plotting methods.
 
 """
@@ -30,21 +30,21 @@ class plotting():
         """
 
         Plots an echelle diagram with mode frequencies if available.
-    
+
         Parameters
         ----------
         pg : periodogram
             A lightkurve periodogram
-    
+
         Returns
         -------
         fig : figure
             Matplotlib figure object
-            
+
         """
-                
+
         freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
-        
+
         if type(self) == pbjam.star:
             dnu = self.dnu[0]
             numax = self.numax[0]
@@ -52,7 +52,7 @@ class plotting():
         elif type(self) == pbjam.priors.kde:
             dnu = 10**np.median(self.samples[:,0])
             numax = 10**np.median(self.samples[:,1])
- 
+
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
             dnu = 10**self.summary.loc['dnu', '50th']
             numax = 10**self.summary.loc['numax', '50th']
@@ -66,20 +66,20 @@ class plotting():
             for l in np.arange(4):
                 ell = 'l'+str(l)
                 freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
-                freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']        
+                freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
             dnu = np.median(np.diff(freqs['l0']['nu']))
-        
+
         elif type(self) == pbjam.ellone:
             numax = 10**self.pbinst.asy_result.summary.loc['numax', '50th']
             for l in [0, 2]:
                 ell = 'l'+str(l)
                 freqs[ell]['nu'] = self.pbinst.summary.filter(like=ell, axis=0).loc[:, 'mean']
-                freqs[ell]['err'] = self.pbinst.summary.filter(like=ell, axis=0).loc[:, 'sd']        
+                freqs[ell]['err'] = self.pbinst.summary.filter(like=ell, axis=0).loc[:, 'sd']
             freqs['l1']['nu'] = self.nu_l1
             freqs['l1']['err'] = self.nu_l1_std
-            
+
             dnu = np.median(np.diff(freqs['l0']['nu']))
-            
+
 
         else:
             raise ValueError('Unrecognized class type')
@@ -98,9 +98,8 @@ class plotting():
         seismology = peri.flatten().to_seismology()
 
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
-                                     numax=numax * u.uHz,
-                                     minimum_frequency=dnu*nmin)
-        
+                                     numax=numax * u.uHz)
+
         # Overplot modes
         cols = ['C1', 'C2', 'C3', 'C4']
 
@@ -116,28 +115,28 @@ class plotting():
 
         """
         Makes a nice corner plot of the fit parameters
-        
+
         Parameters
         ----------
         path : str (optional)
-            Used along with savefig, sets the output directory to store the 
-            figure. 
+            Used along with savefig, sets the output directory to store the
+            figure.
         ID : str (optional)
             ID of the target to be included in the filename of the figure.
         savefig : bool
             Whether or not to save the figure to disk
-        
+
         Returns
         -------
         fig : object
             Matplotlib figure object
-            
+
         """
-        
+
         if not hasattr(self, 'samples'):
             warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
             return None
-        
+
         fig = corner.corner(self.samples, labels=self.par_names,
                             show_titles=True, quantiles=[0.16, 0.5, 0.84],
                             title_kwargs={"fontsize": 12})
@@ -153,28 +152,28 @@ class plotting():
 
     def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
         """ Plot the power spectrum
-        
-        Plot the power spectrum around the p-mode envelope. Calling this 
+
+        Plot the power spectrum around the p-mode envelope. Calling this
         method from the different classes such as KDE or peakbag, will plot
         the relevant result from those classes if available.
-        
+
         Parameters
         ----------
         pg : periodogram
             A lightkurve periodogram
         path : str (optional)
-            Used along with savefig, sets the output directory to store the 
-            figure. 
+            Used along with savefig, sets the output directory to store the
+            figure.
         ID : str (optional)
             ID of the target to be included in the filename of the figure.
         savefig : bool
             Whether or not to save the figure to disk
-            
+
         Returns
         -------
         fig : object
             Matplotlib figure object
-            
+
         """
 
         if not pg and hasattr(self, 'pg'):
@@ -250,7 +249,7 @@ class plotting():
             dnu = 10**self.asy_result.summary.loc['dnu', '50th']
             xlim = [min(f[self.asy_result.sel])-dnu,
                     max(f[self.asy_result.sel])+dnu]
-            
+
         elif type(self) == pbjam.ellone:
             n = self.pbinst.ladder_s.shape[0]
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
@@ -265,14 +264,14 @@ class plotting():
                     mod = self.pbinst.model(*[self.pbinst.samples[x][j] for x in par_names])
                     ax.plot(self.pbinst.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=mlabel)
-                
+
                 ax.axvline(self.nu_l1, color = 'k', alpha = 0.5, label = l1label)
-                
+
             dnu = 10**self.pbinst.asy_result.summary.loc['dnu', '50th']
-            
+
             xlim = [min(f[self.pbinst.asy_result.sel])-dnu,
                     max(f[self.pbinst.asy_result.sel])+dnu]
-            
+
         else:
             raise ValueError('Unrecognized class type')
 
@@ -285,33 +284,33 @@ class plotting():
         if savefig:
             outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
             fig.savefig(outpath)
-        
+
         return fig
 
 
 def plot_trace(stage):
     """ Make a trace plot of the MCMC chains
     """
-    
+
     import pymc3 as pm
-    
+
     if type(stage) == pbjam.priors.kde:
         # TODO - make this work for kde
         print('Traceplot for kde not yet implimented')
-    
+
     if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
         # TODO - make this work for asy_peakbag
         print('Traceplot for asy_peakbag not yet implimented')
-    
+
     if type(stage) == pbjam.peakbag:
         pm.traceplot(stage.samples)
 
 
-# Asy_peakbag  
+# Asy_peakbag
 def plot_start(self):
     """ Plots the starting model as a diagnotstic.
     """
-         
+
     dnu = 10**np.median(self.start_samples, axis=0)[0]
     xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
     fig, ax = plt.subplots(figsize=[16,9])
@@ -320,7 +319,7 @@ def plot_start(self):
     kernel = conv.Gaussian1DKernel(stddev=smoo)
     smoothed = conv.convolve(self.s, kernel)
     ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-    ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)), 
+    ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
             'r-', label='Start model', alpha=0.7)
     ax.set_ylim([0, smoothed.max()*1.5])
     ax.set_xlim(xlim)
@@ -333,7 +332,7 @@ def plot_start(self):
 def plot_linewidth(self, thin=10):
     """ Plot estimated line width as a function of scaled n.
     """
-    
+
     fig, ax = plt.subplots(1, 2, figsize=[16,9])
 
     if self.gp0 != []:
@@ -372,7 +371,7 @@ def plot_linewidth(self, thin=10):
 def plot_height(self, thin=10):
     """ Plots the estimated mode height.
     """
-    
+
     fig, ax = plt.subplots(figsize=[16,9])
     for i in range(0, len(self.samples), thin):
         ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
@@ -389,9 +388,9 @@ def plot_ladder(self, thin=10, alpha=0.2):
         Uses every other thin'th value from the samkles, i.e. [::thin].
     alpha: float64
         The alpha to use for plotting the models from samples.
-        
+
     """
-    
+
     n = self.ladder_s.shape[0]
     fig, ax = plt.subplots(n, figsize=[16,9])
     for i in range(n):
