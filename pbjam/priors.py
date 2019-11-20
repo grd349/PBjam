@@ -54,19 +54,18 @@ class kde(plotting):
         # that the KDE is finite at the location of your target
 
         KDEsize = 100
-
-        idx = np.zeros(len(self.prior_data), dtype = bool)
+        idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
         flag_warn = False
-        while len(self.prior_data[idx]) < 100:
+        while len(self.prior_data[idx]) < KDEsize:
 
-            nsigma += 0.1
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
             if not flag_warn:
-                warnings.warn(f'There are only {len(self.prior_data[idx])} stars in the prior. ' + '
+                warnings.warn(f'There are only {len(self.prior_data[idx])} stars in the prior. ' +
                 'I will expand the prior untill I have 100 stars.')
                 flag_warn = True
             if nsigma > KDEsize:
                 break
+            nsigma += 0.1
 
         if len(self.prior_data[idx]) > 1000:
             # This should downsample to ~100-200 stars, but with the above
