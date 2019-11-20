@@ -12,7 +12,7 @@ class kde(plotting):
     TODO: See the docs for full information. (especially example_advanced)
 
     """
-    
+
     def __init__(self, starinst=None, nthreads=1, verbose=False, bw_fac=1):
 
         if starinst:
@@ -44,24 +44,30 @@ class kde(plotting):
             be used (you probably don't want to do this).
 
         """
-        
+
         if not numax:
             return self.prior_data
 
-        # If the number of targets in the range considered for the prior is 
-        # less than 100, the range will be expanded until it ~100. This is 
+        # If the number of targets in the range considered for the prior is
+        # less than 100, the range will be expanded until it ~100. This is
         # to ensure that the KDE can be constructed. Note: does not ensure
         # that the KDE is finite at the location of your target
-       
+
         KDEsize = 100
-        
+
         idx = np.zeros(len(self.prior_data), dtype = bool)
+        flag_warn = False
         while len(self.prior_data[idx]) < 100:
+
             nsigma += 0.1
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+            if not flag_warn:
+                warnings.warn(f'There are only {len(self.prior_data[idx])} stars in the prior. ' + '
+                'I will expand the prior untill I have 100 stars.')
+                flag_warn = True
             if nsigma > KDEsize:
                 break
-            
+
         if len(self.prior_data[idx]) > 1000:
             # This should downsample to ~100-200 stars, but with the above
             # it's unlikely to wind up in that situation.
@@ -80,19 +86,19 @@ class kde(plotting):
         likelihood estimate.
 
         """
-        
+
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
         self.select_prior_data(self.log_obs['numax'])
-        
+
         if self.verbose:
                 print(f'Selected data set length {len(self.prior_data)}')
-                
-        if self.bw_fac != 1:    
+
+        if self.bw_fac != 1:
             from statsmodels.nonparametric.bandwidths import select_bandwidth
-            bw = select_bandwidth(self.prior_data[self.par_names].values, 
-                                  bw = 'scott', 
+            bw = select_bandwidth(self.prior_data[self.par_names].values,
+                                  bw = 'scott',
                                   kernel=None) * self.bw_fac
         else:
             if self.verbose:
@@ -119,9 +125,9 @@ class kde(plotting):
         Returns
         -------
         log likelihood : real
-        
+
         """
-        
+
         if (sigma < 0):
             return 0.0
         return -0.5 * (y - mu)**2 / sigma**2
@@ -144,9 +150,9 @@ class kde(plotting):
                    'env_width', 'mode_width', 'teff', 'bp_rp']
 
         key: [log, log, lin, log, log, log, log, log, log, lin]
-        
+
         """
-        
+
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
         if p[3] - p[0] > -0.7:
             return -np.inf
@@ -156,12 +162,12 @@ class kde(plotting):
 
     def likelihood(self, p):
         """ Calculate likelihood
-        
+
         Calculates the likelihood of the observed properties given
         the proposed parameters p.
-        
+
         """
-        
+
         # log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
         #     log_env_width, log_mode_width, log_teff, bp_rp = p
 
@@ -197,7 +203,7 @@ class kde(plotting):
         key: [log, log, lin, log, log, log, log, log, log, lin]
 
         """
-        
+
         if self.verbose:
             print('Running KDE sampler')
 
@@ -218,9 +224,9 @@ class kde(plotting):
 
     def to_log10(self, x, xerr):
         """ Transforms observables into log10 space.
-        
+
         """
-        
+
         if xerr > 0:
             return [np.log10(x), xerr/x/np.log(10.0)]
         return [x, xerr]
@@ -254,9 +260,9 @@ class kde(plotting):
         frequencies_unc: numpy-array
             A numpy array of length len(n) containting the frequency estimates
             uncertainties.
-            
+
         """
-        
+
         if self.samples == []:
             print('Need to run the sampler first')
             return -1, -1
@@ -267,7 +273,7 @@ class kde(plotting):
         freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
         return freq.mean(axis=1), freq.std(axis=1)
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], 
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1],
                  bp_rp=[1, -1]):
         """ Calls the relevant defined method and returns an estimate of
         epsilon.
@@ -287,11 +293,11 @@ class kde(plotting):
         -------
         result : array-like
             [estimate of epsilon, unceritainty on estimate]
-            
+
         """
-        
+
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-        
+
         self.obs_to_log(self.obs)
 
         self.make_kde()
