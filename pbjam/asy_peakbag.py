@@ -484,6 +484,13 @@ class asymptotic_fit(kde, plotting):
         model parameters.  This includes the constraint from
         the observed variables.
 
+        The code now includes a penalty to limit very large linewidth
+        examples.  The penalty is very basic and in some cases where the
+        true linewidth is much larger than the linewidth in the
+        prior it will become informative.  For the most part this
+        should not be a problem because if you  care about linewidths
+        you should be using the outpout from the peakbag model.
+
         Parameters
         ----------
         p : array
@@ -506,8 +513,8 @@ class asymptotic_fit(kde, plotting):
         ld += self.normal(p[-1], *self.log_obs['bp_rp'])
 
         # Added linewidth constraints
-        if (p[7] > self.start[7]):
-            ld += self.normal(10**self.start[7], *[10**p[7], 10**self.start[7]*0.05])
+        if (p[7] > self.start[7] + np.log10(1.5)):
+            ld += self.normal(10**self.start[7]*1.5, *[10**p[7], 10**self.start[7]*0.1])
 
         # Constraint from the periodogram
         mod = self.model(p)
