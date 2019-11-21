@@ -417,15 +417,16 @@ class asymptotic_fit(kde, plotting):
 
         starinst.asy_fit = self
 
-    def start_init(self):
+    def start_init(self, verbose=False):
         '''
             Bodge a better starting point
         '''
         like_start = np.ones(len(self.start_samples[:, 0]))
         for idx, samp in enumerate(self.start_samples):
             like_start[idx] = self.likelihood(samp)
-        print(np.max(like_start))
-        print(self.start_samples[np.argmax(like_start), :])
+        if verbose:
+            print(f'Likelihood at the start : {np.max(like_start)}')
+            print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')
 
     def get_modeIDs(self, fit, N):
         """ Set mode ID in a dataframe
