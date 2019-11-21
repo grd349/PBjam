@@ -97,8 +97,10 @@ class plotting():
 
         seismology = peri.flatten().to_seismology()
 
+        fig, ax = plt.subplots(figsize=[16,9])
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
-                                     numax=numax * u.uHz)
+                                     numax=numax * u.uHz,
+                                     ax=ax)
 
         # Overplot modes
         cols = ['C1', 'C2', 'C3', 'C4']
@@ -110,6 +112,8 @@ class plotting():
                 err = freqs[ell]['err']
                 ax.errorbar(nu%dnu, (nu//dnu) * dnu, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l))
         ax.legend(fontsize = 'x-small')
+
+        return fig
 
     def plot_corner(self, path=None, ID=None, savefig=False):
 
