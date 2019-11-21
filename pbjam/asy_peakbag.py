@@ -60,7 +60,7 @@ def get_enns(nmax, norders):
 
     below = np.floor(nmax - np.floor(norders/2)).astype(int)
     above = np.floor(nmax + np.ceil(norders/2)).astype(int)
-    
+
     # Handling of single input (during fitting), or array input when evaluating
     # the fit
     if type(below) != np.ndarray:
@@ -380,16 +380,16 @@ class asymptotic_fit(kde, plotting):
         
     """
 
-    def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False, 
+    def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False,
                  nthreads=1, path=None):
-        
+
         self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
         self.store_chains = store_chains
         self.nthreads = nthreads
         self.norders = norders
-        
+
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
@@ -402,9 +402,9 @@ class asymptotic_fit(kde, plotting):
         else:
             raise ValueError("Asy_peakbag won't run without samples of the prior")
 
-
+        # Means = medians is pretty rough.
         means = np.median(self.start_samples, axis=0)
-        start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]), 
+        start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]),
                  10**(means[4]), means[5], means[6], means[7], 10**(means[8]),
                  means[9]]
         self.start = start
@@ -426,9 +426,19 @@ class asymptotic_fit(kde, plotting):
         self.lnprior_fin = None
         self.mle_model = None
         self.acceptance = None
-                
+
         starinst.asy_fit = self
 
+    def start_init(self, verbose=False):
+        '''
+            Bodge a better starting point
+        '''
+        like_start = np.ones(len(self.start_samples[:, 0]))
+        for idx, samp in enumerate(self.start_samples):
+            like_start[idx] = self.likelihood(samp)
+        if verbose:
+            print(f'Likelihood at the start : {np.max(like_start)}')
+            print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')
 
     def get_modeIDs(self, fit, N):
         """ Set mode ID in a dataframe
@@ -475,7 +485,7 @@ class asymptotic_fit(kde, plotting):
             nus_med_out += [nus_med[1, i], nus_med[0, i]]
             nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
 
-        modeID = pd.DataFrame({'ell': ells, 'nu_med': nus_med_out, 
+        modeID = pd.DataFrame({'ell': ells, 'nu_med': nus_med_out,
                                'nu_mad': nus_mad_out})
         return modeID
 
@@ -487,6 +497,13 @@ class asymptotic_fit(kde, plotting):
         Evaluates the likelihood function for a set of
         model parameters.  This includes the constraint from
         the observed variables.
+
+        The code now includes a penalty to limit very large linewidth
+        examples.  The penalty is very basic and in some cases where the
+        true linewidth is much larger than the linewidth in the
+        prior it will become informative.  For the most part this
+        should not be a problem because if you  care about linewidths
+        you should be using the outpout from the peakbag model.
 
         Parameters
         ----------
@@ -504,12 +521,16 @@ class asymptotic_fit(kde, plotting):
             log_teff, bp_rp = p
             
         """
-        
+
         # Constraint from input obs
         ld = 0.0
         ld += self.normal(p[-2], *self.log_obs['teff'])
         ld += self.normal(p[-1], *self.log_obs['bp_rp'])
-        
+
+        # Added linewidth constraints
+        if (p[7] > self.start[7] + np.log10(1.5)):
+            ld += self.normal(10**self.start[7]*1.5, *[10**p[7], 10**self.start[7]*0.1])
+
         # Constraint from the periodogram
         mod = self.model(p)
         lnlike = -1.0 * np.sum(np.log(mod) + self.s[self.sel] / mod)
@@ -527,7 +548,7 @@ class asymptotic_fit(kde, plotting):
         teff : [real, real]
             Stellar effective temperature and uncertainty
         bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty 
+            The Gaia Gbp - Grp color value and uncertainty
             (probably ~< 0.01 dex).
 
         Returns
@@ -536,11 +557,12 @@ class asymptotic_fit(kde, plotting):
             A dictionary of the modeID DataFrame and the summary DataFrame.
             
         """
-        
+
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         self.obs_to_log(self.obs)
 
-        
+        self.start_init()
+
         self.fit = pb.mcmc(np.median(self.start_samples, axis=0), self.likelihood,
                            self.prior, nthreads=self.nthreads)
 
@@ -548,7 +570,7 @@ class asymptotic_fit(kde, plotting):
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
-        self.summary, self.mle_model = get_summary_stats(self.fit, self.model, 
+        self.summary, self.mle_model = get_summary_stats(self.fit, self.model,
                                                          self.par_names)
 
         #if self.store_chains:
@@ -560,5 +582,5 @@ class asymptotic_fit(kde, plotting):
         #    self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
 
         self.acceptance = self.fit.acceptance
-        
+
         return {'modeID': self.modeID, 'summary': self.summary}

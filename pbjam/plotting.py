@@ -287,6 +287,28 @@ class plotting():
 
         return fig
 
+    # Asy_peakbag
+    def plot_start(self):
+        '''
+        Plots the starting model as a diagnotstic.
+        '''
+
+        dnu = 10**np.median(self.start_samples, axis=0)[0]
+        xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
+        fig, ax = plt.subplots(figsize=[16,9])
+        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
+        kernel = conv.Gaussian1DKernel(stddev=smoo)
+        smoothed = conv.convolve(self.s, kernel)
+        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
+        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
+                'r-', label='Start model', alpha=0.7)
+        ax.set_ylim([0, smoothed.max()*1.5])
+        ax.set_xlim(xlim)
+        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        ax.set_ylabel(r'SNR')
+        ax.legend()
+        return fig
 
 def plot_trace(stage):
     """ Make a trace plot of the MCMC chains

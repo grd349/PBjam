@@ -73,6 +73,7 @@ class kde(plotting):
             warnings.warn('You have lots data points in your prior - estimating' +
                           ' the KDE band width will be slow!')
 
+        print(f'Using {len(self.prior_data[idx])} data points for the KDE')
         self.prior_data = self.prior_data[idx]
 
     def make_kde(self):
