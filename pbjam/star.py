@@ -64,7 +64,7 @@ class star(plotting):
         power spectrum
     data_file : str
         Path to the csv file containing the prior data
-        
+
     """
 
     def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None,
@@ -89,24 +89,20 @@ class star(plotting):
             self.prior_file = prior_file
 
     def make_output_dir(self):
-<<<<<<< HEAD
-
-=======
         """ Make output directory for star
-        
+
         Attempts to create an output directory for all the results that PBjam
-        produces. A directory is created when a star class instance is 
-        initialized, so a session might create multiple directories. 
-        
-        The parent directory for these star directories is assumed to be 
+        produces. A directory is created when a star class instance is
+        initialized, so a session might create multiple directories.
+
+        The parent directory for these star directories is assumed to be
         self.path
-        
+
         """
-        
+
         if not hasattr(self, 'path'):
             raise AttributeError("'star' instance must have 'path' attribute")
-        
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
+
         if isinstance(self.path, str):
             # If path is str, presume user wants to override self.path
             self.path = os.path.join(*[self.path, f'{self.ID}'])
@@ -123,24 +119,24 @@ class star(plotting):
 
     def run_kde(self, bw_fac=1.0, make_plots=False):
         """ Run all steps involving KDE.
-        
-        Starts by creating a KDE based on the prior data sample. Then samples 
-        this KDE for initial starting positions for asy_peakbag. 
-        
+
+        Starts by creating a KDE based on the prior data sample. Then samples
+        this KDE for initial starting positions for asy_peakbag.
+
         Also generates plots of the results and stores them in the star
         directory.
-        
+
         Parameters
         ----------
         bw_fac : float
-            Scaling factor for the KDE bandwidth. The bandwidth is 
+            Scaling factor for the KDE bandwidth. The bandwidth is
             automatically, but may be scaled to adjust for, .e.g, sparsity of
             the prior sample.
         make_plots : bool
-            Whether or not to produce plots of the results.      
-            
+            Whether or not to produce plots of the results.
+
         """
-        
+
         print('Starting KDE estimation')
         # Init
         kde(self, bw_fac=bw_fac)
@@ -160,26 +156,26 @@ class star(plotting):
     def run_asy_peakbag(self, norders=None, make_plots=False,
                         store_chains=False, nthreads=1):
         """ Run all stesps involving asy_peakbag.
-        
+
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
         and outputs result plots and a summary of the fit results.
-        
+
         Parameters
         ----------
         norders : int
             Number of orders to include in the fits
         make_plots : bool
-            Whether or not to produce plots of the results.      
+            Whether or not to produce plots of the results.
         store_chains : bool
-            Whether or not to store MCMC chains on disk. 
+            Whether or not to store MCMC chains on disk.
         nthreads : int
             Not used currently
-            
+
         """
-        
+
         print('Starting Asy_peakbag')
         # Init
-        self.asy_fit = asymptotic_fit(self, self.kde, norders=norders, 
+        self.asy_fit = asymptotic_fit(self, self.kde, norders=norders,
                        store_chains=store_chains, nthreads=nthreads)
 
         # Call
@@ -204,13 +200,13 @@ class star(plotting):
 
 
 
-    def run_peakbag(self, model_type='simple', tune=1500, nthreads=1, 
+    def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all stesps involving peakbag.
-        
-        Performs fit using simple lorentzian pairs two subsections of the 
+
+        Performs fit using simple lorentzian pairs two subsections of the
         power spectrum based on results from asy_peakbag.
-        
+
         Parameters
         ----------
         model_type : str
@@ -220,12 +216,12 @@ class star(plotting):
         tune : int
             Numer of tuning steps passed to pm.sample
         make_plots : bool
-            Whether or not to produce plots of the results.      
+            Whether or not to produce plots of the results.
         store_chains : bool
             Whether or not to store MCMC chains on disk.
         nthreads : int
             Number of processes to spin up in pymc3
-            
+
         """
 
         print('Starting peakbagging run')
@@ -248,42 +244,34 @@ class star(plotting):
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  verbose=False, make_plots=True, store_chains=True, nthreads=1):
-<<<<<<< HEAD
-        """ Instead of a _call_ we should just make this a function maybe? Whats wrong with __call__?"""
-
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
-
-        self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-=======
         """ Perform all the PBjam steps
-        
-        
+
+
         Parameters
         ----------
         bw_fac : float
-            Scaling factor for the KDE bandwidth. The bandwidth is 
+            Scaling factor for the KDE bandwidth. The bandwidth is
             automatically, but may be scaled to adjust for, .e.g, sparsity of
             the prior sample.
         norders : int
             Number of orders to include in the fits
         model_type : str
-            Defaults to 'simple'. Can be either 'simple' or 'model_gp' which 
+            Defaults to 'simple'. Can be either 'simple' or 'model_gp' which
             sets the type of model to be fit for the mode linewidths.
         tune : int
             Numer of tuning steps passed to pm.sample
         verbose : bool
             Should I say anything?
         make_plots : bool
-            Whether or not to produce plots of the results.      
+            Whether or not to produce plots of the results.
         store_chains : bool
             Whether or not to store MCMC chains on disk.
-            
+
         """
-        
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)          
-   
-        self.run_asy_peakbag(norders=norders, make_plots=make_plots, 
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
+
+        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
+
+        self.run_asy_peakbag(norders=norders, make_plots=make_plots,
                              store_chains=store_chains, nthreads=nthreads)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,

@@ -53,17 +53,11 @@ class kde(plotting):
         # to ensure that the KDE can be constructed. Note: does not ensure
         # that the KDE is finite at the location of your target
 
-<<<<<<< HEAD
-        idx = np.zeros(len(self.prior_data), dtype = bool)
-        while len(self.prior_data[idx]) < 100:
-            nsigma += 0.5
-=======
         KDEsize = 100
         idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
         flag_warn = False
         while len(self.prior_data[idx]) < KDEsize:
 
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
             if not flag_warn:
                 warnings.warn(f'There are only {len(self.prior_data[idx])} stars in the prior. ' +
@@ -71,17 +65,14 @@ class kde(plotting):
                 flag_warn = True
             if nsigma > KDEsize:
                 break
-<<<<<<< HEAD
-=======
             nsigma += 0.1
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
 
         if len(self.prior_data[idx]) > 1000:
             # This should downsample to ~100-200 stars, but with the above
             # it's unlikely to wind up in that situation.
             warnings.warn('You have lots data points in your prior - estimating' +
                           ' the KDE band width will be slow!')
-                          
+
         print(f'Using {len(self.prior_data[idx])} data points for the KDE')
         self.prior_data = self.prior_data[idx]
 

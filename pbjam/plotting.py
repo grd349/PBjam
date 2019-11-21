@@ -40,12 +40,8 @@ class plotting():
         -------
         fig : figure
             Matplotlib figure object
-<<<<<<< HEAD
-        '''
-=======
 
         """
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
 
         freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
 
@@ -71,10 +67,6 @@ class plotting():
                 ell = 'l'+str(l)
                 freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
                 freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
-<<<<<<< HEAD
-
-=======
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
             dnu = np.median(np.diff(freqs['l0']['nu']))
 
         elif type(self) == pbjam.ellone:
@@ -106,12 +98,7 @@ class plotting():
         seismology = peri.flatten().to_seismology()
 
         ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
-<<<<<<< HEAD
-                                     numax=numax * u.uHz,
-                                     minimum_frequency=dnu*nmin)
-=======
                                      numax=numax * u.uHz)
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
 
         # Overplot modes
         cols = ['C1', 'C2', 'C3', 'C4']
@@ -143,12 +130,8 @@ class plotting():
         -------
         fig : object
             Matplotlib figure object
-<<<<<<< HEAD
-        '''
-=======
 
         """
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
 
         if not hasattr(self, 'samples'):
             warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
@@ -326,7 +309,7 @@ class plotting():
         ax.set_ylabel(r'SNR')
         ax.legend()
         return fig
-        
+
 def plot_trace(stage):
     """ Make a trace plot of the MCMC chains
     """
@@ -345,9 +328,6 @@ def plot_trace(stage):
         pm.traceplot(stage.samples)
 
 
-<<<<<<< HEAD
-
-=======
 # Asy_peakbag
 def plot_start(self):
     """ Plots the starting model as a diagnotstic.
@@ -369,7 +349,6 @@ def plot_start(self):
     ax.set_ylabel(r'SNR')
     ax.legend()
     return fig
->>>>>>> d5660a4026492a7fa658f1f20391a10570421d35
 
 # Peakbag
 def plot_linewidth(self, thin=10):
