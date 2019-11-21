@@ -62,6 +62,7 @@ def organize_sess_dataframe(vardf):
     ----------
     vardf : Pandas.DataFrame
         Input dataframe
+        
     """
     
     keys = ['ID', 'numax', 'dnu', 'numax_err', 'dnu_err']
@@ -69,8 +70,7 @@ def organize_sess_dataframe(vardf):
         raise(KeyError, 'Some of the required keywords were missing.')
 
     N = len(vardf)
-
-    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
+    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter', 'mission']
     doubles = ['teff', 'bp_rp']
 
     for key in singles:
@@ -104,13 +104,14 @@ def organize_sess_input(**vardct):
     -------
     vardf : Pandas.DataFrame
         Dataframe containing the inputs from Session class call.
+        
     """
     
     vardf = pd.DataFrame({'ID': np.array(vardct['ID']).reshape((-1, 1)).flatten()})
 
     N = len(vardf)
+    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter', 'mission']
     doubles = ['numax', 'dnu', 'teff', 'bp_rp']
-    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter']
 
     for key in singles:
         if not vardct[key]:
@@ -128,7 +129,7 @@ def organize_sess_input(**vardct):
     return vardf
 
 
-def query_mast(id, cache, lkwargs):
+def launch_query(id, cache, lkwargs):
     """ Search for target on MAST server.
 
     Get all the lightcurves available for a target id, using options in kwargs
@@ -150,6 +151,7 @@ def query_mast(id, cache, lkwargs):
     -------
     search_results : list
         List of fits files for the requested target
+        
     """
 
     print(f'Querying MAST for {id}')
@@ -176,6 +178,7 @@ def sort_lc(lc):
     -------
     lc : Lightkurve.LightCurve instance
         The sorted Lightkurve object
+        
     """
 
     sidx = np.argsort(lc.time)
@@ -199,11 +202,119 @@ def clean_lc(lc):
     -------
     lc : Lightkurve.LightCurve instance
         The cleaned Lightkurve object
+        
     """
 
     lc = lc.remove_nans().normalize().flatten().remove_outliers()
     return lc
 
+def set_cadence(lkwargs):
+    """ Select the cadence 
+    
+    Determines the extension to use later in the lookup of cached fits files,
+    to be passed to LightKurve for online lookup.
+    
+    If no cadence argument is passed it will default to long cadence. 
+    
+    Parameters
+    ----------
+    lkwargs : dict
+        Dictionary to be passed to LightKurve
+        
+    Returns
+    -------
+    ext : str
+        Fits file short/long cadence extension
+        
+    """
+    if not lkwargs['cadence']:
+        lkwargs['cadence'] = 'long'
+    
+    if lkwargs['cadence'] == 'short':
+        ext = '*_slc.fits'
+    elif lkwargs['cadence'] == 'long':
+        ext = '*_lc.fits'
+    else:
+        raise TypeError('Unrecognized cadence input for %s' % (id))
+    return ext
+
+def set_cache_dir(download_dir):
+    """ Determine which directory to use as cache
+    
+    Parameters
+    ----------
+    download_dir : str
+        None or path to store results from a star
+    
+    Returns
+    -------
+    cache_dir : str
+        Path to store results from a star
+        
+    """
+    
+    if not download_dir:
+        cache_dir = os.path.join(*[os.path.expanduser('~'), 
+                                     '.lightkurve-cache'])
+    else:
+        cache_dir = download_dir
+    
+    return cache_dir    
+
+def set_mission(ID, lkwargs):
+    """ Set mission keyword in lkwargs
+    
+    If no mission is selected will attempt to figure it out based on any
+    prefixes in the ID string, and add this to the LightKurve keywords 
+    arguments dictionary.
+    
+    Parameters
+    ----------
+    ID : str
+        ID string of the target
+    lkwargs : dict
+        Dictionary to be passed to LightKurve
+        
+    """
+    if lkwargs['mission'] is None:
+        if ('kic' in ID.lower()) or ('kplr' in ID.lower()) :
+            lkwargs['mission'] = 'kepler'
+        elif ('ktwo' in ID.lower()) or ('epic' in ID.lower()):
+            lkwargs['mission'] = 'k2'
+        elif ('tic' in ID.lower()) or ('tess' in ID.lower()):
+            lkwargs['mission'] = 'tess'
+        else:
+            warnings.warn('Unknown mission selected. MAST might not understand.')
+
+def lookup_cached_files(id, cache_dir, ext):
+    """ Look through the local cache directory for target files
+    
+    Looks through the local cache directory for any files matching the ID of 
+    the target, and with the requested extension.
+    
+    Parameters
+    ----------
+    id : str
+        Input ID for the target
+    cache_dir : str
+        Path to the cache directory
+    ext : str
+        Fits file short/long cadence extension
+    
+    return : list
+        List of file names matching the search criteria
+        
+    """
+    
+    if isinstance(id, str):
+        baseid = id.lower()
+        for prefix in ['kic','epic','tic','kplr']:
+            baseid = baseid.replace(prefix, '')
+        baseid = str(int(baseid))
+      
+    tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', 
+                                        f'*{baseid}*', ext]))
+    return tgtfiles
 
 def query_lightkurve(id, download_dir, use_cached, lkwargs):
     """ Check cache for fits file, or download it.
@@ -228,38 +339,22 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
 
     """
     
-    if not download_dir:
-        cache_dir = os.path.join(*[os.path.expanduser('~'), 
-                                     '.lightkurve-cache'])
-    else:
-        cache_dir = download_dir
+    cache_dir = set_cache_dir(download_dir)
     
-    if isinstance(id, str):
-        baseid = id
-        for prefix in ['KIC','EPIC','TIC','kplr','tic']:
-            baseid = baseid.replace(prefix, '')
-        baseid = str(int(baseid))
+    set_mission(id, lkwargs)
     
-    if not lkwargs['cadence']:
-        lkwargs['cadence'] = 'long'
-        
-    if lkwargs['cadence'] == 'short':
-        ext = '*_slc.fits'
-    elif lkwargs['cadence'] == 'long':
-        ext = '*_lc.fits'
-    else:
-        raise TypeError('Unrecognized cadence input for %s' % (id))
-    tgtfiles = glob.glob(os.path.join(*[cache_dir, 'mastDownload', '*', 
-                                        f'*{baseid}*', ext]))
+    ext = set_cadence(lkwargs)
 
+    tgtfiles = lookup_cached_files(id, cache_dir, ext)
 
     if (use_cached and (len(tgtfiles) != 0)):
         lc_col = [lk.open(n) for n in tgtfiles]
+        
     elif (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
         if (use_cached and (len(tgtfiles) == 0)):
             warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
 
-        lc_col = query_mast(id, cache_dir, lkwargs)
+        lc_col = launch_query(id, cache_dir, lkwargs)
 
         if len(lc_col) == 0:
             raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
@@ -298,6 +393,7 @@ def arr_to_lk(x, y, name, typ):
         depending on typ.
 
     """
+    
     if typ == 'timeseries':
         return lk.LightCurve(time=x, flux=y, targetid=name)
     elif typ == 'psd':
@@ -340,6 +436,7 @@ def format_col(vardf, col, key):
         Name of column to add to vardf
 
     """
+    
     N = np.shape(vardf['ID'])[0]
 
     col = np.array(col, dtype=object)
@@ -390,8 +487,6 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
     vardf : pandas.DataFrame instance
         Dataframe containing a 'timeseries' column consisting of None, strings
         or Lightkurve.LightCurve objects.
-    Returns
-    -------
 
     """
 
@@ -407,7 +502,8 @@ def lc_to_lk(vardf, download_dir, use_cached=True):
                 pass
             else:
                 D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
-                                                  'campaign', 'quarter']}
+                                                  'campaign', 'quarter', 
+                                                  'mission']}
                 lk_lc = query_lightkurve(id, download_dir, use_cached, D)
                 vardf.at[i, key] = lk_lc
 
@@ -559,6 +655,11 @@ class session():
 
     quarter : int, optional
         Argument for lightkurve when requesting Kepler data.
+    
+    mission : str, optional
+        Which mission to use data from. Default is all, so if your target has
+        been observed by, e.g., both Kepler and TESS, LightKurve will throw
+        and error.
 
     make_plots : bool, optional
         Whether or not to automatically generate diagnostic plots for the 
@@ -574,8 +675,8 @@ class session():
     
     model_type : str, optional
         Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. 
-        TODO: which types?
+        represent the mode linewidths. Options are 'simple' or 'model_gp'.
+        
     
     Attributes
     ----------
@@ -594,15 +695,14 @@ class session():
 
     pb_model_type : str
         Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. 
-        TODO: which types?
+        represent the mode linewidths. Options are 'simple' or 'model_gp'.
         
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  timeseries=None, psd=None, dictlike=None, use_cached=False, 
                  cadence=None, campaign=None, sector=None, month=None, 
-                 quarter=None, path=None, download_dir=None):
+                 quarter=None, mission=None, path=None, download_dir=None):
 
         self.stars = []
         
@@ -624,7 +724,8 @@ class session():
             vardf = organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
                                         bp_rp=bp_rp, cadence=cadence,
                                         campaign=campaign, sector=sector,
-                                        month=month, quarter=quarter)
+                                        month=month, quarter=quarter, 
+                                        mission=mission)
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
 
@@ -670,15 +771,15 @@ class session():
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
-            #try:
-            st(bw_fac=bw_fac, tune=tune, norders=norders, 
-               model_type=self.pb_model_type, verbose=verbose, 
-               make_plots=make_plots, store_chains=store_chains, 
-               nthreads=nthreads)
-            
-            self.stars[i] = None
+            try:
+                st(bw_fac=bw_fac, tune=tune, norders=norders, 
+                   model_type=self.pb_model_type, verbose=verbose, 
+                   make_plots=make_plots, store_chains=store_chains, 
+                   nthreads=nthreads)
                 
-            #except Exception as ex:
-            #     message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-            #     print(message)
+                self.stars[i] = None
+                    
+            except Exception as ex:
+                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                 print(message)
             

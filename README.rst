@@ -28,7 +28,7 @@ Read the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
 
 Contributing
 ------------
-If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <CONTRIBUTING.rst>`_.
+If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
 
 
 Authors
@@ -45,3 +45,5 @@ Chaos Engineers
 - `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Joel Ong <https://github.com/darthoctopus>`_
 - Bill Chaplin
+- `Tanda Li <https://github.com/litanda>`_
+

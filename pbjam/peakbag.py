@@ -56,8 +56,11 @@ class peakbag(plotting):
         'modeID' is a DataFrame with a list of modes and basic properties.
         'summary' are summary statistics from the asymptotic_fit.
         See asy_peakbag asymptotic_fit for more details.
+
     """
-    def __init__(self, starinst, asyinst, init=True, path=None):
+
+    def __init__(self, starinst, asyinst, init=True, path=None,
+                       verbose=False):
 
         self.pg = starinst.pg
         self.f = starinst.f
@@ -66,36 +69,37 @@ class peakbag(plotting):
         self.norders = asyinst.norders
         if init:
             self.make_start()
-            self.trim_ladder()
+            self.trim_ladder(verbose=verbose)
         self.gp0 = [] # Used for gp linewidth info.
-        
+
         starinst.peakbag = self
 
-        
+
     def make_start(self):
         """
         Function uses the information in self.asy_result (the result of the
         asymptotic peakbagging) and builds a dictionary of starting values
         for the peakbagging methods.
+
         """
-        
+
         idxl0 = self.asy_result.modeID.ell == 0
         idxl2 = self.asy_result.modeID.ell == 2
-        
+
         l0 = self.asy_result.modeID.loc[idxl0, 'nu_med'].values.flatten()
         l2 = self.asy_result.modeID.loc[idxl2, 'nu_med'].values.flatten()
-        
+
         l0, l2 = self.remove_outsiders(l0, l2)
-        
+
         width = 10**(np.ones(len(l0)) * self.asy_result.summary.loc['mode_width', 'mean']).flatten()
         height =  (10**self.asy_result.summary.loc['env_height', 'mean'] * \
                  np.exp(-0.5 * (l0 - 10**self.asy_result.summary.loc['numax', 'mean'])**2 /
                  (10**self.asy_result.summary.loc['env_width', 'mean'])**2)).flatten()
         back = np.ones(len(l0))
-        
-        self.parnames = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2', 
+
+        self.parnames = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
-        
+
         pars = [l0, l2, width, width, height, 0.7*height, back]
 
         self.start ={x:y for x,y in zip(self.parnames, pars)}
@@ -105,10 +109,13 @@ class peakbag(plotting):
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
     def remove_outsiders(self, l0, l2):
-        '''
+        """ Drop outliers
+
         Drops modes where the guess frequency is outside of the supplied
         frequency range.
-        '''
+
+        """
+
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
@@ -134,6 +141,7 @@ class peakbag(plotting):
         extra: float
             The factor by which dnu is multiplied in order to contribute to
             the rung width.
+
         """
 
         d02 = 10**self.asy_result.summary.loc['d02','mean']
@@ -183,7 +191,9 @@ class peakbag(plotting):
         -------
         lorentzians : float, ladder
            A ladder containing one Lorentzian per rung.
+
         """
+
         norm = 1.0 + 4.0 / w**2 * (self.ladder_f.T - freq)**2
         return h / norm
 
@@ -220,12 +230,137 @@ class peakbag(plotting):
         -------
         mod : float, ndarray
             A 2D array (or 'ladder') containing the calculated model.
+
         """
+
         mod = np.ones(self.ladder_f.shape).T * back
         mod += self.lor(l0, width0, height0)
         mod += self.lor(l2, width2, height2)
         return mod.T
 
+    def init_model(self, model_type):
+        """
+        TODO - Need to describe what is happening here.
+        Complete docs when model is settled on.  Probably quiet a
+        long docs needed to explain.
+
+        """
+
+        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
+        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
+        height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
+        width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
+        back_fac = 0.5 # Lognorrmal prior on back has std=0.5.
+        N = len(self.start['l2'])
+
+        with self.pm_model:
+
+            if model_type != 'model_gp':
+                if model_type != 'simple': # defaults to simple if bad input
+                    warnings.warn('Model not defined - using simple model')
+                width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
+                                  sigma=width_fac, shape=N)
+                width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
+                                  sigma=width_fac, shape=N)
+
+                self.init_sampler = 'adapt_diag'
+                self.target_accept = 0.9
+
+            elif model_type == 'model_gp':
+                warnings.warn('This model is developmental - use carefully')
+                # Place a GP over the l=0 mode widths ...
+                m0 = pm.Normal('gradient0', 0, 10)
+                c0 = pm.Normal('intercept0', 0, 10)
+                sigma0 = pm.Lognormal('sigma0', np.log(1.0), 1.0)
+                ls = pm.Lognormal('ls', np.log(0.3), 1.0)
+                mean_func0 = pm.gp.mean.Linear(coeffs=m0, intercept=c0)
+                cov_func0 = sigma0 * pm.gp.cov.ExpQuad(1, ls=ls)
+                self.gp0 = pm.gp.Latent(cov_func=cov_func0, mean_func=mean_func0)
+                ln_width0 = self.gp0.prior('ln_width0', X=self.n)
+                width0 = pm.Deterministic('width0', pm.math.exp(ln_width0))
+                # and on the l=2 mode widths
+                m2 = pm.Normal('gradient2', 0, 10)
+                c2 = pm.Normal('intercept2', 0, 10)
+                sigma2 = pm.Lognormal('sigma2', np.log(1.0), 1.0)
+                mean_func2 = pm.gp.mean.Linear(coeffs=m2, intercept=c2)
+                cov_func2 = sigma2 * pm.gp.cov.ExpQuad(1, ls=ls)
+                self.gp2 = pm.gp.Latent(cov_func=cov_func2, mean_func=mean_func2)
+                ln_width2 = self.gp2.prior('ln_width2', X=self.n)
+                width2 = pm.Deterministic('width2', pm.math.exp(ln_width2))
+
+                self.init_sampler = 'advi+adapt_diag'
+                self.target_accept = 0.99
+
+
+            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac, shape=N)
+
+            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac, shape=N)
+
+            height0 = pm.Lognormal('height0', mu=np.log(self.start['height0']),
+                                    sigma=height_fac, shape=N)
+            height2 = pm.Lognormal('height2', mu=np.log(self.start['height2']),
+                                    sigma=height_fac, shape=N)
+            back = pm.Lognormal('back', mu=np.log(1.0), sigma=back_fac, shape=N)
+
+            limit = self.model(l0, l2, width0, width2, height0, height2, back)
+            pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
+
+
+
+    def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4,
+                     advi=False):
+        """
+        Function to perform the sampling of a defined model.
+
+        Parameters
+        ----------
+        model_type : str
+            Defaults to 'simple'.
+            Can be either 'simple' or 'model_gp' which sets the type of model
+            to be fitted to the data.
+        tune : int
+            Numer of tuning steps passed to pym3.sample
+        nthreads : int
+            Number of cores to use - passed to pym3.sample
+        maxiter : int
+            Number of times to attempt to reach convergence
+        advo : bool
+            Whether or not to fit using the fullrank_advi option in pymc3
+
+        """
+
+        self.pm_model = pm.Model()
+
+        self.init_model(model_type=model_type)
+
+        if advi:
+            with self.pm_model:
+                cb = pm.callbacks.CheckParametersConvergence(every=1000,
+                                                             diff='absolute',
+                                                             tolerance=0.01)
+
+                mean_field = pm.fit(n=200000, method='fullrank_advi',
+                                    start=self.start,
+                                    callbacks=[cb])
+                self.samples = mean_field.sample(1000)
+        else:
+            Rhat_max = 10
+            niter = 1
+            while Rhat_max > 1.05:
+                if niter > maxiter:
+                    warnings.warn('Did not converge!')
+                    break
+                with self.pm_model:
+                    self.samples = pm.sample(tune=tune * niter, cores=nthreads,
+                                             start=self.start,
+                                             init=self.init_sampler,
+                                             target_accept=self.target_accept,
+                                             progressbar=False)
+                Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
+                niter += 1
+
+        self.summary = pm.summary(self.samples)
+        self.par_names = self.summary.index
 
 
 #    def simple(self):
@@ -253,25 +388,25 @@ class peakbag(plotting):
 #        The use of the Gamma distribution is much more in line with the ethos of
 #        probabistic programming languages.
 #        """
-#        
+#
 #        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
 #        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
 #        width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
 #        height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
-#        back_fac = 0.4 # Lognorrmal prior on back has std=0.4.    
+#        back_fac = 0.4 # Lognorrmal prior on back has std=0.4.
 #        N = len(self.start['l2'])
-#        
+#
 #        with self.pm_model:
-#            
+#
 #            width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
 #                                  sigma=width_fac, shape=N)
 #            width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
 #                                  sigma=width_fac, shape=N)
-#            
+#
 #            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac, shape=N)
-#            
+#
 #            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac, shape=N)
-#           
+#
 #            height0 = pm.Lognormal('height0', mu=np.log(self.start['height0']),
 #                                    sigma=height_fac, shape=N)
 #            height2 = pm.Lognormal('height2', mu=np.log(self.start['height2']),
@@ -279,128 +414,5 @@ class peakbag(plotting):
 #            back = pm.Lognormal('back', mu=np.log(1.0), sigma=back_fac, shape=N)
 #
 #            limit = self.model(l0, l2, width0, width2, height0, height2, back)
-#            
+#
 #            pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
-
-
-    def init_model(self, model_type):
-        """
-        TODO - Need to describe what is happening here.
-        Complete docs when model is settled on.  Probably quiet a
-        long docs needed to explain.
-        """
-        
-        
-        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
-        dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
-        height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
-        width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
-        back_fac = 0.5 # Lognorrmal prior on back has std=0.5.
-        N = len(self.start['l2'])
-        
-        with self.pm_model:
-            
-            if model_type != 'model_gp':
-                if model_type != 'simple':
-                    warnings.warn('Model not defined - using simple model')
-                width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
-                                  sigma=width_fac, shape=N)
-                width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
-                                  sigma=width_fac, shape=N)
-                
-                self.init_sampler = 'adapt_diag'
-                self.target_accept = 0.9
-                                
-            elif model_type == 'model_gp':
-                warnings.warn('This model is developmental - use carefully')
-                # Place a GP over the l=0 mode widths ...
-                m0 = pm.Normal('gradient0', 0, 10)
-                c0 = pm.Normal('intercept0', 0, 10)
-                sigma0 = pm.Lognormal('sigma0', np.log(1.0), 1.0)
-                ls = pm.Lognormal('ls', np.log(0.3), 1.0)
-                mean_func0 = pm.gp.mean.Linear(coeffs=m0, intercept=c0)
-                cov_func0 = sigma0 * pm.gp.cov.ExpQuad(1, ls=ls)
-                self.gp0 = pm.gp.Latent(cov_func=cov_func0, mean_func=mean_func0)
-                ln_width0 = self.gp0.prior('ln_width0', X=self.n)
-                width0 = pm.Deterministic('width0', pm.math.exp(ln_width0))
-                # and on the l=2 mode widths
-                m2 = pm.Normal('gradient2', 0, 10)
-                c2 = pm.Normal('intercept2', 0, 10)
-                sigma2 = pm.Lognormal('sigma2', np.log(1.0), 1.0)
-                mean_func2 = pm.gp.mean.Linear(coeffs=m2, intercept=c2)
-                cov_func2 = sigma2 * pm.gp.cov.ExpQuad(1, ls=ls)
-                self.gp2 = pm.gp.Latent(cov_func=cov_func2, mean_func=mean_func2)
-                ln_width2 = self.gp2.prior('ln_width2', X=self.n)
-                width2 = pm.Deterministic('width2', pm.math.exp(ln_width2))
-                
-                self.init_sampler = 'advi+adapt_diag'
-                self.target_accept = 0.99
-                
-
-            l0 = pm.Normal('l0', self.start['l0'], dnu*dnu_fac, shape=N)
-            
-            l2 = pm.Normal('l2', self.start['l2'], dnu*dnu_fac, shape=N)
-            
-            height0 = pm.Lognormal('height0', mu=np.log(self.start['height0']),
-                                    sigma=height_fac, shape=N)
-            height2 = pm.Lognormal('height2', mu=np.log(self.start['height2']),
-                                    sigma=height_fac, shape=N)
-            back = pm.Lognormal('back', mu=np.log(1.0), sigma=back_fac, shape=N)
-
-            limit = self.model(l0, l2, width0, width2, height0, height2, back)
-            pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
-            
-            
-
-    def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4, 
-                     advi=False):
-        """
-        Function to perform the sampling of a defined model.
-
-        Parameters
-        ----------
-        model_type : str
-            Defaults to 'simple'.
-            Can be either 'simple' or 'model_gp' which sets the type of model
-            to be fitted to the data.
-        tune : int
-            Numer of tuning steps passed to pm.sample
-        target_accept : float
-            Target acceptance fraction passed to pm.sample
-        cores : int
-            Number of cores to use - passed to pm.sample
-
-        """
-        
-        self.pm_model = pm.Model()
-        
-        self.init_model(model_type=model_type)
-      
-        if advi:
-            with self.pm_model:
-                cb = pm.callbacks.CheckParametersConvergence(every=1000,
-                                                             diff='absolute',
-                                                             tolerance=0.01)
-                
-                mean_field = pm.fit(n=200000, method='fullrank_advi',
-                                    start=self.start,
-                                    callbacks=[cb])
-                self.samples = mean_field.sample(1000)
-        else:
-            Rhat_max = 10
-            niter = 1
-            while Rhat_max > 1.05:
-                if niter > maxiter:
-                    warnings.warn('Did not converge!')
-                    break
-                with self.pm_model:
-                    self.samples = pm.sample(tune=tune * niter, cores=nthreads,
-                                             start=self.start, 
-                                             init=self.init_sampler,
-                                             target_accept=self.target_accept,
-                                             progressbar=False)
-                Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
-                niter += 1
-            
-        self.summary = pm.summary(self.samples)
-        self.par_names = self.summary.index

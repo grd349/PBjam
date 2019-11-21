@@ -22,11 +22,22 @@ Requirements
 - pandas
 - emcee v3.0rc2
 - lightkurve v1.2.0 or later
-- astropy
+- astropy v3.2.1 or later
 - pymc3
 - statsmodels v0.10.0 or later
 - matplotlib v1.5.3 or later
 - corner
+- hdbscan
+- sklearn
+- nbsphinx
+
+
+
+
+
+
+
+
 
 
 
