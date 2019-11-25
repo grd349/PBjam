@@ -19,13 +19,10 @@ class mcmc():
         the parameters.
     nwalkers : int
         The number of walkers that emcee will use.
-    nthreads : int, optional
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
 
     """
 
-    def __init__(self, start, likelihood, prior, nwalkers=50, nthreads=1):
+    def __init__(self, start, likelihood, prior, nwalkers=50):
 
         self.start = start
         self.ndim = len(start)
@@ -33,7 +30,6 @@ class mcmc():
         self.lp = prior
 
         self.nwalkers = nwalkers
-        self.nthreads = nthreads
 
         self.sampler = emcee.EnsembleSampler(self.nwalkers,
                                              self.ndim,

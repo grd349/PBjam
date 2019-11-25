@@ -12,7 +12,7 @@ import pandas as pd
 import scipy.stats as scist
 from .priors import kde
 from .plotting import plotting
-
+from .jar import to_log10, normal
 def get_nmax(dnu, numax, eps):
     """Compute radial order at numax.
 
@@ -352,10 +352,6 @@ class asymptotic_fit(kde, plotting):
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
-    nthreads : int, optional
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
-        Untested on short cadence.
     norders : int, optional
         Number of radial orders to fit
 
@@ -380,14 +376,13 @@ class asymptotic_fit(kde, plotting):
         
     """
 
-    def __init__(self, starinst, kdeinst=None, norders=6, store_chains=False,
-                 nthreads=1, path=None):
+    def __init__(self, starinst, kdeinst=None, norders=None, 
+                 store_chains=False, path=None):
 
         self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
         self.store_chains = store_chains
-        self.nthreads = nthreads
         self.norders = norders
 
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
@@ -395,7 +390,7 @@ class asymptotic_fit(kde, plotting):
 
         if kdeinst:
             self.start_samples = kdeinst.samples
-            self.prior = kdeinst.prior
+            self.prior = kdeinst._prior
         elif hasattr(starinst, 'kde'):
             self.start_samples = starinst.kde.samples
             self.prior = starinst.kde.prior
@@ -404,8 +399,8 @@ class asymptotic_fit(kde, plotting):
 
         # Means = medians is pretty rough.
         means = np.median(self.start_samples, axis=0)
-        start = [10**(means[0]), 10**(means[1]), means[2], 10**(means[3]),
-                 10**(means[4]), means[5], means[6], means[7], 10**(means[8]),
+        start = [10**means[0], 10**means[1], means[2], 10**means[3], 
+                 10**means[4], means[5], means[6], means[7], 10**means[8],
                  means[9]]
         self.start = start
 
@@ -524,16 +519,16 @@ class asymptotic_fit(kde, plotting):
 
         # Constraint from input obs
         ld = 0.0
-        ld += self.normal(p[-2], *self.log_obs['teff'])
-        ld += self.normal(p[-1], *self.log_obs['bp_rp'])
+        ld += normal(p[-2], *self.log_obs['teff'])
+        ld += normal(p[-1], *self.obs['bp_rp'])
 
         # Added linewidth constraints
         if (p[7] > self.start[7] + np.log10(1.5)):
-            ld += self.normal(10**self.start[7]*1.5, *[10**p[7], 10**self.start[7]*0.1])
+            ld += normal(10**p[7], 10**self.start[7]*1.5, 10**self.start[7]*0.1)
 
         # Constraint from the periodogram
         mod = self.model(p)
-        lnlike = -1.0 * np.sum(np.log(mod) + self.s[self.sel] / mod)
+        lnlike = -np.sum(np.log(mod) + self.s[self.sel] / mod)
         return lnlike + ld
 
     def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
@@ -559,12 +554,13 @@ class asymptotic_fit(kde, plotting):
         """
 
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-        self.obs_to_log(self.obs)
+        
+        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
 
         self.start_init()
 
-        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), self.likelihood,
-                           self.prior, nthreads=self.nthreads)
+        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
+                           self.likelihood, self.prior)
 
         self.fit(start_samples=self.start_samples)
 
