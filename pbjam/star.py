@@ -177,12 +177,11 @@ class star(plotting):
 
         print('Starting asymptotic peakbagging')
         # Init
-        asymptotic_fit(self, self.kde, norders=norders,
-                       store_chains=store_chains)
+        asymptotic_fit(self, self.kde, norders=norders)
 
         # Call
         self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff,
-                     bp_rp=self.bp_rp)
+                     bp_rp=self.bp_rp, store_chains=store_chains)
 
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])

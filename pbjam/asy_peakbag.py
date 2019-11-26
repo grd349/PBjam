@@ -13,6 +13,7 @@ import scipy.stats as scist
 from .priors import kde
 from .plotting import plotting
 from .jar import to_log10, normal
+
 def get_nmax(dnu, numax, eps):
     """Compute radial order at numax.
 
@@ -376,58 +377,108 @@ class asymptotic_fit(kde, plotting):
         
     """
 
-    def __init__(self, starinst, kdeinst=None, norders=None, 
-                 store_chains=False, path=None):
+    def __init__(self, starinst, kdeinst=None, norders=None):
 
         self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
-        self.store_chains = store_chains
         self.norders = norders
 
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        if kdeinst:
-            self.start_samples = kdeinst.samples
-            self.prior = kdeinst._prior
-        elif hasattr(starinst, 'kde'):
-            self.start_samples = starinst.kde.samples
-            self.prior = starinst.kde.prior
-        else:
-            raise ValueError("Asy_peakbag won't run without samples of the prior")
+        self._set_kde(starinst, kdeinst)
 
-        # Means = medians is pretty rough.
-        means = np.median(self.start_samples, axis=0)
-        start = [10**means[0], 10**means[1], means[2], 10**means[3], 
-                 10**means[4], means[5], means[6], means[7], 10**means[8],
-                 means[9]]
-        self.start = start
+        self.start = self._get_asy_start()
 
-        nmax = get_nmax(*start[:3])
-        enns = get_enns(nmax, self.norders)
+        lfreq, ufreq = self._get_freq_range()
 
-        lower_frequency = (min(enns) - 1.25 + start[2]) * start[0]
-        upper_frequency = (max(enns) + 0.25 + start[2]) * start[0]
-
-        self.sel = (lower_frequency < self.f) & (self.f < upper_frequency)
+        self.sel = (lfreq < self.f) & (self.f < ufreq)
 
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
 
-        self.modeID = None
-        self.summary = None
-        self.samples = None
-        self.lnlike_fin = None
-        self.lnprior_fin = None
-        self.mle_model = None
-        self.acceptance = None
-
         starinst.asy_fit = self
+            
+    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1],
+                 store_chains=False):
+        """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
-    def start_init(self, verbose=False):
-        '''
-            Bodge a better starting point
-        '''
+        Parameters
+        ----------
+        dnu : [real, real]
+            Large frequency spacing and uncertainty
+        numax : [real, real]
+            Frequency of maximum power and uncertainty
+        teff : [real, real]
+            Stellar effective temperature and uncertainty
+        bp_rp : [real, real]
+            The Gaia Gbp - Grp color value and uncertainty
+            (probably ~< 0.01 dex).
+
+        Returns
+        -------
+        asy_result : Dict
+            A dictionary of the modeID DataFrame and the summary DataFrame.
+            
+        """
+        self.store_chains = store_chains
+        
+        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
+        
+        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
+
+        self._start_init()
+
+        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
+                           self.likelihood, self.prior)
+
+        self.fit(start_samples=self.start_samples)
+
+        self.modeID = self.get_modeIDs(self.fit, self.norders)
+
+        self.summary, self.mle_model = get_summary_stats(self.fit, self.model,
+                                                         self.par_names)
+
+        #if self.store_chains:
+        self.samples = self.fit.flatchain
+        #    self.lnlike_fin = self.fit.flatlnlike
+        #else:
+        #    self.samples = self.fit.chain[:,-1,:]
+        #    self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
+        #    self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
+
+        self.acceptance = self.fit.acceptance
+
+        return {'modeID': self.modeID, 'summary': self.summary}
+
+
+    def _get_asy_start(self):
+        """ Get start averages for sampling
+        """
+        
+        # Means = medians is pretty rough.
+        mu = np.median(self.start_samples, axis=0)
+        start = [10**mu[0], 10**mu[1], mu[2], 10**mu[3], 10**mu[4], mu[5], 
+                 mu[6], mu[7], 10**mu[8], mu[9]]
+        return start
+
+    def _get_freq_range(self):
+        """ Get frequency range for model
+        """
+        
+        dnu, numax, eps = self.start[:3]
+        
+        nmax = get_nmax(dnu, numax, eps)
+        enns = get_enns(nmax, self.norders)
+
+        lfreq = (min(enns) - 1.25 + eps) * dnu
+        ufreq = (max(enns) + 1.25 + eps) * dnu
+        return lfreq, ufreq
+
+    def _start_init(self, verbose=False):
+        """ Bodge a better starting point
+        """
+        
         like_start = np.ones(len(self.start_samples[:, 0]))
         for idx, samp in enumerate(self.start_samples):
             like_start[idx] = self.likelihood(samp)
@@ -485,7 +536,56 @@ class asymptotic_fit(kde, plotting):
         return modeID
 
 
+    def _set_kde(self, starinst, kdeinst):
+        """ Set the kde attribute    
+        """
+        
+        if kdeinst:
+            self.start_samples = kdeinst.samples
+            self.kde = kdeinst.kde
+            
+        elif hasattr(starinst, 'kde'):
+            self.start_samples = starinst.kde.samples
+            self.kde = starinst.kde.kde
+        else:
+            raise ValueError("Asy_peakbag won't run without samples of the prior")
 
+    def prior(self, p):
+        """ Calculates the log prior 
+        
+        Evaluates the KDE for the parameters p. Additional hard/soft priors
+        can be added here as needed to, e.g., apply boundaries to the fit.
+        
+        Hard constraints should be applied at the top so function exits early,
+        if necessary.
+
+        Parameters
+        ----------
+        p : array
+            Array of model parameters
+
+        Returns
+        -------
+        lp : real
+            The log likelihood evaluated at p.
+
+        """
+        
+        # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
+        if p[3] - p[0] > -0.7:
+            return -np.inf
+        
+        lp = 0
+        
+        # Added linewidth constraints
+        if (p[7] > self.start[7] + np.log10(1.5)):
+            lp += normal(10**p[7], 10**self.start[7]*1.5, 10**self.start[7]*0.1)
+        
+        # Constraints from KDE
+        lp += np.log(self.kde.pdf(p))
+        
+        return lp
+        
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
 
@@ -507,76 +607,20 @@ class asymptotic_fit(kde, plotting):
 
         Returns
         -------
-        like : float
-            likelihood function at p
+        lnlike : float
+            The log likelihood evaluated at p.
 
-        Note:
-        log_dnu, log_numax, eps, log_d02, log_alpha, \
-            log_env_height, log_env_width, log_mode_width, \
-            log_teff, bp_rp = p
-            
         """
-
+        
+        lnlike = 0
+        
         # Constraint from input obs
-        ld = 0.0
-        ld += normal(p[-2], *self.log_obs['teff'])
-        ld += normal(p[-1], *self.obs['bp_rp'])
-
-        # Added linewidth constraints
-        if (p[7] > self.start[7] + np.log10(1.5)):
-            ld += normal(10**p[7], 10**self.start[7]*1.5, 10**self.start[7]*0.1)
-
+        lnlike += normal(p[-2], *self.log_obs['teff'])
+        lnlike += normal(p[-1], *self.obs['bp_rp'])
+        
         # Constraint from the periodogram
         mod = self.model(p)
-        lnlike = -np.sum(np.log(mod) + self.s[self.sel] / mod)
-        return lnlike + ld
+        lnlike += -np.sum(np.log(mod) + self.s[self.sel] / mod)
+        return lnlike
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
-        """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
-        Parameters
-        ----------
-        dnu : [real, real]
-            Large frequency spacing and uncertainty
-        numax : [real, real]
-            Frequency of maximum power and uncertainty
-        teff : [real, real]
-            Stellar effective temperature and uncertainty
-        bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty
-            (probably ~< 0.01 dex).
-
-        Returns
-        -------
-        asy_result : Dict
-            A dictionary of the modeID DataFrame and the summary DataFrame.
-            
-        """
-
-        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-        
-        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
-
-        self.start_init()
-
-        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
-                           self.likelihood, self.prior)
-
-        self.fit(start_samples=self.start_samples)
-
-        self.modeID = self.get_modeIDs(self.fit, self.norders)
-
-        self.summary, self.mle_model = get_summary_stats(self.fit, self.model,
-                                                         self.par_names)
-
-        #if self.store_chains:
-        self.samples = self.fit.flatchain
-        #    self.lnlike_fin = self.fit.flatlnlike
-        #else:
-        #    self.samples = self.fit.chain[:,-1,:]
-        #    self.lnlike_fin = np.array([self.fit.likelihood(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
-        #    self.lnprior_fin = np.array([self.fit.lp(self.fit.chain[i,-1,:]) for i in range(self.fit.nwalkers)])
-
-        self.acceptance = self.fit.acceptance
-
-        return {'modeID': self.modeID, 'summary': self.summary}

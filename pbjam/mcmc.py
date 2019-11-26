@@ -27,7 +27,7 @@ class mcmc():
         self.start = start
         self.ndim = len(start)
         self.likelihood = likelihood
-        self.lp = prior
+        self.prior = prior
 
         self.nwalkers = nwalkers
 
@@ -48,7 +48,7 @@ class mcmc():
         Returns the log posterior probability given parameters p
         
         """
-        logp = self.lp(p)
+        logp = self.prior(p)
         if logp == -np.inf:
             return -np.inf
 

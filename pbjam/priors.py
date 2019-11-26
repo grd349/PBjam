@@ -97,7 +97,7 @@ class kde(plotting):
                                   kernel=None) * bw_fac
         else:
             if self.verbose:
-                print('Selecting sensible stars ... for kde')
+                print('Selecting sensible stars for kde')
                 print(f'Full data set length {len(self.prior_data)}')
             bw = 'cv_ml'
 
@@ -107,52 +107,63 @@ class kde(plotting):
 
 
 
-    def _prior(self, p):
-        """ Calculates the log prior from the KDE for the parameters p and
-        applies some boundaries.
+    def prior(self, p):
+        """ Calculates the log prior 
+        
+        Evaluates the KDE for the parameters p. Additional hard/soft priors
+        can be added here as needed to, e.g., apply boundaries to the fit.
+        
+        Hard constraints should be applied at the top so function exits early,
+        if necessary.
 
-        Inputs
-        ------
+        Parameters
+        ----------
         p : array
-            Array of the parameters
+            Array of model parameters
 
         Returns
         -------
-        like : real
+        lp : real
             The log likelihood evaluated at p.
-
-        Note: p = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
-                   'env_width', 'mode_width', 'teff', 'bp_rp']
-
-        key: [log, log, lin, log, log, log, log, log, log, lin]
 
         """
 
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
         if p[3] - p[0] > -0.7:
             return -np.inf
+        
         # Constraint from prior
         lp = np.log(self.kde.pdf(p))
+        
         return lp
 
-    def _likelihood(self, p):
+    def likelihood(self, p):
         """ Calculate likelihood
 
-        Calculates the likelihood of the observed properties given
-        the proposed parameters p.
+        Calculates the likelihood of the observed properties given the proposed
+        parameters p.
 
+        Parameters
+        ----------
+        p : array
+            Array of model parameters
+        
+        Returns
+        -------
+        lnlike : float
+            The log likelihood evaluated at p.
+            
         """
 
-        # log_dnu, log_numax, eps, log_d02, log_alpha, log_env_height, \
-        #     log_env_width, log_mode_width, log_teff, bp_rp = p
+        lnlike = 0.0
 
-        # Constraint from input data
-        ld = 0.0
-        ld += normal(p[0], *self.log_obs['dnu'])
-        ld += normal(p[1], *self.log_obs['numax'])
-        ld += normal(p[8], *self.log_obs['teff'])
-        ld += normal(p[9], *self.obs['bp_rp'])
-        return ld
+        # Constraints from observational data
+        lnlike += normal(p[0], *self.log_obs['dnu'])
+        lnlike += normal(p[1], *self.log_obs['numax'])
+        lnlike += normal(p[8], *self.log_obs['teff'])
+        lnlike += normal(p[9], *self.obs['bp_rp'])
+        
+        return lnlike
 
     def kde_sampler(self, nwalkers=50):
         """ Samples from the posterior probability distribution
@@ -193,7 +204,7 @@ class kde(plotting):
               self.log_obs['teff'][0],
               self.obs['bp_rp'][0]]
 
-        self.fit = mcmc(x0, self._likelihood, self._prior, nwalkers=nwalkers)
+        self.fit = mcmc(x0, self.likelihood, self.prior, nwalkers=nwalkers)
 
         return self.fit()
         
@@ -257,8 +268,6 @@ class kde(plotting):
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         
         self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
-
-        self._obs_to_log(self.obs)
 
         self.make_kde(bw_fac)
 
