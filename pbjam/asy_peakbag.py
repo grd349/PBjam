@@ -126,8 +126,7 @@ def P_envelope(nu, hmax, numax, width):
         Power at frequency nu (in SNR)
         
     """
-    hmax = 10**hmax
-    width = 10**width
+
     return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
 
@@ -228,8 +227,7 @@ class asymp_spec_model():
             The SNR as a function frequency for a lorentzian.
             
         """
-
-        w = 10**(w)
+       
         return h / (1.0 + 4.0/w**2*(self.f - freq)**2)
 
 
@@ -260,7 +258,7 @@ class asymp_spec_model():
             The SNR as a function of frequency of a mode pair.
             
         """
-
+        
         pair_model = self.lor(freq0, h, w)
         pair_model += self.lor(freq0 - d02, h*hfac, w)
         return pair_model
@@ -310,10 +308,14 @@ class asymp_spec_model():
         """
 
         f0s = asymptotic_relation(10**numax, 10**dnu, eps, 10**alpha, self.norders)
-        Hs = P_envelope(f0s, hmax, 10**numax, envwidth)
+        Hs = P_envelope(f0s, 10**hmax, 10**numax, 10**envwidth)
+        
+        modewidth = 10**modewidth # widths are the same for all modes
+        d02 = 10**d02
+        
         mod = np.ones(len(self.f))
         for n in range(len(f0s)):
-            mod += self.pair(f0s[n], Hs[n], modewidth, 10**d02)
+            mod += self.pair(f0s[n], Hs[n], modewidth, d02)
         return mod
 
     def __call__(self, p):
@@ -427,7 +429,7 @@ class asymptotic_fit(kde, plotting):
         
         self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
 
-        self._start_init()
+        #self._start_init() # TODO - finish up this function
 
         self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
                            self.likelihood, self.prior)
