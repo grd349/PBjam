@@ -37,12 +37,12 @@ Main Contributors
 ^^^^^^^^^^^^^^^^^
 - `Guy Davies <https://github.com/grd349>`_
 - `Martin Nielsen <https://github.com/nielsenmb>`_
+- `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Oliver Hall <https://github.com/ojhall94>`_
 
 Chaos Engineers
 ^^^^^^^^^^^^^^^
 - `Warrick Ball <https://github.com/warrickball>`_
-- `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Joel Ong <https://github.com/darthoctopus>`_
 - Bill Chaplin
 - `Tanda Li <https://github.com/litanda>`_
