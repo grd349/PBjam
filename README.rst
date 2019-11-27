@@ -46,4 +46,4 @@ Chaos Engineers
 - `Joel Ong <https://github.com/darthoctopus>`_
 - Bill Chaplin
 - `Tanda Li <https://github.com/litanda>`_
-- `_Rafa Garcia <https://github.com/rgarcibus>`
+- `Rafa Garcia <https://github.com/rgarcibus>`_
