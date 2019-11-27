@@ -94,6 +94,11 @@ class star(plotting):
         If path is a string it is assumed to be a path name, if not the 
         current working directory will be used. 
         
+        Parameters
+        ----------
+        path : str
+            Directory to store peakbagging output.
+        
         """
 
         if isinstance(path, str):
@@ -170,8 +175,6 @@ class star(plotting):
             Whether or not to produce plots of the results.
         store_chains : bool
             Whether or not to store MCMC chains on disk.
-        nthreads : int
-            Not used currently
 
         """
 
@@ -273,7 +276,7 @@ class star(plotting):
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains, nthreads=nthreads)
+                             store_chains=store_chains)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)

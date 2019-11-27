@@ -28,48 +28,105 @@ class kde(plotting):
 
         self.prior_data = pd.read_csv(prior_file)
 
-    def select_prior_data(self, numax=None, nsigma=1):
+    def select_prior_data(self, numax=None, KDEsize = 100):
         """ Selects useful prior data based on proximity to estimated numax.
 
-        Inputs
-        ------
-        numax: length 2 list [numax, numax_err]
+        Selects a subset of targets around input numax to use for computing the
+        KDE. If the number of targets in the range considered for the prior is
+        less than 100, the range will be expanded until it ~100. This is to 
+        ensure that the KDE can be constructed. If the initial range includes
+        more than 100 targets (e.g., in dense parts of the RGB) the selection
+        of targets will be downsampled randomly.        
+        
+        
+        Note: does not ensure that the KDE is finite at the location of your
+        target
+
+        Parameters
+        ----------
+        
+        numax : list
             The estimate of numax together with uncertainty in log space.
             If numax==None then no selection will be made - all data will
             be used (you probably don't want to do this).
-
+       
+        KDEsize : int
+            Number of targets to include in the KDE estimation.
+            
         """
 
         if not numax:
             return self.prior_data
 
-        # If the number of targets in the range considered for the prior is
-        # less than 100, the range will be expanded until it ~100. This is
-        # to ensure that the KDE can be constructed. Note: does not ensure
-        # that the KDE is finite at the location of your target
-
-        KDEsize = 100
+        # Select numax range and expand if needed    
+        idx = self._prior_expand_check(numax, KDEsize)
+ 
+        # Downsample to KDEsize   
+        self.prior_data = self._downsample_prior_check(idx, KDEsize)    
+    
+        
+    def _downsample_prior_check(self, idx, KDEsize):
+        """ Reduce prior sample size
+        
+        Randomly picks KDEsize targets from the prior sample 
+        
+        Parameters
+        ----------
+        idx : boolean array
+            Array mask to select targets to be included in the KDE estimation.
+        
+        KDEsize : int
+            Number of targets to include in the KDE estimation.
+        
+        """
+        if len(idx) < KDEsize:
+            warnings.warn(f'Sample for estimating KDE is less than the request {KDEsize}.')
+            KDEsize = len(idx)
+            
+        return self.prior_data.sample(KDEsize, weights = idx, replace = False)    
+    
+    def _prior_expand_check(self, numax, KDEsize):
+        """ Expand numax interval to reach sufficient KDE sample size
+        
+        If necessary, increases the range around starting numax to use as the
+        initial prior, until the sample contains at least N = KDEsize targets.
+        
+        Parameters
+        ----------
+        numax : length 2 list [numax, numax_err]
+            The estimate of numax together with uncertainty in log space.
+            
+        KDEsize : int
+            Number of targets to include in the KDE estimation.
+            
+        Returns
+        -------
+        idx : boolean array
+            Array mask to select targets to be included in the KDE estimation.
+        
+        """
+        
+        nsigma = 1
+        
         idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+        
         flag_warn = False
         while len(self.prior_data[idx]) < KDEsize:
-
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+            
             if not flag_warn:
                 warnings.warn(f'There are only {len(self.prior_data[idx])} stars in the prior. ' +
                 'I will expand the prior untill I have ~100 stars.')
                 flag_warn = True
-            if nsigma > KDEsize:
+                
+            if nsigma >= KDEsize:
                 break
+            
             nsigma += 0.1
+            
+        return idx
 
-        if len(self.prior_data[idx]) > 1000:
-            # This should downsample to ~100-200 stars, but with the above
-            # it's unlikely to wind up in that situation.
-            warnings.warn('You have lots data points in your prior - estimating' +
-                          ' the KDE band width will be slow!')
 
-        print(f'Using {len(self.prior_data[idx])} data points in the interval numax +/- %.1f sigma for the KDE.' % (nsigma))
-        self.prior_data = self.prior_data[idx]
 
     def make_kde(self, bw_fac):
         """ Takes the prior data and constructs a KDE function
