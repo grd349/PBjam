@@ -19,21 +19,17 @@ class mcmc():
         the parameters.
     nwalkers : int
         The number of walkers that emcee will use.
-    nthreads : int, optional
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
 
     """
 
-    def __init__(self, start, likelihood, prior, nwalkers=50, nthreads=1):
+    def __init__(self, start, likelihood, prior, nwalkers=50):
 
         self.start = start
         self.ndim = len(start)
         self.likelihood = likelihood
-        self.lp = prior
+        self.prior = prior
 
         self.nwalkers = nwalkers
-        self.nthreads = nthreads
 
         self.sampler = emcee.EnsembleSampler(self.nwalkers,
                                              self.ndim,
@@ -47,12 +43,26 @@ class mcmc():
         self.acceptance = None
 
     def logpost(self, p):
-        """ 
+        """ Evaluate the likelihood and prior
         
-        Returns the log posterior probability given parameters p
+        Returns the log posterior probability given parameters p. Evaluates
+        first the prior function and then the likelihood function. In the 
+        event that the prior returns -inf, the function exits.
+        
+        Parameters
+        ----------
+        p : list
+            Fit parameters
+        
+        Returns
+        -------
+        log_posterior: float
+            log posterior of the model given parameters p and the observed
+            quantities.
         
         """
-        logp = self.lp(p)
+        
+        logp = self.prior(p)
         if logp == -np.inf:
             return -np.inf
 

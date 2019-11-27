@@ -48,3 +48,37 @@ def get_percentiles(X, sigma = 2, **kwargs):
     percs += 50
     
     return np.percentile(X, percs[6-sigma : 6+sigma+1], **kwargs)
+
+
+def to_log10(x, xerr):
+    """ Transforms observables into log10 space.
+
+    """
+
+    if xerr > 0:
+        return [np.log10(x), xerr/x/np.log(10.0)]
+    return [x, xerr]
+
+def normal(x, mu, sigma):
+    """ logarithm of normal distribution (not normalized!!)
+
+    Evaluates the logarithm of a normal distribution at x. 
+
+    Inputs
+    ------
+    x : real
+        observed value
+    mu : real
+        distribution mean
+    sigma : real
+        distribution standard deviation
+
+    Returns
+    -------
+    y : real
+        Logarithm of the normal distribution at x
+    """
+
+    if (sigma < 0):
+        return 0.0
+    return -0.5 * (x - mu)**2 / sigma**2
