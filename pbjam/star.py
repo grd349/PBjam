@@ -71,7 +71,7 @@ class star(plotting):
                  prior_file = None):
 
         self.ID = ID
-        self.pg = pg
+        self.pg = pg.flatten()
         self.f = pg.frequency.value
         self.s = pg.power.value
 
