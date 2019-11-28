@@ -74,8 +74,8 @@ class star(plotting):
 
         self.ID = ID
         self.pg = pg.flatten() # in case user supplies unormalized spectrum
-        self.f = pg.frequency.value
-        self.s = pg.power.value
+        self.f = self.pg.frequency.value
+        self.s = self.pg.power.value
 
         self.numax = numax
         self.dnu = dnu
