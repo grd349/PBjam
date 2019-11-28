@@ -11,6 +11,8 @@ class star(plotting):
 
     Additional attributes are added for each step of the peakbagging process
 
+    Note spectrum is flattened (background divided out.)
+
     Parameters
     ----------
     ID : string, int
@@ -71,7 +73,7 @@ class star(plotting):
                  prior_file = None):
 
         self.ID = ID
-        self.pg = pg.flatten()
+        self.pg = pg.flatten() # in case user supplies unormalized spectrum
         self.f = pg.frequency.value
         self.s = pg.power.value
 
