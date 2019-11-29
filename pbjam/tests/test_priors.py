@@ -42,12 +42,6 @@ def test_make_kde():
     prior.log_obs = {'numax': [np.log10(30.0), 0.01]}
     prior.make_kde()
 
-def test_normal():
-    ''' Normal should return the log-likelihood '''
-    prior = kde()
-    assert_almost_equal(prior.normal(0, 0, 1.0), 0.0, 1e-8)
-    assert_almost_equal(prior.normal(1.0, 0, 1.0), -0.5, 1e-8)
-
 def test_prior_prior():
     prior = kde()
     with pytest.warns(UserWarning):
