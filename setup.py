@@ -1,5 +1,6 @@
 import setuptools
 
+__version__ = []
 exec(open('pbjam/version.py').read())
 
 setuptools.setup(
