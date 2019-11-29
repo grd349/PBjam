@@ -12,7 +12,7 @@ setuptools.setup(
     url="https://pbjam.readthedocs.io/",
     packages=['pbjam'],
     install_requires=open('requirements.txt').read().splitlines(),
-    #extras_require={'docs': ["nbsphinx"]},
+    extras_require={'docs': ["nbsphinx"]},
     include_package_data=True,
     license="MIT",
     classifiers=[
