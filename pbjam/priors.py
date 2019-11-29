@@ -26,6 +26,7 @@ class kde(plotting):
         elif prior_file is None:
             prior_file = get_priorpath()
 
+        self.verbose = False
         self.prior_data = pd.read_csv(prior_file)
 
     def select_prior_data(self, numax=None, KDEsize = 100):
@@ -128,7 +129,7 @@ class kde(plotting):
 
 
 
-    def make_kde(self, bw_fac=1.0, verbose=False):
+    def make_kde(self, bw_fac=1.0):
         """ Takes the prior data and constructs a KDE function
 
         TODO: add details on the band width determination - see example
@@ -152,6 +153,7 @@ class kde(plotting):
             bw = select_bandwidth(self.prior_data[self.par_names].values,
                                   bw = 'scott',
                                   kernel=None) * bw_fac
+
         else:
             if self.verbose:
                 print('Selecting sensible stars for kde')
