@@ -128,7 +128,7 @@ class kde(plotting):
 
 
 
-    def make_kde(self, bw_fac):
+    def make_kde(self, bw_fac=1.0):
         """ Takes the prior data and constructs a KDE function
 
         TODO: add details on the band width determination - see example
