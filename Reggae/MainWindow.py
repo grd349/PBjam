@@ -46,7 +46,7 @@ if __name__ == '__main__':
     import lightkurve as lk
 
     kic = '4448777'
-    lcs = lk.search_lightcurvefile(kic, quarter=5).download_all()
+    lcs = lk.search_lightcurvefile(kic).download_all()
     lc = lcs.PDCSAP_FLUX.stitch().normalize().flatten(window_length=401).remove_outliers(4)
     pg = lc.to_periodogram(normalization='psd').flatten()
     main(pg=pg)
