@@ -55,8 +55,8 @@ class MyCentralWidget(QWidget):
 
     def make_dp1_slider(self):
         minv = 70 * self.dp1_fac
-        maxv = 90 * self.dp1_fac
-        init_val = 80.0 * self.dp1_fac
+        maxv = 100 * self.dp1_fac
+        init_val = 90.0 * self.dp1_fac
         dp1_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
                                   connect=self.on_value_changed)
@@ -88,8 +88,8 @@ class MyCentralWidget(QWidget):
         self.setLayout(vbox)
         self.mpl_widget.plot_data()
         self.mpl_widget.plot_zero_two_model(self.n, self.dnu, 1.0, 0.14)
-        self.mpl_widget.plot_one_model(self.ng, 80.0)
-        self.mpl_widget.plot_mixed_model(self.n, self.dnu, 1.0, 70.0, 0.0, .12)
+        self.mpl_widget.plot_one_model(self.ng, 90.0)
+        self.mpl_widget.plot_mixed_model(self.n, self.dnu, 1.0, 90.0, 0.0, .12)
 
     def on_value_changed(self):
         dnu = self.dnu_slider.value() / self.dnu_fac

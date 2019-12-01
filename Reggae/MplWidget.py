@@ -9,13 +9,19 @@ class MyMplWidget(FigureCanvas):
     def __init__(self, pg, parent=None, figsize=(16,9), dpi=100):
         self.pg = pg
         self.pg_smooth = pg.smooth(method='boxkernel', filter_width=0.1)
-        self.nu = self.pg.frequency.value * 1e-6
+        self.set_nu()
         self.fig = plt.figure(figsize=figsize, dpi=dpi)
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
         FigureCanvas.setSizePolicy(self, QSizePolicy.Expanding,
                                    QSizePolicy.Expanding)
         FigureCanvas.updateGeometry(self)
+
+    def set_nu(self, fac=4):
+        minnu = self.pg.frequency.value.min()
+        maxnu = self.pg.frequency.value.max()
+        self.nu = np.linspace(minnu, maxnu, len(self.pg.frequency.value)*fac)
+        self.nu *= 1e-6
 
     def plot_data(self):
         self.ax = self.fig.add_subplot(111)
@@ -53,9 +59,9 @@ class MyMplWidget(FigureCanvas):
 
     def freq_model(self, dnu, nominal_pmode, period_spacing, \
                    epsilon_g, coupling):
-        lhs = np.pi * (self.nu - nominal_pmode*1e-6) / (dnu * 1e-6)
-        rhs = np.arctan(coupling * np.tan(np.pi/(period_spacing * self.nu) \
-                                          - epsilon_g))
+        lhs = np.tan(np.pi * (self.nu - nominal_pmode*1e-6) / (dnu * 1e-6))
+        rhs = coupling * np.tan(np.pi/(period_spacing * self.nu) \
+                                          - epsilon_g)
         mixed = np.ones(1)
         for i in range(len(self.nu)-1):
             y1 = lhs[i] - rhs[i]
@@ -72,11 +78,8 @@ class MyMplWidget(FigureCanvas):
     def plot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling):
         nominal_pmode = (n[int(len(n)/2)] + eps + 0.5) * dnu
-        mixed = np.zeros(1)
-        for nominal_pmode in (n + eps + 0.5) * dnu:
-            mixed_order = self.freq_model(dnu, nominal_pmode, period_spacing, \
-                                          epsilon_g, coupling)
-            mixed = np.append(mixed, mixed_order)
+        mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
+                                      epsilon_g, coupling)
         self.mixed, = self.ax.plot(mixed,
                                   np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35,
                                   'gv', alpha=1.0)
@@ -85,11 +88,8 @@ class MyMplWidget(FigureCanvas):
     def replot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling):
         nominal_pmode = (n[int(len(n)/2)] + eps + 0.5) * dnu
-        mixed = np.zeros(1)
-        for nominal_pmode in (n + eps + 0.5) * dnu:
-            mixed_order = self.freq_model(dnu, nominal_pmode, period_spacing, \
-                                          epsilon_g, coupling)
-            mixed = np.append(mixed, mixed_order)
+        mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
+                                      epsilon_g, coupling)
         self.mixed.set_data(mixed,
                     np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35)
         self.fig.canvas.draw_idle()
