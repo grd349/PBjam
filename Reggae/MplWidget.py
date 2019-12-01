@@ -9,6 +9,7 @@ class MyMplWidget(FigureCanvas):
     def __init__(self, pg, parent=None, figsize=(16,9), dpi=100):
         self.pg = pg
         self.pg_smooth = pg.smooth(method='boxkernel', filter_width=0.1)
+        self.nu = self.pg.frequency.value * 1e-6
         self.fig = plt.figure(figsize=figsize, dpi=dpi)
         FigureCanvas.__init__(self, self.fig)
         self.setParent(parent)
@@ -24,8 +25,71 @@ class MyMplWidget(FigureCanvas):
                      alpha=0.8, label='Data')
         self.ax.set_xlabel(r'Frequency ($\rm \mu Hz$)')
         self.ax.set_ylabel(r'Power ($\rm ppm^2 \, \mu Hz^{-1}$)')
-        self.draw()
+        self.ax.set_xlim([self.pg.frequency.value.min(),
+                          self.pg.frequency.value.max()])
+        self.ax.set_ylim([0, self.pg_smooth.power.value.max()*1.2])
 
     def plot_zero_two_model(self, n, dnu, eps, d02):
-        self.ax.plot((n + eps) * dnu, np.ones(len(n))*50, 'bo')
-        self.ax.plot((n + eps - d02) * dnu, np.ones(len(n))*50, 'rs')
+        self.zeros, = self.ax.plot((n + eps) * dnu,
+                                   np.ones(len(n))*self.pg_smooth.power.value.max()*0.5, 'bo')
+        self.twos, = self.ax.plot((n + eps - d02) * dnu,
+                                  np.ones(len(n))*self.pg_smooth.power.value.max()*0.4, 'rs')
+        self.draw()
+
+    def replot_zero_two_model(self, n, dnu, eps, d02):
+        self.zeros.set_xdata((n + eps) * dnu)
+        self.twos.set_xdata((n + eps - d02) * dnu)
+        self.fig.canvas.draw_idle()
+
+    def plot_one_model(self, ng, deltaP1):
+        self.ones, = self.ax.plot(1e6 / (ng * deltaP1),
+                                  np.ones(len(ng))*self.pg_smooth.power.value.max()*0.45,
+                                  'g^', alpha=0.2)
+        self.draw()
+
+    def replot_one_model(self, ng, deltaP1):
+        self.ones.set_xdata(1e6 / (ng * deltaP1))
+        self.fig.canvas.draw_idle()
+
+    def freq_model(self, dnu, nominal_pmode, period_spacing, \
+                   epsilon_g, coupling):
+        lhs = np.pi * (self.nu - nominal_pmode*1e-6) / (dnu * 1e-6)
+        rhs = np.arctan(coupling * np.tan(np.pi/(period_spacing * self.nu) \
+                                          - epsilon_g))
+        mixed = np.ones(1)
+        for i in range(len(self.nu)-1):
+            y1 = lhs[i] - rhs[i]
+            y2 = lhs[i+1] - rhs[i+1]
+            if lhs[i] - rhs[i] < 0 and lhs[i+1] - rhs[i+1] > 0:
+                m = (y2 - y1) / (self.nu[i+1] - self.nu[i])
+                c = y2 - m * self.nu[i+1]
+                intp = -c/m
+                mixed = np.append(mixed, intp)
+        if len(mixed) > 1:
+            mixed = mixed[1:]
+        return mixed * 1e6
+
+    def plot_mixed_model(self, n, dnu, eps, period_spacing, \
+                   epsilon_g, coupling):
+        nominal_pmode = (n[int(len(n)/2)] + eps + 0.5) * dnu
+        mixed = np.zeros(1)
+        for nominal_pmode in (n + eps + 0.5) * dnu:
+            mixed_order = self.freq_model(dnu, nominal_pmode, period_spacing, \
+                                          epsilon_g, coupling)
+            mixed = np.append(mixed, mixed_order)
+        self.mixed, = self.ax.plot(mixed,
+                                  np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35,
+                                  'gv', alpha=1.0)
+        self.draw()
+
+    def replot_mixed_model(self, n, dnu, eps, period_spacing, \
+                   epsilon_g, coupling):
+        nominal_pmode = (n[int(len(n)/2)] + eps + 0.5) * dnu
+        mixed = np.zeros(1)
+        for nominal_pmode in (n + eps + 0.5) * dnu:
+            mixed_order = self.freq_model(dnu, nominal_pmode, period_spacing, \
+                                          epsilon_g, coupling)
+            mixed = np.append(mixed, mixed_order)
+        self.mixed.set_data(mixed,
+                    np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35)
+        self.fig.canvas.draw_idle()
