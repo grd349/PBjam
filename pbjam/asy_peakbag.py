@@ -425,19 +425,10 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
                              'MAD' : scist.median_absolute_deviation(self.fit.flatchain, axis=0)})
     
         summary = pd.DataFrame(stats, index = self.par_names)
-        #summary = self._make_summary_dict(stats)
         
         mle_model = self.model(stats['mle'])
         
         return summary, mle_model
-
-#    def _make_summary_dict(self, stats):
-#        summary = pd.DataFrame()
-#        for i, par in enumerate(self.par_names):
-#            z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0, i], pars_percs[1, i], pars_percs[2, i], pars_percs[3, i], pars_percs[4, i], mads[i]]
-#            A = {key: z[i] for i, key in enumerate(stats)}
-#            summary[par] = pd.Series(A)
-#        return summary.transpose()
 
     def _get_asy_start(self):
         """ Get start averages for sampling

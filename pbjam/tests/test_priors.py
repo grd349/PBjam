@@ -11,7 +11,7 @@ solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
 
 def test_prior_init():
     ''' Test the kde init function '''
-    prior = kde()
+    kde()
 
 def test_prior_select_prior_data():
     ''' Check select prior data runs '''
