@@ -23,6 +23,7 @@ class MyCentralWidget(QWidget):
         self.eps_fac = 1000
         self.dp1_fac = 1000
         self.q_fac = 1000
+        self.epsg_fac = 100
         self.initUI()
 
     def make_slider(self, min=0, max=100, step=1, init_val=50,
@@ -75,11 +76,21 @@ class MyCentralWidget(QWidget):
         minv = 0.0 * self.q_fac
         maxv = 0.3 * self.q_fac
         init_val = 0.12 * self.q_fac
-        hbox, dp1_sl = self.make_slider(min=minv, max=maxv,
+        hbox, q_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
                                   connect=self.on_value_changed,
                                   title='Coupling')
-        return hbox, dp1_sl
+        return hbox, q_sl
+
+    def make_epsg_slider(self):
+        minv = -np.pi * self.q_fac
+        maxv = np.pi * self.q_fac
+        init_val = 0.0
+        hbox, epsg_sl = self.make_slider(min=minv, max=maxv,
+                                  init_val=init_val,
+                                  connect=self.on_value_changed,
+                                  title='epsilon_g')
+        return hbox, epsg_sl
 
     def initUI(self):
         fini_button = QPushButton('Finished', self)
@@ -88,6 +99,7 @@ class MyCentralWidget(QWidget):
         heps, self.eps_slider = self.make_eps_slider()
         hdp1, self.dp1_slider = self.make_dp1_slider()
         hq, self.q_slider = self.make_q_slider()
+        hepsg, self.epsg_slider = self.make_epsg_slider()
         self.mpl_widget = MyMplWidget(self.pg)
         # define label
         self.label = QLabel(self)
@@ -97,6 +109,7 @@ class MyCentralWidget(QWidget):
         subvbox.addLayout(heps)
         subvbox.addLayout(hdp1)
         subvbox.addLayout(hq)
+        subvbox.addLayout(hepsg)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(fini_button)
@@ -117,9 +130,10 @@ class MyCentralWidget(QWidget):
         eps = self.eps_slider.value() / self.eps_fac
         dp1 = self.dp1_slider.value() / self.dp1_fac
         q = self.q_slider.value() / self.q_fac
+        epsg = self.epsg_slider.value() / self.epsg_fac
         self.mpl_widget.replot_zero_two_model(self.n, dnu, eps, 0.14)
         self.mpl_widget.replot_one_model(self.ng, dp1)
-        self.mpl_widget.replot_mixed_model(self.n, dnu, eps, dp1, 0.0, q)
+        self.mpl_widget.replot_mixed_model(self.n, dnu, eps, dp1, epsg, q)
 
     def on_finished_button_clicked(self):
         self.main_window.statusBar().showMessage('Finished!')
