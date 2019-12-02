@@ -25,7 +25,8 @@ class MyCentralWidget(QWidget):
         self.initUI()
 
     def make_slider(self, min=0, max=100, step=1, init_val=50,
-                    connect=None):
+                    connect=None, title=''):
+        hbox = QHBoxLayout()
         sl = QSlider(Qt.Horizontal)
         sl.setMinimum(int(min))
         sl.setMaximum(int(max))
@@ -33,49 +34,56 @@ class MyCentralWidget(QWidget):
         sl.setValue(int(init_val))
         if connect != None:
             sl.valueChanged.connect(connect)
-        return sl
+        lab = QLabel()
+        lab.setText(title)
+        hbox.addWidget(lab)
+        hbox.addWidget(sl)
+        return hbox, sl
 
     def make_dnu_slider(self, tol=1.05):
         minv = self.dnu / tol * self.dnu_fac
         maxv = self.dnu * tol * self.dnu_fac
         init_val = self.dnu * self.dnu_fac
-        dnu_sl = self.make_slider(min=minv, max=maxv,
+        hbox, dnu_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
-                                  connect=self.on_value_changed)
-        return dnu_sl
+                                  connect=self.on_value_changed,
+                                  title='Dnu')
+        return hbox, dnu_sl
 
     def make_eps_slider(self):
         minv = 0.5 * self.eps_fac
         maxv = 1.5 * self.eps_fac
         init_val = 1.0 * self.eps_fac
-        eps_sl = self.make_slider(min=minv, max=maxv,
+        hbox, eps_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
-                                  connect=self.on_value_changed)
-        return eps_sl
+                                  connect=self.on_value_changed,
+                                  title='epsilon')
+        return hbox, eps_sl
 
     def make_dp1_slider(self):
         minv = 70 * self.dp1_fac
         maxv = 100 * self.dp1_fac
         init_val = 90.0 * self.dp1_fac
-        dp1_sl = self.make_slider(min=minv, max=maxv,
+        hbox, dp1_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
-                                  connect=self.on_value_changed)
-        return dp1_sl
+                                  connect=self.on_value_changed,
+                                  title='Delta P')
+        return hbox, dp1_sl
 
     def initUI(self):
         fini_button = QPushButton('Finished', self)
         fini_button.clicked.connect(self.on_finished_button_clicked)
-        self.dnu_slider = self.make_dnu_slider()
-        self.eps_slider = self.make_eps_slider()
-        self.dp1_slider = self.make_dp1_slider()
+        hdnu, self.dnu_slider = self.make_dnu_slider()
+        heps, self.eps_slider = self.make_eps_slider()
+        hdp1, self.dp1_slider = self.make_dp1_slider()
         self.mpl_widget = MyMplWidget(self.pg)
         # define label
         self.label = QLabel(self)
         # Place the buttons - HZ
         subvbox = QVBoxLayout()
-        subvbox.addWidget(self.dnu_slider)
-        subvbox.addWidget(self.eps_slider)
-        subvbox.addWidget(self.dp1_slider)
+        subvbox.addLayout(hdnu)
+        subvbox.addLayout(heps)
+        subvbox.addLayout(hdp1)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(fini_button)
