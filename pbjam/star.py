@@ -11,6 +11,8 @@ class star(plotting):
 
     Additional attributes are added for each step of the peakbagging process
 
+    Note spectrum is flattened (background divided out.)
+
     Parameters
     ----------
     ID : string, int
@@ -71,43 +73,50 @@ class star(plotting):
                  prior_file = None):
 
         self.ID = ID
-        self.pg = pg
-        self.f = pg.frequency.value
-        self.s = pg.power.value
+        self.pg = pg.flatten() # in case user supplies unormalized spectrum
+        self.f = self.pg.frequency.value
+        self.s = self.pg.power.value
 
         self.numax = numax
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
 
-        self.path = path
-        self.make_output_dir()
+        self._set_path(path)
+        self._make_output_dir()
 
         if prior_file is None:
             self.prior_file = get_priorpath()
         else:
             self.prior_file = prior_file
 
-    def make_output_dir(self):
+    def _set_path(self, path):
+        """ Sets the path attribute for star
+        
+        If path is a string it is assumed to be a path name, if not the 
+        current working directory will be used. 
+        
+        Parameters
+        ----------
+        path : str
+            Directory to store peakbagging output.
+        
+        """
+
+        if isinstance(path, str):
+            # If path is str, presume user wants to override self.path
+            self.path = os.path.join(*[path, f'{self.ID}'])
+        else:
+            self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
+            
+    def _make_output_dir(self):
         """ Make output directory for star
 
         Attempts to create an output directory for all the results that PBjam
         produces. A directory is created when a star class instance is
         initialized, so a session might create multiple directories.
 
-        The parent directory for these star directories is assumed to be
-        self.path
-
         """
-
-        if not hasattr(self, 'path'):
-            raise AttributeError("'star' instance must have 'path' attribute")
-
-        if isinstance(self.path, str):
-            # If path is str, presume user wants to override self.path
-            self.path = os.path.join(*[self.path, f'{self.ID}'])
-        else:
-            self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
 
         # Check if self.path exists, if not try to create it
         if not os.path.isdir(self.path):
@@ -139,22 +148,22 @@ class star(plotting):
 
         print('Starting KDE estimation')
         # Init
-        kde(self, bw_fac=bw_fac)
+        kde(self)
 
         # Call
         self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
-                 bp_rp=self.bp_rp)
+                 bp_rp=self.bp_rp, bw_fac=bw_fac)
 
         # Store
         if make_plots:
             self.kde.plot_corner(path=self.path, ID=self.ID,
                                  savefig=make_plots)
             self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
-                                       savefig=make_plots)
+                                   savefig=make_plots)
 
 
     def run_asy_peakbag(self, norders=None, make_plots=False,
-                        store_chains=False, nthreads=1):
+                        store_chains=False):
         """ Run all stesps involving asy_peakbag.
 
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
@@ -168,19 +177,16 @@ class star(plotting):
             Whether or not to produce plots of the results.
         store_chains : bool
             Whether or not to store MCMC chains on disk.
-        nthreads : int
-            Not used currently
 
         """
 
-        print('Starting Asy_peakbag')
+        print('Starting asymptotic peakbagging')
         # Init
-        self.asy_fit = asymptotic_fit(self, self.kde, norders=norders,
-                       store_chains=store_chains, nthreads=nthreads)
+        asymptotic_fit(self, self.kde, norders=norders)
 
         # Call
         self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff,
-                     bp_rp=self.bp_rp)
+                     bp_rp=self.bp_rp, store_chains=store_chains)
 
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
@@ -224,9 +230,9 @@ class star(plotting):
 
         """
 
-        print('Starting peakbagging run')
+        print('Starting peakbagging')
         # Init
-        self.peakbag = peakbag(self, self.asy_fit)
+        peakbag(self, self.asy_fit)
 
         # Call
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
@@ -272,7 +278,7 @@ class star(plotting):
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains, nthreads=nthreads)
+                             store_chains=store_chains)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)

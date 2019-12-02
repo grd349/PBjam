@@ -681,9 +681,8 @@ class session():
     Attributes
     ----------
     nthreads : int
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
-        Untested on short cadence.
+        Number of multiprocessing threads to use to perform the HMC peakbag 
+        fit. 
 
     store_chains : bool
         Flag for storing all the full set of samples from the MCMC run.

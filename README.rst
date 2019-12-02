@@ -13,6 +13,8 @@ PBjam
     :target: https://github.com/grd349/PBjam/blob/master/LICENSE
 .. image:: https://img.shields.io/github/issues-closed/grd349/PBjam.svg
     :target: https://github.com/grd349/PBjam/issues
+.. image:: https://badge.fury.io/py/pbjam.svg
+    :target: https://badge.fury.io/py/pbjam
 
 PBjam is toolbox for modeling the oscillation spectra of solar-like oscillators. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies.
 
@@ -37,13 +39,13 @@ Main Contributors
 ^^^^^^^^^^^^^^^^^
 - `Guy Davies <https://github.com/grd349>`_
 - `Martin Nielsen <https://github.com/nielsenmb>`_
+- `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Oliver Hall <https://github.com/ojhall94>`_
 
 Chaos Engineers
 ^^^^^^^^^^^^^^^
 - `Warrick Ball <https://github.com/warrickball>`_
-- `Alex Lyttle <https://github.com/alexlyttle>`_
 - `Joel Ong <https://github.com/darthoctopus>`_
 - Bill Chaplin
 - `Tanda Li <https://github.com/litanda>`_
-- `Rafa Garcia <https://github.com/rgarcibus>`
+- `Rafa Garcia <https://github.com/rgarcibus>`_
