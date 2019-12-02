@@ -13,6 +13,7 @@ import scipy.stats as scist
 from .priors import kde
 from .plotting import plotting
 from .jar import to_log10, normal
+from collections import OrderedDict
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
@@ -39,7 +40,8 @@ class asymp_spec_model():
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
-        
+    
+
     def _get_nmax(self, dnu, numax, eps):
         """Compute radial order at numax.
     
@@ -64,12 +66,11 @@ class asymp_spec_model():
     
         return numax / dnu - eps
 
-
     def _get_enns(self, nmax, norders):
         """Compute radial order numbers.
     
-        Get the enns that will be included in the asymptotic relation fit. These
-        are all integer.
+        Get the enns that will be included in the asymptotic relation fit. 
+        These are all integer.
     
         Parameters
         ----------
@@ -93,9 +94,10 @@ class asymp_spec_model():
         if type(below) != np.ndarray:
             return np.arange(below, above)
         else:
-            return np.concatenate([np.arange(x, y) for x, y in zip(below, above)]).reshape(-1, norders)
+            out = np.concatenate([np.arange(x, y) for x, y in zip(below, above)])
+            return out.reshape(-1, norders)
 
-    def asymptotic_relation(self, numax, dnu, eps, alpha, norders):
+    def _asymptotic_relation(self, numax, dnu, eps, alpha, norders):
         """ Compute the l=0 mode frequencies from the asymptotic relation for
         p-modes
     
@@ -204,10 +206,11 @@ class asymp_spec_model():
             
         """
         
-        pair_model = self.lor(freq0, h, w)
-        pair_model += self.lor(freq0 - d02, h*hfac, w)
+        pair_model = self._lor(freq0, h, w)
+        pair_model += self._lor(freq0 - d02, h*hfac, w)
         return pair_model
 
+    
     def model(self, dnu, numax, eps, d02, alpha, hmax, envwidth, modewidth,
               *args):
         """ Constructs a spectrum model from the asymptotic relation.
@@ -260,7 +263,7 @@ class asymp_spec_model():
         
         mod = np.ones(len(self.f))
         for n in range(len(f0s)):
-            mod += self.pair(f0s[n], Hs[n], modewidth, d02)
+            mod += self._pair(f0s[n], Hs[n], modewidth, d02)
         return mod
 
     def __call__(self, p):
@@ -383,7 +386,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
-        self.summary, self.mle_model = self.get_summary_stats()
+        self.summary, self.mle_model = self._get_summary_stats()
 
         self.samples = self.fit.flatchain
 
@@ -396,17 +399,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
     
         Creates a dataframe that contains various quantities that summarize the
         fit. Note, these are predominantly derived from the marginalized posteriors.
-    
-        Parameters
-        ----------
-        fit : asy_peakbag.mcmc instance
-            asy_peakbag.mcmc that was used to fit the spectrum, containing the
-            log-likelihoods and MCMC chains.
-        model : the asymp_spec_model.model instance that defines the model used to
-            fit the spectrum.
-        pnames : list
-           List of names of each of the parameters in the fit.
-    
+       
         Returns
         -------
         summary : pandas.DataFrame
@@ -417,36 +410,39 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
             
         """
     
-        summary = pd.DataFrame()
         idx = np.argmax(self.fit.flatlnlike)
-        mle = self.fit.flatchain[idx,:]
-        means = np.mean(self.fit.flatchain, axis = 0)
-        stds = np.std(self.fit.flatchain, axis = 0)
-        skewness = scist.skew(self.fit.flatchain, axis = 0)
-        pars_percs = np.percentile(self.fit.flatchain, [50-95.4499736104/2,
-                                                   50-68.2689492137/2,
-                                                   50,
-                                                   50+68.2689492137/2,
-                                                   50+95.4499736104/2], axis=0)
-        mads =  scist.median_absolute_deviation(self.fit.flatchain, axis=0)
+        
+        # Append here to add other statistics
+        stats = OrderedDict({'mle' : self.fit.flatchain[idx,:], 
+                             'mean' : np.mean(self.fit.flatchain, axis = 0),
+                             'std' : np.std(self.fit.flatchain, axis = 0),
+                             'skew' : scist.skew(self.fit.flatchain, axis = 0),
+                             '2nd' : np.percentile(self.fit.flatchain, 50-95.4499736104/2, axis=0),
+                             '16th' : np.percentile(self.fit.flatchain, 50-68.2689492137/2, axis=0),
+                             '50th' : np.percentile(self.fit.flatchain, 50, axis=0),
+                             '84th' : np.percentile(self.fit.flatchain, 50+68.2689492137/2, axis=0),
+                             '97th' : np.percentile(self.fit.flatchain, 50+95.4499736104/2, axis=0),
+                             'MAD' : scist.median_absolute_deviation(self.fit.flatchain, axis=0)})
     
-        smry_stats = ['mle', 'mean', 'std', 'skew', '2nd', '16th', '50th', '84th',
-                      '97th', 'MAD']
-        for i, par in enumerate(self.pnames):
-            z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0, i],
-                 pars_percs[1, i], pars_percs[2, i], pars_percs[3, i],
-                 pars_percs[4, i], mads[i]]
-            A = {key: z[i] for i, key in enumerate(smry_stats)}
-            summary[par] = pd.Series(A)
-        summary = summary.transpose()
-        mle_model = self.model(mle)
+        summary = pd.DataFrame(stats, index = self.par_names)
+        #summary = self._make_summary_dict(stats)
+        
+        mle_model = self.model(stats['mle'])
+        
         return summary, mle_model
+
+#    def _make_summary_dict(self, stats):
+#        summary = pd.DataFrame()
+#        for i, par in enumerate(self.par_names):
+#            z = [mle[i], means[i], stds[i], skewness[i],  pars_percs[0, i], pars_percs[1, i], pars_percs[2, i], pars_percs[3, i], pars_percs[4, i], mads[i]]
+#            A = {key: z[i] for i, key in enumerate(stats)}
+#            summary[par] = pd.Series(A)
+#        return summary.transpose()
 
     def _get_asy_start(self):
         """ Get start averages for sampling
         """
-        
-        # Means = medians is pretty rough.
+ 
         mu = np.median(self.start_samples, axis=0)
         start = [10**mu[0], 10**mu[1], mu[2], 10**mu[3], 10**mu[4], mu[5], 
                  mu[6], mu[7], 10**mu[8], mu[9]]
@@ -476,7 +472,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
             print(f'Likelihood at the start : {np.max(like_start)}')
             print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')
 
-    def get_modeIDs(self, fit, N):
+    def get_modeIDs(self, fit, norders):
         """ Set mode ID in a dataframe
 
         Evaluates the asymptotic relation for each walker position from the
@@ -487,7 +483,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
         ----------
         fit : asy_peakbag.mcmc class instance
             mcmc class instances used in the fit
-        N : int
+        norders : int
             Number of radial orders to output. Note that doesn't have to be
             the same as that used int he fit itself.
 
@@ -503,21 +499,25 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
 
         nsamps = np.shape(flatchain)[0]
 
-        nu0_samps, nu2_samps = np.empty((nsamps, N)), np.empty((nsamps, N))
+        nu0_samps = np.empty((nsamps, norders))
+        nu2_samps = np.empty((nsamps, norders))
 
-        nu0_samps = self._asymptotic_relation(10**flatchain[:, 1], 10**flatchain[:, 0],
-                                        flatchain[:, 2], 10**flatchain[:, 4], N)
+        nu0_samps = self._asymptotic_relation(10**flatchain[:, 1], 
+                                              10**flatchain[:, 0],
+                                              flatchain[:, 2], 
+                                              10**flatchain[:, 4], norders)
         nu2_samps = nu0_samps - 10**flatchain[:, 3]
 
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
-        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
+        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, 
+                                                            nu2_samps]), axis=2)
 
-        ells = [0 if i % 2 else 2 for i in range(2*N)]
+        ells = [0 if i % 2 else 2 for i in range(2*norders)]
 
         nus_med_out = []
         nus_mad_out = []
 
-        for i in range(N):
+        for i in range(norders):
             nus_med_out += [nus_med[1, i], nus_med[0, i]]
             nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
 
@@ -612,5 +612,3 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
         mod = self.model(p)
         lnlike += -np.sum(np.log(mod) + self.s[self.sel] / mod)
         return lnlike
-
-
