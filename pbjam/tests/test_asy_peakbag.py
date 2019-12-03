@@ -152,7 +152,7 @@ def test_asymptotic_relation_function():
     nsamples = R['nsamples']
 
     mod = asymp_spec_model(R['SC'][0]  , norders)
-    dnu, numax, eps, alpha = 10**R['solar']['pars'][0], 10**R['solar']['pars'][1], R['solar']['pars'][2], R['solar']['pars'][4]
+    dnu, numax, eps, alpha = 10**R['solar']['pars'][0], 10**R['solar']['pars'][1], R['solar']['pars'][2], 10**R['solar']['pars'][4]
     
     does_it_run(mod._asymptotic_relation, [numax, dnu, eps, alpha, norders])
     does_it_return(mod._asymptotic_relation, [numax, dnu, eps, alpha, norders])
@@ -180,8 +180,8 @@ def test_asymptotic_relation_reasonable():
     
 def test_P_envelope_function():
     R = load_reasonable()    
-    norders = R['solar']['norders']   
-    mod = asymp_spec_model(R['SC'][0], norders)
+ 
+    mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
 
     envheight, numax, envwidth = 10**R['solar']['pars'][5], 10**R['solar']['pars'][1],10**R['solar']['pars'][6]
 
@@ -201,9 +201,8 @@ def test_P_envelope_reasonable():
     expected = {'solar': [ 0.57311571,  4.38319375, 16.48949317, 30.30597392, 27.02511492, 11.6127985, 2.38800568],
                 'boeing': [ 0.29329611,  2.46950433, 10.88381593, 24.77113388, 28.71635548, 16.72404827, 4.82571522]}
     
-    for key in expected.keys():
-        norders = R[key]['norders']   
-        mod = asymp_spec_model(R['SC'][0]  , norders)
+    for key in expected.keys(): 
+        mod = asymp_spec_model(R['SC'][0]  , R[key]['norders'])
         envheight, numax, envwidth = 10**R[key]['pars'][5], 10**R[key]['pars'][1],10**R[key]['pars'][6]
         nus = R[key]['freqs']
         
@@ -229,19 +228,91 @@ def test_lor_reasonable():
     R = load_reasonable()    
     
     for key in ['solar', 'boeing']:
-        norders = R[key]['norders']   
-        mod = asymp_spec_model(R['SC'][0]  , norders)
+
+        mod = asymp_spec_model(R['SC'][0], R[key]['norders'] )
         
         h, freq, w = 10**R[key]['pars'][5], 10**R[key]['pars'][1],10**R[key]['pars'][6]
     
         out = mod._lor(*[freq, h, w])
         assert_positive(out)   
 
-#def test_pair_function():
-#def test_pair_reasonable():
-#
-#def test_model_function():
-#def test_model_reasonable():
+def test_pair_function():
+    R = load_reasonable()    
+ 
+    mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
     
-#def test_asymp_spec_model_call():
+    h, freq, w, d02 = 10**R['solar']['pars'][5], 10**R['solar']['pars'][1], 10**R['solar']['pars'][6], 10**R['solar']['pars'][3]
     
+    does_it_run(mod._pair, [freq, h, w, d02])
+    does_it_return(mod._pair, [freq, h, w, d02])
+    right_type(mod._pair, [freq, h, w, d02], np.ndarray)
+    right_shape(mod._pair, [freq, h, w, d02], np.shape(R['SC'][0]))
+    
+    
+def test_pair_reasonable():
+    R = load_reasonable()    
+    hfac = 0.7 
+    for key in ['solar', 'boeing']:
+        
+        mod = asymp_spec_model(R['SC'][0], R[key]['norders'])
+        
+        h, freq, w, d02 = 10**R[key]['pars'][5], 10**R[key]['pars'][1], 10**R[key]['pars'][6], 10**R[key]['pars'][3]
+    
+        out = mod._pair(*[freq, h, w, d02], hfac)
+        
+        res = out - mod._lor(freq, h, w) - mod._lor(freq - d02, h*hfac, w)
+        
+        assert_almost_equal(res, np.zeros(len(R['SC'][0])))
+        assert_positive(out) 
+        
+
+def test_model_function():
+    R = load_reasonable()
+    
+    mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
+ 
+    does_it_run(mod.model,  R['solar']['pars'])
+    does_it_return(mod.model,  R['solar']['pars'])
+    right_type(mod.model,  R['solar']['pars'], np.ndarray)
+    right_shape(mod.model,  R['solar']['pars'], np.shape(R['SC'][0]))
+    
+def test_model_reasonable():
+    R = load_reasonable()
+    hfac = 0.7
+    
+    for key in ['solar', 'boeing']:
+        
+        norders = R[key]['norders']
+        mod = asymp_spec_model(R['SC'][0], norders)
+        
+        out = mod.model(*R[key]['pars'])
+        assert_positive(out)
+
+        dnu = 10**R[key]['pars'][0]
+        numax = 10**R[key]['pars'][1]
+        eps =  R[key]['pars'][2]
+        d02 = 10**R[key]['pars'][3]
+        alpha =10**R[key]['pars'][4]
+        envheight = 10**R[key]['pars'][5]
+        envwidth =  10**R[key]['pars'][6]
+        w = 10**R[key]['pars'][7]
+        
+        f0s = mod._asymptotic_relation(numax, dnu, eps, alpha, norders)
+        
+        Hs = mod._P_envelope(f0s, envheight, numax, envwidth)
+        
+        for i in range(len(f0s)):
+            out -= mod._lor(f0s[i], Hs[i], w) 
+            out -= mod._lor(f0s[i] - d02, Hs[i]*hfac, w)
+            
+        assert_almost_equal(out, np.ones(len(R['SC'][0])))
+        
+    
+def test_asymp_spec_model_call():
+    R = load_reasonable()
+    
+    mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
+    does_it_run(mod,  [R['solar']['pars']]) 
+    does_it_return(mod,  [R['solar']['pars']])
+    right_type(mod,  [R['solar']['pars']], np.ndarray)
+    right_shape(mod,  [R['solar']['pars']], np.shape(R['SC'][0]))
