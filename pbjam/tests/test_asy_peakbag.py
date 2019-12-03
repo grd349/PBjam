@@ -181,18 +181,32 @@ def test_asymptotic_relation_reasonable():
     
     # solar
     dnu, numax, eps, alpha = 10**R['solar'][0], 10**R['solar'][1], R['solar'][2], 10**R['solar'][4]   
-    nu_expected = [2601.134, 2734.921, 2869.134, 3003.775, 3138.842, 3274.336, 
+    expected = [2601.134, 2734.921, 2869.134, 3003.775, 3138.842, 3274.336, 
                    3410.257]
-    assert_allclose(mod._asymptotic_relation(numax, dnu, eps, alpha, norders),
-                    nu_expected, atol = 0.001)
+    out = mod._asymptotic_relation(numax, dnu, eps, alpha, norders)
+    assert_allclose(out, expected, atol = 0.001)    
     
     # boeing
     dnu, numax, eps, alpha = 10**R['boeing'][0], 10**R['boeing'][1], R['boeing'][2], 10**R['boeing'][4]   
-    nu_expected = [159.583, 176.226, 192.983, 209.855, 226.841, 243.942, 261.157]
-    assert_allclose(mod._asymptotic_relation(numax, dnu, eps, alpha, norders),
-                    nu_expected, atol = 0.001)    
+    expected = [159.583, 176.226, 192.983, 209.855, 226.841, 243.942, 261.157]
+    out = mod._asymptotic_relation(numax, dnu, eps, alpha, norders)
+    assert_allclose(out, expected, atol = 0.001)    
     
-#def test_P_envelope_function():
+def test_P_envelope_function():
+    R = load_reasonable()    
+    norders = R['norders']   
+    mod = asymp_spec_model(R['SC'][0]  , norders)
+    dnu, numax, eps, alpha = 10**R['solar'][0], 10**R['solar'][1], R['solar'][2], R['solar'][4]
+    
+    nus = mod._asymptotic_relation(numax, dnu, eps, alpha, norders)
+    
+    # does it run
+    out = mod._P_envelope(nus[0],  )
+    # does it return something if it should? Or set an attribute
+    # is the output the type of thing you want
+    # is the output the shape you want
+    
+    
 #def test_P_envelope_reasonable():
 #    
 #def test_lor_function():
@@ -203,3 +217,6 @@ def test_asymptotic_relation_reasonable():
 #
 #def test_model_function():
 #def test_model_reasonable():
+    
+#def test_asymp_spec_model_call():
+    
