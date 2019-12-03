@@ -37,9 +37,11 @@ class MyMplWidget(FigureCanvas):
 
     def plot_zero_two_model(self, n, dnu, eps, d02):
         self.zeros, = self.ax.plot((n + eps) * dnu,
-                                   np.ones(len(n))*self.pg_smooth.power.value.max()*0.5, 'bo')
+                        np.ones(len(n))*self.pg_smooth.power.value.max()*0.5,
+                        'bo')
         self.twos, = self.ax.plot((n + eps - d02) * dnu,
-                                  np.ones(len(n))*self.pg_smooth.power.value.max()*0.4, 'rs')
+                        np.ones(len(n))*self.pg_smooth.power.value.max()*0.4,
+                        'rs')
         self.draw()
 
     def replot_zero_two_model(self, n, dnu, eps, d02):
