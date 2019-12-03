@@ -6,8 +6,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 from MplWidget import MyMplWidget
 import numpy as np
-
-import time
+import pandas as pd
 
 class MyCentralWidget(QWidget):
 
@@ -106,6 +105,8 @@ class MyCentralWidget(QWidget):
     def initUI(self):
         fini_button = QPushButton('Finished', self)
         fini_button.clicked.connect(self.on_finished_button_clicked)
+        save_button = QPushButton('Save', self)
+        save_button.clicked.connect(self.on_save_button_clicked)
         hdnu, self.dnu_slider = self.make_dnu_slider()
         heps, self.eps_slider = self.make_eps_slider()
         hdp1, self.dp1_slider = self.make_dp1_slider()
@@ -125,6 +126,7 @@ class MyCentralWidget(QWidget):
         subvbox.addLayout(hd01)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
+        hbox.addWidget(save_button)
         hbox.addWidget(fini_button)
         hbox.addStretch(1)
         # place hbox and label into vbox
@@ -138,13 +140,17 @@ class MyCentralWidget(QWidget):
         self.mpl_widget.plot_one_model(self.ng, 90.0)
         self.mpl_widget.plot_mixed_model(self.n, self.dnu, 1.0, 90.0, 0.0, .12)
 
-    def on_value_changed(self):
+    def get_slider_values(self):
         dnu = self.dnu_slider.value() / self.dnu_fac
         eps = self.eps_slider.value() / self.eps_fac
         dp1 = self.dp1_slider.value() / self.dp1_fac
         q = self.q_slider.value() / self.q_fac
         epsg = self.epsg_slider.value() / self.epsg_fac
         d01 = self.d01_slider.value() / self.d01_fac
+        return dnu, eps, dp1, q, epsg, d01
+
+    def on_value_changed(self):
+        dnu, eps, dp1, q, epsg, d01 = self.get_slider_values()
         self.mpl_widget.replot_zero_two_model(self.n, dnu, eps, 0.14)
         self.mpl_widget.replot_one_model(self.ng, dp1)
         self.mpl_widget.replot_mixed_model(self.n, dnu, eps, dp1, epsg, q, d01)
@@ -152,3 +158,17 @@ class MyCentralWidget(QWidget):
     def on_finished_button_clicked(self):
         self.main_window.statusBar().showMessage('Finished!')
         self.main_window.close()
+
+    def on_save_button_clicked(self):
+        dnu, eps, dp1, q, epsg, d01 = self.get_slider_values()
+        df = pd.DataFrame({'Dnu': [dnu],
+                           'Eps': [eps],
+                           'Dp1': [dp1],
+                           'q': [q],
+                           'epsg': [epsg],
+                           'd01': [d01]})
+        df.to_csv('reggae_output.csv')
+        mixed = self.mpl_widget.get_mixed_modes(self.n, dnu,
+                        eps, dp1, epsg, q, d01)
+        np.savetxt('reggae_mixed_frequencies.txt', mixed, delimiter=',')
+        self.main_window.statusBar().showMessage('Saved')

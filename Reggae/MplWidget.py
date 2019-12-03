@@ -75,21 +75,26 @@ class MyMplWidget(FigureCanvas):
             mixed = mixed[1:]
         return mixed * 1e6
 
-    def plot_mixed_model(self, n, dnu, eps, period_spacing, \
+    def get_mixed_modes(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01=0.5):
         nominal_pmode = (n[int(len(n)/2)] + eps + d01) * dnu
         mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
                                       epsilon_g, coupling)
+        return mixed
+
+    def plot_mixed_model(self, n, dnu, eps, period_spacing, \
+                   epsilon_g, coupling, d01=0.5):
+        mixed = self.get_mixed_modes(n, dnu, eps, period_spacing, \
+                       epsilon_g, coupling, d01)
         self.mixed, = self.ax.plot(mixed,
-                                  np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35,
-                                  'gv', alpha=1.0)
+                    np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35,
+                    'gv', alpha=1.0)
         self.draw()
 
     def replot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01):
-        nominal_pmode = (n[int(len(n)/2)] + eps + d01) * dnu
-        mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
-                                      epsilon_g, coupling)
+        mixed = self.get_mixed_modes(n, dnu, eps, period_spacing, \
+                       epsilon_g, coupling, d01)
         self.mixed.set_data(mixed,
                     np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35)
         self.fig.canvas.draw_idle()
