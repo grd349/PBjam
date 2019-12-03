@@ -7,12 +7,14 @@ from CentralWidget import MyCentralWidget
 app = None
 
 class MyMainWindow(QMainWindow):
+    ''' Main window to holf the Reggae method '''
     def __init__(self, pg, dnu, numax):
         super().__init__()
         self.pg = pg
         self.initUI()
 
     def initUI(self):
+        ''' Setup main window and create central widget '''
         self.resize(1600,900)
         self.move(50,50)
         central_widget = MyCentralWidget(self, self.pg, dnu, numax)
@@ -20,12 +22,9 @@ class MyMainWindow(QMainWindow):
         self.setWindowTitle('Reggae')
         self.statusBar().showMessage('Waiting ...')
 
-    def auto(self):
-        self.central_widget.auto()
-
-def main(pg, dnu, numax, verbose=True):
+def main(pg, dnu, numax, verbose=False):
     '''
-    app must be defined already!!!
+    Main code to run an instance of Reggae.
     '''
     global app
     if verbose:
@@ -37,7 +36,6 @@ def main(pg, dnu, numax, verbose=True):
         print('Setting up MyMainWindow')
     w = MyMainWindow(pg, dnu, numax)
     w.show()
-    #w.auto()
     if verbose:
         print('Exiting')
     app.exit(app.exec_())

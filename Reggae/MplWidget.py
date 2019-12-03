@@ -6,6 +6,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class MyMplWidget(FigureCanvas):
+    ''' The thing that plots the data in the Geggae GUI
+
+    Inputs
+    ------
+
+    pg: lightkurve periodogram object
+        The periodogram of the data.
+
+    '''
     def __init__(self, pg, parent=None, figsize=(16,9), dpi=100):
         self.pg = pg
         self.pg_smooth = pg.smooth(method='boxkernel', filter_width=0.1)
@@ -18,12 +27,14 @@ class MyMplWidget(FigureCanvas):
         FigureCanvas.updateGeometry(self)
 
     def set_nu(self, fac=4):
+        ''' Sets the frquency array for the mixed algo '''
         minnu = self.pg.frequency.value.min()
         maxnu = self.pg.frequency.value.max()
         self.nu = np.linspace(minnu, maxnu, len(self.pg.frequency.value)*fac)
         self.nu *= 1e-6
 
     def plot_data(self):
+        ''' Plot the periodogram data '''
         self.ax = self.fig.add_subplot(111)
         self.ax.plot(self.pg.frequency, self.pg.power, 'k-',
                      alpha=0.3, label='Data')
@@ -36,6 +47,7 @@ class MyMplWidget(FigureCanvas):
         self.ax.set_ylim([0, self.pg_smooth.power.value.max()*1.2])
 
     def plot_zero_two_model(self, n, dnu, eps, d02):
+        ''' Plot the l=0, 2 modes '''
         self.zeros, = self.ax.plot((n + eps) * dnu,
                         np.ones(len(n))*self.pg_smooth.power.value.max()*0.5,
                         'bo')
@@ -45,22 +57,16 @@ class MyMplWidget(FigureCanvas):
         self.draw()
 
     def replot_zero_two_model(self, n, dnu, eps, d02):
+        ''' Update the location in frequency of the l=0, 2 modes '''
         self.zeros.set_xdata((n + eps) * dnu)
         self.twos.set_xdata((n + eps - d02) * dnu)
         self.fig.canvas.draw_idle()
 
-    def plot_one_model(self, ng, deltaP1):
-        self.ones, = self.ax.plot(1e6 / (ng * deltaP1),
-                                  np.ones(len(ng))*self.pg_smooth.power.value.max()*0.45,
-                                  'g^', alpha=0.2)
-        self.draw()
-
-    def replot_one_model(self, ng, deltaP1):
-        self.ones.set_xdata(1e6 / (ng * deltaP1))
-        self.fig.canvas.draw_idle()
-
     def freq_model(self, dnu, nominal_pmode, period_spacing, \
                    epsilon_g, coupling):
+        ''' This is the algo that estimates the mixed frequencies
+        given the set of the above parameters
+        '''
         lhs = np.tan(np.pi * (self.nu - nominal_pmode*1e-6) / (dnu * 1e-6))
         rhs = coupling * np.tan(np.pi/(period_spacing * self.nu) \
                                           - epsilon_g)
@@ -79,6 +85,7 @@ class MyMplWidget(FigureCanvas):
 
     def get_mixed_modes(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01=0.5):
+        ''' This is the function that calls the mixed mode algo '''
         nominal_pmode = (n[int(len(n)/2)] + eps + d01) * dnu
         mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
                                       epsilon_g, coupling)
@@ -86,6 +93,7 @@ class MyMplWidget(FigureCanvas):
 
     def plot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01=0.5):
+        ''' This plots the mixed mode pattern '''
         mixed = self.get_mixed_modes(n, dnu, eps, period_spacing, \
                        epsilon_g, coupling, d01)
         self.mixed, = self.ax.plot(mixed,
@@ -95,6 +103,7 @@ class MyMplWidget(FigureCanvas):
 
     def replot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01):
+        ''' This updates the plot of the mixed mode patter '''
         mixed = self.get_mixed_modes(n, dnu, eps, period_spacing, \
                        epsilon_g, coupling, d01)
         self.mixed.set_data(mixed,
