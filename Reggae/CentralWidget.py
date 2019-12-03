@@ -24,6 +24,7 @@ class MyCentralWidget(QWidget):
         self.dp1_fac = 1000
         self.q_fac = 1000
         self.epsg_fac = 100
+        self.d01_fac = 100
         self.initUI()
 
     def make_slider(self, min=0, max=100, step=1, init_val=50,
@@ -92,6 +93,16 @@ class MyCentralWidget(QWidget):
                                   title='epsilon_g')
         return hbox, epsg_sl
 
+    def make_d01_slider(self):
+        minv = 0.3 * self.d01_fac
+        maxv = 0.7 * self.d01_fac
+        init_val = 0.5 * self.d01_fac
+        hbox, d01_sl = self.make_slider(min=minv, max=maxv,
+                                  init_val=init_val,
+                                  connect=self.on_value_changed,
+                                  title='d01')
+        return hbox, d01_sl
+
     def initUI(self):
         fini_button = QPushButton('Finished', self)
         fini_button.clicked.connect(self.on_finished_button_clicked)
@@ -100,6 +111,7 @@ class MyCentralWidget(QWidget):
         hdp1, self.dp1_slider = self.make_dp1_slider()
         hq, self.q_slider = self.make_q_slider()
         hepsg, self.epsg_slider = self.make_epsg_slider()
+        hd01, self.d01_slider = self.make_d01_slider()
         self.mpl_widget = MyMplWidget(self.pg)
         # define label
         self.label = QLabel(self)
@@ -110,6 +122,7 @@ class MyCentralWidget(QWidget):
         subvbox.addLayout(hdp1)
         subvbox.addLayout(hq)
         subvbox.addLayout(hepsg)
+        subvbox.addLayout(hd01)
         hbox = QHBoxLayout()
         hbox.addStretch(1)
         hbox.addWidget(fini_button)
@@ -131,9 +144,10 @@ class MyCentralWidget(QWidget):
         dp1 = self.dp1_slider.value() / self.dp1_fac
         q = self.q_slider.value() / self.q_fac
         epsg = self.epsg_slider.value() / self.epsg_fac
+        d01 = self.d01_slider.value() / self.d01_fac
         self.mpl_widget.replot_zero_two_model(self.n, dnu, eps, 0.14)
         self.mpl_widget.replot_one_model(self.ng, dp1)
-        self.mpl_widget.replot_mixed_model(self.n, dnu, eps, dp1, epsg, q)
+        self.mpl_widget.replot_mixed_model(self.n, dnu, eps, dp1, epsg, q, d01)
 
     def on_finished_button_clicked(self):
         self.main_window.statusBar().showMessage('Finished!')

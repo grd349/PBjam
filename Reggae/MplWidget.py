@@ -76,8 +76,8 @@ class MyMplWidget(FigureCanvas):
         return mixed * 1e6
 
     def plot_mixed_model(self, n, dnu, eps, period_spacing, \
-                   epsilon_g, coupling):
-        nominal_pmode = (n[int(len(n)/2)] + eps + 0.5) * dnu
+                   epsilon_g, coupling, d01=0.5):
+        nominal_pmode = (n[int(len(n)/2)] + eps + d01) * dnu
         mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
                                       epsilon_g, coupling)
         self.mixed, = self.ax.plot(mixed,
@@ -86,8 +86,8 @@ class MyMplWidget(FigureCanvas):
         self.draw()
 
     def replot_mixed_model(self, n, dnu, eps, period_spacing, \
-                   epsilon_g, coupling):
-        nominal_pmode = (n[int(len(n)/2)] + eps + 0.5) * dnu
+                   epsilon_g, coupling, d01):
+        nominal_pmode = (n[int(len(n)/2)] + eps + d01) * dnu
         mixed = self.freq_model(dnu, nominal_pmode, period_spacing, \
                                       epsilon_g, coupling)
         self.mixed.set_data(mixed,
