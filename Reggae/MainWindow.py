@@ -11,13 +11,16 @@ class MyMainWindow(QMainWindow):
     def __init__(self, pg, dnu, numax):
         super().__init__()
         self.pg = pg
+
+        self.dnu = dnu
+        self.numax = numax
         self.initUI()
 
     def initUI(self):
         ''' Setup main window and create central widget '''
         self.resize(1600,900)
         self.move(50,50)
-        central_widget = MyCentralWidget(self, self.pg, dnu, numax)
+        central_widget = MyCentralWidget(self, self.pg, self.dnu, self.numax)
         self.setCentralWidget(central_widget)
         self.setWindowTitle('Reggae')
         self.statusBar().showMessage('Waiting ...')
