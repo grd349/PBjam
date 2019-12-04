@@ -33,8 +33,7 @@ class mcmc():
 
         self.sampler = emcee.EnsembleSampler(self.nwalkers,
                                              self.ndim,
-                                             self.logpost,
-                                             threads=1)
+                                             self.logpost)
 
         self.chain = None
         self.flatchain = None

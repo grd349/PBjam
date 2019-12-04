@@ -10,7 +10,6 @@ import numpy as np
 import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
-from .priors import kde
 from .plotting import plotting
 from .jar import to_log10, normal
 from collections import OrderedDict
@@ -284,7 +283,7 @@ class asymp_spec_model():
         return self.model(*p)
 
 
-class asymptotic_fit(kde, plotting, asymp_spec_model):
+class asymptotic_fit(plotting, asymp_spec_model):
     """ Class for fitting a spectrum based on the asymptotic relation.
 
     Parameters
@@ -327,28 +326,21 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
         
     """
 
-    def __init__(self, starinst, kdeinst=None, norders=None):
-
+    def __init__(self, starinst, norders=None):
         self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
         self.norders = norders
-
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
-
-        self._set_kde(starinst, kdeinst)
-
+        self.start_samples = starinst.kde.samples       
+        self.kde = starinst.kde.kde    
         self.start = self._get_asy_start()
-
         lfreq, ufreq = self._get_freq_range()
-
         self.sel = (lfreq < self.f) & (self.f < ufreq)
-
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
-
         starinst.asy_fit = self
-            
+       
     def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1],
                  store_chains=False):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
@@ -371,7 +363,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
             A dictionary of the modeID DataFrame and the summary DataFrame.
             
         """
-        self.store_chains = store_chains
+        #self.store_chains = store_chains
         
         self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
         
@@ -386,7 +378,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
 
-        self.summary, self.mle_model = self._get_summary_stats()
+        self.summary, self.mle_model = self._get_summary_stats(self.fit)
 
         self.samples = self.fit.flatchain
 
@@ -394,12 +386,18 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
 
         return {'modeID': self.modeID, 'summary': self.summary}
 
-    def _get_summary_stats(self):
+
+    def _get_summary_stats(self, fit):
         """ Make dataframe with fit summary statistics
     
         Creates a dataframe that contains various quantities that summarize the
         fit. Note, these are predominantly derived from the marginalized posteriors.
        
+        Parameters
+        ----------
+        fit : mcmc.mcmc class instance
+            mcmc class instances used in the fit
+            
         Returns
         -------
         summary : pandas.DataFrame
@@ -412,17 +410,19 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
     
         idx = np.argmax(self.fit.flatlnlike)
         
+        fc = fit.flatchain
+       
         # Append here to add other statistics
-        stats = OrderedDict({'mle' : self.fit.flatchain[idx,:], 
-                             'mean' : np.mean(self.fit.flatchain, axis = 0),
-                             'std' : np.std(self.fit.flatchain, axis = 0),
-                             'skew' : scist.skew(self.fit.flatchain, axis = 0),
-                             '2nd' : np.percentile(self.fit.flatchain, 50-95.4499736104/2, axis=0),
-                             '16th' : np.percentile(self.fit.flatchain, 50-68.2689492137/2, axis=0),
-                             '50th' : np.percentile(self.fit.flatchain, 50, axis=0),
-                             '84th' : np.percentile(self.fit.flatchain, 50+68.2689492137/2, axis=0),
-                             '97th' : np.percentile(self.fit.flatchain, 50+95.4499736104/2, axis=0),
-                             'MAD' : scist.median_absolute_deviation(self.fit.flatchain, axis=0)})
+        stats = OrderedDict({'mle' : fc[idx,:], 
+                             'mean' : np.mean(fc, axis = 0),
+                             'std' : np.std(fc, axis = 0),
+                             'skew' : scist.skew(fc, axis = 0),
+                             '2nd' : np.percentile(fc,   2.27501, axis=0),
+                             '16th' : np.percentile(fc, 15.86552, axis=0),
+                             '50th' : np.percentile(fc, 50, axis=0),
+                             '84th' : np.percentile(fc, 84.13447, axis=0),
+                             '97th' : np.percentile(fc, 97.72498, axis=0),
+                             'MAD' : scist.median_absolute_deviation(fc, axis=0)})
     
         summary = pd.DataFrame(stats, index = self.par_names)
         
@@ -430,38 +430,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
         
         return summary, mle_model
 
-    def _get_asy_start(self):
-        """ Get start averages for sampling
-        """
- 
-        mu = np.median(self.start_samples, axis=0)
-        start = [10**mu[0], 10**mu[1], mu[2], 10**mu[3], 10**mu[4], mu[5], 
-                 mu[6], mu[7], 10**mu[8], mu[9]]
-        return start
 
-    def _get_freq_range(self):
-        """ Get frequency range for model
-        """
-        
-        dnu, numax, eps = self.start[:3]
-        
-        nmax = self._get_nmax(dnu, numax, eps)
-        enns = self._get_enns(nmax, self.norders)
-
-        lfreq = (min(enns) - 1.25 + eps) * dnu
-        ufreq = (max(enns) + 1.25 + eps) * dnu
-        return lfreq, ufreq
-
-    def _start_init(self, verbose=False):
-        """ Bodge a better starting point
-        """
-        
-        like_start = np.ones(len(self.start_samples[:, 0]))
-        for idx, samp in enumerate(self.start_samples):
-            like_start[idx] = self.likelihood(samp)
-        if verbose:
-            print(f'Likelihood at the start : {np.max(like_start)}')
-            print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')
 
     def get_modeIDs(self, fit, norders):
         """ Set mode ID in a dataframe
@@ -472,7 +441,7 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
 
         Parameters
         ----------
-        fit : asy_peakbag.mcmc class instance
+        fit : mcmc.mcmc class instance
             mcmc class instances used in the fit
         norders : int
             Number of radial orders to output. Note that doesn't have to be
@@ -486,50 +455,26 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
             
         """
 
-        flatchain = fit.flatchain
+        fc = fit.flatchain
 
-        nsamps = np.shape(flatchain)[0]
-
-        nu0_samps = np.empty((nsamps, norders))
-        nu2_samps = np.empty((nsamps, norders))
-
-        nu0_samps = self._asymptotic_relation(10**flatchain[:, 1], 
-                                              10**flatchain[:, 0],
-                                              flatchain[:, 2], 
-                                              10**flatchain[:, 4], norders)
-        nu2_samps = nu0_samps - 10**flatchain[:, 3]
+        nu0_samps = self._asymptotic_relation(10**fc[:, 1], 10**fc[:, 0], fc[:, 2], 10**fc[:, 4], norders)
+        nu2_samps = nu0_samps - 10**fc[:, 3]
 
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
-        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, 
-                                                            nu2_samps]), axis=2)
+        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
 
-        ells = [0 if i % 2 else 2 for i in range(2*norders)]
+        ells = np.array([2, 0]*norders) 
 
-        nus_med_out = []
-        nus_mad_out = []
+        df = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
 
-        for i in range(norders):
-            nus_med_out += [nus_med[1, i], nus_med[0, i]]
-            nus_mad_out += [nus_mad[1, i], nus_mad[0, i]]
-
-        modeID = pd.DataFrame({'ell': ells, 'nu_med': nus_med_out,
-                               'nu_mad': nus_mad_out})
-        return modeID
-
-
-    def _set_kde(self, starinst, kdeinst):
-        """ Set the kde attribute    
-        """
+        df.at[::2, 'nu_med'] = nus_med[1, :]
+        df.at[1::2, 'nu_med'] = nus_med[0, :]
         
-        if kdeinst:
-            self.start_samples = kdeinst.samples
-            self.kde = kdeinst.kde
-            
-        elif hasattr(starinst, 'kde'):
-            self.start_samples = starinst.kde.samples
-            self.kde = starinst.kde.kde
-        else:
-            raise ValueError("Asy_peakbag won't run without samples of the prior")
+        df.at[::2, 'nu_mad'] = nus_mad[1, :]
+        df.at[1::2, 'nu_mad'] = nus_mad[0, :]
+
+        return df
+
 
     def prior(self, p):
         """ Calculates the log prior 
@@ -603,3 +548,42 @@ class asymptotic_fit(kde, plotting, asymp_spec_model):
         mod = self.model(p)
         lnlike += -np.sum(np.log(mod) + self.s[self.sel] / mod)
         return lnlike
+    
+    
+    def _get_asy_start(self):
+        """ Get start averages for sampling
+        """
+ 
+        mu = np.median(self.start_samples, axis=0)
+        start = [10**mu[0], 10**mu[1], mu[2], 10**mu[3], 10**mu[4], mu[5], 
+                 mu[6], mu[7], 10**mu[8], mu[9]]
+        return start
+
+
+    def _get_freq_range(self):
+        """ Get frequency range for model
+        """
+        
+        dnu, numax, eps = self.start[:3]
+        
+        nmax = self._get_nmax(dnu, numax, eps)
+        enns = self._get_enns(nmax, self.norders)
+
+        lfreq = (min(enns) - 1.25 + eps) * dnu
+        ufreq = (max(enns) + 1.25 + eps) * dnu
+        return lfreq, ufreq    
+    
+    
+    
+    def _start_init(self, verbose=False):
+        """ This is in pre-alpha
+        
+        Bodge a better starting point
+        """
+        
+        like_start = np.ones(len(self.start_samples[:, 0]))
+        for idx, samp in enumerate(self.start_samples):
+            like_start[idx] = self.likelihood(samp)
+        if verbose:
+            print(f'Likelihood at the start : {np.max(like_start)}')
+            print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')

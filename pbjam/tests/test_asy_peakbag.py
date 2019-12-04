@@ -1,8 +1,3 @@
-#import pbjam
-#from pbjam import asy_peakbag
-#from pbjam.asy_peakbag import get_nmax
-#import pytest
-
 
 ## Function
 # does it run
@@ -14,8 +9,11 @@
 # is the output something reasonable if I give it something reasonable?
 # is the output something unreasonable if I give it something unreasonable
 
-from ..asy_peakbag import asymp_spec_model
-
+from ..asy_peakbag import asymp_spec_model, asymptotic_fit
+from ..star import star
+import lightkurve as lk
+import astropy.units as units
+import pandas as pd
 import numpy as np
 from numpy.testing import assert_almost_equal, assert_array_equal, assert_allclose
 
@@ -57,34 +55,127 @@ def load_reasonable():
     return reas
 
 def does_it_run(func, args):
-    func(*args)
+    if args is None:
+        func()
+    else:
+        func(*args)
 
 def does_it_return(func, args):
-    assert(func(*args) is not None)
+    if args is None:
+        assert(func() is not None)
+    else:
+        assert(func(*args) is not None)
 
 def right_type(func, args, expected):
-    out = func(*args)
-    assert(isinstance(out, expected))
+    if args is None:
+        assert(isinstance(func(), expected))
+    else:
+        assert(isinstance(func(*args), expected))
 
 def right_shape(func, args, expected):
-    out = func(*args)
-    assert(np.shape(out)==expected)
+    if args is None:
+        assert(np.shape(func())==expected)
+    else:
+        assert(np.shape(func(*args))==expected)
 
 def assert_positive(x):
     assert(all(x) >= 0)
+
+def assert_hasattributes(object, attributes):
+    for attr in attributes:
+        assert(hasattr(object, attr))
+
+
+def test_asymptotic_fit():
+    R = load_reasonable()    
+
+#    ID = 'test_KIC4448777'
+    #f, p = np.genfromtxt('./pbjam/tests/mypsd.asciifile').T
+ 
+#    numax = (10**R['boeing']['pars'][1], 3)
+#    dnu = (10**R['boeing']['pars'][0], 0.05)
+#    teff = (10**R['boeing']['pars'][8], 100)
+#    bp_rp = (R['boeing']['pars'][9], 0.1)
+#    norders = R['boeing']['norders']
+#
+#    st0 = star(ID, pg, numax, dnu, teff, bp_rp)
+#    st0.run_kde() 
+    norders = R['solar']['norders']
+    pg = lk.periodogram.Periodogram(np.array([1,1])*units.microhertz, 
+                                    units.Quantity(np.array([1,1]), None))
+
+    st = star(1, pg, 1, 1, 1, 1)
+    st.kde = type('kde', (object,), {})()
+    st.kde.samples = np.ones((2,10))
+    st.kde.kde = 1
+      
+    asymptotic_fit(st, norders=norders)
+    
+    attributes = ['_asymptotic_relation', '_get_asy_start', '_get_enns', 
+                  '_get_freq_range', '_get_nmax', '_get_summary_stats', 
+                  '_lor', '_pair', '_start_init', 'f', 'get_modeIDs', 'kde', 
+                  'likelihood', 'model', 'norders', 'par_names', 'pg', 
+                  'plot_corner', 'plot_echelle', 'plot_spectrum', 'plot_start',
+                  'prior', 's', 'sel', 'start', 'start_samples']
+    
+    assert_hasattributes(st.asy_fit, attributes)
+    assert(hasattr(st, 'asy_fit'))
+
+    # _get_asy_start
+    st.asy_fit._get_asy_start()
+    does_it_return(st.asy_fit._get_asy_start, None)
+    right_type(st.asy_fit._get_asy_start, None, list)
+    right_shape(st.asy_fit._get_asy_start, None, (10,))
+    assert_allclose(st.asy_fit._get_asy_start(), [10, 10, 1, 10, 10, 1, 1, 1, 10, 1])
+    
+    # _get_freq_range
+    st.asy_fit._get_freq_range()
+    does_it_return(st.asy_fit._get_freq_range, None)
+    right_type(st.asy_fit._get_freq_range, None, tuple)
+    right_shape(st.asy_fit._get_freq_range, None, (2,))
+    assert_allclose(st.asy_fit._get_freq_range(), [-32.5, 52.5])
+    
+    # _get_modeIDs
+    fit = type('fit', (object,), {})()
+    fit.flatchain = np.ones((100, 10))
+    fit.flatchain[:,1] = 2
+    fit.flatchain[:,3] = 0
+    fit.flatchain[:,4] = -2
+    st.asy_fit.get_modeIDs(fit, norders)
+    does_it_return(st.asy_fit.get_modeIDs, [fit, norders])
+    right_type(st.asy_fit.get_modeIDs, [fit, norders], pd.DataFrame)
+    df = st.asy_fit.get_modeIDs(fit, norders)
+    assert(all(df['nu_mad'].values == np.zeros(2*norders)))
+    assert_allclose(df['nu_med'], np.array([69.45, 70.45, 79.2, 80.2, 89.05, 90.05, 99, 100, 109.05, 110.05, 119.2, 120.2, 129.45, 130.45]))
+    
+    
+#def test_get_summary_stats_function():
+#def test_prior_function():
+#def test_likelihood_function():
+
+#def test_asymptotic_fit_call():
+
+
+
+
+
+
+
+
+
+
+
 
 def test_asymp_spec_model_init():
     R = load_reasonable()    
     mod = asymp_spec_model(R['SC'][0]  , R['solar']['norders'])
     
-    init_attributes = ['_asymptotic_relation', '_get_enns', '_get_nmax', 
-                       '_lor', '_pair', 'f', 'model', 'norders']
+    attributes = ['_asymptotic_relation', '_get_enns', '_get_nmax', '_lor', 
+                  '_pair', 'f', 'model', 'norders']
     
-    for attr in init_attributes:
-        assert(hasattr(mod, attr))
+    assert_hasattributes(mod, attributes)
     
-
-def test_get_nmax_function(): 
+def test_get_nmax(): 
     
     R = load_reasonable()    
     mod = asymp_spec_model(R['SC'][0]  , R['solar']['norders'])
@@ -101,11 +192,7 @@ def test_get_nmax_function():
     right_shape(mod._get_nmax, [np.float64(dnu).repeat(n), 
                                np.float64(numax).repeat(n),
                                np.float64(eps).repeat(n)], (n,))    
-    
-def test_get_nmax_reasonable():
-
-    R = load_reasonable()    
-     
+         
     expected = {'solar': R['solar']['nmax'],
                 'boeing': R['boeing']['nmax']}
     
@@ -114,7 +201,9 @@ def test_get_nmax_reasonable():
         out = mod._get_nmax(10**R[key]['pars'][0], 10**R[key]['pars'][1], R[key]['pars'][2])
         assert_almost_equal(out, expected[key], decimal = 0)
     
-def test_get_enns_function():
+    assert(mod._get_nmax(1,1,1) == 0.0)
+    
+def test_get_enns():
     
     R = load_reasonable()    
     mod = asymp_spec_model(R['SC'][0]  , R['solar']['norders'])
@@ -128,13 +217,7 @@ def test_get_enns_function():
     right_type(mod._get_enns, [nmax, norders], np.ndarray)
     right_shape(mod._get_enns, [nmax, norders], (norders,))
     right_shape(mod._get_enns, [np.array([nmax]).repeat(nsamples), norders], (nsamples, norders))
-        
-    
-def test_get_enns_reasonable():
-    
-    R = load_reasonable()    
-   
-    # Solar
+              
     expected = {'solar': np.arange(18,25), 
                 'boeing': np.arange(8,15)} 
     
@@ -145,8 +228,9 @@ def test_get_enns_reasonable():
         nmax = mod._get_nmax(dnu, numax, eps)
         assert_array_equal(mod._get_enns(nmax,norders), expected[key])
         
-
-def test_asymptotic_relation_function():
+    assert_allclose(mod._get_enns(0, norders)-min(mod._get_enns(0, norders)), range(norders))
+        
+def test_asymptotic_relation():
     R = load_reasonable()    
     norders = R['solar']['norders']
     nsamples = R['nsamples']
@@ -163,9 +247,6 @@ def test_asymptotic_relation_function():
                                            np.float64(eps).repeat(nsamples), 
                                            np.float64(alpha).repeat(nsamples), norders], (norders, nsamples))
 
-def test_asymptotic_relation_reasonable():
-    R = load_reasonable()    
-       
     expected = {'solar': R['solar']['freqs'],
                 'boeing': R['boeing']['freqs']}
     
@@ -175,10 +256,8 @@ def test_asymptotic_relation_reasonable():
         dnu, numax, eps, alpha = 10**R[key]['pars'][0], 10**R[key]['pars'][1], R[key]['pars'][2], 10**R[key]['pars'][4]   
         out = mod._asymptotic_relation(numax, dnu, eps, alpha, norders)
         assert_allclose(out, expected[key], atol = 0.001)    
-    
-
-    
-def test_P_envelope_function():
+      
+def test_P_envelope():
     R = load_reasonable()    
  
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
@@ -193,10 +272,7 @@ def test_P_envelope_function():
     right_type(mod._P_envelope, [nus, envheight, numax, envwidth], np.ndarray)
     right_shape(mod._P_envelope, [nus[0], envheight, numax, envwidth], ())
     right_shape(mod._P_envelope, [nus, envheight, numax, envwidth], np.shape(nus))
-    
-
-def test_P_envelope_reasonable():
-    R = load_reasonable()    
+  
     
     expected = {'solar': [ 0.57311571,  4.38319375, 16.48949317, 30.30597392, 27.02511492, 11.6127985, 2.38800568],
                 'boeing': [ 0.29329611,  2.46950433, 10.88381593, 24.77113388, 28.71635548, 16.72404827, 4.82571522]}
@@ -210,8 +286,7 @@ def test_P_envelope_reasonable():
         assert_allclose(out, expected[key], atol = 0.001)    
         assert_positive(out)
     
-
-def test_lor_function():
+def test_lor():
     R = load_reasonable()    
  
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
@@ -222,11 +297,7 @@ def test_lor_function():
     does_it_return(mod._lor, [freq, h, w])
     right_type(mod._lor, [freq, h, w], np.ndarray)
     right_shape(mod._lor, [freq, h, w], (np.shape(R['SC'][0])))
-    
-
-def test_lor_reasonable():
-    R = load_reasonable()    
-    
+  
     for key in ['solar', 'boeing']:
 
         mod = asymp_spec_model(R['SC'][0], R[key]['norders'] )
@@ -236,7 +307,7 @@ def test_lor_reasonable():
         out = mod._lor(*[freq, h, w])
         assert_positive(out)   
 
-def test_pair_function():
+def test_pair():
     R = load_reasonable()    
  
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
@@ -247,10 +318,7 @@ def test_pair_function():
     does_it_return(mod._pair, [freq, h, w, d02])
     right_type(mod._pair, [freq, h, w, d02], np.ndarray)
     right_shape(mod._pair, [freq, h, w, d02], np.shape(R['SC'][0]))
-    
-    
-def test_pair_reasonable():
-    R = load_reasonable()    
+     
     hfac = 0.7 
     for key in ['solar', 'boeing']:
         
@@ -265,8 +333,7 @@ def test_pair_reasonable():
         assert_almost_equal(res, np.zeros(len(R['SC'][0])))
         assert_positive(out) 
         
-
-def test_model_function():
+def test_model():
     R = load_reasonable()
     
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
@@ -276,8 +343,6 @@ def test_model_function():
     right_type(mod.model,  R['solar']['pars'], np.ndarray)
     right_shape(mod.model,  R['solar']['pars'], np.shape(R['SC'][0]))
     
-def test_model_reasonable():
-    R = load_reasonable()
     hfac = 0.7
     
     for key in ['solar', 'boeing']:
@@ -307,7 +372,6 @@ def test_model_reasonable():
             
         assert_almost_equal(out, np.ones(len(R['SC'][0])))
         
-    
 def test_asymp_spec_model_call():
     R = load_reasonable()
     
