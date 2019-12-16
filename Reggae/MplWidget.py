@@ -44,22 +44,26 @@ class MyMplWidget(FigureCanvas):
         self.ax.set_ylabel(r'Power ($\rm ppm^2 \, \mu Hz^{-1}$)')
         self.ax.set_xlim([self.pg.frequency.value.min(),
                           self.pg.frequency.value.max()])
-        self.ax.set_ylim([0, self.pg_smooth.power.value.max()*1.2])
+        self.ax.set_ylim([0, self.pg_smooth.power.value.max()*0.9])
 
-    def plot_zero_two_model(self, n, dnu, eps, d02):
+    def plot_zero_two_model(self, n, dnu, eps, d01, d02, d03):
         ''' Plot the l=0, 2 modes '''
         self.zeros, = self.ax.plot((n + eps) * dnu,
                         np.ones(len(n))*self.pg_smooth.power.value.max()*0.5,
                         'bo')
-        self.twos, = self.ax.plot((n + eps - d02) * dnu,
-                        np.ones(len(n))*self.pg_smooth.power.value.max()*0.4,
+        self.twos, = self.ax.plot((n + eps + d02) * dnu,
+                        np.ones(len(n))*self.pg_smooth.power.value.max()*0.35,
                         'rs')
+        self.threes, = self.ax.plot((n + eps + d03) * dnu,
+                        np.ones(len(n))*self.pg_smooth.power.value.max()*0.15,
+                        'mh')
         self.draw()
 
-    def replot_zero_two_model(self, n, dnu, eps, d02):
+    def replot_zero_two_model(self, n, dnu, eps, d01,  d02, d03):
         ''' Update the location in frequency of the l=0, 2 modes '''
         self.zeros.set_xdata((n + eps) * dnu)
-        self.twos.set_xdata((n + eps - d02) * dnu)
+        self.twos.set_xdata((n + eps + d02) * dnu)
+        self.threes.set_xdata((n + eps + d03) * dnu)
         self.fig.canvas.draw_idle()
 
     def freq_model(self, dnu, nominal_pmode, period_spacing, \
@@ -94,18 +98,34 @@ class MyMplWidget(FigureCanvas):
     def plot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01=0.5):
         ''' This plots the mixed mode pattern '''
-        mixed = self.get_mixed_modes(n, dnu, eps, period_spacing, \
+        self.mixed_vals = self.get_mixed_modes(n, dnu, eps, period_spacing, \
                        epsilon_g, coupling, d01)
-        self.mixed, = self.ax.plot(mixed,
-                    np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35,
+        self.mixed, = self.ax.plot(self.mixed_vals,
+                    np.ones(len(self.mixed_vals))*self.pg_smooth.power.value.max()*0.3,
                     'gv', alpha=1.0)
         self.draw()
 
     def replot_mixed_model(self, n, dnu, eps, period_spacing, \
                    epsilon_g, coupling, d01):
         ''' This updates the plot of the mixed mode patter '''
-        mixed = self.get_mixed_modes(n, dnu, eps, period_spacing, \
+        self.mixed_vals = self.get_mixed_modes(n, dnu, eps, period_spacing, \
                        epsilon_g, coupling, d01)
-        self.mixed.set_data(mixed,
-                    np.ones(len(mixed))*self.pg_smooth.power.value.max()*0.35)
+        self.mixed.set_data(self.mixed_vals,
+                    np.ones(len(self.mixed_vals))*self.pg_smooth.power.value.max()*0.3)
+        self.fig.canvas.draw_idle()
+
+    def plot_rotation_model(self, rotc):
+        self.rotation_m, = self.ax.plot(self.mixed_vals - rotc,
+            np.ones(len(self.mixed_vals))*self.pg_smooth.power.value.max()*0.2,
+            'gv', alpha=0.3)
+        self.rotation_p, = self.ax.plot(self.mixed_vals + rotc,
+            np.ones(len(self.mixed_vals))*self.pg_smooth.power.value.max()*0.2,
+            'gv', alpha=0.3)
+        self.draw()
+
+    def replot_rotation_model(self, rotc):
+        self.rotation_m.set_data(self.mixed_vals - rotc,
+            np.ones(len(self.mixed_vals))*self.pg_smooth.power.value.max()*0.2)
+        self.rotation_p.set_data(self.mixed_vals + rotc,
+            np.ones(len(self.mixed_vals))*self.pg_smooth.power.value.max()*0.2)
         self.fig.canvas.draw_idle()
