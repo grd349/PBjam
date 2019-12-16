@@ -185,8 +185,7 @@ class star(plotting):
         asymptotic_fit(self, norders=norders)
 
         # Call
-        self.asy_fit(dnu=self.dnu, numax=self.numax, teff=self.teff,
-                     bp_rp=self.bp_rp, store_chains=store_chains)
+        self.asy_fit()
 
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])

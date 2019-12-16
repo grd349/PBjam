@@ -11,15 +11,25 @@
 
 from ..asy_peakbag import asymp_spec_model, asymptotic_fit
 from ..star import star
+from ..jar import to_log10
 import lightkurve as lk
 import astropy.units as units
 import pandas as pd
 import numpy as np
+import statsmodels.api as sm
 from numpy.testing import assert_almost_equal, assert_array_equal, assert_allclose
 
-def load_reasonable():
-    reas = {}
-    reas['solar'] = {'pars': [np.log10(135.0), # dnu
+def load_example():
+    stars = {}
+    
+    # A silly example
+    stars['silly'] = {'pars': [10, 10, 1, 10, 10, 1, 1, 1, 10, 1],
+                      'obs': {'dnu': (1, 1), 'numax': (1, 1), 'teff': (1, 1), 'bp_rp': (1, 1)},
+                      'nmax': 1, 
+                      'freqs' : np.array([1,10])}
+    
+    # A more realistic example
+    stars['solar'] = {'pars': [np.log10(135.0), # dnu
                               np.log10(3050.0), # numax 
                               1.25, #eps
                               0.5, # d02
@@ -28,11 +38,13 @@ def load_reasonable():
                               2.2, # envwidth
                               0.0, # modwidth
                               3.77, #teff
-                              0.8],
-                        'nmax': 21, # bp_rp
+                              0.8], # bp_rp
+                        'obs': {'dnu': (135, 1.35), 'numax': (3050, 30), 'teff': (5777, 60), 'bp_rp': (0.8, 0.01)},
+                        'nmax': 21, 
                         'freqs' : np.array([2601.134, 2734.921, 2869.134, 3003.775, 3138.842, 3274.336, 3410.257])}
-        
-    reas['boeing'] = {'pars': [1.23072917362692,
+    
+    # Another more realistic example
+    stars['boeing'] = {'pars': [1.23072917362692,
                                2.34640449860884,
                                1.33476843739203,
                                0.347104562462547,
@@ -42,17 +54,20 @@ def load_reasonable():
                                -0.668935969601942,
                                3.69363755249007,
                                1.22605501887223],
+                        'obs' : {'dnu': (16.97, 0.05), 'numax': (220.0, 3.0), 'teff': (4750, 100), 'bp_rp': (1.34, 0.1)}, 
                         'nmax': 11,
                         'freqs': np.array([159.583, 176.226, 192.983, 209.855, 226.841, 243.942, 261.157])}
     
-    for key in ['solar', 'boeing']:
-        reas[key]['norders'] = len(reas[key]['freqs'])
+    for key in ['solar', 'boeing', 'silly']:
+        stars[key]['norders'] = len(stars[key]['freqs'])
+        
+        stars[key]['log_obs'] = {x: to_log10(*stars[key]['obs'][x]) for x in stars[key]['obs'].keys() if x != 'bp_rp'}
     
-    reas['SC'] = np.vstack((np.linspace(1e-20,8500,10000),
+    stars['SC'] = np.vstack((np.linspace(1e-20,8500,10000),
                             np.linspace(1e-20,8500,10000)))
     
-    reas['nsamples'] = 10
-    return reas
+    stars['nsamples'] = 10
+    return stars
 
 def does_it_run(func, args):
     if args is None:
@@ -86,29 +101,37 @@ def assert_hasattributes(object, attributes):
         assert(hasattr(object, attr))
 
 
-def test_asymptotic_fit():
-    R = load_reasonable()    
+def init_dummy_star(ID = 'silly'):
+    R = load_example()
+    pg = lk.periodogram.Periodogram(np.array([1,1])*units.microhertz, units.Quantity(np.array([1,1]), None))
 
-#    ID = 'test_KIC4448777'
-    #f, p = np.genfromtxt('./pbjam/tests/mypsd.asciifile').T
- 
-#    numax = (10**R['boeing']['pars'][1], 3)
-#    dnu = (10**R['boeing']['pars'][0], 0.05)
-#    teff = (10**R['boeing']['pars'][8], 100)
-#    bp_rp = (R['boeing']['pars'][9], 0.1)
-#    norders = R['boeing']['norders']
-#
-#    st0 = star(ID, pg, numax, dnu, teff, bp_rp)
-#    st0.run_kde() 
-    norders = R['solar']['norders']
-    pg = lk.periodogram.Periodogram(np.array([1,1])*units.microhertz, 
-                                    units.Quantity(np.array([1,1]), None))
-
-    st = star(1, pg, 1, 1, 1, 1)
+    st = star(ID, pg, *[R[ID]['obs'][x] for x in R[ID]['obs'].keys()])
+    
     st.kde = type('kde', (object,), {})()
     st.kde.samples = np.ones((2,10))
-    st.kde.kde = 1
-      
+    
+    data = np.array(R['boeing']['pars']).repeat(20).reshape((10,-1))
+    st.kde.kde = sm.nonparametric.KDEMultivariate(data=data, var_type='cccccccccc', bw='scott')
+    
+    return st
+
+def load_dummy_asy_fit(st):
+    R = load_example()    
+    asymptotic_fit(st, norders=R['solar']['norders'])
+    st.asy_fit.fit = type('fit', (object,), {})()
+    st.asy_fit.fit.flatchain = np.ones((100, 10))
+    st.asy_fit.fit.flatchain[:,1] = 2
+    st.asy_fit.fit.flatchain[:,3] = 0
+    st.asy_fit.fit.flatchain[:,4] = -2
+    st.asy_fit.fit.flatlnlike = np.ones(100)
+    st.asy_fit.fit.flatlnlike[0] = 2
+    st.asy_fit.log_obs = R[st.ID]['log_obs']
+
+def test_asymptotic_fit_init():
+    R = load_example()    
+    st = init_dummy_star()
+    norders = R['solar']['norders']
+   
     asymptotic_fit(st, norders=norders)
     
     attributes = ['_asymptotic_relation', '_get_asy_start', '_get_enns', 
@@ -121,38 +144,82 @@ def test_asymptotic_fit():
     assert_hasattributes(st.asy_fit, attributes)
     assert(hasattr(st, 'asy_fit'))
 
-    # _get_asy_start
+def test_get_asy_start():
+    st = init_dummy_star()
+    load_dummy_asy_fit(st)
+   
     st.asy_fit._get_asy_start()
     does_it_return(st.asy_fit._get_asy_start, None)
     right_type(st.asy_fit._get_asy_start, None, list)
     right_shape(st.asy_fit._get_asy_start, None, (10,))
     assert_allclose(st.asy_fit._get_asy_start(), [10, 10, 1, 10, 10, 1, 1, 1, 10, 1])
     
-    # _get_freq_range
+def test_get_freq_range():
+    st = init_dummy_star()
+    load_dummy_asy_fit(st)
+    
     st.asy_fit._get_freq_range()
     does_it_return(st.asy_fit._get_freq_range, None)
     right_type(st.asy_fit._get_freq_range, None, tuple)
     right_shape(st.asy_fit._get_freq_range, None, (2,))
     assert_allclose(st.asy_fit._get_freq_range(), [-32.5, 52.5])
     
-    # _get_modeIDs
-    fit = type('fit', (object,), {})()
-    fit.flatchain = np.ones((100, 10))
-    fit.flatchain[:,1] = 2
-    fit.flatchain[:,3] = 0
-    fit.flatchain[:,4] = -2
-    st.asy_fit.get_modeIDs(fit, norders)
-    does_it_return(st.asy_fit.get_modeIDs, [fit, norders])
-    right_type(st.asy_fit.get_modeIDs, [fit, norders], pd.DataFrame)
-    df = st.asy_fit.get_modeIDs(fit, norders)
+def test_get_modeIDs():
+    st = init_dummy_star()
+    load_dummy_asy_fit(st)
+    R = load_example()    
+    norders = R['solar']['norders']
+    
+    st.asy_fit.get_modeIDs(st.asy_fit.fit, norders)
+    does_it_return(st.asy_fit.get_modeIDs, [st.asy_fit.fit, norders])
+    right_type(st.asy_fit.get_modeIDs, [st.asy_fit.fit, norders], pd.DataFrame)
+    df = st.asy_fit.get_modeIDs(st.asy_fit.fit, norders)
     assert(all(df['nu_mad'].values == np.zeros(2*norders)))
     assert_allclose(df['nu_med'], np.array([69.45, 70.45, 79.2, 80.2, 89.05, 90.05, 99, 100, 109.05, 110.05, 119.2, 120.2, 129.45, 130.45]))
     
+def test_get_summary_stats():
+    st = init_dummy_star()
+    load_dummy_asy_fit(st)
     
-#def test_get_summary_stats_function():
-#def test_prior_function():
-#def test_likelihood_function():
+    st.asy_fit._get_summary_stats(st.asy_fit.fit)
+    does_it_return(st.asy_fit._get_summary_stats, [st.asy_fit.fit])
+    right_type(st.asy_fit._get_summary_stats, [st.asy_fit.fit], pd.DataFrame)
+    right_shape(st.asy_fit._get_summary_stats, [st.asy_fit.fit], (10,10))
+    
+    out = st.asy_fit._get_summary_stats(st.asy_fit.fit)
+    for key in ['std', 'skew', 'MAD']:
+        assert_array_equal(out.loc[:, key], 0)
 
+    for key in ['mle', 'mean', '2nd', '16th', '50th', '84th', '97th']:
+        assert_array_equal(out.loc[:,'mle'], np.array([ 1.,  2.,  1.,  0., -2.,  1.,  1.,  1.,  1.,  1.]))
+    
+    
+def test_prior_function():
+    st = init_dummy_star()
+    load_dummy_asy_fit(st)
+    R = load_example()
+    
+    p = R['boeing']['pars']
+    
+    st.asy_fit.prior(p)
+    does_it_return(st.asy_fit.prior, [p])
+    right_type(st.asy_fit.prior, [p], float)
+    
+    unreasonable0 = np.ones(10)
+    assert(st.asy_fit.prior(unreasonable0) == -np.inf)
+    
+    
+def test_likelihood_function():
+    st = init_dummy_star()
+    load_dummy_asy_fit(st)
+    R = load_example()
+    
+    p = R['boeing']['pars']
+
+    st.asy_fit.likelihood(p)
+    
+    assert(st.asy_fit.likelihood(R['silly']['pars'])==-np.inf)
+    
 #def test_asymptotic_fit_call():
 
 
@@ -167,7 +234,7 @@ def test_asymptotic_fit():
 
 
 def test_asymp_spec_model_init():
-    R = load_reasonable()    
+    R = load_example()    
     mod = asymp_spec_model(R['SC'][0]  , R['solar']['norders'])
     
     attributes = ['_asymptotic_relation', '_get_enns', '_get_nmax', '_lor', 
@@ -177,7 +244,7 @@ def test_asymp_spec_model_init():
     
 def test_get_nmax(): 
     
-    R = load_reasonable()    
+    R = load_example()    
     mod = asymp_spec_model(R['SC'][0]  , R['solar']['norders'])
     dnu, numax, eps = 10**R['solar']['pars'][0], 10**R['solar']['pars'][1], R['solar']['pars'][2]
     n = R['nsamples']
@@ -205,7 +272,7 @@ def test_get_nmax():
     
 def test_get_enns():
     
-    R = load_reasonable()    
+    R = load_example()    
     mod = asymp_spec_model(R['SC'][0]  , R['solar']['norders'])
         
     norders = R['solar']['norders']
@@ -231,7 +298,7 @@ def test_get_enns():
     assert_allclose(mod._get_enns(0, norders)-min(mod._get_enns(0, norders)), range(norders))
         
 def test_asymptotic_relation():
-    R = load_reasonable()    
+    R = load_example()    
     norders = R['solar']['norders']
     nsamples = R['nsamples']
 
@@ -258,7 +325,7 @@ def test_asymptotic_relation():
         assert_allclose(out, expected[key], atol = 0.001)    
       
 def test_P_envelope():
-    R = load_reasonable()    
+    R = load_example()    
  
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
 
@@ -287,7 +354,7 @@ def test_P_envelope():
         assert_positive(out)
     
 def test_lor():
-    R = load_reasonable()    
+    R = load_example()    
  
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
     
@@ -308,7 +375,7 @@ def test_lor():
         assert_positive(out)   
 
 def test_pair():
-    R = load_reasonable()    
+    R = load_example()    
  
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
     
@@ -334,7 +401,7 @@ def test_pair():
         assert_positive(out) 
         
 def test_model():
-    R = load_reasonable()
+    R = load_example()
     
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
  
@@ -373,10 +440,31 @@ def test_model():
         assert_almost_equal(out, np.ones(len(R['SC'][0])))
         
 def test_asymp_spec_model_call():
-    R = load_reasonable()
+    R = load_example()
     
     mod = asymp_spec_model(R['SC'][0], R['solar']['norders'])
     does_it_run(mod,  [R['solar']['pars']]) 
     does_it_return(mod,  [R['solar']['pars']])
     right_type(mod,  [R['solar']['pars']], np.ndarray)
     right_shape(mod,  [R['solar']['pars']], np.shape(R['SC'][0]))
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+#    ID = 'test_KIC4448777'
+    #f, p = np.genfromtxt('./pbjam/tests/mypsd.asciifile').T
+ 
+#    numax = (10**R['boeing']['pars'][1], 3)
+#    dnu = (10**R['boeing']['pars'][0], 0.05)
+#    teff = (10**R['boeing']['pars'][8], 100)
+#    bp_rp = (R['boeing']['pars'][9], 0.1)
+#    norders = R['boeing']['norders']
+#
+#    st0 = star(ID, pg, numax, dnu, teff, bp_rp)
+#    st0.run_kde() 

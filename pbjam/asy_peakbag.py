@@ -288,20 +288,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
     Parameters
     ----------
-    f : ndarray
-        Numpy array of frequency bins of the spectrum (muHz).
-    s : ndarray
-        Numpy array of power in each frequency bin (SNR).
-    start_samples: ndarray
-        Samples representing the starting guess for the asymptotic
-        peakbagging.
-    teff : [real, real]
-        Stellar effective temperature and uncertainty
-    bp_rp : [real, real]
-        The Gaia Gbp - Grp color value and uncertainty (probably ~< 0.01 dex)
-    store_chains : bool, optional
-        Flag for storing all the full set of samples from the MCMC run.
-        Warning, if running multiple targets, make sure you have enough memory.
+    st : star class instance
+    
     norders : int, optional
         Number of radial orders to fit
 
@@ -326,23 +314,26 @@ class asymptotic_fit(plotting, asymp_spec_model):
         
     """
 
-    def __init__(self, starinst, norders=None):
-        self.pg = starinst.pg
-        self.f = starinst.f
-        self.s = starinst.s
+    def __init__(self, st, norders=None):
+        self.pg = st.pg
+        self.f = st.f
+        self.s = st.s
         self.norders = norders
+        self.obs = {'dnu': st.dnu, 'numax': st.numax, 'teff': st.teff, 'bp_rp': st.bp_rp}
+        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
+                        
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
-        self.start_samples = starinst.kde.samples       
-        self.kde = starinst.kde.kde    
+        self.start_samples = st.kde.samples       
+        self.kde = st.kde.kde    
         self.start = self._get_asy_start()
         lfreq, ufreq = self._get_freq_range()
         self.sel = (lfreq < self.f) & (self.f < ufreq)
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
-        starinst.asy_fit = self
+        
+        st.asy_fit = self
        
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1],
-                 store_chains=False):
+    def __call__(self):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
         Parameters
@@ -363,12 +354,6 @@ class asymptotic_fit(plotting, asymp_spec_model):
             A dictionary of the modeID DataFrame and the summary DataFrame.
             
         """
-        #self.store_chains = store_chains
-        
-        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-        
-        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
-
         #self._start_init() # TODO - finish up this function
 
         self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
@@ -376,104 +361,14 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         self.fit(start_samples=self.start_samples)
 
+
         self.modeID = self.get_modeIDs(self.fit, self.norders)
-
-        self.summary, self.mle_model = self._get_summary_stats(self.fit)
-
+        self.summary  = self._get_summary_stats(self.fit)        
+        self.mle_model = self.model(self.summary['mle'])        
         self.samples = self.fit.flatchain
-
         self.acceptance = self.fit.acceptance
 
         return {'modeID': self.modeID, 'summary': self.summary}
-
-
-    def _get_summary_stats(self, fit):
-        """ Make dataframe with fit summary statistics
-    
-        Creates a dataframe that contains various quantities that summarize the
-        fit. Note, these are predominantly derived from the marginalized posteriors.
-       
-        Parameters
-        ----------
-        fit : mcmc.mcmc class instance
-            mcmc class instances used in the fit
-            
-        Returns
-        -------
-        summary : pandas.DataFrame
-            Dataframe with the summary statistics.
-        mle_model : ndarray
-            Numpy array with the model spectrum corresponding to the maximum
-            likelihood solution.
-            
-        """
-    
-        idx = np.argmax(self.fit.flatlnlike)
-        
-        fc = fit.flatchain
-       
-        # Append here to add other statistics
-        stats = OrderedDict({'mle' : fc[idx,:], 
-                             'mean' : np.mean(fc, axis = 0),
-                             'std' : np.std(fc, axis = 0),
-                             'skew' : scist.skew(fc, axis = 0),
-                             '2nd' : np.percentile(fc,   2.27501, axis=0),
-                             '16th' : np.percentile(fc, 15.86552, axis=0),
-                             '50th' : np.percentile(fc, 50, axis=0),
-                             '84th' : np.percentile(fc, 84.13447, axis=0),
-                             '97th' : np.percentile(fc, 97.72498, axis=0),
-                             'MAD' : scist.median_absolute_deviation(fc, axis=0)})
-    
-        summary = pd.DataFrame(stats, index = self.par_names)
-        
-        mle_model = self.model(stats['mle'])
-        
-        return summary, mle_model
-
-
-
-    def get_modeIDs(self, fit, norders):
-        """ Set mode ID in a dataframe
-
-        Evaluates the asymptotic relation for each walker position from the
-        MCMC fit. The median values of the resulting set of frequencies are
-        then returned in a pandas.DataFrame
-
-        Parameters
-        ----------
-        fit : mcmc.mcmc class instance
-            mcmc class instances used in the fit
-        norders : int
-            Number of radial orders to output. Note that doesn't have to be
-            the same as that used int he fit itself.
-
-        Returns
-        -------
-        modeID : pandas.DataFrame
-            Dataframe of radial order, n (best guess), angular degree, l,
-            frequency and frequency error.
-            
-        """
-
-        fc = fit.flatchain
-
-        nu0_samps = self._asymptotic_relation(10**fc[:, 1], 10**fc[:, 0], fc[:, 2], 10**fc[:, 4], norders)
-        nu2_samps = nu0_samps - 10**fc[:, 3]
-
-        nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
-        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
-
-        ells = np.array([2, 0]*norders) 
-
-        df = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
-
-        df.at[::2, 'nu_med'] = nus_med[1, :]
-        df.at[1::2, 'nu_med'] = nus_med[0, :]
-        
-        df.at[::2, 'nu_mad'] = nus_mad[1, :]
-        df.at[1::2, 'nu_mad'] = nus_mad[0, :]
-
-        return df
 
 
     def prior(self, p):
@@ -549,6 +444,90 @@ class asymptotic_fit(plotting, asymp_spec_model):
         lnlike += -np.sum(np.log(mod) + self.s[self.sel] / mod)
         return lnlike
     
+
+    def _get_summary_stats(self, fit):
+        """ Make dataframe with fit summary statistics
+    
+        Creates a dataframe that contains various quantities that summarize the
+        fit. Note, these are predominantly derived from the marginalized posteriors.
+       
+        Parameters
+        ----------
+        fit : mcmc.mcmc class instance
+            mcmc class instances used in the fit
+            
+        Returns
+        -------
+        summary : pandas.DataFrame
+            Dataframe with the summary statistics.
+            
+        """
+    
+        idx = np.argmax(fit.flatlnlike)
+        
+        fc = fit.flatchain
+       
+        # Append here to add other statistics
+        stats = OrderedDict({'mle'  : fc[idx,:], 
+                             'mean' : np.mean(fc, axis = 0),
+                             'std'  : np.std(fc, axis = 0),
+                             'skew' : scist.skew(fc, axis = 0),
+                             '2nd'  : np.percentile(fc,  2.27501, axis=0),
+                             '16th' : np.percentile(fc, 15.86552, axis=0),
+                             '50th' : np.percentile(fc, 50., axis=0),
+                             '84th' : np.percentile(fc, 84.13447, axis=0),
+                             '97th' : np.percentile(fc, 97.72498, axis=0),
+                             'MAD'  : scist.median_absolute_deviation(fc, axis=0)})
+    
+        summary = pd.DataFrame(stats, index = self.par_names)
+        
+        return summary
+       
+
+    def get_modeIDs(self, fit, norders):
+        """ Set mode ID in a dataframe
+
+        Evaluates the asymptotic relation for each walker position from the
+        MCMC fit. The median values of the resulting set of frequencies are
+        then returned in a pandas.DataFrame
+
+        Parameters
+        ----------
+        fit : mcmc.mcmc class instance
+            mcmc class instances used in the fit
+        norders : int
+            Number of radial orders to output. Note that doesn't have to be
+            the same as that used int he fit itself.
+
+        Returns
+        -------
+        modeID : pandas.DataFrame
+            Dataframe of radial order, n (best guess), angular degree, l,
+            frequency and frequency error.
+            
+        """
+
+        fc = fit.flatchain
+
+        nu0_samps = self._asymptotic_relation(10**fc[:, 1], 10**fc[:, 0], fc[:, 2], 10**fc[:, 4], norders)
+        nu2_samps = nu0_samps - 10**fc[:, 3]
+
+        nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
+        nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
+
+        ells = np.array([2, 0]*norders) 
+
+        df = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
+
+        df.at[::2, 'nu_med'] = nus_med[1, :]
+        df.at[1::2, 'nu_med'] = nus_med[0, :]
+        
+        df.at[::2, 'nu_mad'] = nus_mad[1, :]
+        df.at[1::2, 'nu_mad'] = nus_mad[0, :]
+
+        return df
+
+
     
     def _get_asy_start(self):
         """ Get start averages for sampling
