@@ -116,7 +116,7 @@ class kde(plotting):
             idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
 
             if not flag_warn:
-                warnings.warn(f'Only {len(self.prior_data[idx])} star(s) near provided numax.' +
+                warnings.warn(f'Only {len(self.prior_data[idx])} star(s) near provided numax. ' +
                 'Expanding the range to include ~100 stars.')
                 flag_warn = True
 

@@ -11,7 +11,7 @@ solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
 
 def test_prior_init():
     ''' Test the kde init function '''
-    prior = kde()
+    kde()
 
 def test_prior_select_prior_data():
     ''' Check select prior data runs '''
@@ -35,16 +35,16 @@ def test_prior_select_prior_data_length():
         prior.select_prior_data(numax=[np.log10(30.0), 1.0])
         assert(len(prior.prior_data) == 100)
 
-@pytest.mark.slow
-def test_make_kde():
-    ''' Tests making the kde '''
-    prior = kde()
-    prior.log_obs = {'numax': [np.log10(30.0), 0.01]}
-    prior.make_kde()
-
-def test_prior_prior():
-    prior = kde()
-    with pytest.warns(UserWarning):
-        prior.log_obs = {'numax': [np.log10(3050.0), 0.01]}
-        prior.make_kde()
-        assert(np.exp(prior.prior(solar_p)) > 0)
+#@pytest.mark.slow
+#def test_make_kde():
+#    ''' Tests making the kde '''
+#    prior = kde()
+#    prior.log_obs = {'numax': [np.log10(30.0), 0.01]}
+#    prior.make_kde()
+#
+#def test_prior_prior():
+#    prior = kde()
+#    with pytest.warns(UserWarning):
+#        prior.log_obs = {'numax': [np.log10(3050.0), 0.01]}
+#        prior.make_kde()
+#        assert(np.exp(prior.prior(solar_p)) > 0)
