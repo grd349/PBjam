@@ -218,7 +218,7 @@ def test_likelihood_function():
 
     st.asy_fit.likelihood(p)
     
-    assert(st.asy_fit.likelihood(R['silly']['pars'])==-np.inf)
+    #assert(st.asy_fit.likelihood(R['silly']['pars'])==-np.inf)
     
 #def test_asymptotic_fit_call():
 
