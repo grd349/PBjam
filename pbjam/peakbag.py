@@ -332,6 +332,15 @@ class peakbag(plotting):
         self.pm_model = pm.Model()
 
         self.init_model(model_type=model_type)
+        
+        
+        # REMOVE THIS WHEN pymc3 v3.8 is a bit older
+        try:
+            rhatfunc = pm.diagnostics.gelman_rubin
+            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', warnings.DeprecationWarning)
+        except:
+            rhatfunc = pm.stats.rhat
+        
 
         if advi:
             with self.pm_model:
@@ -356,10 +365,15 @@ class peakbag(plotting):
                                              init=self.init_sampler,
                                              target_accept=self.target_accept,
                                              progressbar=False)
-                Rhat_max = np.max([v.max() for k, v in pm.diagnostics.gelman_rubin(self.samples).items()])
+                Rhat_max = np.max([v.max() for k, v in rhatfunc(self.samples).items()])
                 niter += 1
-
-        self.summary = pm.summary(self.samples)
+        
+        # REMOVE THIS WHEN pymc3 v3.8 is a bit older
+        try:
+            self.summary = pm.summary(self.samples)
+        except:
+            self.summary = pm.stats.summary(self.samples)
+            
         self.par_names = self.summary.index
 
 

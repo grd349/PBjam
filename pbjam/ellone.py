@@ -119,7 +119,10 @@ class ellone(plotting):
         keys = ['l0','l2', 'width0', 'width2', 'height0', 'height2', 'back']
         orders = range(self.norders)
         smry = self.pbinst.summary
-        varbs = np.array([[smry.loc[[f'{string}__{i}'], 'mean'].values[0] for i in orders] for string in keys])
+        try:
+            varbs = np.array([[smry.loc[[f'{string}__{i}'], 'mean'].values[0] for i in orders] for string in keys])
+        except:
+            varbs = np.array([[smry.loc[[f'{string}[{i}]'], 'mean'].values[0] for i in orders] for string in keys])
         mod = self.pbinst.model(*varbs)
         for i in orders:
             flad = self.pbinst.ladder_f[i,:]
@@ -353,8 +356,10 @@ class ellone(plotting):
         pbsmry = self.pbinst.summary
         N = self.norders
         ell02 = ['l0', 'l2']
-        nul0s, nul2s = np.array([[pbsmry.loc[f'{x}__{i}', 'mean'] for i in range(N)] for x in ell02])
-
+        try:
+            nul0s, nul2s = np.array([[pbsmry.loc[f'{x}__{i}', 'mean'] for i in range(N)] for x in ell02])
+        except:
+            nul0s, nul2s = np.array([[pbsmry.loc[f'{x}[{i}]', 'mean'] for i in range(N)] for x in ell02])
         d01 = (1./2 -0.0056 -0.002*np.log10(dnu))*dnu
         
         nul1s = np.zeros(len(nul0s))
