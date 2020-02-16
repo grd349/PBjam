@@ -80,13 +80,14 @@ class plotting():
 
             dnu = np.median(np.diff(freqs['l0']['nu']))
 
+        elif type(self) == pbjam.reggae.MyMainWindow:
+            numax = self.numax
+            dnu = self.dnu
+            freqs['l1']['nu'] = self.mixed
+            freqs['l1']['err'] = self.df.rotc.values[0] * np.ones(len(self.mixed))
 
         else:
             raise ValueError('Unrecognized class type')
-
-        # make dnu an intger multiple of bw
-        dnu -= dnu % (self.f[1] - self.f[0])
-        nmin = np.floor(self.f.min() / dnu) + 1
 
         if pg:
             peri = pg
@@ -94,6 +95,10 @@ class plotting():
             peri = self.pg
         else:
             raise ValueError('Need spectrum to plot echelle diagram')
+
+        # make dnu an intger multiple of bw
+        dnu -= dnu % (self.pg.frequency[1] - self.pg.frequency[0]).value
+        nmin = np.floor(self.pg.frequency.min().value / dnu) + 1
 
         seismology = peri.flatten().to_seismology()
 

@@ -4,7 +4,10 @@ from .priors import kde
 from .peakbag import peakbag
 from .jar import get_priorpath
 from .plotting import plotting
+from .reggae import MyMainWindow
 import pandas as pd
+from PyQt5.QtWidgets import QApplication
+import sys
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -92,15 +95,15 @@ class star(plotting):
 
     def _set_path(self, path):
         """ Sets the path attribute for star
-        
-        If path is a string it is assumed to be a path name, if not the 
-        current working directory will be used. 
-        
+
+        If path is a string it is assumed to be a path name, if not the
+        current working directory will be used.
+
         Parameters
         ----------
         path : str
             Directory to store peakbagging output.
-        
+
         """
 
         if isinstance(path, str):
@@ -108,7 +111,7 @@ class star(plotting):
             self.path = os.path.join(*[path, f'{self.ID}'])
         else:
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
-            
+
     def _make_output_dir(self):
         """ Make output directory for star
 
@@ -245,6 +248,23 @@ class star(plotting):
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
+
+
+    def run_reggae(self):
+        ''' Will call the reggae MyMNainWindow function which
+        will let you optimize the parameters to describe the l=1 modes.
+
+        def __init__(self, pg, dnu, numax):
+
+        '''
+        global app
+        app = QApplication(sys.argv)
+        dnu = 10**self.asy_fit.summary.loc['dnu']['mean']
+        numax = 10**self.asy_fit.summary.loc['numax']['mean']
+        epsilon = self.asy_fit.summary.loc['eps']['mean']
+        self.reggae = MyMainWindow(self.pg, dnu, numax, epsilon)
+        self.reggae.show()
+        app.exit(app.exec_())
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
