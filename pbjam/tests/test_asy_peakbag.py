@@ -1,4 +1,4 @@
-
+''' 
 ## Function
 # does it run
 # does it return something if it should? Or set an attribute
@@ -468,3 +468,4 @@ def test_asymp_spec_model_call():
 #
 #    st0 = star(ID, pg, numax, dnu, teff, bp_rp)
 #    st0.run_kde() 
+''' 
