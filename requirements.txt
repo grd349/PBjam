@@ -11,3 +11,4 @@ pymc3
 hdbscan
 sklearn
 nbsphinx
+pyqt5
