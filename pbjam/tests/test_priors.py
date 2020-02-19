@@ -1,4 +1,4 @@
-'''
+"""
 from __future__ import division, print_function
 
 import pytest
@@ -49,4 +49,4 @@ def test_prior_select_prior_data_length():
 #        prior.log_obs = {'numax': [np.log10(3050.0), 0.01]}
 #        prior.make_kde()
 #        assert(np.exp(prior.prior(solar_p)) > 0)
-'''
+"""
