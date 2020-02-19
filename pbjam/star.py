@@ -193,7 +193,7 @@ class star(plotting):
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
         self.asy_fit.summary.to_csv(outpath(f'asy_fit_summary_{self.ID}.csv'),
-                                    index=True)
+                                    index=True, index_label='name')
         self.asy_fit.modeID.to_csv(outpath(f'asy_fit_modeID_{self.ID}.csv'),
                                    index=False)
 
@@ -241,7 +241,8 @@ class star(plotting):
 
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
-        self.peakbag.summary.to_csv(outpath(f'peakbag_summary_{self.ID}.csv'))
+        self.peakbag.summary.to_csv(outpath(f'peakbag_summary_{self.ID}.csv'),
+                                    index_label='name')
 
         if store_chains:
             pass # TODO need to pickle the samples if requested.

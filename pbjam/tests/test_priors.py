@@ -1,3 +1,4 @@
+
 from __future__ import division, print_function
 
 import pytest
@@ -35,6 +36,7 @@ solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
 #         prior.select_prior_data(numax=[np.log10(30.0), 1.0])
 #         assert(len(prior.prior_data) == 100)
 
+
 # #@pytest.mark.slow
 # #def test_make_kde():
 # #    ''' Tests making the kde '''
@@ -48,3 +50,4 @@ solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
 # #        prior.log_obs = {'numax': [np.log10(3050.0), 0.01]}
 # #        prior.make_kde()
 # #        assert(np.exp(prior.prior(solar_p)) > 0)
+
