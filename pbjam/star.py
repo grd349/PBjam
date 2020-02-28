@@ -160,7 +160,8 @@ class star(plotting):
                                  savefig=make_plots)
             self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
                                    savefig=make_plots)
-
+            self.kde.plot_echelle(path=self.path, ID=self.ID, 
+                                  savefig=make_plots)
 
     def run_asy_peakbag(self, norders=None, make_plots=False,
                         store_chains=False):
@@ -199,6 +200,8 @@ class star(plotting):
                                        savefig=make_plots)
             self.asy_fit.plot_corner(path=self.path, ID=self.ID,
                                        savefig=make_plots)
+            self.asy_fit.plot_echelle(path=self.path, ID=self.ID, 
+                                      savefig=make_plots)
 
         if store_chains:
             pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asy_peakbag_chains_{self.ID}.csv'), index=False)
@@ -246,6 +249,8 @@ class star(plotting):
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
+            self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
+                                      savefig=make_plots)
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
