@@ -26,8 +26,35 @@ class plotting():
     def __init__(self):
         pass
 
-    def plot_echelle(self, pg=None):
+    def _save_my_fig(self, fig, figtype, path, ID):
+        """ Save the figure object
+        
+        Saves the figure object with a predefined path name pattern.
+
+        Parameters
+        ----------
+        fig : TYPE
+            DESCRIPTION.
+        figtype : TYPE
+            DESCRIPTION.
+        path : TYPE
+            DESCRIPTION.
+        ID : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
         """
+        # TODO there should be a check if path is full filepath or just dir
+
+        if path and ID:
+            outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
+            fig.savefig(outpath)
+
+    def plot_echelle(self, pg=None, path=None, ID=None, savefig=False):
+        """ Make echelle plot
 
         Plots an echelle diagram with mode frequencies if available.
 
@@ -86,7 +113,7 @@ class plotting():
 
         # make dnu an intger multiple of bw
         dnu -= dnu % (self.f[1] - self.f[0])
-        nmin = np.floor(self.f.min() / dnu) + 1
+        #nmin = np.floor(self.f.min() / dnu) + 1
 
         if pg:
             peri = pg
@@ -112,12 +139,17 @@ class plotting():
                 err = freqs[ell]['err']
                 ax.errorbar(nu%dnu, (nu//dnu) * dnu, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l))
         ax.legend(fontsize = 'x-small')
+        
+        fig.tight_layout()
 
+        if savefig:
+            self._save_my_fig(fig, 'echelle', path, ID)
+            
         return fig
 
     def plot_corner(self, path=None, ID=None, savefig=False):
-
-        """
+        """ Make corner plot of result.
+        
         Makes a nice corner plot of the fit parameters
 
         Parameters
@@ -145,14 +177,10 @@ class plotting():
                             show_titles=True, quantiles=[0.16, 0.5, 0.84],
                             title_kwargs={"fontsize": 12})
 
-        # TODO there should be a check if path is full filepath or just dir
-        if path and ID:
-            outpath = os.path.join(*[path,  type(self).__name__+ '_corner_' + str(ID) + '.png'])
-            if savefig:
-                fig.savefig(outpath)
+        if savefig:
+            self._save_my_fig(fig, 'corner', path, ID)
 
         return fig
-
 
     def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
         """ Plot the power spectrum
@@ -207,6 +235,7 @@ class plotting():
 
         elif type(self) == pbjam.priors.kde:
             h = max(smoo)
+            numax = 10**(np.median(self.samples[:, 1]))
             dnu = 10**(np.median(self.samples[:, 0]))
             nmin = np.floor(min(f) / dnu)
             nmax = np.floor(max(f) / dnu)
@@ -217,8 +246,9 @@ class plotting():
                 y += 0.8 * h * np.exp(-0.5 * (freq[i] - f)**2 / freq_sigma[i]**2)
             ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
                             label=r'$\propto P(\nu_{\ell=0})$')
-
-            xlim = [min(freq)-dnu, max(freq)+dnu]
+           
+            xlim = [numax-5*dnu, numax+5*dnu]
+            #xlim = [min(freq)-dnu, max(freq)+dnu]
 
         # Overplot asy_peakbag diagnostic
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
@@ -284,18 +314,50 @@ class plotting():
         ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
         ax.set_ylabel(r'SNR')
         ax.legend(loc=1)
-
+        
+        fig.tight_layout()
         if savefig:
-            outpath = os.path.join(*[path, f'{type(self).__name__}_{str(ID)}.png'])
-            fig.savefig(outpath)
+            self._save_my_fig(fig, 'spectrum', path, ID)
 
         return fig
 
-    # Asy_peakbag
+    def plot_prior(self, path=None, ID=None, savefig=False):
+        """ Corner of result in relation to prior.
+        
+        Create a corner plot showing the location of the star in relation to
+        the rest of the prior.
+
+        Parameters
+        ----------
+        path : str, optional
+            DESCRIPTION. The default is None.
+        ID : str, optional
+            DESCRIPTION. The default is None.
+        savefig : bool, optional
+            DESCRIPTION. The default is False.
+
+
+        """
+        
+        
+        
+        if type(self) == pbjam.star:
+            dnu = np.log10(self.dnu[0])
+            numax = np.log10(self.numax[0])
+
+        elif type(self) == pbjam.priors.kde:
+            dnu = np.median(self.samples[:,0])
+            numax = np.median(self.samples[:,1])
+
+        elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
+            dnu = self.summary.loc['dnu', '50th']
+            numax = self.summary.loc['numax', '50th']
+
+
     def plot_start(self):
-        '''
+        """
         Plots the starting model as a diagnotstic.
-        '''
+        """
 
         dnu = 10**np.median(self.start_samples, axis=0)[0]
         xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
@@ -330,7 +392,6 @@ def plot_trace(stage):
 
     if type(stage) == pbjam.peakbag:
         pm.traceplot(stage.samples)
-
 
 # Asy_peakbag
 def plot_start(self):
