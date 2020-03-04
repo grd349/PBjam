@@ -15,11 +15,15 @@ available plotting methods.
 
 import matplotlib.pyplot as plt
 import astropy.convolution as conv
-import pbjam, os, corner, warnings
+import pbjam, os, corner, warnings, logging
 import numpy as np
 from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
 import pymc3 as pm
+import pandas as pd
+from .jar import to_log10
+
+
 
 class plotting():
 
@@ -248,7 +252,6 @@ class plotting():
                             label=r'$\propto P(\nu_{\ell=0})$')
            
             xlim = [numax-5*dnu, numax+5*dnu]
-            #xlim = [min(freq)-dnu, max(freq)+dnu]
 
         # Overplot asy_peakbag diagnostic
         elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
@@ -321,6 +324,45 @@ class plotting():
 
         return fig
 
+
+    def _fill_diag(self, axes, vals, vals_err, idxs):
+        N = int(np.sqrt(len(axes)))
+        axs = np.array(axes).reshape((N,N)).T
+        
+        for i,j in enumerate(idxs):
+            yrng = axs[j,j].get_ylim()
+            
+            v, ve = vals[i], vals_err[i]
+            
+            axs[j,j].fill_betweenx(y=yrng, x1= v-ve[0], x2 = v+ve[-1], color = 'C3', alpha = 0.5)
+    
+    def _plot_offdiag(self, axes, vals, vals_err, idxs):
+        N = int(np.sqrt(len(axes)))
+        axs = np.array(axes).reshape((N,N)).T
+        
+        for i, j in enumerate(idxs):
+            
+            for m, k in enumerate(idxs):
+                if j >= k:
+                    continue
+                    
+                v, ve = vals[i], vals_err[i]
+                w, we = vals[m], vals_err[m]
+    
+                axs[j,k].errorbar(v, w, xerr=ve.reshape((2,1)), yerr=we.reshape((2,1)), fmt = 'o', ms = 10, color = 'C3')
+
+    def _make_prior_corner(self, df, numax_rng = 100):
+        
+        idx = abs(10**df['numax'] - self._obs['numax'][0]) <= numax_rng
+        
+        logging.disable(logging.WARNING)
+        crnr = corner.corner(df.to_numpy()[idx,:-1], data_kwargs = {'alpha': 0.5}, labels = df.keys());
+        logging.getLogger().setLevel(logging.WARNING)
+    
+        return crnr,  crnr.get_axes()
+        
+
+
     def plot_prior(self, path=None, ID=None, savefig=False):
         """ Corner of result in relation to prior.
         
@@ -340,20 +382,39 @@ class plotting():
         """
         
         
+        # This is a temporary fix for disabling the 'Too few samples' warning 
+        # from corner.hist2d. The github bleeding edge version has 
+        # hist2d_kwargs = {'quiet': True}, but this isn't in the pip 
+        # installable version yet. March 2020.
         
+        df = pd.read_csv(self.prior_file)
+        crnr, axes = self._make_prior_corner(df)
+       
         if type(self) == pbjam.star:
-            dnu = np.log10(self.dnu[0])
-            numax = np.log10(self.numax[0])
+            vals, vals_err = np.array([self._log_obs['dnu'],
+                                       self._log_obs['numax'], 
+                                       self._log_obs['teff'], 
+                                       self._obs['bp_rp']]).T
+            
+            vals_err = np.vstack((vals_err, vals_err)).T
+            self._fill_diag(axes, vals, vals_err, [0, 1, 8, 9])
+            self._plot_offdiag(axes, vals, vals_err, [0, 1, 8, 9])
+            
+            # break this if statement if asy_fit should plot something else
+        elif (type(self) == pbjam.priors.kde) or (type(self) == pbjam.asy_peakbag.asymptotic_fit): 
+            percs = np.percentile(self.samples, [16, 50, 84], axis=0)
+            vals = percs[1,:]
+            vals_err = np.diff(percs, axis = 0).T
+            
+            self._fill_diag(axes, vals, vals_err, range(len(vals)))
+            self._plot_offdiag(axes, vals, vals_err, range(len(vals)))
 
-        elif type(self) == pbjam.priors.kde:
-            dnu = np.median(self.samples[:,0])
-            numax = np.median(self.samples[:,1])
-
-        elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
-            dnu = self.summary.loc['dnu', '50th']
-            numax = self.summary.loc['numax', '50th']
+        elif type(self) == pbjam.peakbag:
+            raise AttributeError('The result of the peakbag run cannot be plotted in relation to the prior, since it does not know what the prior is anymore. plot_corner is only available for star, kde and asy_peakbag.')
 
 
+        return crnr
+    
     def plot_start(self):
         """
         Plots the starting model as a diagnotstic.
