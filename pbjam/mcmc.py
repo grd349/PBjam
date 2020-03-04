@@ -1,6 +1,7 @@
 import emcee
 import numpy as np
 import scipy.stats as st
+from multiprocessing import Pool
 
 class mcmc():
     """ Class for MCMC sampling
@@ -81,6 +82,38 @@ class mcmc():
         tau = self.sampler.get_autocorr_time(tol=0)
         converged = np.all(tau * nfactor < self.sampler.iteration)
         return converged
+
+    def _do_the_mcmc(self, pos, nsteps, multiprocess):
+        """ Test function to be implemented
+        
+
+        Parameters
+        ----------
+        pos : TYPE
+            DESCRIPTION.
+        nsteps : TYPE
+            DESCRIPTION.
+        multiprocess : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        pos : TYPE
+            DESCRIPTION.
+        prob : TYPE
+            DESCRIPTION.
+        state : TYPE
+            DESCRIPTION.
+
+        """
+        if multiprocess:
+            with Pool() as pool:
+                pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps, pool=pool)
+        else:
+                pos, prob, state = self.sampler.run_mcmc(initial_state=pos, nsteps=nsteps, pool=None)
+        
+        return pos, prob, state
+        
 
 
     def __call__(self, max_iter=20000, spread=1e-4, start_samples=[]):
