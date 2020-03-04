@@ -19,15 +19,19 @@ class kde(plotting):
             self.f = starinst.f
             self.s = starinst.s
             self.pg = starinst.pg
+            self._obs = starinst._obs
+            self._log_obs = starinst._log_obs
             starinst.kde = self
 
-            if prior_file is None:
-                prior_file = starinst.prior_file
-        elif prior_file is None:
-            prior_file = get_priorpath()
+        if prior_file:
+            self.prior_file = prior_file
+        elif starinst:
+                self.prior_file = starinst.prior_file
+        else:
+            self.prior_file = get_priorpath()
 
         self.verbose = False
-        self.prior_data = pd.read_csv(prior_file)
+        self.prior_data = pd.read_csv(self.prior_file)
 
     def select_prior_data(self, numax=None, KDEsize = 100):
         """ Selects useful prior data based on proximity to estimated numax.
@@ -143,7 +147,7 @@ class kde(plotting):
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
-        self.select_prior_data(self.log_obs['numax'])
+        self.select_prior_data(self._log_obs['numax'])
 
         if self.verbose:
                 print(f'Selected data set length {len(self.prior_data)}')
@@ -217,10 +221,10 @@ class kde(plotting):
         lnlike = 0.0
 
         # Constraints from observational data
-        lnlike += normal(p[0], *self.log_obs['dnu'])
-        lnlike += normal(p[1], *self.log_obs['numax'])
-        lnlike += normal(p[8], *self.log_obs['teff'])
-        lnlike += normal(p[9], *self.obs['bp_rp'])
+        lnlike += normal(p[0], *self._log_obs['dnu'])
+        lnlike += normal(p[1], *self._log_obs['numax'])
+        lnlike += normal(p[8], *self._log_obs['teff'])
+        lnlike += normal(p[9], *self._obs['bp_rp'])
 
         return lnlike
 
@@ -252,16 +256,16 @@ class kde(plotting):
         if self.verbose:
             print('Running KDE sampler')
 
-        x0 = [self.log_obs['dnu'][0],  # log10 dnu
-              self.log_obs['numax'][0],  # log10 numax
+        x0 = [self._log_obs['dnu'][0],  # log10 dnu
+              self._log_obs['numax'][0],  # log10 numax
               1.0,  # eps
-              np.log10(0.1 * self.obs['dnu'][0]),  # log10 d02
+              np.log10(0.1 * self._obs['dnu'][0]),  # log10 d02
               -2.0,  # log10 alpha
               1.0,  # log10 env height
               1.0,  # log10 env width,
               -1.0,  # log10 mode width
-              self.log_obs['teff'][0],
-              self.obs['bp_rp'][0]]
+              self._log_obs['teff'][0],
+              self._obs['bp_rp'][0]]
 
         self.fit = mcmc(x0, self.likelihood, self.prior, nwalkers=nwalkers)
 
@@ -324,9 +328,9 @@ class kde(plotting):
         """
         self.verbose = verbose
 
-        self.obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
-
-        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
+        if not hasattr(self, '_obs'):
+            self._obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
+            self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self.make_kde(bw_fac)
 

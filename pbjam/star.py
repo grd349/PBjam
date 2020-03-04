@@ -2,7 +2,7 @@ import os
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
-from .jar import get_priorpath
+from .jar import get_priorpath, to_log10
 from .plotting import plotting
 import pandas as pd
 
@@ -81,6 +81,8 @@ class star(plotting):
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
+        self._obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
+        self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self._set_path(path)
         self._make_output_dir()
