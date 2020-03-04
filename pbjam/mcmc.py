@@ -171,7 +171,7 @@ class mcmc():
         elif self.sampler.iteration == max_iter:
             print(f'Sampler stopped at {max_iter} (maximum). Chains did not necessarily reach a stationary state.')
         else:
-            print('Unhandled exception')
+            raise ValueError('Unhandled exception when running sampler in pbjam.mcmc')
 
         # Fold in low AR chains and run a little bit to update emcee
         self.fold(pos, spread=spread)
