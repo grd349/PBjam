@@ -81,7 +81,7 @@ class star(plotting):
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
-        self._obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
+        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff, 'bp_rp': self.bp_rp}
         self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self._set_path(path)

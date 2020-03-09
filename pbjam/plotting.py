@@ -21,7 +21,6 @@ from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
 import pymc3 as pm
 import pandas as pd
-from .jar import to_log10
 
 
 
@@ -326,6 +325,25 @@ class plotting():
 
 
     def _fill_diag(self, axes, vals, vals_err, idxs):
+        """
+        
+
+        Parameters
+        ----------
+        axes : TYPE
+            DESCRIPTION.
+        vals : TYPE
+            DESCRIPTION.
+        vals_err : TYPE
+            DESCRIPTION.
+        idxs : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
         N = int(np.sqrt(len(axes)))
         axs = np.array(axes).reshape((N,N)).T
         
@@ -337,6 +355,25 @@ class plotting():
             axs[j,j].fill_betweenx(y=yrng, x1= v-ve[0], x2 = v+ve[-1], color = 'C3', alpha = 0.5)
     
     def _plot_offdiag(self, axes, vals, vals_err, idxs):
+        """ 
+        
+
+        Parameters
+        ----------
+        axes : TYPE
+            DESCRIPTION.
+        vals : TYPE
+            DESCRIPTION.
+        vals_err : TYPE
+            DESCRIPTION.
+        idxs : TYPE
+            DESCRIPTION.
+
+        Returns
+        -------
+        None.
+
+        """
         N = int(np.sqrt(len(axes)))
         axs = np.array(axes).reshape((N,N)).T
         
@@ -352,7 +389,24 @@ class plotting():
                 axs[j,k].errorbar(v, w, xerr=ve.reshape((2,1)), yerr=we.reshape((2,1)), fmt = 'o', ms = 10, color = 'C3')
 
     def _make_prior_corner(self, df, numax_rng = 100):
+        """
         
+
+        Parameters
+        ----------
+        df : TYPE
+            DESCRIPTION.
+        numax_rng : TYPE, optional
+            DESCRIPTION. The default is 100.
+
+        Returns
+        -------
+        crnr : TYPE
+            DESCRIPTION.
+        TYPE
+            DESCRIPTION.
+
+        """
         idx = abs(10**df['numax'] - self._obs['numax'][0]) <= numax_rng
         
         logging.disable(logging.WARNING)
