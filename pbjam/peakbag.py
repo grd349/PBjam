@@ -373,3 +373,4 @@ class peakbag(plotting):
             self.summary = pm.stats.summary(self.samples)
             
         self.par_names = self.summary.index
+        
