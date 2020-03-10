@@ -7,10 +7,9 @@ Docstrings are readable text associated with a function or unit of code that des
 
 The following is a simple example of a function that includes a docstring:
 
-'      
-  def my_function(a, b=1):
-      c = a + b
+.. code-block:: python
+    c = a + b
 
-      return c
-'
+    return c
+
 Text continues
