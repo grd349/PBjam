@@ -1,20 +1,18 @@
 Example Github workflow
 ^^^^^^^^^^^^^^^^^^^^^^^
-These steps are the ones I use to work with git and GitHub. There are a lot of steps, but the idea is that steps 1, and 3 only have to be done once, and step 2 a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
+These steps are the ones I use to work with git and GitHub. There are a lot of steps, but the idea is that parts A, and C only have to be done once, and step B a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
 
 First off, make sure you have a GitHub account and that git is installed on your computer. 
 
-#. In a web browser:
+**A. In a web browser:**
 
-   #. Go to the `main PBjam repository <https://github.com/grd349/PBjam>`_ (repo) and press the Fork button in the top right corner. This copies the current state of the main repo to your GitHub account. If the main repo is updated, your copy will **not** change and vice versa.
+1. Go to the `main PBjam repository <https://github.com/grd349/PBjam>`_ (repo) and press the Fork button in the top right corner. This copies the current state of the main repo to your GitHub account. If the main repo is updated, your copy will **not** change and vice versa.
    
-   #. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
+2. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
 
-**A. In a terminal:**
+**B. In a terminal:**
 
 1. To download a copy of your PBjam repository into a directory do:
-
-2. Clone your fork to your computer:
 
 .. code-block:: console
 
@@ -22,7 +20,12 @@ First off, make sure you have a GitHub account and that git is installed on your
    
 2. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
    
-3. At any time, from the PBjam directory you can type git status. This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
+3. At any time, from the PBjam directory you can type 
+.. code-block:: console
+
+   $ git status. 
+   
+   This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
     
 4. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
    
