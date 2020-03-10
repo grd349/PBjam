@@ -1,4 +1,4 @@
-Example Unit Tests
+Example Unit Test
 ^^^^^^^^^^^^^^^^^^
 Unit tests are small functions that test other functions by calling them, usually with a set of `dummy’ inputs, or inputs that you know will yield a consistent result. The purpose is to make sure the function does more or less what it’s supposed to do.
 
