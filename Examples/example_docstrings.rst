@@ -1,13 +1,14 @@
-####################
-An Example Docstring
-####################
+Installation
+============
 
-Docstrings are readable text associated with a function or unit of code that describes what it does, what inputs it takes and what outputs it provides. For PBjam we try to follow the Numpy format for docstring, which you can read about `here <https://numpydoc.readthedocs.io/en/latest/format.html>`_. 
+You can install PBjam using pip
 
+.. code-block:: console
 
-The following is a simple example of a function that includes a docstring:
+    $ pip install pbjam --user
 
-.. code-block:: Python
-    $ c = a + b
-    
-Text continues
+Or clone the GitHub repository
+
+.. code-block:: console
+
+    $ git clone https://github.com/grd349/PBjam.git
