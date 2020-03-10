@@ -5,5 +5,9 @@ Docstrings are readable text associated with a function or unit of code that des
 
 .. code-block:: python
 
-    def myfunction()
+    def my_function(a, b=1):
     
+        c = a + b
+
+        return c
+        
