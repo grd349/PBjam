@@ -26,7 +26,7 @@ First off, make sure you have a GitHub account and that git is installed on your
 
    $ git status. 
    
-   This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
+This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
     
 4. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
    
