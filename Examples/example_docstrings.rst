@@ -8,8 +8,6 @@ Docstrings are readable text associated with a function or unit of code that des
 The following is a simple example of a function that includes a docstring:
 
 .. code-block:: Python
-    c = a + b
-
-    return c
-
+    $ c = a + b
+    
 Text continues
