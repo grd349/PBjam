@@ -4,7 +4,7 @@ These steps are the ones I use to work with git and GitHub. There are a lot of s
 
 First off, make sure you have a GitHub account and that git is installed on your computer. 
 
-**1. In a web browser:**
+1. In a web browser
   A. Go to the main PBjam repository (repo) and press the Fork button in the top right corner. This copies the current state of the main repo to your GitHub account. If the main repo is updated, your copy will not change and vice versa.
   B. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. 
 
