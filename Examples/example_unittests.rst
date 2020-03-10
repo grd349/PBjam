@@ -19,3 +19,23 @@ From the above example function a simple unit test could be:
         c = a+b
 
         return c
+
+
+    def test_my_function():
+        import pytest
+        import numpy as np
+
+        # These are sensibile input/output checks
+        assert(my_function(1)==2)
+        assert(my_function(1,2)==3)
+
+        # This is a break test
+        with pytest.raises(TypeError):
+            assert(my_function(1, 'adding a string to an integer should raise a TypeError'))
+
+        # This is a shape test
+        d = array([1,2])
+        result =  my_function(d, 1)
+        assert(np.shape(result) == np.shape(d))   
+
+A single test function can contain multiple smaller tests. 
