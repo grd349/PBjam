@@ -44,7 +44,13 @@ If you haven't already,  `create a GitHub account <https://github.com/join?sourc
    
    $ git push origin master
    
-7. If many people are working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace :code:`master` with the name of the branch you are working on. 
+7. If many people are working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace :code:`master` with the name of the branch you are working on. :code:`master` is just the default name.
+
+8. If multiple people are working on the say branch, :code:`master` say, then you can download the most recent changes to your local PBjam directory by using:
+
+.. code-block:: console
+
+   $ git pull origin master
 
 **C. In a web browser**
 
