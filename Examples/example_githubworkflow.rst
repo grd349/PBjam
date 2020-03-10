@@ -38,7 +38,13 @@ First off, make sure you have a GitHub account and that git is installed on your
    
    $ git commit -m 'A short message about the changes you have made'
    
-6. When you are ready to send the changes to your GitHub repository, type git push origin master. This will upload the commit(s) to your online version of the PBjam repository on GitHub. Many commits can be pushed at the same time.
+6. Now you can send off, or `push', the commit to the online GitHub repository. By repeating step 4 and 5, you can add several commits to a single push.  
+
+.. code-block:: console
+   
+   $ git push origin master
+   
+7. If you are many people working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace `master` with the name of the branch you are working on. 
 
 **C. In a web browser**
 
