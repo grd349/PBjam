@@ -10,25 +10,25 @@ First off, make sure you have a GitHub account and that git is installed on your
    
    #. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
 
-1. In a terminal:
-a. To download a copy of your PBjam repository into a directory do:
+**A. In a terminal:**
+1. To download a copy of your PBjam repository into a directory do:
 .. code-block console
    $ git clone https://github.com/yourusername/PBjam.git
    
-b. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
+2. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
    
-c. At any time, from the PBjam directory you can type git status. This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
+3. At any time, from the PBjam directory you can type git status. This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
    
-   #. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
+   4. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
    
-   #. Now type git commit -m ‘A short message about the changes you have made’. This wraps up the changes you have made in a nice little bundle (called a commit) with a brief description. Think of it as a discrete unit of change to the code that git will keep track of from now on. Many smaller commits are better than 1 big one, so do this often. 
+   5. Now type git commit -m ‘A short message about the changes you have made’. This wraps up the changes you have made in a nice little bundle (called a commit) with a brief description. Think of it as a discrete unit of change to the code that git will keep track of from now on. Many smaller commits are better than 1 big one, so do this often. 
    
-   #. When you are ready to send the changes to your GitHub repository, type git push origin master. This will upload the commit(s) to your online version of the PBjam repository on GitHub. Many commits can be pushed at the same time.
+   6. When you are ready to send the changes to your GitHub repository, type git push origin master. This will upload the commit(s) to your online version of the PBjam repository on GitHub. Many commits can be pushed at the same time.
 
-#. In a web browser
+**C. In a web browser**
 
-   #. The very last step is to request your code to be merged into the main PBjam repository. To do this, go to your copy of the PBjam repository (your fork).
+1. The very last step is to request your code to be merged into the main PBjam repository. To do this, go to your copy of the PBjam repository (your fork).
    
-   #. Press the Pull Request button just below the green Clone button, and Create Pull Request on the following page. This will start the process of merging your changes into the main PBjam repository. 
+2. Press the Pull Request button just below the green Clone button, and Create Pull Request on the following page. This will start the process of merging your changes into the main PBjam repository. 
    
-   #. Don’t panic. Any changes will be reviewed and tested, so you won’t break anything.
+3. Don’t panic. Any changes will be reviewed and tested, so you won’t break anything.
