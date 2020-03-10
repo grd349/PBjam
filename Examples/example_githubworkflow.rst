@@ -6,9 +6,11 @@ First off, make sure you have a GitHub account and that git is installed on your
 
 #. In a web browser:
 
-   #. Go to the main PBjam repository (repo) and press the Fork button in the top right corner. This copies the current state of the main repo to your GitHub account. If the main repo is updated, your copy will not change and vice versa.
+   #. Go to the `main PBjam repository <https://github.com/grd349/PBjam>`_ (repo) and press the Fork button in the top right corner. This copies the current state of the main repo to your GitHub account. If the main repo is updated, your copy will **not** change and vice versa.
    
-   #. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. 
+   #. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
+   .. code-block console
+      https://github.com/yourusername/PBjam.git
 
 #. In a terminal:
 
