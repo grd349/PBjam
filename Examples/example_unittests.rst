@@ -6,7 +6,6 @@ This can be done by inputting either reasonable values to check that the functio
 
 From the above example function a simple unit test could be:
 .. code-block:: python
-
     def my_function(a, b=1):
         """ Add two numbers
         
