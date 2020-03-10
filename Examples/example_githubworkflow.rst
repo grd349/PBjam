@@ -10,14 +10,14 @@ First off, make sure you have a GitHub account and that git is installed on your
    
    #. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
 
-#. In a terminal:
-   #. To download a copy of your PBjam repository into a directory do:
-   .. code-block console
-      $ git clone https://github.com/yourusername/PBjam.git
+1. In a terminal:
+a. To download a copy of your PBjam repository into a directory do:
+.. code-block console
+   $ git clone https://github.com/yourusername/PBjam.git
    
-   #. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
+b. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
    
-   #. At any time, from the PBjam directory you can type git status. This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
+c. At any time, from the PBjam directory you can type git status. This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
    
    #. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
    
