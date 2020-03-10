@@ -6,7 +6,8 @@ Docstrings are readable text associated with a function or unit of code that des
 .. code-block:: python
 
     def my_function(a, b=1):
-    
+        """ This line is a very short description of the function
+        """
         c = a + b
 
         return c
