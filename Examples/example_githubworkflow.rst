@@ -11,7 +11,9 @@ First off, make sure you have a GitHub account and that git is installed on your
    #. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
 
 **A. In a terminal:**
+
 1. To download a copy of your PBjam repository into a directory do:
+
 .. code-block console
    $ git clone https://github.com/yourusername/PBjam.git
    
@@ -19,11 +21,12 @@ First off, make sure you have a GitHub account and that git is installed on your
    
 3. At any time, from the PBjam directory you can type git status. This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
    
-   4. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
    
-   5. Now type git commit -m ‘A short message about the changes you have made’. This wraps up the changes you have made in a nice little bundle (called a commit) with a brief description. Think of it as a discrete unit of change to the code that git will keep track of from now on. Many smaller commits are better than 1 big one, so do this often. 
+4. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
    
-   6. When you are ready to send the changes to your GitHub repository, type git push origin master. This will upload the commit(s) to your online version of the PBjam repository on GitHub. Many commits can be pushed at the same time.
+5. Now type git commit -m ‘A short message about the changes you have made’. This wraps up the changes you have made in a nice little bundle (called a commit) with a brief description. Think of it as a discrete unit of change to the code that git will keep track of from now on. Many smaller commits are better than 1 big one, so do this often. 
+   
+6. When you are ready to send the changes to your GitHub repository, type git push origin master. This will upload the commit(s) to your online version of the PBjam repository on GitHub. Many commits can be pushed at the same time.
 
 **C. In a web browser**
 
