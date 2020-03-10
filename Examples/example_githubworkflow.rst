@@ -44,7 +44,7 @@ First off, make sure you have a GitHub account and that git is installed on your
    
    $ git push origin master
    
-7. If you are many people working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace `master` with the name of the branch you are working on. 
+7. If you are many people working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace :code:`master` with the name of the branch you are working on. 
 
 **C. In a web browser**
 
