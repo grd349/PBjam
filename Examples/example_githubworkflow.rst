@@ -13,7 +13,6 @@ First off, make sure you have a GitHub account and that git is installed on your
 **A. In a terminal:**
 
 1. To download a copy of your PBjam repository into a directory do:
-
 .. code-block:: console
    $ git clone https://github.com/yourusername/PBjam.git
    
