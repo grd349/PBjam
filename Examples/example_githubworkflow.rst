@@ -2,7 +2,7 @@ Example Github workflow
 ^^^^^^^^^^^^^^^^^^^^^^^
 This is a simplified set of steps for working with git and GitHub. There are a lot of steps, but the idea is that parts A, and C only have to be done once, and step B a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
 
-First off, make sure you have a GitHub account and that git is installed on your computer. 
+If you haven't already,  `create a GitHub account <https://github.com/join?source=header-home>`_ and `install git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_ on your computer.
 
 **A. In a web browser:**
 
