@@ -20,17 +20,23 @@ First off, make sure you have a GitHub account and that git is installed on your
    
 2. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
    
-3. At any time, from the PBjam directory you can type 
+3. To see what files have been changed during your work, while in the PBjam directory, you can type
 
 .. code-block:: console
 
    $ git status. 
+       
+4. Git allows you to bundle all the changes you have made into a 'commit'. This list of changes will eventually be uploaded to the your PBjam repository on GitHub. You can add multiple files to such a bundle. After having checked which files have changed, start adding files to a commit by doing:
+
+.. code-block:: console
+
+   $ git add the/path/to/modified/file
+      
+5. Once all the relevant files have been added, it's time to wrap it all up with a brief description. Do this often, as it will be easier to roll back the code if something bad happens.
+
+.. code-block:: console
    
-This will show you all the files that have been changed in your local PBjam directory. Any files that you have worked on should appear in the list(s).
-    
-4. Now type git add the/path/to/modified/file. This adds the file to a bundle that git keeps track of, and that you will eventually upload to your online copy of the PBjam repository on GitHub. You can add multiple files to such a bundle.
-   
-5. Now type git commit -m ‘A short message about the changes you have made’. This wraps up the changes you have made in a nice little bundle (called a commit) with a brief description. Think of it as a discrete unit of change to the code that git will keep track of from now on. Many smaller commits are better than 1 big one, so do this often. 
+   $ git commit -m 'A short message about the changes you have made'
    
 6. When you are ready to send the changes to your GitHub repository, type git push origin master. This will upload the commit(s) to your online version of the PBjam repository on GitHub. Many commits can be pushed at the same time.
 
