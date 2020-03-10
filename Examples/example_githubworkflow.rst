@@ -1,6 +1,6 @@
 Example Github workflow
 ^^^^^^^^^^^^^^^^^^^^^^^
-These steps are the ones I use to work with git and GitHub. There are a lot of steps, but the idea is that parts A, and C only have to be done once, and step B a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
+This is a simplified set of steps for working with git and GitHub. There are a lot of steps, but the idea is that parts A, and C only have to be done once, and step B a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
 
 First off, make sure you have a GitHub account and that git is installed on your computer. 
 
@@ -8,7 +8,7 @@ First off, make sure you have a GitHub account and that git is installed on your
 
 1. Go to the `main PBjam repository <https://github.com/grd349/PBjam>`_ (repo) and press the Fork button in the top right corner. This copies the current state of the main repo to your GitHub account. If the main repo is updated, your copy will **not** change and vice versa.
    
-2. From your copy of the repo (called a Fork), press Clone, and then copy the repo link. It will look something like
+2. From your copy of the repo (called a fork), press Clone, and then copy the repo link. 
 
 **B. In a terminal:**
 
@@ -26,25 +26,25 @@ First off, make sure you have a GitHub account and that git is installed on your
 
    $ git status. 
        
-4. Git allows you to bundle all the changes you have made into a 'commit'. This list of changes will eventually be uploaded to the your PBjam repository on GitHub. You can add multiple files to such a bundle. After having checked which files have changed, start adding files to a commit by doing:
+4. Git allows you to bundle all the changes you have made into a 'commit'. This list of changes will eventually be uploaded to the your PBjam repository on GitHub. You can add multiple files to such a commit. After having checked which files have changed, start adding them to a commit by doing:
 
 .. code-block:: console
 
    $ git add the/path/to/modified/file
       
-5. Once all the relevant files have been added, it's time to wrap it all up with a brief description. Do this often, as it will be easier to roll back the code if something bad happens.
+5. Once all the relevant files have been added, you can wrap it all up with a brief description. Do this often, as it will be easier to roll back the code if something bad happens. This can be done by doing:
 
 .. code-block:: console
    
    $ git commit -m 'A short message about the changes you have made'
    
-6. Now you can send off, or `push', the commit to the online GitHub repository. By repeating step 4 and 5, you can add several commits to a single push.  
+6. Now you can upload, or 'push', the commit to the online GitHub repository. By repeating step 4 and 5, you can add several commits to a single push.  
 
 .. code-block:: console
    
    $ git push origin master
    
-7. If you are many people working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace :code:`master` with the name of the branch you are working on. 
+7. If many people are working from the same repository, it is sometimes useful to make several branches or copies of the code. To push changes to a different branch simply replace :code:`master` with the name of the branch you are working on. 
 
 **C. In a web browser**
 
