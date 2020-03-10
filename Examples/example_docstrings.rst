@@ -8,7 +8,10 @@ The following is an example:
 .. code-block:: python
 
     def my_function(a, b=1):
-        """ The docstrings starts here. This line is usually just 2-3 words describing the function.
+        """ Add two numbers
+        
+        The docstrings starts here. The first line is usually just 2-3 
+        words describing the function.
         
         This is followed by a somewhat longer and detailed description that 
         explains what the function does. 
