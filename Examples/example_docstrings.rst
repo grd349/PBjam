@@ -20,7 +20,7 @@ The following is an example:
         An example is also nice if it’s a really complicated function.
     
         Example
-        ------------
+        -------
         >>> c = my_function(1) # This a basic usage example.
         >>>
         >>> c = my_function(1, 2) # This is an advanced usage example.
