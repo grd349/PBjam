@@ -19,16 +19,16 @@ Docstrings are readable text associated with a function or unit of code that des
     
         Example
         ------------
-        >>> c = my_function(1) # This is a silly example
+        >>> c = my_function(1) # This a basic usage example.
         >>>
-        >>> c = my_function(1, 2) 
+        >>> c = my_function(1, 2) # This is an advanced usage example.
 
         Parameters
         ----------
         a : TYPE 
             DESCRIPTION. 
-        b : TYPE, optional
-            DESCRIPTION. The default is 1.
+        b : TYPE, optional # If a parameter is optional it should be stated here.
+            DESCRIPTION. The default is 1. # If practical the default value should be stated here.
 
         Returns
         -------
