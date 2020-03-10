@@ -14,7 +14,7 @@ First off, make sure you have a GitHub account and that git is installed on your
 
 1. To download a copy of your PBjam repository into a directory do:
 
-.. code-block console
+.. code-block:: console
    $ git clone https://github.com/yourusername/PBjam.git
    
 2. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
