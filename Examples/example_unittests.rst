@@ -22,6 +22,12 @@ From the above example function a simple unit test could be:
 
 
     def test_my_function():
+        """ Test my_function
+        
+        Test functions can have docstrings too.
+        
+        """
+    
         import pytest
         import numpy as np
 
