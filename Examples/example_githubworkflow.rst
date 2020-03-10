@@ -21,6 +21,7 @@ First off, make sure you have a GitHub account and that git is installed on your
 2. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
    
 3. At any time, from the PBjam directory you can type 
+
 .. code-block:: console
 
    $ git status. 
