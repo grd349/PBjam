@@ -51,10 +51,23 @@ def get_percentiles(X, sigma = 2, **kwargs):
 
 
 def to_log10(x, xerr):
-    """ Transforms observables into log10 space.
+    """ Transform to value to log10
+    
+
+    Parameters
+    ----------
+    x : TYPE
+        DESCRIPTION.
+    xerr : TYPE
+        DESCRIPTION.
+
+    Returns
+    -------
+    list
+        DESCRIPTION.
 
     """
-
+    
     if xerr > 0:
         return [np.log10(x), xerr/x/np.log(10.0)]
     return [x, xerr]
