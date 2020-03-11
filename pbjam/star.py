@@ -2,7 +2,7 @@ import os
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
-from .jar import get_priorpath
+from .jar import get_priorpath, to_log10
 from .plotting import plotting
 import pandas as pd
 
@@ -81,6 +81,8 @@ class star(plotting):
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
+        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff, 'bp_rp': self.bp_rp}
+        self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self._set_path(path)
         self._make_output_dir()
@@ -160,7 +162,8 @@ class star(plotting):
                                  savefig=make_plots)
             self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
                                    savefig=make_plots)
-
+            self.kde.plot_echelle(path=self.path, ID=self.ID, 
+                                  savefig=make_plots)
 
     def run_asy_peakbag(self, norders=None, make_plots=False,
                         store_chains=False):
@@ -199,6 +202,8 @@ class star(plotting):
                                        savefig=make_plots)
             self.asy_fit.plot_corner(path=self.path, ID=self.ID,
                                        savefig=make_plots)
+            self.asy_fit.plot_echelle(path=self.path, ID=self.ID, 
+                                      savefig=make_plots)
 
         if store_chains:
             pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asy_peakbag_chains_{self.ID}.csv'), index=False)
@@ -246,6 +251,8 @@ class star(plotting):
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
+            self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
+                                      savefig=make_plots)
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
