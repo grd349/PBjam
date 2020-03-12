@@ -345,22 +345,10 @@ def query_lightkurve(id, download_dir, use_cached, lkwargs):
     
     ext = set_cadence(lkwargs)
 
-    tgtfiles = lookup_cached_files(id, cache_dir, ext)
-
-    if (use_cached and (len(tgtfiles) != 0)):
-        lc_col = [lk.open(n) for n in tgtfiles]
+    lc_col = lk.search_lightcurvefile(target=id, **lkwargs).download_all(download_dir=cache_dir)
+    if lc_col is None:
+        raise ValueError("lightkurve could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
         
-    elif (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
-        if (use_cached and (len(tgtfiles) == 0)):
-            warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], id))
-
-        lc_col = launch_query(id, cache_dir, lkwargs)
-
-        if len(lc_col) == 0:
-            raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], id))
-    else:
-        raise ValueError('Could not find any cached data, and failed to access MAST')
-    
     # Perform reduction on first lc of the lc collection and append the rest
     lc0 = clean_lc(lc_col[0].PDCSAP_FLUX)
     for i, lc in enumerate(lc_col[1:]):
