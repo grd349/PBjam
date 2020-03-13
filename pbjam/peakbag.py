@@ -335,7 +335,7 @@ class peakbag(plotting):
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older
         try:
             rhatfunc = pm.diagnostics.gelman_rubin
-            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', warnings.DeprecationWarning)
+            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
         except:
             rhatfunc = pm.stats.rhat
         
