@@ -65,7 +65,7 @@ class kde(plotting):
 
         # Select numax range and expand if needed
         idx = self._prior_expand_check(numax, KDEsize)
-        print(len(idx[idx==1]))
+        
         # Downsample to KDEsize
         self.prior_data = self._downsample_prior_check(idx, KDEsize)
 
@@ -88,7 +88,6 @@ class kde(plotting):
             warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
             KDEsize = len(idx[idx==1])
             
-        print(KDEsize, len(idx))
         return self.prior_data.sample(KDEsize, weights = idx, replace = False)
 
     def _prior_expand_check(self, numax, KDEsize):
