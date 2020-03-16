@@ -19,6 +19,10 @@
 # import statsmodels.api as sm
 # from numpy.testing import assert_almost_equal, assert_array_equal, assert_allclose
 
+
+def test_import():
+    import pbjam
+
 # def load_example():
 #     stars = {}
     

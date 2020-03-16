@@ -725,6 +725,7 @@ class session():
                                         campaign=campaign, sector=sector,
                                         month=month, quarter=quarter, 
                                         mission=mission)
+            
             format_col(vardf, timeseries, 'timeseries')
             format_col(vardf, psd, 'psd')
 
