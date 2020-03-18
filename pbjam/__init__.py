@@ -12,3 +12,4 @@ from .peakbag import peakbag
 from .ellone import ellone
 from .star import star
 from .mcmc import mcmc
+from .mcmc import nested

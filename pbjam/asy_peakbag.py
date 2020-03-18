@@ -33,20 +33,20 @@ class asymp_spec_model():
 
     norders : int
         Number of radial order to fit
-        
+
     """
 
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
-    
+
 
     def _get_nmax(self, dnu, numax, eps):
         """Compute radial order at numax.
-    
+
         Compute the radial order at numax, which in this implimentation of the
         asymptotic relation is not necessarily integer.
-    
+
         Parameters
         ----------
         numax : float
@@ -55,39 +55,39 @@ class asymp_spec_model():
             Large separation of l=0 modes (muHz).
         eps : float
             Epsilon phase term in asymptotic relation (muHz).
-    
+
         Returns
         -------
             nmax : float
                 non-integer radial order of maximum power of the p-mode envelope
-                
+
         """
-    
+
         return numax / dnu - eps
 
     def _get_enns(self, nmax, norders):
         """Compute radial order numbers.
-    
-        Get the enns that will be included in the asymptotic relation fit. 
+
+        Get the enns that will be included in the asymptotic relation fit.
         These are all integer.
-    
+
         Parameters
         ----------
         nmax : float
             Frequency of maximum power of the p-mode envelope
         norders : int
             Total number of radial orders to consider
-    
+
         Returns
         -------
         enns : ndarray
                 Numpy array of norders radial orders (integers) around numax (nmax).
-                
+
         """
-    
+
         below = np.floor(nmax - np.floor(norders/2)).astype(int)
         above = np.floor(nmax + np.ceil(norders/2)).astype(int)
-    
+
         # Handling of single input (during fitting), or array input when evaluating
         # the fit result
         if type(below) != np.ndarray:
@@ -99,7 +99,7 @@ class asymp_spec_model():
     def _asymptotic_relation(self, numax, dnu, eps, alpha, norders):
         """ Compute the l=0 mode frequencies from the asymptotic relation for
         p-modes
-    
+
         Parameters
         ----------
         numax : float
@@ -113,14 +113,14 @@ class asymp_spec_model():
         norders : int
             Number of desired radial orders to calculate frequncies for, centered
             around numax.
-    
+
         Returns
         -------
         nu0s : ndarray
             Array of l=0 mode frequencies from the asymptotic relation (muHz).
-    
+
         """
-        
+
         nmax = self._get_nmax(dnu, numax, eps)
         enns = self._get_enns(nmax, norders)
         return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
@@ -128,31 +128,31 @@ class asymp_spec_model():
 
     def _P_envelope(self, nu, hmax, numax, width):
         """ Power of the seismic p-mode envelope
-    
+
         Computes the power at frequency nu in the p-mode envelope from a Gaussian
         distribution. Used for computing mode heights.
-    
+
         Parameters
         ----------
         nu : float
             Frequency (in muHz).
-    
+
         hmax : float
             Height of p-mode envelope (in SNR).
-    
+
         numax : float
             Frequency of maximum power of the p-mode envelope (in muHz).
-    
+
         width : float
             Width of the p-mode envelope (in muHz).
-    
+
         Returns
         -------
         h : float
             Power at frequency nu (in SNR)
-            
+
         """
-    
+
         return hmax * np.exp(- 0.5 * (nu - numax)**2 / width**2)
 
     def _lor(self, freq, h, w):
@@ -171,9 +171,9 @@ class asymp_spec_model():
         -------
         mode : ndarray
             The SNR as a function frequency for a lorentzian.
-            
+
         """
-       
+
         return h / (1.0 + 4.0/w**2*(self.f - freq)**2)
 
 
@@ -202,14 +202,14 @@ class asymp_spec_model():
         -------
         pair_model : array
             The SNR as a function of frequency of a mode pair.
-            
+
         """
-        
+
         pair_model = self._lor(freq0, h, w)
         pair_model += self._lor(freq0 - d02, h*hfac, w)
         return pair_model
 
-    
+
     def model(self, dnu, numax, eps, d02, alpha, hmax, envwidth, modewidth,
               *args):
         """ Constructs a spectrum model from the asymptotic relation.
@@ -251,15 +251,15 @@ class asymp_spec_model():
         -------
         model : ndarray
             spectrum model around the p-mode envelope
-            
+
         """
 
         f0s = self._asymptotic_relation(10**numax, 10**dnu, eps, 10**alpha, self.norders)
         Hs = self._P_envelope(f0s, 10**hmax, 10**numax, 10**envwidth)
-        
+
         modewidth = 10**modewidth # widths are the same for all modes
         d02 = 10**d02
-        
+
         mod = np.ones(len(self.f))
         for n in range(len(f0s)):
             mod += self._pair(f0s[n], Hs[n], modewidth, d02)
@@ -277,7 +277,7 @@ class asymp_spec_model():
         -------
         model : array
             spectrum model around the p-mode envelope
-            
+
         """
 
         return self.model(*p)
@@ -289,7 +289,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
     Parameters
     ----------
     st : star class instance
-    
+
     norders : int, optional
         Number of radial orders to fit
 
@@ -311,7 +311,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         Numpy array of tuples of mean and sigma for Gaussian
         priors on each of the fit parameters (To be removed when full
         KDE is implimented).
-        
+
     """
 
     def __init__(self, st, norders=None):
@@ -321,19 +321,19 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.norders = norders
         self.obs = {'dnu': st.dnu, 'numax': st.numax, 'teff': st.teff, 'bp_rp': st.bp_rp}
         self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
-                        
+
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
-        self.start_samples = st.kde.samples       
-        self.kde = st.kde.kde    
+        self.start_samples = st.kde.samples
+        self.kde = st.kde.kde
         self.start = self._get_asy_start()
         lfreq, ufreq = self._get_freq_range()
         self.sel = (lfreq < self.f) & (self.f < ufreq)
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
-        
+
         st.asy_fit = self
-       
-    def __call__(self):
+
+    def __call__(self, method='mcmc'):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
         Parameters
@@ -352,19 +352,27 @@ class asymptotic_fit(plotting, asymp_spec_model):
         -------
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
-            
+
         """
         #self._start_init() # TODO - finish up this function
 
-        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
-                           self.likelihood, self.prior)
+        if method == 'mcmc':
+            self.fit = pb.mcmc(np.median(self.start_samples, axis=0),
+                               self.likelihood, self.prior)
 
-        self.fit(start_samples=self.start_samples)
+            self.fit(start_samples=self.start_samples)
+        elif method == 'nested':
+            bounds = [[self.start_samples[:, n].min(),
+                        self.start_samples[:, n].max()]
+                        for n in range(len(self.par_names))]
+            self.fit = pb.nested(self.par_names, bounds,
+                                 self.likelihood, self.prior)
+
+            self.fit()
 
 
         self.modeID = self.get_modeIDs(self.fit, self.norders)
-        self.summary  = self._get_summary_stats(self.fit)        
-        self.mle_model = self.model(self.summary['mle'])        
+        self.summary  = self._get_summary_stats(self.fit)
         self.samples = self.fit.flatchain
         self.acceptance = self.fit.acceptance
 
@@ -372,11 +380,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
 
     def prior(self, p):
-        """ Calculates the log prior 
-        
+        """ Calculates the log prior
+
         Evaluates the KDE for the parameters p. Additional hard/soft priors
         can be added here as needed to, e.g., apply boundaries to the fit.
-        
+
         Hard constraints should be applied at the top so function exits early,
         if necessary.
 
@@ -391,22 +399,22 @@ class asymptotic_fit(plotting, asymp_spec_model):
             The log likelihood evaluated at p.
 
         """
-        
+
         # d02/dnu < 0.2  (np.log10(0.2) ~ -0.7)
         if p[3] - p[0] > -0.7:
             return -np.inf
-        
+
         lp = 0
-        
+
         # Added linewidth constraints
         if (p[7] > self.start[7] + np.log10(1.5)):
             lp += normal(10**p[7], 10**self.start[7]*1.5, 10**self.start[7]*0.1)
-        
+
         # Constraints from KDE
         lp += np.log(self.kde.pdf(p))
-        
+
         return lp
-        
+
     def likelihood(self, p):
         """ Likelihood function for set of model parameters
 
@@ -432,44 +440,41 @@ class asymptotic_fit(plotting, asymp_spec_model):
             The log likelihood evaluated at p.
 
         """
-        
+
         lnlike = 0
-        
+
         # Constraint from input obs
         lnlike += normal(p[-2], *self.log_obs['teff'])
         lnlike += normal(p[-1], *self.obs['bp_rp'])
-        
+
         # Constraint from the periodogram
         mod = self.model(p)
         lnlike += -np.sum(np.log(mod) + self.s[self.sel] / mod)
         return lnlike
-    
+
 
     def _get_summary_stats(self, fit):
         """ Make dataframe with fit summary statistics
-    
+
         Creates a dataframe that contains various quantities that summarize the
         fit. Note, these are predominantly derived from the marginalized posteriors.
-       
+
         Parameters
         ----------
         fit : mcmc.mcmc class instance
             mcmc class instances used in the fit
-            
+
         Returns
         -------
         summary : pandas.DataFrame
             Dataframe with the summary statistics.
-            
+
         """
-    
-        idx = np.argmax(fit.flatlnlike)
-        
+
         fc = fit.flatchain
-       
+
         # Append here to add other statistics
-        stats = OrderedDict({'mle'  : fc[idx,:], 
-                             'mean' : np.mean(fc, axis = 0),
+        stats = OrderedDict({'mean' : np.mean(fc, axis = 0),
                              'std'  : np.std(fc, axis = 0),
                              'skew' : scist.skew(fc, axis = 0),
                              '2nd'  : np.percentile(fc,  2.27501, axis=0),
@@ -478,11 +483,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
                              '84th' : np.percentile(fc, 84.13447, axis=0),
                              '97th' : np.percentile(fc, 97.72498, axis=0),
                              'MAD'  : scist.median_absolute_deviation(fc, axis=0)})
-    
+
         summary = pd.DataFrame(stats, index = self.par_names)
-        
+
         return summary
-       
+
 
     def get_modeIDs(self, fit, norders):
         """ Set mode ID in a dataframe
@@ -504,7 +509,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         modeID : pandas.DataFrame
             Dataframe of radial order, n (best guess), angular degree, l,
             frequency and frequency error.
-            
+
         """
 
         fc = fit.flatchain
@@ -515,26 +520,26 @@ class asymptotic_fit(plotting, asymp_spec_model):
         nus_med = np.median(np.array([nu0_samps, nu2_samps]), axis=2)
         nus_mad = scist.median_absolute_deviation(np.array([nu0_samps, nu2_samps]), axis=2)
 
-        ells = np.array([2, 0]*norders) 
+        ells = np.array([2, 0]*norders)
 
         df = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
 
         df.at[::2, 'nu_med'] = nus_med[1, :]
         df.at[1::2, 'nu_med'] = nus_med[0, :]
-        
+
         df.at[::2, 'nu_mad'] = nus_mad[1, :]
         df.at[1::2, 'nu_mad'] = nus_mad[0, :]
 
         return df
 
 
-    
+
     def _get_asy_start(self):
         """ Get start averages for sampling
         """
- 
+
         mu = np.median(self.start_samples, axis=0)
-        start = [10**mu[0], 10**mu[1], mu[2], 10**mu[3], 10**mu[4], mu[5], 
+        start = [10**mu[0], 10**mu[1], mu[2], 10**mu[3], 10**mu[4], mu[5],
                  mu[6], mu[7], 10**mu[8], mu[9]]
         return start
 
@@ -542,24 +547,24 @@ class asymptotic_fit(plotting, asymp_spec_model):
     def _get_freq_range(self):
         """ Get frequency range for model
         """
-        
+
         dnu, numax, eps = self.start[:3]
-        
+
         nmax = self._get_nmax(dnu, numax, eps)
         enns = self._get_enns(nmax, self.norders)
 
         lfreq = (min(enns) - 1.25 + eps) * dnu
         ufreq = (max(enns) + 1.25 + eps) * dnu
-        return lfreq, ufreq    
-    
-    
-    
+        return lfreq, ufreq
+
+
+
     def _start_init(self, verbose=False):
         """ This is in pre-alpha
-        
+
         Bodge a better starting point
         """
-        
+
         like_start = np.ones(len(self.start_samples[:, 0]))
         for idx, samp in enumerate(self.start_samples):
             like_start[idx] = self.likelihood(samp)

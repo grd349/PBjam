@@ -12,3 +12,4 @@ hdbscan
 sklearn
 nbsphinx
 pyqt5
+cpnest

@@ -1,6 +1,8 @@
 import emcee
 import numpy as np
 import scipy.stats as st
+import cpnest.model
+import pandas as pd
 
 class mcmc():
     """ Class for MCMC sampling
@@ -43,24 +45,24 @@ class mcmc():
 
     def logpost(self, p):
         """ Evaluate the likelihood and prior
-        
+
         Returns the log posterior probability given parameters p. Evaluates
-        first the prior function and then the likelihood function. In the 
+        first the prior function and then the likelihood function. In the
         event that the prior returns -inf, the function exits.
-        
+
         Parameters
         ----------
         p : list
             Fit parameters
-        
+
         Returns
         -------
         log_posterior: float
             log posterior of the model given parameters p and the observed
             quantities.
-        
+
         """
-        
+
         logp = self.prior(p)
         if logp == -np.inf:
             return -np.inf
@@ -75,9 +77,9 @@ class mcmc():
         nfactor should be nearer 100 follwing the emcee docs
         but in PBjam useage I get better than reasonable results
         when using 20.
-        
+
         """
-        
+
         tau = self.sampler.get_autocorr_time(tol=0)
         converged = np.all(tau * nfactor < self.sampler.iteration)
         return converged
@@ -104,9 +106,9 @@ class mcmc():
         sampler.flatchain : array
             The chain of (nwalkers, niter, ndim) flattened to
             (nwalkers*niter, ndim).
-            
+
         """
-        
+
         nsteps = 1000
 
         # Start walkers in a tight random ball
@@ -183,9 +185,9 @@ class mcmc():
         accept_lim: float
             The value below which walkers will be labelled as bad and/or hence
             stuck.
-            
+
         """
-        
+
         idx = self.sampler.acceptance_fraction < accept_lim
         nbad = np.shape(pos[idx, :])[0]
         if nbad > 0:
@@ -194,3 +196,32 @@ class mcmc():
             good_mad = st.median_absolute_deviation(flatchains, axis = 0) * spread
             pos[idx, :] = np.array([np.random.randn(self.ndim) * good_mad + good_med for n in range(nbad)])
         return pos
+
+class nested(cpnest.model.Model):
+    """
+    TODO
+    """
+    def __init__(self, names, bounds, likelihood, prior):
+        self.names=names
+        self.bounds=bounds
+        self.likelihood = likelihood
+        self.prior = prior
+
+    def log_likelihood(self, param):
+        return self.likelihood(param.values)
+
+    def log_prior(self,p):
+        if not self.in_bounds(p): return -np.inf
+        return self.prior(p.values)
+
+    def __call__(self):
+        self.nest = cpnest.CPNest(self, verbose=0, seed=54,
+                    nthreads=4,
+                    nlive=100,
+                    maxmcmc=100,
+                    poolsize=100)
+        self.nest.run()
+        self.samples = pd.DataFrame(self.nest.get_posterior_samples())
+        self.flatchain = self.samples.values
+        self.acceptance = np.inf #TODO
+        return self.samples

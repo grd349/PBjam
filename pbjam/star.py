@@ -166,7 +166,7 @@ class star(plotting):
 
 
     def run_asy_peakbag(self, norders=None, make_plots=False,
-                        store_chains=False):
+                        store_chains=False, method='mcmc'):
         """ Run all stesps involving asy_peakbag.
 
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
@@ -188,7 +188,7 @@ class star(plotting):
         asymptotic_fit(self, norders=norders)
 
         # Call
-        self.asy_fit()
+        self.asy_fit(method=method)
 
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
