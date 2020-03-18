@@ -221,7 +221,7 @@ class nested(cpnest.model.Model):
                     maxmcmc=100,
                     poolsize=100)
         self.nest.run()
-        self.samples = pd.DataFrame(self.nest.get_posterior_samples())
+        self.samples = pd.DataFrame(self.nest.get_posterior_samples())[self.names]
         self.flatchain = self.samples.values
         self.acceptance = np.inf #TODO
         return self.samples
