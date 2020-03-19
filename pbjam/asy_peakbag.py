@@ -336,17 +336,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
     def __call__(self, method='mcmc'):
         """ Setup, run and parse the asymptotic relation fit using EMCEE.
 
-        Parameters
+        Keywords
         ----------
-        dnu : [real, real]
-            Large frequency spacing and uncertainty
-        numax : [real, real]
-            Frequency of maximum power and uncertainty
-        teff : [real, real]
-            Stellar effective temperature and uncertainty
-        bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty
-            (probably ~< 0.01 dex).
+        method : string
+            Default method is 'mcmc' that will call emcee but option
+            to use 'nested' to call nested sampling by CPnest.
 
         Returns
         -------
@@ -356,11 +350,16 @@ class asymptotic_fit(plotting, asymp_spec_model):
         """
         #self._start_init() # TODO - finish up this function
 
+        if method not in ['mcmc', 'nested']:
+            warnings.warn(f'Method {method} not found: Using method mcmc')
+            method = 'mcmc'
+
         if method == 'mcmc':
             self.fit = pb.mcmc(np.median(self.start_samples, axis=0),
                                self.likelihood, self.prior)
 
             self.fit(start_samples=self.start_samples)
+
         elif method == 'nested':
             bounds = [[self.start_samples[:, n].min(),
                         self.start_samples[:, n].max()]
