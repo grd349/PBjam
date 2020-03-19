@@ -238,7 +238,8 @@ class nested(cpnest.model.Model):
         if not self.in_bounds(p): return -np.inf
         return self.prior(p.values)
 
-    def __call__(self):
+    def __call__(self, nlive=100, nthreads=1,
+                 maxmcmc=100, poolsize=100):
         '''
         Runs the nested sampling
 
@@ -248,11 +249,12 @@ class nested(cpnest.model.Model):
             A dataframe of the samples produced with the
             nested sampling
         '''
-        self.nest = cpnest.CPNest(self, verbose=0, seed=54,
-                    nthreads=4,
-                    nlive=100,
-                    maxmcmc=100,
-                    poolsize=100)
+        self.nest = cpnest.CPNest(self, verbose=0,
+                    seed=54,
+                    nthreads=nthreads,
+                    nlive=nlive,
+                    maxmcmc=maxmcmc,
+                    poolsize=poolsize)
         self.nest.run()
         self.samples = pd.DataFrame(self.nest.get_posterior_samples())[self.names]
         self.flatchain = self.samples.values
