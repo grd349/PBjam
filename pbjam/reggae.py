@@ -315,7 +315,7 @@ class MyCentralWidget(QWidget):
         self.main_window.statusBar().showMessage('Saved to {self.main_window.star.path}')
 
 class MyMplWidget(FigureCanvas):
-    ''' The thing that plots the data in the Geggae GUI
+    ''' The thing that plots the data in the Reggae GUI
 
     Inputs
     ------
