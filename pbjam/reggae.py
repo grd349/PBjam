@@ -223,7 +223,7 @@ class MyCentralWidget(QWidget):
         #hd02, self.d02_slider = self.make_d02_slider()
         hd03, self.d03_slider = self.make_d03_slider()
         hrotc, self.rotc_slider = self.make_rotc_slider()
-        self.mpl_widget = MyMplWidget(self.pg)
+        self.mpl_widget = MyMplWidget(self.main_window.star)
         # define label
         self.label = QLabel(self)
         # Place the buttons - HZ
@@ -297,11 +297,11 @@ class MyCentralWidget(QWidget):
                            'rotc': [rotc],
                            'epsg': [epsg]})
         self.main_window.df.to_csv(os.path.join(*[self.main_window.star.path,
-                                    'reggae_output.csv']))
+                                    f'{self.main_window.star.ID}_reggae_output.csv']))
         mixed = self.mpl_widget.get_mixed_modes(self.n, self.dnu,
                         self.eps, dp1, epsg, q, d01)
         np.savetxt(os.path.join(*[self.main_window.star.path,
-                            'reggae_mixed_frequencies.txt']),
+                            f'{self.main_window.star.ID}_reggae_mixed_frequencies.txt']),
                             mixed, delimiter=',')
         self.main_window.mixed = mixed
         self.main_window.statusBar().showMessage('Saved to {self.main_window.star.path}')
@@ -316,9 +316,9 @@ class MyMplWidget(FigureCanvas):
         The periodogram of the data.
 
     '''
-    def __init__(self, pg, parent=None, figsize=(16,9), dpi=100):
-        self.pg = pg
-        self.pg_smooth = pg.smooth(method='boxkernel', filter_width=0.1)
+    def __init__(self, star, parent=None, figsize=(16,9), dpi=100):
+        self.star = star
+        self.pg_smooth = self.star.pg.smooth(method='boxkernel', filter_width=0.1)
         self.set_nu()
         self.fig = plt.figure(figsize=figsize, dpi=dpi)
         FigureCanvas.__init__(self, self.fig)
@@ -329,22 +329,19 @@ class MyMplWidget(FigureCanvas):
 
     def set_nu(self, fac=4):
         ''' Sets the frquency array for the mixed algo '''
-        minnu = self.pg.frequency.value.min()
-        maxnu = self.pg.frequency.value.max()
-        self.nu = np.linspace(minnu, maxnu, len(self.pg.frequency.value)*fac)
+        self.minnu, self.maxnu = self.star.asy_fit._get_freq_range()
+        self.nu = np.linspace(self.minnu, self.maxnu, len(self.star.pg.frequency.value)*fac)
         self.nu *= 1e-6
 
     def plot_data(self):
         ''' Plot the periodogram data '''
         self.ax = self.fig.add_subplot(111)
-        self.ax.plot(self.pg.frequency, self.pg.power, 'k-',
+        self.ax.plot(self.star.pg.frequency, self.star.pg.power, 'k-',
                      alpha=0.3, label='Data')
         self.ax.plot(self.pg_smooth.frequency, self.pg_smooth.power, 'k-',
                      alpha=0.8, label='Data')
         self.ax.set_xlabel(r'Frequency ($\rm \mu Hz$)')
         self.ax.set_ylabel(r'SNR')
-        self.ax.set_xlim([self.pg.frequency.value.min(),
-                          self.pg.frequency.value.max()])
         self.ax.set_ylim([0, self.pg_smooth.power.value.max()*1.5])
         self.fig.tight_layout()
 
@@ -359,6 +356,13 @@ class MyMplWidget(FigureCanvas):
         self.threes, = self.ax.plot((n + eps + d03) * dnu,
                         np.ones(len(n))*self.pg_smooth.power.value.max()*0.15,
                         'mh')
+        fmax = (n.max()+1 + eps) * dnu
+        if fmax > self.star.pg.frequency.value.max():
+            fmax = self.star.pg.frequency.value.max()
+        fmin = (n.min()-1 + eps) * dnu
+        if fmin < self.star.pg.frequency.value.min():
+            fmin = self.star.pg.frequency.value.min()
+        self.ax.set_xlim([fmin, fmax])
         self.draw()
 
     def replot_zero_two_model(self, n, dnu, eps, d01,  d02, d03):
