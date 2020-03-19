@@ -69,6 +69,9 @@
 #     stars['nsamples'] = 10
 #     return stars
 
+def test():
+    import pbjam
+
 # def does_it_run(func, args):
 #     if args is None:
 #         func()
