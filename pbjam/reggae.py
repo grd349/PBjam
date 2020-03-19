@@ -304,7 +304,7 @@ class MyCentralWidget(QWidget):
                             'reggae_mixed_frequencies.txt']),
                             mixed, delimiter=',')
         self.main_window.mixed = mixed
-        self.main_window.statusBar().showMessage('Saved')
+        self.main_window.statusBar().showMessage('Saved to {self.main_window.star.path}')
 
 class MyMplWidget(FigureCanvas):
     ''' The thing that plots the data in the Geggae GUI
