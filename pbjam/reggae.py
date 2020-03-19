@@ -9,18 +9,22 @@ import numpy as np
 import pandas as pd
 import sys
 import matplotlib.pyplot as plt
+import os
 
 from .plotting import plotting
 
 class MyMainWindow(QMainWindow, plotting):
     ''' Main window to hold the Reggae method '''
-    def __init__(self, pg, dnu, numax, epsilon):
+    def __init__(self, star):
         super().__init__()
-        self.pg = pg
+        self.star = star
+        self.pg = self.star.pg
 
-        self.dnu = dnu
-        self.numax = numax
-        self.epsilon = epsilon
+        self.dnu = 10**self.star.asy_fit.summary.loc['dnu']['mean']
+        self.numax = 10**self.star.asy_fit.summary.loc['numax']['mean']
+        self.epsilon = self.star.asy_fit.summary.loc['eps']['mean']
+        self.d02 = -10**self.star.asy_fit.summary.loc['d02']['mean']
+
         self.mixed = []
         self.initUI()
 
@@ -29,25 +33,23 @@ class MyMainWindow(QMainWindow, plotting):
         ''' Setup main window and create central widget '''
         self.resize(1600,900)
         self.move(50,50)
-        central_widget = MyCentralWidget(self,
-                                         self.pg,
-                                         self.dnu,
-                                         self.numax,
-                                         self.epsilon)
+        central_widget = MyCentralWidget(self)
         self.setCentralWidget(central_widget)
         self.setWindowTitle('Reggae')
         self.statusBar().showMessage('Waiting ...')
 
 class MyCentralWidget(QWidget):
     ''' The central widget tat provides the UI '''
-    def __init__(self, main_window, pg, dnu, numax, epsilon):
+    def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
-        self.pg = pg
-        self.dnu = dnu
-        self.numax = numax
-        self.epsilon = epsilon
-        self.n = np.arange(int(numax/dnu) - 5, int(numax/dnu) + 5, 1)
+        self.pg = self.main_window.pg
+        self.dnu = main_window.dnu
+        self.numax = main_window.numax
+        self.eps = main_window.epsilon
+        self.d02 = main_window.d02 / self.dnu
+        self.n = np.arange(int(self.numax/self.dnu) - 5,
+                            int(self.numax/self.dnu) + 5, 1)
         self.ng = np.arange(10, 100, 1)
         self.dnu_fac = 1000
         self.eps_fac = 1000
@@ -122,7 +124,7 @@ class MyCentralWidget(QWidget):
         ''' Make an epsilon (p mode) slider '''
         minv = 0.5 * self.eps_fac
         maxv = 1.5 * self.eps_fac
-        init_val = self.epsilon * self.eps_fac
+        init_val = self.eps * self.eps_fac
         hbox, eps_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
                                   connect=self.on_value_changed,
@@ -212,13 +214,13 @@ class MyCentralWidget(QWidget):
         fini_button.clicked.connect(self.on_finished_button_clicked)
         save_button = QPushButton('Save', self)
         save_button.clicked.connect(self.on_save_button_clicked)
-        hdnu, self.dnu_slider = self.make_dnu_slider()
-        heps, self.eps_slider = self.make_eps_slider()
+        #hdnu, self.dnu_slider = self.make_dnu_slider()
+        #heps, self.eps_slider = self.make_eps_slider()
         hdp1, self.dp1_slider = self.make_dp1_slider()
         hq, self.q_slider = self.make_q_slider()
         hepsg, self.epsg_slider = self.make_epsg_slider()
         hd01, self.d01_slider = self.make_d01_slider()
-        hd02, self.d02_slider = self.make_d02_slider()
+        #hd02, self.d02_slider = self.make_d02_slider()
         hd03, self.d03_slider = self.make_d03_slider()
         hrotc, self.rotc_slider = self.make_rotc_slider()
         self.mpl_widget = MyMplWidget(self.pg)
@@ -226,10 +228,10 @@ class MyCentralWidget(QWidget):
         self.label = QLabel(self)
         # Place the buttons - HZ
         subvbox = QVBoxLayout()
-        subvbox.addLayout(hdnu)
-        subvbox.addLayout(heps)
+        #subvbox.addLayout(hdnu)
+        #subvbox.addLayout(heps)
         subvbox.addLayout(hd01)
-        subvbox.addLayout(hd02)
+        #subvbox.addLayout(hd02)
         subvbox.addLayout(hd03)
         subvbox.addLayout(hdp1)
         subvbox.addLayout(hq)
@@ -247,28 +249,30 @@ class MyCentralWidget(QWidget):
         vbox.addLayout(hbox)
         self.setLayout(vbox)
         self.mpl_widget.plot_data()
-        self.mpl_widget.plot_zero_two_model(self.n, self.dnu, 1.0, 0.5, -0.14, 0.3)
-        self.mpl_widget.plot_mixed_model(self.n, self.dnu, 1.0, 90.0, 0.0, 0.12, 0.5)
+        self.mpl_widget.plot_zero_two_model(self.n, self.dnu, self.eps, 0.5, self.d02, 0.3)
+        self.mpl_widget.plot_mixed_model(self.n, self.dnu, self.eps, 90.0, 0.0, 0.12, 0.5)
         self.mpl_widget.plot_rotation_model(0.4)
 
     def get_slider_values(self):
         ''' Gets the current values of the sliders '''
-        dnu = self.dnu_slider.value() / self.dnu_fac
-        eps = self.eps_slider.value() / self.eps_fac
+        #dnu = self.dnu_slider.value() / self.dnu_fac
+        #eps = self.eps_slider.value() / self.eps_fac
         d01 = self.d01_slider.value() / self.d0x_fac
-        d02 = self.d02_slider.value() / self.d0x_fac
+        #d02 = self.d02_slider.value() / self.d0x_fac
         d03 = self.d03_slider.value() / self.d0x_fac
         dp1 = self.dp1_slider.value() / self.dp1_fac
         q = self.q_slider.value() / self.q_fac
         epsg = self.epsg_slider.value() / self.epsg_fac
         rotc = self.rotc_slider.value() / self.rotc_fac
-        return dnu, eps, d01, d02, d03, dp1, q, epsg, rotc
+        return d01, d03, dp1, q, epsg, rotc
 
     def on_value_changed(self):
         ''' Do this when the value of a slider is changed '''
-        dnu, eps, d01, d02, d03, dp1, q, epsg, rotc = self.get_slider_values()
-        self.mpl_widget.replot_zero_two_model(self.n, dnu, eps, d01, d02, d03)
-        self.mpl_widget.replot_mixed_model(self.n, dnu, eps, dp1, epsg, q, d01)
+        d01, d03, dp1, q, epsg, rotc = self.get_slider_values()
+        self.mpl_widget.replot_zero_two_model(self.n, self.dnu, self.eps,
+                                              d01, self.d02, d03)
+        self.mpl_widget.replot_mixed_model(self.n, self.dnu, self.eps,
+                                           dp1, epsg, q, d01)
         self.mpl_widget.replot_rotation_model(rotc)
 
     def on_rotation_changed(self):
@@ -284,20 +288,21 @@ class MyCentralWidget(QWidget):
 
     def on_save_button_clicked(self):
         ''' Do this when the save button is clicked '''
-        dnu, eps, d01, d02, d03, dp1, q, epsg, rotc = self.get_slider_values()
-        self.main_window.df = pd.DataFrame({'Dnu': [dnu],
-                           'Eps': [eps],
+        d01, d03, dp1, q, epsg, rotc = self.get_slider_values()
+        self.main_window.df = pd.DataFrame({
                            'd01': [d01],
-                           'd02': [d02],
                            'd03': [d03],
                            'Dp1': [dp1],
                            'q': [q],
                            'rotc': [rotc],
                            'epsg': [epsg]})
-        self.main_window.df.to_csv('reggae_output.csv')
-        mixed = self.mpl_widget.get_mixed_modes(self.n, dnu,
-                        eps, dp1, epsg, q, d01)
-        np.savetxt('reggae_mixed_frequencies.txt', mixed, delimiter=',')
+        self.main_window.df.to_csv(os.path.join(*[self.main_window.star.path,
+                                    'reggae_output.csv']))
+        mixed = self.mpl_widget.get_mixed_modes(self.n, self.dnu,
+                        self.eps, dp1, epsg, q, d01)
+        np.savetxt(os.path.join(*[self.main_window.star.path,
+                            'reggae_mixed_frequencies.txt']),
+                            mixed, delimiter=',')
         self.main_window.mixed = mixed
         self.main_window.statusBar().showMessage('Saved')
 
@@ -337,10 +342,11 @@ class MyMplWidget(FigureCanvas):
         self.ax.plot(self.pg_smooth.frequency, self.pg_smooth.power, 'k-',
                      alpha=0.8, label='Data')
         self.ax.set_xlabel(r'Frequency ($\rm \mu Hz$)')
-        self.ax.set_ylabel(r'Power ($\rm ppm^2 \, \mu Hz^{-1}$)')
+        self.ax.set_ylabel(r'SNR')
         self.ax.set_xlim([self.pg.frequency.value.min(),
                           self.pg.frequency.value.max()])
-        self.ax.set_ylim([0, self.pg_smooth.power.value.max()*0.9])
+        self.ax.set_ylim([0, self.pg_smooth.power.value.max()*1.5])
+        self.fig.tight_layout()
 
     def plot_zero_two_model(self, n, dnu, eps, d01, d02, d03):
         ''' Plot the l=0, 2 modes '''

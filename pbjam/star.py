@@ -165,7 +165,7 @@ class star(plotting):
                                  savefig=make_plots)
             self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
                                    savefig=make_plots)
-            self.kde.plot_echelle(path=self.path, ID=self.ID, 
+            self.kde.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
 
     def run_asy_peakbag(self, norders=None, make_plots=False,
@@ -205,7 +205,7 @@ class star(plotting):
                                        savefig=make_plots)
             self.asy_fit.plot_corner(path=self.path, ID=self.ID,
                                        savefig=make_plots)
-            self.asy_fit.plot_echelle(path=self.path, ID=self.ID, 
+            self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
 
         if store_chains:
@@ -254,7 +254,7 @@ class star(plotting):
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
-            self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
+            self.peakbag.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
 
 
@@ -267,10 +267,7 @@ class star(plotting):
         '''
         global app
         app = QApplication(sys.argv)
-        dnu = 10**self.asy_fit.summary.loc['dnu']['mean']
-        numax = 10**self.asy_fit.summary.loc['numax']['mean']
-        epsilon = self.asy_fit.summary.loc['eps']['mean']
-        self.reggae = MyMainWindow(self.pg, dnu, numax, epsilon)
+        self.reggae = MyMainWindow(self)
         self.reggae.show()
         app.exit(app.exec_())
 
