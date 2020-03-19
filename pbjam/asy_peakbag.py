@@ -13,6 +13,7 @@ import scipy.stats as scist
 from .plotting import plotting
 from .jar import to_log10, normal
 from collections import OrderedDict
+import warnings
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
