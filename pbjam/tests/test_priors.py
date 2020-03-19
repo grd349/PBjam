@@ -1,14 +1,14 @@
 
-from __future__ import division, print_function
+# from __future__ import division, print_function
 
-import pytest
-import numpy as np
-from numpy.testing import (assert_almost_equal, assert_array_equal,
-                           assert_allclose)
-from ..priors import kde
+# import pytest
+# import numpy as np
+# from numpy.testing import (assert_almost_equal, assert_array_equal,
+#                            assert_allclose)
+# from ..priors import kde
 
-solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
-           0.5, -2.5, 1.5, 2.2, 0.0, 3.77, 0.8]
+# solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
+#            0.5, -2.5, 1.5, 2.2, 0.0, 3.77, 0.8]
 
 # def test_prior_init():
 #     ''' Test the kde init function '''
@@ -35,7 +35,6 @@ solar_p = [np.log10(135.0), np.log10(3050.0), 1.25,
 #         assert(len(prior.prior_data) == 100)
 #         prior.select_prior_data(numax=[np.log10(30.0), 1.0])
 #         assert(len(prior.prior_data) == 100)
-
 
 # #@pytest.mark.slow
 # #def test_make_kde():

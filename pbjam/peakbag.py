@@ -103,9 +103,7 @@ class peakbag(plotting):
         pars = [l0, l2, width, width, height, 0.7*height, back]
 
         self.start ={x:y for x,y in zip(self.parnames, pars)}
-#        self.start = {'l0': l0, 'l2': l2, 'width0': width, 'width2': width,
-#                      'height0': height, 'height2': height*0.7,
-#                      'back': np.ones(len(l0))}
+
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
     def remove_outsiders(self, l0, l2):
@@ -337,7 +335,7 @@ class peakbag(plotting):
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older
         try:
             rhatfunc = pm.diagnostics.gelman_rubin
-            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', warnings.DeprecationWarning)
+            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
         except:
             rhatfunc = pm.stats.rhat
         

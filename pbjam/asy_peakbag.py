@@ -320,9 +320,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.f = st.f
         self.s = st.s
         self.norders = norders
-        self.obs = {'dnu': st.dnu, 'numax': st.numax, 'teff': st.teff, 'bp_rp': st.bp_rp}
-        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
 
+        self._obs = st._obs
+        self._log_obs = st._log_obs          
+        self.prior_file = st.prior_file
+        
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
         self.start_samples = st.kde.samples
@@ -444,9 +446,9 @@ class asymptotic_fit(plotting, asymp_spec_model):
         lnlike = 0
 
         # Constraint from input obs
-        lnlike += normal(p[-2], *self.log_obs['teff'])
-        lnlike += normal(p[-1], *self.obs['bp_rp'])
-
+        lnlike += normal(p[-2], *self._log_obs['teff'])
+        lnlike += normal(p[-1], *self._obs['bp_rp'])
+        
         # Constraint from the periodogram
         mod = self.model(p)
         lnlike += -np.sum(np.log(mod) + self.s[self.sel] / mod)
