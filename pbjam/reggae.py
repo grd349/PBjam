@@ -24,6 +24,14 @@ class MyMainWindow(QMainWindow, plotting):
         self.numax = 10**self.star.asy_fit.summary.loc['numax']['mean']
         self.epsilon = self.star.asy_fit.summary.loc['eps']['mean']
         self.d02 = -10**self.star.asy_fit.summary.loc['d02']['mean']
+        self.norders = self.star.asy_fit.norders
+
+        self.n = np.arange(int(self.numax/self.dnu) - 5,
+                            int(self.numax/self.dnu) + 5, 1)
+
+        sel = np.where(np.abs(self.pg.frequency.value - self.numax) < 5 * self.dnu)
+        self.pg.frequency = self.pg.frequency[sel]
+        self.pg.power = self.pg.power[sel]
 
         self.mixed = []
         self.initUI()
@@ -329,7 +337,8 @@ class MyMplWidget(FigureCanvas):
 
     def set_nu(self, fac=4):
         ''' Sets the frquency array for the mixed algo '''
-        self.minnu, self.maxnu = self.star.asy_fit._get_freq_range()
+        self.minnu = self.star.pg.frequency.value.min()
+        self.maxnu = self.star.pg.frequency.value.max()
         self.nu = np.linspace(self.minnu, self.maxnu, len(self.star.pg.frequency.value)*fac)
         self.nu *= 1e-6
 
