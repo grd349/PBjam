@@ -277,13 +277,18 @@ class plotting():
             n = self.ladder_s.shape[0]
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
-            for i in range(n):
-                for j in range(-50, 0):
+            
+            for j in range(-50, 0):
+                
+                mod = self.model(*[self.samples[x][j] for x in par_names])
+                
+                for i in range(n):
+                
                     if (i == 0) and (j==-1):
                         label='Model'
                     else:
                         label=None
-                    mod = self.model(*[self.samples[x][j] for x in par_names])
+                    
                     ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=label)
 
