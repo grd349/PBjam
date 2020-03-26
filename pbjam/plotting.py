@@ -62,21 +62,21 @@ class plotting():
         Returns
         -------
         fig : Matplotlib figure object
-            Figure object to plot the echelle diagram in
+            Figure object with the echelle diagram.
 
         """
 
         freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
 
-        if type(self) == pbjam.star:
+        if isinstance(self, pbjam.star):#type(self) == pbjam.star:
             dnu = self.dnu[0]
             numax = self.numax[0]
 
-        elif type(self) == pbjam.priors.kde:
+        elif isinstance(self, pbjam.priors.kde): #type(self) == pbjam.priors.kde:
             dnu = 10**np.median(self.samples[:,0])
             numax = 10**np.median(self.samples[:,1])
 
-        elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
+        elif isinstance(self, pbjam.asy_peakbag.asymptotic_fit): #type(self) == pbjam.asy_peakbag.asymptotic_fit:
             dnu = 10**self.summary.loc['dnu', '50th']
             numax = 10**self.summary.loc['numax', '50th']
             for l in np.arange(4):
@@ -84,7 +84,7 @@ class plotting():
                 freqs['l'+str(l)]['nu'] = self.modeID.loc[idx, 'nu_med']
                 freqs['l'+str(l)]['err'] = self.modeID.loc[idx, 'nu_mad']
 
-        elif type(self) == pbjam.peakbag:
+        elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
             numax = 10**self.asy_result.summary.loc['numax', '50th']
             for l in np.arange(4):
                 ell = 'l'+str(l)
@@ -92,7 +92,7 @@ class plotting():
                 freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
             dnu = np.median(np.diff(freqs['l0']['nu']))
 
-        elif type(self) == pbjam.ellone:
+        elif isinstance(self, pbjam.ellone): #type(self) == pbjam.ellone:
             numax = 10**self.pbinst.asy_result.summary.loc['numax', '50th']
             for l in [0, 2]:
                 ell = 'l'+str(l)
@@ -160,8 +160,8 @@ class plotting():
 
         Returns
         -------
-        fig : object
-            Matplotlib figure object
+        fig : Matplotlib figure object
+            Figure object with the corner plot.
 
         """
 
@@ -199,8 +199,8 @@ class plotting():
 
         Returns
         -------
-        fig : object
-            Matplotlib figure object
+        fig : Matplotlib figure object
+            Figure object with the spectrum.
 
         """
 
@@ -226,10 +226,12 @@ class plotting():
         ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
 
         # Overplot kde diagnostic
-        if type(self) == pbjam.star:
+        
+       
+        if isinstance(self, pbjam.star): #type(self) == pbjam.star:
              xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
 
-        elif type(self) == pbjam.priors.kde:
+        elif isinstance(self, pbjam.priors.kde): #type(self) == pbjam.priors.kde:
             h = max(smoo)
             numax = 10**(np.median(self.samples[:, 1]))
             dnu = 10**(np.median(self.samples[:, 0]))
@@ -246,7 +248,7 @@ class plotting():
             xlim = [numax-5*dnu, numax+5*dnu]
 
         # Overplot asy_peakbag diagnostic
-        elif type(self) == pbjam.asy_peakbag.asymptotic_fit:
+        elif isinstance(self, pbjam.asy_peakbag.asymptotic_fit): #type(self) == pbjam.asy_peakbag.asymptotic_fit:
             for j in np.arange(-50,0):
                 if j==-1:
                     label='Model'
@@ -261,7 +263,7 @@ class plotting():
                     max(f[self.sel])+dnu]
 
         # Overplot peakbag diagnostic
-        elif type(self) == pbjam.peakbag:
+        elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
             n = self.ladder_s.shape[0]
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
@@ -279,7 +281,7 @@ class plotting():
             xlim = [min(f[self.asy_result.sel])-dnu,
                     max(f[self.asy_result.sel])+dnu]
 
-        elif type(self) == pbjam.ellone:
+        elif isinstance(self, pbjam.ellone): #type(self) == pbjam.ellone:
             n = self.pbinst.ladder_s.shape[0]
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
@@ -334,11 +336,8 @@ class plotting():
         idxs : list
             List of 2D indices that represent the diagonal. 
 
-        Returns
-        -------
-        None.
-
         """
+
         N = int(np.sqrt(len(axes)))
         axs = np.array(axes).reshape((N,N)).T
         
@@ -367,6 +366,7 @@ class plotting():
             List of 2D indices that represent the diagonal. 
 
         """
+        
         N = int(np.sqrt(len(axes)))
         axs = np.array(axes).reshape((N,N)).T
         
@@ -437,7 +437,8 @@ class plotting():
         Returns
         -------
         crnr : matplotlib figure object
-            Corner plot figure object containing NxN axis objects.        
+            Corner plot figure object containing NxN axis objects.
+            
         """
         
         df = pd.read_csv(self.prior_file)
@@ -469,8 +470,10 @@ class plotting():
         return crnr
     
     def plot_start(self):
-        """
+        """ Plot starting point for peakbag
+        
         Plots the starting model to be used in peakbag as a diagnotstic.
+        
         """
 
         dnu = 10**np.median(self.start_samples, axis=0)[0]
