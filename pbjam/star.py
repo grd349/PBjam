@@ -41,10 +41,12 @@ class star(plotting):
 
     path : str, optional
         The path at which to store output. If no path is set but make_plots is
-        True, output will be saved in the current working directory.
+        True, output will be saved in the current working directory. Default is
+        the current working directory.
  
     prior_file : str, optional
-        Path to the csv file containing the prior data   
+        Path to the csv file containing the prior data. Default is 
+        pbjam/data/prior_data.csv
 
     Attributes
     ----------
@@ -129,8 +131,8 @@ class star(plotting):
             Scaling factor for the KDE bandwidth. By default the bandwidth is
             automatically set, but may be scaled to adjust for sparsity of the 
             prior sample.
-        make_plots : bool
-            Whether or not to produce plots of the results.
+        make_plots : bool, optional
+            Whether or not to produce plots of the results. Default is False. 
 
         """
 
@@ -208,14 +210,14 @@ class star(plotting):
         model_type : str
             Can be either 'simple' or 'model_gp' which sets the type of mode 
             width model. Defaults is 'simple'. 
-        tune : int
-            Numer of tuning steps passed to pm.sample
-        nthreads : int
-            Number of processes to spin up in pymc3
-        make_plots : bool
-            Whether or not to produce plots of the results.
-        store_chains : bool
-            Whether or not to store MCMC chains on disk.
+        tune : int, optional
+            Numer of tuning steps passed to pm.sample. Default is 1500.
+        nthreads : int, optional.
+            Number of processes to spin up in pymc3. Default is 1.
+        make_plots : bool, optional.
+            Whether or not to produce plots of the results. Default is False.
+        store_chains : bool, optional.
+            Whether or not to store MCMC chains on disk. Default is False.
 
         """
 
@@ -248,25 +250,25 @@ class star(plotting):
         
         Parameters
         ----------
-        bw_fac : float
+        bw_fac : float, optional.
             Scaling factor for the KDE bandwidth. By default the bandwidth is
             automatically set, but may be scaled to adjust for sparsity of the 
-            prior sample.
-        norders : int
-            Number of orders to include in the fits
-        model_type : str
+            prior sample. Default is 1.
+        norders : int, optional.
+            Number of orders to include in the fits. Default is 8.
+        model_type : str, optional.
             Can be either 'simple' or 'model_gp' which sets the type of mode 
             width model. Defaults is 'simple'. 
-        tune : int
-            Numer of tuning steps passed to pm.sample
-        nthreads : int
-            Number of processes to spin up in pymc3
-        verbose : bool
-            Should PBjam say anything?
-        make_plots : bool
-            Whether or not to produce plots of the results.
-        store_chains : bool
-            Whether or not to store MCMC chains on disk. 
+        tune : int, optional
+            Numer of tuning steps passed to pm.sample. Default is 1500.
+        nthreads : int, optional.
+            Number of processes to spin up in pymc3. Default is 1.
+        verbose : bool, optional.
+            Should PBjam say anything? Default is False.
+        make_plots : bool, optional.
+            Whether or not to produce plots of the results. Default is False.
+        store_chains : bool, optional.
+            Whether or not to store MCMC chains on disk. Default is False.
             
         """
 
