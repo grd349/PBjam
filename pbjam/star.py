@@ -39,24 +39,12 @@ class star(plotting):
         List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
         of lists.
 
-    store_chains : bool, optional
-        Flag for storing all the full set of samples from the MCMC run.
-        Warning, if running multiple targets, make sure you have enough memory.
-
-    nthreads : int, optional
-        Number of multiprocessing threads to use to perform the fit. For long
-        cadence data 1 is best, more will just add parallelization overhead.
-        Untested on short cadence.
-
-    make_plots : bool, optional
-        If True, will save figures when calling methods in `star`.
-
     path : str, optional
         The path at which to store output. If no path is set but make_plots is
         True, output will be saved in the current working directory.
-
-    verbose : bool, optional
-        If True, will show error messages on the users terminal if they occur.
+ 
+    prior_file : str, optional
+        Path to the csv file containing the prior data   
 
     Attributes
     ----------
@@ -64,8 +52,6 @@ class star(plotting):
         Array of power spectrum frequencies
     s : array
         power spectrum
-    data_file : str
-        Path to the csv file containing the prior data
 
     """
 
@@ -74,13 +60,16 @@ class star(plotting):
 
         self.ID = ID
         self.pg = pg.flatten() # in case user supplies unormalized spectrum
-        self.f = self.pg.frequency.value
-        self.s = self.pg.power.value
-
+        
         self.numax = numax
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
+
+
+        self.f = self.pg.frequency.value
+        self.s = self.pg.power.value
+
         self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff, 'bp_rp': self.bp_rp}
         self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
@@ -134,15 +123,12 @@ class star(plotting):
         Starts by creating a KDE based on the prior data sample. Then samples
         this KDE for initial starting positions for asy_peakbag.
 
-        Also generates plots of the results and stores them in the star
-        directory.
-
         Parameters
         ----------
         bw_fac : float
-            Scaling factor for the KDE bandwidth. The bandwidth is
-            automatically, but may be scaled to adjust for, .e.g, sparsity of
-            the prior sample.
+            Scaling factor for the KDE bandwidth. By default the bandwidth is
+            automatically set, but may be scaled to adjust for sparsity of the 
+            prior sample.
         make_plots : bool
             Whether or not to produce plots of the results.
 
@@ -165,21 +151,21 @@ class star(plotting):
             self.kde.plot_echelle(path=self.path, ID=self.ID, 
                                   savefig=make_plots)
 
-    def run_asy_peakbag(self, norders=None, make_plots=False,
+    def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False):
-        """ Run all stesps involving asy_peakbag.
+        """ Run all steps involving asy_peakbag.
 
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
-        and outputs result plots and a summary of the fit results.
+        using initial guesses and prior for the fit parameters from KDE.
 
         Parameters
         ----------
         norders : int
-            Number of orders to include in the fits
-        make_plots : bool
-            Whether or not to produce plots of the results.
-        store_chains : bool
-            Whether or not to store MCMC chains on disk.
+            Number of orders to include in the fits.
+        make_plots : bool, optional
+            Whether or not to produce plots of the results. Default is False. 
+        store_chains : bool, optional
+            Whether or not to store MCMC chains on disk. Default is False.
 
         """
 
@@ -212,25 +198,24 @@ class star(plotting):
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
-        """  Run all stesps involving peakbag.
+        """  Run all steps involving peakbag.
 
-        Performs fit using simple lorentzian pairs two subsections of the
-        power spectrum based on results from asy_peakbag.
+        Performs fit using simple Lorentzian profile pairs to subsections of the
+        power spectrum, based on results from asy_peakbag.
 
         Parameters
         ----------
         model_type : str
-            Defaults to 'simple'.
-            Can be either 'simple' or 'model_gp' which sets the type of model
-            to be fitted to the data.
+            Can be either 'simple' or 'model_gp' which sets the type of mode 
+            width model. Defaults is 'simple'. 
         tune : int
             Numer of tuning steps passed to pm.sample
+        nthreads : int
+            Number of processes to spin up in pymc3
         make_plots : bool
             Whether or not to produce plots of the results.
         store_chains : bool
             Whether or not to store MCMC chains on disk.
-        nthreads : int
-            Number of processes to spin up in pymc3
 
         """
 
@@ -256,30 +241,33 @@ class star(plotting):
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 verbose=False, make_plots=True, store_chains=True, nthreads=1):
+                 nthreads=1, verbose=False, make_plots=True, store_chains=True):
         """ Perform all the PBjam steps
 
-
+        Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
+        
         Parameters
         ----------
         bw_fac : float
-            Scaling factor for the KDE bandwidth. The bandwidth is
-            automatically, but may be scaled to adjust for, .e.g, sparsity of
-            the prior sample.
+            Scaling factor for the KDE bandwidth. By default the bandwidth is
+            automatically set, but may be scaled to adjust for sparsity of the 
+            prior sample.
         norders : int
             Number of orders to include in the fits
         model_type : str
-            Defaults to 'simple'. Can be either 'simple' or 'model_gp' which
-            sets the type of model to be fit for the mode linewidths.
+            Can be either 'simple' or 'model_gp' which sets the type of mode 
+            width model. Defaults is 'simple'. 
         tune : int
             Numer of tuning steps passed to pm.sample
+        nthreads : int
+            Number of processes to spin up in pymc3
         verbose : bool
-            Should I say anything?
+            Should PBjam say anything?
         make_plots : bool
             Whether or not to produce plots of the results.
         store_chains : bool
-            Whether or not to store MCMC chains on disk.
-
+            Whether or not to store MCMC chains on disk. 
+            
         """
 
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
