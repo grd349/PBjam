@@ -1,15 +1,7 @@
 """ Module for a general set of plotting methods
 
-This module contains a set of plotting methods which are inherited by the
-different classes of PBjam.
-
-Contains:
-- Spectrum plot, including a best-fit model if available
-- Corner plot, showing the marginalized posteriors of each fit parameter (can become quite big for peakbag stage)
-- Echelle diagram
-
-As each step is completed, the resulting class instance will inherit the
-available plotting methods.
+These methods are inherited by the different classes of PBjam, so that they can
+be used to show the status of each step that has been performed. 
 
 """
 
@@ -17,12 +9,8 @@ import matplotlib.pyplot as plt
 import astropy.convolution as conv
 import pbjam, os, corner, warnings, logging
 import numpy as np
-from pymc3.gp.util import plot_gp_dist
 import astropy.units as u
-import pymc3 as pm
 import pandas as pd
-
-
 
 class plotting():
 
@@ -36,20 +24,18 @@ class plotting():
 
         Parameters
         ----------
-        fig : TYPE
-            DESCRIPTION.
-        figtype : TYPE
-            DESCRIPTION.
-        path : TYPE
-            DESCRIPTION.
-        ID : TYPE
-            DESCRIPTION.
-
-        Returns
-        -------
-        None.
+        fig : Matplotlib figure object
+            Figure object to be saved.
+        figtype : str
+            The type of figure in question. This is used to set the filename.
+        path : str, optional
+            Used along with savefig, sets the output directory to store the
+            figure. Default is to save the figure to the star directory.
+        ID : str, optional
+            ID of the target to be included in the filename of the figure.
 
         """
+        
         # TODO there should be a check if path is full filepath or just dir
 
         if path and ID:
@@ -63,13 +49,20 @@ class plotting():
 
         Parameters
         ----------
-        pg : periodogram
-            A lightkurve periodogram
-
+        pg : Lightkurve.periodogram object, optional
+            A lightkurve periodogram to plot the echelle diagram of
+        path : str, optional
+            Used along with savefig, sets the output directory to store the
+            figure. Default is to save the figure to the star directory.
+        ID : str, optional
+            ID of the target to be included in the filename of the figure.
+        savefig : bool
+            Whether or not to save the figure to disk. Default is False.
+        
         Returns
         -------
-        fig : figure
-            Matplotlib figure object
+        fig : Matplotlib figure object
+            Figure object to plot the echelle diagram in
 
         """
 
@@ -153,17 +146,17 @@ class plotting():
     def plot_corner(self, path=None, ID=None, savefig=False):
         """ Make corner plot of result.
         
-        Makes a nice corner plot of the fit parameters
+        Makes a nice corner plot of the fit parameters.
 
         Parameters
         ----------
-        path : str (optional)
+        path : str, optional
             Used along with savefig, sets the output directory to store the
-            figure.
-        ID : str (optional)
+            figure. Default is to save the figure to the star directory.
+        ID : str, optional
             ID of the target to be included in the filename of the figure.
         savefig : bool
-            Whether or not to save the figure to disk
+            Whether or not to save the figure to disk. Default is False.
 
         Returns
         -------
@@ -194,15 +187,15 @@ class plotting():
 
         Parameters
         ----------
-        pg : periodogram
-            A lightkurve periodogram
-        path : str (optional)
+        pg : Lightkurve.periodogram object, optional
+            A lightkurve periodogram to plot
+        path : str, optional
             Used along with savefig, sets the output directory to store the
-            figure.
-        ID : str (optional)
+            figure. Default is to save the figure to the star directory.
+        ID : str, optional
             ID of the target to be included in the filename of the figure.
         savefig : bool
-            Whether or not to save the figure to disk
+            Whether or not to save the figure to disk. Default is False.
 
         Returns
         -------
@@ -325,19 +318,21 @@ class plotting():
 
 
     def _fill_diag(self, axes, vals, vals_err, idxs):
-        """
+        """ Overplot diagnoal values along a corner plot diagonal.
         
+        Plots a set of specified values over the 1D histograms in the diagonal 
+        frames of a corner plot.
 
         Parameters
         ----------
-        axes : TYPE
-            DESCRIPTION.
-        vals : TYPE
-            DESCRIPTION.
-        vals_err : TYPE
-            DESCRIPTION.
-        idxs : TYPE
-            DESCRIPTION.
+        axes : Matplotlib axis object
+            The particular axis element to be plotted in.
+        vals : float
+            Mean values to plot.
+        vals_err : float
+            Error estimates for the value to be plotted.
+        idxs : list
+            List of 2D indices that represent the diagonal. 
 
         Returns
         -------
@@ -355,23 +350,21 @@ class plotting():
             axs[j,j].fill_betweenx(y=yrng, x1= v-ve[0], x2 = v+ve[-1], color = 'C3', alpha = 0.5)
     
     def _plot_offdiag(self, axes, vals, vals_err, idxs):
-        """ 
+        """ Overplot offdiagonal values in a corner plot.
         
+        Plots a set of specified values over the 2D histograms or scatter in the
+        off-diagonal frames of a corner plot.
 
         Parameters
         ----------
-        axes : TYPE
-            DESCRIPTION.
-        vals : TYPE
-            DESCRIPTION.
-        vals_err : TYPE
-            DESCRIPTION.
-        idxs : TYPE
-            DESCRIPTION.
-
-        Returns
-        -------
-        None.
+        axes : Matplotlib axis object
+            The particular axis element to be plotted in.
+        vals : float
+            Mean values to plot.
+        vals_err : float
+            Error estimates for the value to be plotted.
+        idxs : list
+            List of 2D indices that represent the diagonal. 
 
         """
         N = int(np.sqrt(len(axes)))
@@ -389,26 +382,34 @@ class plotting():
                 axs[j,k].errorbar(v, w, xerr=ve.reshape((2,1)), yerr=we.reshape((2,1)), fmt = 'o', ms = 10, color = 'C3')
 
     def _make_prior_corner(self, df, numax_rng = 100):
-        """
+        """ Show dataframe contents in a corner plot.
         
+        This is meant to be used to show the contents of the prior_data that is
+        used by KDE and Asy_peakbag. 
 
         Parameters
         ----------
-        df : TYPE
-            DESCRIPTION.
-        numax_rng : TYPE, optional
-            DESCRIPTION. The default is 100.
+        df : pandas.Dataframe object
+            Dataframe of the data to be shown in the corner plot.
+        numax_rng : float, optional
+            Range in muHz around the input numax to be shown in the corner plot.
+            The default is 100. 
 
         Returns
         -------
-        crnr : TYPE
-            DESCRIPTION.
-        TYPE
-            DESCRIPTION.
+        crnr : matplotlib figure object
+            Corner plot figure object containing NxN axis objects.
+        crnr_axs : list
+            List of axis objects from the crnr object.
 
         """
+        
         idx = abs(10**df['numax'] - self._obs['numax'][0]) <= numax_rng
         
+        # This is a temporary fix for disabling the 'Too few samples' warning 
+        # from corner.hist2d. The github bleeding edge version has 
+        # hist2d_kwargs = {'quiet': True}, but this isn't in the pip 
+        # installable version yet. March 2020.
         logging.disable(logging.WARNING)
         crnr = corner.corner(df.to_numpy()[idx,:-1], data_kwargs = {'alpha': 0.5}, labels = df.keys());
         logging.getLogger().setLevel(logging.WARNING)
@@ -418,7 +419,7 @@ class plotting():
 
 
     def plot_prior(self, path=None, ID=None, savefig=False):
-        """ Corner of result in relation to prior.
+        """ Corner of result in relation to prior sample.
         
         Create a corner plot showing the location of the star in relation to
         the rest of the prior.
@@ -426,20 +427,18 @@ class plotting():
         Parameters
         ----------
         path : str, optional
-            DESCRIPTION. The default is None.
+            Used along with savefig, sets the output directory to store the
+            figure. Default is to save the figure to the star directory.
         ID : str, optional
-            DESCRIPTION. The default is None.
-        savefig : bool, optional
-            DESCRIPTION. The default is False.
+            ID of the target to be included in the filename of the figure.
+        savefig : bool
+            Whether or not to save the figure to disk. Default is False.
 
-
+        Returns
+        -------
+        crnr : matplotlib figure object
+            Corner plot figure object containing NxN axis objects.        
         """
-        
-        
-        # This is a temporary fix for disabling the 'Too few samples' warning 
-        # from corner.hist2d. The github bleeding edge version has 
-        # hist2d_kwargs = {'quiet': True}, but this isn't in the pip 
-        # installable version yet. March 2020.
         
         df = pd.read_csv(self.prior_file)
         crnr, axes = self._make_prior_corner(df)
@@ -471,7 +470,7 @@ class plotting():
     
     def plot_start(self):
         """
-        Plots the starting model as a diagnotstic.
+        Plots the starting model to be used in peakbag as a diagnotstic.
         """
 
         dnu = 10**np.median(self.start_samples, axis=0)[0]
@@ -491,122 +490,105 @@ class plotting():
         ax.legend()
         return fig
 
-def plot_trace(stage):
-    """ Make a trace plot of the MCMC chains
-    """
 
-    import pymc3 as pm
-
-    if type(stage) == pbjam.priors.kde:
-        # TODO - make this work for kde
-        print('Traceplot for kde not yet implimented')
-
-    if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
-        # TODO - make this work for asy_peakbag
-        print('Traceplot for asy_peakbag not yet implimented')
-
-    if type(stage) == pbjam.peakbag:
-        pm.traceplot(stage.samples)
-
-# Asy_peakbag
-def plot_start(self):
-    """ Plots the starting model as a diagnotstic.
-    """
-
-    dnu = 10**np.median(self.start_samples, axis=0)[0]
-    xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
-    fig, ax = plt.subplots(figsize=[16,9])
-    ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-    smoo = dnu * 0.005 / (self.f[1] - self.f[0])
-    kernel = conv.Gaussian1DKernel(stddev=smoo)
-    smoothed = conv.convolve(self.s, kernel)
-    ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-    ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
-            'r-', label='Start model', alpha=0.7)
-    ax.set_ylim([0, smoothed.max()*1.5])
-    ax.set_xlim(xlim)
-    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-    ax.set_ylabel(r'SNR')
-    ax.legend()
-    return fig
-
-# Peakbag
-def plot_linewidth(self, thin=10):
-    """ Plot estimated line width as a function of scaled n.
-    """
-
-    fig, ax = plt.subplots(1, 2, figsize=[16,9])
-
-    if self.gp0 != []:
-
-        n_new = np.linspace(-0.2, 1.2, 100)[:,None]
-        with self.pm_model:
-            f_pred0 = self.gp0.conditional("f_pred0", n_new)
-            f_pred2 = self.gp2.conditional("f_pred2", n_new)
-            self.pred_samples = pm.sample_posterior_predictive(self.samples,
-                           vars=[f_pred0, f_pred2], samples=1000)
-        plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
-        plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
-
-        for i in range(0, len(self.samples), thin):
-            ax[0].scatter(self.n,
-                          self.samples['ln_width0'][i, :], c='k', alpha=0.3)
-            ax[1].scatter(self.n,
-                          self.samples['ln_width2'][i, :], c='k', alpha=0.3)
-
-
-    else:
-        for i in range(0, len(self.samples), thin):
-            ax[0].scatter(self.n,
-                          np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
-            ax[1].scatter(self.n,
-                          np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
-
-    ax[0].set_xlabel('normalised order')
-    ax[1].set_xlabel('normalised order')
-    ax[0].set_ylabel('ln line width')
-    ax[1].set_ylabel('ln line width')
-    ax[0].set_title('Radial modes')
-    ax[1].set_title('Quadrupole modes')
-    return fig
-
-def plot_height(self, thin=10):
-    """ Plots the estimated mode height.
-    """
-
-    fig, ax = plt.subplots(figsize=[16,9])
-    for i in range(0, len(self.samples), thin):
-        ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
-        ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
-    return fig
-
-def plot_ladder(self, thin=10, alpha=0.2):
-    """
-    Plots the ladder data and models from the samples
-
-    Parameters
-    ----------
-    thin: int
-        Uses every other thin'th value from the samkles, i.e. [::thin].
-    alpha: float64
-        The alpha to use for plotting the models from samples.
-
-    """
-
-    n = self.ladder_s.shape[0]
-    fig, ax = plt.subplots(n, figsize=[16,9])
-    for i in range(n):
-        for j in range(0, len(self.samples), thin):
-            mod = self.model(self.samples['l0'][j],
-                             self.samples['l2'][j],
-                             self.samples['width0'][j],
-                             self.samples['width2'][j],
-                             self.samples['height0'][j],
-                             self.samples['height2'][j],
-                             self.samples['back'][j])
-            ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
-        ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
-        ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
-    ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
-    fig.tight_layout()
-    return fig
+# =============================================================================
+# To be implemented later
+# =============================================================================
+#def plot_trace(stage):
+#    """ Make a trace plot of the MCMC chains
+#    """
+#
+#    import pymc3 as pm
+#
+#    if type(stage) == pbjam.priors.kde:
+#        # TODO - make this work for kde
+#        print('Traceplot for kde not yet implimented')
+#
+#    if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
+#        # TODO - make this work for asy_peakbag
+#        print('Traceplot for asy_peakbag not yet implimented')
+#
+#    if type(stage) == pbjam.peakbag:
+#        pm.traceplot(stage.samples)
+#
+#
+## Peakbag
+#def plot_linewidth(self, thin=10):
+#    """ Plot estimated line width as a function of scaled n.
+#    """
+#
+#    fig, ax = plt.subplots(1, 2, figsize=[16,9])
+#
+#    if self.gp0 != []:
+#
+#        n_new = np.linspace(-0.2, 1.2, 100)[:,None]
+#        with self.pm_model:
+#            f_pred0 = self.gp0.conditional("f_pred0", n_new)
+#            f_pred2 = self.gp2.conditional("f_pred2", n_new)
+#            self.pred_samples = pm.sample_posterior_predictive(self.samples,
+#                           vars=[f_pred0, f_pred2], samples=1000)
+#        plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
+#        plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
+#
+#        for i in range(0, len(self.samples), thin):
+#            ax[0].scatter(self.n,
+#                          self.samples['ln_width0'][i, :], c='k', alpha=0.3)
+#            ax[1].scatter(self.n,
+#                          self.samples['ln_width2'][i, :], c='k', alpha=0.3)
+#
+#
+#    else:
+#        for i in range(0, len(self.samples), thin):
+#            ax[0].scatter(self.n,
+#                          np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
+#            ax[1].scatter(self.n,
+#                          np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
+#
+#    ax[0].set_xlabel('normalised order')
+#    ax[1].set_xlabel('normalised order')
+#    ax[0].set_ylabel('ln line width')
+#    ax[1].set_ylabel('ln line width')
+#    ax[0].set_title('Radial modes')
+#    ax[1].set_title('Quadrupole modes')
+#    return fig
+#
+#def plot_height(self, thin=10):
+#    """ Plots the estimated mode height.
+#    """
+#
+#    fig, ax = plt.subplots(figsize=[16,9])
+#    for i in range(0, len(self.samples), thin):
+#        ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
+#        ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
+#    return fig
+#
+#def plot_ladder(self, thin=10, alpha=0.2):
+#    """
+#    Plots the ladder data and models from the samples
+#
+#    Parameters
+#    ----------
+#    thin: int
+#        Uses every other thin'th value from the samkles, i.e. [::thin].
+#    alpha: float64
+#        The alpha to use for plotting the models from samples.
+#
+#    """
+#
+#    n = self.ladder_s.shape[0]
+#    fig, ax = plt.subplots(n, figsize=[16,9])
+#    for i in range(n):
+#        for j in range(0, len(self.samples), thin):
+#            mod = self.model(self.samples['l0'][j],
+#                             self.samples['l2'][j],
+#                             self.samples['width0'][j],
+#                             self.samples['width2'][j],
+#                             self.samples['height0'][j],
+#                             self.samples['height2'][j],
+#                             self.samples['back'][j])
+#            ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
+#        ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
+#        ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
+#    ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+#    fig.tight_layout()
+#    return fig
