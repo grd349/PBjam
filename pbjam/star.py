@@ -180,9 +180,9 @@ class star(plotting):
 
         # Store
         outpath = lambda x: os.path.join(*[self.path, x])
-        self.asy_fit.summary.to_csv(outpath(f'asy_fit_summary_{self.ID}.csv'),
+        self.asy_fit.summary.to_csv(outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
                                     index=True, index_label='name')
-        self.asy_fit.modeID.to_csv(outpath(f'asy_fit_modeID_{self.ID}.csv'),
+        self.asy_fit.modeID.to_csv(outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
                                    index=False)
 
         if make_plots:
@@ -194,7 +194,7 @@ class star(plotting):
                                       savefig=make_plots)
 
         if store_chains:
-            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asy_peakbag_chains_{self.ID}.csv'), index=False)
+            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
 
 
