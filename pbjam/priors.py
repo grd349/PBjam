@@ -19,14 +19,19 @@ class kde(plotting):
     
     Examples
     --------
-    >>> K = pbjam.prior.kde()
-    >>> K(numax=[220.0, 3.0], dnu=[16.97, 0.01], teff=[4750, 100],
-          bp_rp = [1.34, 0.01])
-
+    Use KDE from the star class instance (recommended)
+    
     >>> st = pbjam.star(ID='KIC4448777', pg=pg, numax=[220.0, 3.0], 
                            dnu=[16.97, 0.01], teff=[4750, 100],
                            bp_rp = [1.34, 0.01])
     >>> st.run_kde()
+    
+    Using KDE on it's own.
+    
+    >>> K = pbjam.prior.kde()
+    >>> K(numax=[220.0, 3.0], dnu=[16.97, 0.01], teff=[4750, 100],
+          bp_rp = [1.34, 0.01])
+
     
     Parameters
     ----------
