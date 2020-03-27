@@ -300,7 +300,9 @@ def _lookup_cached_files(id, download_dir, ext):
     ext : str
         Fits file short/long cadence extension
     
-    return : list
+    Returns
+    -------
+    tgtfiles : list
         List of file names matching the search criteria
         
     """
@@ -602,95 +604,73 @@ class session():
         Target identifier, if custom timeseries/periodogram is provided it can
         be anything. Otherwise it must be resolvable by LightKurve so that it 
         can be download (KIC, TIC, EPIC, HD, etc.)
-
     numax : list, optional
         List of the form [numax, numax_error], list of lists for multiple
         targets
-
     dnu : list, optional
         List of the form [dnu, dnu_error], list of lists for multiple targets
-
     teff : list, optional
         List of the form [teff, teff_error], list of lists for multiple targets
-
     bp_rp : list, optional
         List of the form [bp_rp, bp_rp_error], list of lists for multiple
         targets
-
     timeseries : object, optional
         Timeseries input. Leave as None for PBjam to download it automatically.
         Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
         strings for pathnames are accepted.
-
     psd : object, optional
         Periodogram input. Leave as None for PBjam to use Timeseries to compute
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
-
     dictlike : pandas.DataFrame or dictionary, optional
         DataFrame, dictionary, record array with a list of targets, and their
         properties. If string, PBjam will assume it's a pathname to a csv file.
         Specify timeseries and psd columns with file pathnames to use manually
         reduced data.
-
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
-
     nthreads : int
         Number of multiprocessing threads to use to perform the HMC peakbag 
         fit. 
-
     use_cached : bool, optional
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
-
     cadence : string, optional
         Argument for lightkurve to download correct data type. Can be 'short'
         or 'long'. 'long' is default setting, so if you're looking at main
-        sequence stars, make sure to manually set 'short'.
-    
+        sequence stars, make sure to manually set 'short'.    
     campaign : int, optional
         Argument for lightkurve when requesting K2 data.
-
     sector : int, optional
         Argument for lightkurve when requesting TESS data.
-
     month : int, optional
         Argument for lightkurve when requesting Kepler short cadence data.
-
     quarter : int, optional
-        Argument for lightkurve when requesting Kepler data.
-    
+        Argument for lightkurve when requesting Kepler data.    
     mission : str, optional
         Which mission to use data from. Default is all, so if your target has
         been observed by, e.g., both Kepler and TESS, LightKurve will throw
         and error.
-
     make_plots : bool, optional
         Whether or not to automatically generate diagnostic plots for the 
-        different stages of the peakbagging process.
-    
+        different stages of the peakbagging process.    
     path : str, optional
         Path to store the plots and results for the various stages of the 
-        peakbagging process.
-    
+        peakbagging process.    
     download_dir : str, optional
         Directory to cache lightkurve downloads. Lightkurve will place the fits
-        files in the default lightkurve cache path in your home directory. 
-    
+        files in the default lightkurve cache path in your home directory.     
     model_type : str, optional
         Argument passed to peakbag, defines which model type to be used to 
         represent the mode linewidths. Options are 'simple' or 'model_gp'.
-        
-    
+           
     Attributes
     ----------
 
     stars : list
         Session will store star class instances in this list, based on the
-        requested targets.
-    
+        requested targets.   
     pb_model_type : str
         Model to use for the mode widths in peakbag.
        
@@ -765,20 +745,20 @@ class session():
         bw_fac : float, optional.
             Scaling factor for the KDE bandwidth. By default the bandwidth is
             automatically set, but may be scaled to adjust for sparsity of the 
-            prior sample. Default is 1.
+            prior sample. Default is 1.            
         norders : int, optional.
-            Number of orders to include in the fits. Default is 8.
+            Number of orders to include in the fits. Default is 8.            
         model_type : str, optional.
             Can be either 'simple' or 'model_gp' which sets the type of mode 
-            width model. Defaults is 'simple'. 
+            width model. Defaults is 'simple'.             
         tune : int, optional
-            Numer of tuning steps passed to pm.sample. Default is 1500.
+            Numer of tuning steps passed to pm.sample. Default is 1500.         
         nthreads : int, optional.
-            Number of processes to spin up in pymc3. Default is 1.
+            Number of processes to spin up in pymc3. Default is 1.    
         verbose : bool, optional.
             Should PBjam say anything? Default is False.
         make_plots : bool, optional.
-            Whether or not to produce plots of the results. Default is False.
+            Whether or not to produce plots of the results. Default is False.            
         store_chains : bool, optional.
             Whether or not to store MCMC chains on disk. Default is False.
             
