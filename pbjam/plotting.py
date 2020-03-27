@@ -13,7 +13,17 @@ import astropy.units as u
 import pandas as pd
 
 class plotting():
-
+    """ Class inherited by PBjam modules to plot results
+    
+    This is used to standardize the plots produced at various steps of the 
+    peakbagging process. 
+    
+    As PBjam class is initialized, these plotting methods will be inherited.
+    The methods will plot the relevant result based on the class they are being
+    called from. 
+    
+    """
+    
     def __init__(self):
         pass
 
@@ -102,7 +112,6 @@ class plotting():
             freqs['l1']['err'] = self.nu_l1_std
 
             dnu = np.median(np.diff(freqs['l0']['nu']))
-
 
         else:
             raise ValueError('Unrecognized class type')
@@ -224,9 +233,7 @@ class plotting():
         kernel = conv.Gaussian1DKernel(stddev=fac)
         smoo = conv.convolve(s, kernel)
         ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
-
-        # Overplot kde diagnostic
-        
+       
        
         if isinstance(self, pbjam.star): #type(self) == pbjam.star:
              xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
@@ -247,7 +254,6 @@ class plotting():
            
             xlim = [numax-5*dnu, numax+5*dnu]
 
-        # Overplot asy_peakbag diagnostic
         elif isinstance(self, pbjam.asy_peakbag.asymptotic_fit): #type(self) == pbjam.asy_peakbag.asymptotic_fit:
             for j in np.arange(-50,0):
                 if j==-1:
@@ -262,7 +268,6 @@ class plotting():
             xlim = [min(f[self.sel])-dnu,
                     max(f[self.sel])+dnu]
 
-        # Overplot peakbag diagnostic
         elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
             n = self.ladder_s.shape[0]
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',

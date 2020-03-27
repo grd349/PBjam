@@ -13,37 +13,40 @@ class star(plotting):
 
     Note spectrum is flattened (background divided out.)
 
+    Examples
+    --------
+    Peakbag using the star class. Note that the star class only takes Lightkurve
+    periodograms, pg, as spectrum input. 
+
+    >>> st = pbjam.star(ID='KIC4448777', pg=pg, numax=[220.0, 3.0], 
+                           dnu=[16.97, 0.01], teff=[4750, 100],
+                           bp_rp = [1.34, 0.01])
+    >>> st(make_plots=True)
+
     Parameters
     ----------
     ID : string, int
         Target identifier. If custom timeseries/periodogram is provided, it
         must be resolvable by LightKurve (KIC, TIC, EPIC, HD, etc.).
-
     pg : lightkurve.periodogram.Periodogram object
         A lightkurve periodogram object containing frequencies in units of
         microhertz and power (in arbitrary units).
-
     numax : list
         List of the form [numax, numax_error]. For multiple targets, use a list
         of lists.
-
     dnu : list
         List of the form [dnu, dnu_error]. For multiple targets, use a list
         of lists.
-
     teff : list
         List of the form [teff, teff_error]. For multiple targets, use a list
         of lists.
-
     bp_rp : list
         List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
         of lists.
-
     path : str, optional
         The path at which to store output. If no path is set but make_plots is
         True, output will be saved in the current working directory. Default is
-        the current working directory.
- 
+        the current working directory. 
     prior_file : str, optional
         Path to the csv file containing the prior data. Default is 
         pbjam/data/prior_data.csv
