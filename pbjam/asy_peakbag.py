@@ -1,9 +1,9 @@
 """
 
 This module fits the asymptotic relation to the p-modes in a frequency range
-around nu_max, the central frequency of the seismic mode envelope,
-in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are currently
-ignored.
+around $\nu_{max}$, the central frequency of the seismic mode envelope,
+in a solar-like oscillator. Only $l=0$ and $l=2$ are fit, $l=1$ modes are 
+currently ignored.
 
 """
 
@@ -322,6 +322,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
     """
 
     def __init__(self, st, norders=None):
+        
+        self.pg = st.pg
         self.f = st.f
         self.s = st.s
         self.norders = norders
@@ -347,11 +349,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
         Parameters
         ----------
         dnu : list
-            Large frequency spacing and uncertainty
+            Large frequency spacing and uncertainty.
         numax : list
-            Frequency of maximum power and uncertainty
+            Frequency of maximum power and uncertainty.
         teff : list
-            Stellar effective temperature and uncertainty
+            Stellar effective temperature and uncertainty.
         bp_rp : list
             The Gaia Gbp - Grp color value and uncertainty
             (probably ~< 0.01 dex).

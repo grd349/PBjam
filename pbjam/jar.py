@@ -1,3 +1,9 @@
+"""
+
+This module contains general purpose functions that are used throughout PBjam.
+
+"""
+
 from . import PACKAGEDIR
 import os
 import numpy as np

@@ -1,3 +1,10 @@
+"""
+
+The priors module contains the KDE class, which is used to construct the prior
+for `asy_peakbag' as well as providing the initial starting location .
+
+"""
+
 import numpy as np
 import pandas as pd
 from .mcmc import mcmc

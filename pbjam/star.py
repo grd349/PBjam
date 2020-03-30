@@ -1,3 +1,19 @@
+"""
+
+The `star' class is the core of PBjam and refers to a single target that is to 
+be peakbagged. Each `star' instance is assigned an ID and physical input 
+parameters, as well as a time series or power spectrum. 
+
+The different steps in the peakbagging process are then passed the `star' 
+instance, updating it with the results of each step. The outputs of each step
+are stored in a dedicated directory created with the star ID.
+
+The `session' class wraps one or more star class instances and peakbags them all
+sequentially. The recommended use of PBjam is the use the `session' class, and
+only use the `star' class for more granular control of the peakbagging process.
+
+"""
+
 import os
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
@@ -187,7 +203,6 @@ class star(plotting):
                                     index=True, index_label='name')
         self.asy_fit.modeID.to_csv(outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
                                    index=False)
-
         if make_plots:
             self.asy_fit.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)

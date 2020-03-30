@@ -1,5 +1,9 @@
-#import matplotlib
-#matplotlib.use('Agg')
+"""
+
+This module is used for constructing a `PyMC3' model of the power spectrum using
+the outputs from asy_peakbag as priors. 
+
+"""
 
 import numpy as np
 import pymc3 as pm
@@ -10,7 +14,7 @@ class peakbag(plotting):
     """ Class for the final peakbagging.
 
     This class is used after getting the frequency intervals from asy_peakbag,
-    that include the l=0,2 mode pairs. 
+    that include the $l=0,2$ mode pairs. 
     
     The
 
@@ -25,7 +29,7 @@ class peakbag(plotting):
     >>> st.run_asy_peakbag(norders=7)
     >>> st.run_peakbag()
 
-    Using peakbag on it's own. Requires output from asy_peakbag.
+    Using peakbag on it's own. Requires output from `asy_peakbag'.
     
     >>> pb = pbjam.peakbag(st.asy_fit)
     >>> pb()
