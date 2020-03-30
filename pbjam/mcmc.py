@@ -5,7 +5,6 @@ Samplers added to PBjam should be called from this module.
 
 """
 
-
 import emcee
 import numpy as np
 import scipy.stats as st

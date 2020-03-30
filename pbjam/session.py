@@ -9,7 +9,7 @@ that way, but it's simpler to just use the session class, which handles
 everything, including formatting of the inputs.
 
 A PBjam session is started by initializing the session class instance with a
-target ID, numax, a large separation, effective temperature and Gaia bp_rp 
+target ID, $\nu_{max}$, a large separation, effective temperature and Gaia bp_rp 
 color. The class instance is the called to run through all the peakbagging 
 steps automatically. See the Session class documentation for an example.
 
@@ -18,9 +18,9 @@ to just provide PBjam with a dictionary or Pandas dataframe. See mytgts.csv
 for a template.
 
 Custom timeseries or periodograms can be provided as either file pathnames,
-numpy arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
+`numpy' arrays, or lightkurve.LightCurve/lightkurve.periodogram objects. If
 nothing is provided PBjam will download the data automatically using 
-LightKurve.
+`LightKurve'.
 
 Specific quarters, campgains or sectors can be requested with the relevant
 keyword (i.e., 'quarter' for KIC, etc.). If none of these are provided, PBjam
@@ -41,7 +41,7 @@ Plotting the results of each stage is also possible.
 Note
 ----
 For automatic download the long cadence data set is used by default, so set
-the cadence to 'short' for main-sequence targets.
+the cadence to `short' for main-sequence targets.
 
 """
 

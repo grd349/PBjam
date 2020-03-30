@@ -1,7 +1,8 @@
-""" Module for a general set of plotting methods
+""" 
 
-These methods are inherited by the different classes of PBjam, so that they can
-be used to show the status of each step that has been performed. 
+This module contains a general set of plotting methods for that are inherited by
+the different classes of PBjam, so that they can be used to show the status of 
+each step that has been performed. 
 
 """
 
