@@ -62,9 +62,9 @@ class star(plotting):
     path : str, optional
         The path at which to store output. If no path is set but make_plots is
         True, output will be saved in the current working directory. Default is
-        the current working directory. 
+        the current working directory.
     prior_file : str, optional
-        Path to the csv file containing the prior data. Default is 
+        Path to the csv file containing the prior data. Default is
         pbjam/data/prior_data.csv
 
     Attributes
@@ -77,21 +77,22 @@ class star(plotting):
     """
 
     def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None,
-                 prior_file = None):
+                 prior_file=None):
 
         self.ID = ID
-        self.pg = pg.flatten() # in case user supplies unormalized spectrum
-        
+        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
+
         self.numax = numax
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
 
-
         self.f = self.pg.frequency.value
         self.s = self.pg.power.value
 
-        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff, 'bp_rp': self.bp_rp}
+        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
+                     'bp_rp': self.bp_rp}
+
         self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self._set_path(path)
@@ -102,17 +103,36 @@ class star(plotting):
         else:
             self.prior_file = prior_file
 
+    def _outpath(self, x):
+        """ Shorthand for setting the full output path
+
+        TODO: optionally could be generallized to all of pbjam and do more 
+        advanced checks to see if the dir exists etc.
+
+        Parameters
+        ----------
+        x : str
+            Base filename
+
+        Returns
+        -------
+        outpath : str
+            Full output pathname
+        """
+
+        return os.path.join(*[self.path, x])
+
     def _set_path(self, path):
         """ Sets the path attribute for star
-        
-        If path is a string it is assumed to be a path name, if not the 
-        current working directory will be used. 
-        
+
+        If path is a string it is assumed to be a path name, if not the
+        current working directory will be used.
+
         Parameters
         ----------
         path : str
             Directory to store peakbagging output.
-        
+
         """
 
         if isinstance(path, str):
@@ -120,7 +140,7 @@ class star(plotting):
             self.path = os.path.join(*[path, f'{self.ID}'])
         else:
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
-            
+
     def _make_output_dir(self):
         """ Make output directory for star
 
@@ -148,10 +168,10 @@ class star(plotting):
         ----------
         bw_fac : float
             Scaling factor for the KDE bandwidth. By default the bandwidth is
-            automatically set, but may be scaled to adjust for sparsity of the 
+            automatically set, but may be scaled to adjust for sparsity of the
             prior sample.
         make_plots : bool, optional
-            Whether or not to produce plots of the results. Default is False. 
+            Whether or not to produce plots of the results. Default is False.
 
         """
 
@@ -169,7 +189,7 @@ class star(plotting):
                                  savefig=make_plots)
             self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
                                    savefig=make_plots)
-            self.kde.plot_echelle(path=self.path, ID=self.ID, 
+            self.kde.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
 
     def run_asy_peakbag(self, norders, make_plots=False,
@@ -184,7 +204,7 @@ class star(plotting):
         norders : int
             Number of orders to include in the fits.
         make_plots : bool, optional
-            Whether or not to produce plots of the results. Default is False. 
+            Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional
             Whether or not to store MCMC chains on disk. Default is False.
 
@@ -198,36 +218,33 @@ class star(plotting):
         self.asy_fit()
 
         # Store
-        outpath = lambda x: os.path.join(*[self.path, x])
-        self.asy_fit.summary.to_csv(outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
+        self.asy_fit.summary.to_csv(self._outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
                                     index=True, index_label='name')
-        self.asy_fit.modeID.to_csv(outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
+        self.asy_fit.modeID.to_csv(self._outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
                                    index=False)
         if make_plots:
             self.asy_fit.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
             self.asy_fit.plot_corner(path=self.path, ID=self.ID,
-                                       savefig=make_plots)
-            self.asy_fit.plot_echelle(path=self.path, ID=self.ID, 
+                                     savefig=make_plots)
+            self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
 
         if store_chains:
-            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
-
-
+            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(self._outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
 
-        Performs fit using simple Lorentzian profile pairs to subsections of the
-        power spectrum, based on results from asy_peakbag.
+        Performs fit using simple Lorentzian profile pairs to subsections of 
+        the power spectrum, based on results from asy_peakbag.
 
         Parameters
         ----------
         model_type : str
-            Can be either 'simple' or 'model_gp' which sets the type of mode 
-            width model. Defaults is 'simple'. 
+            Can be either 'simple' or 'model_gp' which sets the type of mode
+            width model. Defaults is 'simple'.
         tune : int, optional
             Numer of tuning steps passed to pm.sample. Default is 1500.
         nthreads : int, optional.
@@ -247,12 +264,11 @@ class star(plotting):
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
 
         # Store
-        outpath = lambda x: os.path.join(*[self.path, x])
-        self.peakbag.summary.to_csv(outpath(f'peakbag_summary_{self.ID}.csv'),
+        self.peakbag.summary.to_csv(self._outpath(f'peakbag_summary_{self.ID}.csv'),
                                     index_label='name')
 
         if store_chains:
-            pass # TODO need to pickle the samples if requested.
+            pass  # TODO need to pickle the samples if requested.
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
