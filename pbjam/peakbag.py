@@ -41,7 +41,7 @@ class peakbag(plotting):
         around numax.
     snr : float, array
         Array of SNR values for the frequency bins in f (dimensionless).
-    asy_result : asy_result
+    asy_fit : asy_fit
         The result from the asy_peakbag method.
     init : bool
         If true runs make_start and trim_ladder to prepare starting
@@ -54,7 +54,7 @@ class peakbag(plotting):
         around numax.
     snr : float, ndarray
         Array of SNR values for the frequency bins in f (dimensionless).
-    asy_result : asy_result
+    asy_fit : asy_fit
         The result from the asy_peakbag method.
         This is a dictionary of 'modeID' and 'summary'.
         'modeID' is a DataFrame with a list of modes and basic properties.
@@ -63,14 +63,13 @@ class peakbag(plotting):
 
     """
 
-    def __init__(self, starinst, asyinst, init=True, path=None,
-                       verbose=False):
+    def __init__(self, starinst, init=True, path=None,  verbose=False):
 
         self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
-        self.asy_result = asyinst
-        self.norders = asyinst.norders
+        self.asy_fit = starinst.asy_fit
+        self.norders = self.asy_fit.norders
         if init:
             self.make_start()
             self.trim_ladder(verbose=verbose)
@@ -87,18 +86,18 @@ class peakbag(plotting):
 
         """
 
-        idxl0 = self.asy_result.modeID.ell == 0
-        idxl2 = self.asy_result.modeID.ell == 2
+        idxl0 = self.asy_fit.modeID.ell == 0
+        idxl2 = self.asy_fit.modeID.ell == 2
 
-        l0 = self.asy_result.modeID.loc[idxl0, 'nu_med'].values.flatten()
-        l2 = self.asy_result.modeID.loc[idxl2, 'nu_med'].values.flatten()
+        l0 = self.asy_fit.modeID.loc[idxl0, 'nu_med'].values.flatten()
+        l2 = self.asy_fit.modeID.loc[idxl2, 'nu_med'].values.flatten()
 
         l0, l2 = self.remove_outsiders(l0, l2)
 
-        width = 10**(np.ones(len(l0)) * self.asy_result.summary.loc['mode_width', 'mean']).flatten()
-        height =  (10**self.asy_result.summary.loc['env_height', 'mean'] * \
-                 np.exp(-0.5 * (l0 - 10**self.asy_result.summary.loc['numax', 'mean'])**2 /
-                 (10**self.asy_result.summary.loc['env_width', 'mean'])**2)).flatten()
+        width = 10**(np.ones(len(l0)) * self.asy_fit.summary.loc['mode_width', 'mean']).flatten()
+        height =  (10**self.asy_fit.summary.loc['env_height', 'mean'] * \
+                 np.exp(-0.5 * (l0 - 10**self.asy_fit.summary.loc['numax', 'mean'])**2 /
+                 (10**self.asy_fit.summary.loc['env_width', 'mean'])**2)).flatten()
         back = np.ones(len(l0))
 
         self.parnames = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
@@ -137,7 +136,7 @@ class peakbag(plotting):
 
         Each pair is constructed so that the central frequency is
         the mid point between the l=0 and l=2 modes as determined by the
-        information in the asy_result dictionary.
+        information in the asy_fit dictionary.
 
         Parameters
         ----------
@@ -150,9 +149,9 @@ class peakbag(plotting):
 
         """
 
-        d02 = 10**self.asy_result.summary.loc['d02', 'mean']
-        d02_lw = d02 + lw_fac * 10**self.asy_result.summary.loc['mode_width', 'mean']
-        w = d02_lw + (extra * 10**self.asy_result.summary.loc['dnu', 'mean'])
+        d02 = 10**self.asy_fit.summary.loc['d02', 'mean']
+        d02_lw = d02 + lw_fac * 10**self.asy_fit.summary.loc['mode_width', 'mean']
+        w = d02_lw + (extra * 10**self.asy_fit.summary.loc['dnu', 'mean'])
         bw = self.f[1] - self.f[0]
         w /= bw
         if verbose:
@@ -255,7 +254,7 @@ class peakbag(plotting):
 
         self.pm_model = pm.Model()
 
-        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
+        dnu = 10**self.asy_fit.summary.loc['dnu', 'mean']
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
         width_fac = 1.0 # Lognorrmal prior on width has std=1.0.

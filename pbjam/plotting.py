@@ -96,7 +96,7 @@ class plotting():
                 freqs['l'+str(l)]['err'] = self.modeID.loc[idx, 'nu_mad']
 
         elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
-            numax = 10**self.asy_result.summary.loc['numax', '50th']
+            numax = 10**self.asy_fit.summary.loc['numax', '50th']
             for l in np.arange(4):
                 ell = 'l'+str(l)
                 freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
@@ -104,7 +104,7 @@ class plotting():
             dnu = np.median(np.diff(freqs['l0']['nu']))
 
         elif isinstance(self, pbjam.ellone): #type(self) == pbjam.ellone:
-            numax = 10**self.pbinst.asy_result.summary.loc['numax', '50th']
+            numax = 10**self.pbinst.asy_fit.summary.loc['numax', '50th']
             for l in [0, 2]:
                 ell = 'l'+str(l)
                 freqs[ell]['nu'] = self.pbinst.summary.filter(like=ell, axis=0).loc[:, 'mean']
@@ -283,9 +283,9 @@ class plotting():
                     ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=label)
 
-            dnu = 10**self.asy_result.summary.loc['dnu', '50th']
-            xlim = [min(f[self.asy_result.sel])-dnu,
-                    max(f[self.asy_result.sel])+dnu]
+            dnu = 10**self.asy_fit.summary.loc['dnu', '50th']
+            xlim = [min(f[self.asy_fit.sel])-dnu,
+                    max(f[self.asy_fit.sel])+dnu]
 
         elif isinstance(self, pbjam.ellone): #type(self) == pbjam.ellone:
             n = self.pbinst.ladder_s.shape[0]
@@ -304,10 +304,10 @@ class plotting():
 
                 ax.axvline(self.nu_l1, color = 'k', alpha = 0.5, label = l1label)
 
-            dnu = 10**self.pbinst.asy_result.summary.loc['dnu', '50th']
+            dnu = 10**self.pbinst.asy_fit.summary.loc['dnu', '50th']
 
-            xlim = [min(f[self.pbinst.asy_result.sel])-dnu,
-                    max(f[self.pbinst.asy_result.sel])+dnu]
+            xlim = [min(f[self.pbinst.asy_fit.sel])-dnu,
+                    max(f[self.pbinst.asy_fit.sel])+dnu]
 
         else:
             raise ValueError('Unrecognized class type')
