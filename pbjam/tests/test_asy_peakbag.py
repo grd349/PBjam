@@ -62,8 +62,8 @@ def test_prior_function():
     func = st.asy_fit.prior
     inp = [cs.pars['asypars']]
 
-    pbt.does_it_return(st.asy_fit.prior, inp)
-    pbt.right_type(st.asy_fit.prior, inp, float)
+    pbt.does_it_return(func, inp)
+    pbt.right_type(func, inp, float)
         
     assert(func(*inp)==-np.inf)
     
@@ -72,7 +72,7 @@ def test_likelihood_function():
     func = st.asy_fit.likelihood
     inp = [cs.pars['asypars']]
     
-    pbt.does_it_return(st.asy_fit.prior, inp)
+    pbt.does_it_return(func, inp)
     pbt.right_type(func, inp, float)
 
     assert(np.isnan(func(*inp)))
@@ -225,8 +225,7 @@ def test_pair():
     pbt.right_shape(func, inp, np.shape(cs.st.f))
     
     assert_array_equal(func(*inp), [1.2,  1.35])
-
-        
+   
 def test_model():
     norders = cs.pars['norders']
     
@@ -241,8 +240,6 @@ def test_model():
     pbt.right_shape(func, inp, np.shape(cs.st.f))
     
     assert_allclose(func(*inp), [7.93069307, 7.73076923], atol = 0.001)
-
-
 
 def test_asymp_spec_model_call():
     norders = cs.pars['norders']
@@ -260,5 +257,7 @@ def test_asymp_spec_model_call():
     assert_allclose(mod(inp), mod.model(*inp))
 
         
-# Testing the asymptotic_fit_call should go in the slow test group
+# The test functions below require longer runs and are not suitable for GitHub
+# workflows. the mark.slow decorator doesn't seem to work with GitHub workflows.
+    
 # #def test_asymptotic_fit_call():

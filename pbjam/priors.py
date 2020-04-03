@@ -70,18 +70,17 @@ class kde(plotting):
             self.prior_file = get_priorpath()
 
         self.verbose = False
-        self.prior_data = pd.read_csv(self.prior_file)
 
     def select_prior_data(self, numax=None, KDEsize = 100):
         """ Selects useful prior data based on proximity to estimated numax.
 
         Selects a subset of targets around input numax to use for computing the
         KDE. If the number of targets in the range considered for the prior is
-        less than 100, the range will be expanded until it ~100. This is to
-        ensure that the KDE can be constructed. If the initial range includes
-        more than 100 targets (e.g., in dense parts of the RGB) the selection
-        of targets will be downsampled randomly. The range is expanded to a 
-        maximum of 20sigma.
+        less than KDEsize, the range will be expanded until it ~KDEsize. This is
+        to ensure that the KDE can be constructed. If the initial range includes
+        more than KDEsize targets (e.g., in dense parts of the RGB) the 
+        selection of targets will be downsampled randomly. The range is expanded
+        to a maximum of $20\sigma$.
 
         Notes
         -----
@@ -98,90 +97,74 @@ class kde(plotting):
 
         """
 
-        if not numax:
-            return self.prior_data
+        pdata = pd.read_csv(self.prior_file)
 
-        # Select numax range and expand if needed
-        idx = self._prior_expand_check(numax, KDEsize)
-        
-        # Downsample to KDEsize
-        self.prior_data = self._downsample_prior_check(idx, KDEsize)
+        if numax is None:
+            self.prior_data = pdata
+        else:
+            # Select numax range and expand if needed
+            self.prior_data = self._prior_size_check(pdata, numax, KDEsize)
 
-
-    def _downsample_prior_check(self, idx, KDEsize):
-        """ Reduce prior sample size
-
-        If the number of targets in the range around the input numax is greater
-        than the requested size, KDEsize samples will be drawn from the 
-        distribution within that range
-
-        Notes
-        -----
-        The sampling is done uniformly in numax. Multiplying idx by a Gaussian 
-        can be done to change this to a normal distribution. This hasn't been
-        tested yet though.
-
-        Parameters
-        ----------
-        idx : boolean array
-            Array of length equal to the total prior data sample that will be 
-            used to compute the KDE. 1 for targets that are included in the 
-            KDE estimation, and 0 otherwise. 
-        KDEsize : int
-            The requested number of targets to include in the KDE estimation.
-            Resampling is done to meet this number of targets.
-
-        """
-        
-        if len(idx[idx==1]) < KDEsize:
-            warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
-            KDEsize = len(idx[idx==1])
-            
-        return self.prior_data.sample(KDEsize, weights = idx, replace = False)
-
-    def _prior_expand_check(self, numax, KDEsize, nsigma = 1):
+    def _prior_size_check(self, pdata, numax, KDEsize):
         """ Expand numax interval to reach sufficient KDE sample size
 
         If necessary, increases the range around starting numax, until the 
         sample contains at least KDEsize targets.
+        
+        Otherwise if the number of targets in the range around the input numax 
+        is greater than KDEsize, KDEsize samples will be drawn from the 
+        distribution within that range.
+
+        Notes
+        -----
+        If downsampling is necessary it is done uniformly in numax. Multiplying 
+        idx by a Gaussian can be done to change this to a normal distribution. 
+        This hasn't been tested yet though.
 
         Parameters
         ----------
         numax : length 2 list [numax, numax_err]
             The estimate of numax and uncertainty in log-scale.
         KDEsize : int
-            Number of targets to include in the KDE estimation.            
-        nsigma : int
-            Number of sigma to start at to select the targets near the input
-            numax. This value is increased if number of targets is < KDEsize.
-            Default is 1 sigma.
+            Number of targets to include in the KDE estimation.             
 
         Returns
         -------
-        idx : boolean array
+        prior_data : panda
             Array of length equal to the total prior data sample that will be 
             used to compute the KDE. 1 for targets that are included in the 
             KDE estimation, and 0 otherwise.
 
         """
 
-        idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+        nsigma = 1
+        
+        idx = np.abs(pdata.numax.values - numax[0]) < nsigma * numax[1]
 
         flag_warn = False
-        while len(self.prior_data[idx]) < KDEsize:
-            idx = np.abs(self.prior_data.numax.values - numax[0]) < nsigma * numax[1]
+        while len(pdata[idx]) < KDEsize:
+            idx = np.abs(pdata.numax.values - numax[0]) < nsigma * numax[1]
 
             if not flag_warn:
-                warnings.warn(f'Only {len(self.prior_data[idx])} star(s) near provided numax. ' +
-                'Expanding the range to include ~100 stars.')
+                warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
+                'Trying to expand the range to include ~{KDEsize} stars.')
                 flag_warn = True
 
             if nsigma >= KDEsize:
                 break
 
             nsigma += 0.1
+        
+        ntgts = len(idx[idx==1])
+        
+        if ntgts == 0:
+            raise ValueError('No prior targets found within range of target. This might mean no prior samples exist for stars like this, consider increasing the uncertainty on your numax input.')
 
-        return idx
+        elif ntgts < KDEsize:
+            warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
+            KDEsize = ntgts
+        
+        return pdata.sample(KDEsize, weights=idx, replace=False)
 
 
 
@@ -296,6 +279,39 @@ class kde(plotting):
 
         return lnlike
 
+    def kde_predict(self, n):
+        """ Predict the l=0 mode frequencies from the KDE samples.
+
+        Takes the samples drawn using the kde_sampler method and produces a
+        distribution of where it thinks each radial mode should be.
+
+        Parameters
+        ----------
+        n: numpy_array
+            The radial order
+
+        Returns
+        -------
+        freq_mean: ndarray
+            A numpy array of length len(n) containing the mean frequency 
+            estimates.
+        freq_std: ndarray
+            A numpy array of length len(n) containing the standard deviation
+            of the frequency estimates.
+        """
+
+        if not hasattr(self, 'samples'):
+            raise ValueError('Need to run the sampler first')
+        
+        dnu = 10**self.samples[:, 0]
+        eps = self.samples[:, 2]
+        nmax = 10**self.samples[:, 1] / dnu - eps
+        alpha = 10**self.samples[:, 4]
+        freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
+        
+        return freq.mean(axis=1), freq.std(axis=1)
+
+
     def kde_sampler(self, nwalkers=50):
         """ Samples the posterior distribution with the KDE prior
 
@@ -341,39 +357,6 @@ class kde(plotting):
         
         return flatchain
 
-
-    def kde_predict(self, n):
-        """ Predict the l=0 mode frequencies from the KDE samples.
-
-        Takes the samples drawn using the kde_sampler method and produces a
-        distribution of where it thinks each radial mode should be.
-
-        Parameters
-        ----------
-        n: numpy_array
-            The radial order
-
-        Returns
-        -------
-        freq_mean: ndarray
-            A numpy array of length len(n) containing the mean frequency 
-            estimates.
-        freq_std: ndarray
-            A numpy array of length len(n) containing the standard deviation
-            of the frequency estimates.
-        """
-
-        if not hasattr(self, 'samples'):
-            print('Need to run the sampler first')
-            return -1, -1
-        
-        dnu = 10**self.samples[:, 0]
-        eps = self.samples[:, 2]
-        nmax = 10**self.samples[:, 1] / dnu - eps
-        alpha = 10**self.samples[:, 4]
-        freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
-        
-        return freq.mean(axis=1), freq.std(axis=1)
 
     def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1],
                  bp_rp=[1, -1], verbose=False, bw_fac=1.0):
