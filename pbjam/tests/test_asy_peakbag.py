@@ -56,7 +56,8 @@ def test_get_modeIDs():
     assert_allclose(df['nu_med'], np.array([89.05, 90.05, 99., 100.]))
     
 def test_get_summary_stats():
-
+    """Test for method for getting summary stats from asy_fit"""
+    
     # setup
     st = cs.st
     func = st.asy_fit._get_summary_stats #(st.asy_fit.fit)
@@ -79,6 +80,7 @@ def test_get_summary_stats():
         assert_array_equal(out.loc[:,'mle'], np.array([ 1.,  2.,  1.,  0., -2.,  1.,  1.,  1.,  1.,  1.]))
   
 def test_prior_function():
+    """Tests for the prior function used by asy_fit"""
     
     # setup
     st = cs.st
@@ -94,7 +96,8 @@ def test_prior_function():
     assert(func(*inp)==-np.inf)
     
 def test_likelihood_function():
-    
+    """Tests for the likelihood function used by asy_fit"""
+
     # setup
     st = cs.st
     func = st.asy_fit.likelihood
@@ -109,7 +112,8 @@ def test_likelihood_function():
     assert(np.isnan(func(*inp)))
     
 def test_asymptotic_fit_init():
-    
+    """Tests for the init of asy_fit"""
+
     # setup
     st = cs.st
     asymptotic_fit(st, norders=cs.pars['norders'])
@@ -128,7 +132,8 @@ def test_asymptotic_fit_init():
     pbt.assert_hasattributes(st.asy_fit, attributes)
 
 def test_asymp_spec_model_init():
-    
+    """Tests for the init of the asymptotic relation spectrum model"""
+
     # setup
     mod = asymp_spec_model(cs.st.f, cs.pars['norders'])
     attributes = ['_P_envelope', '_asymptotic_relation', '_get_enns', 
@@ -139,6 +144,7 @@ def test_asymp_spec_model_init():
 
 
 def test_get_nmax():
+    """Test for method to get nmax"""
     
     # setup
     nsamples = cs.pars['nsamples']
@@ -165,7 +171,8 @@ def test_get_nmax():
     assert(func(*inp) == 0.0)    
     
 def test_get_enns():
-    
+    """Test for method to get the radial orders in the asymptotic relation"""
+
     # setup
     norders = cs.pars['norders']
     nmax = cs.pars['nmax']
@@ -187,7 +194,8 @@ def test_get_enns():
     assert_array_equal(func(*inp), [0, 1])
         
 def test_asymptotic_relation():
-    
+    """Test for method to compute frequencies from the asymptotic relation"""
+
     # setup
     norders = cs.pars['norders']
     nsamples = cs.pars['nsamples']
@@ -212,7 +220,8 @@ def test_asymptotic_relation():
     assert_allclose(func(*inp), [2896.028668, 3030.75434 ], atol = 0.001)  
       
 def test_P_envelope():
-    
+    """Test for method to get height of pmode envelope"""
+
     # setup
     norders = cs.pars['norders']  
     mod = asymp_spec_model(cs.st.f, norders)
@@ -232,6 +241,7 @@ def test_P_envelope():
     assert_allclose(func(*inp), [31.6227766, 31.5718312], atol = 0.001)
     
 def test_lor():
+    """Test for method to compute the lorentzian profiles"""
     
     # setup
     norders = cs.pars['norders']
@@ -251,7 +261,8 @@ def test_lor():
     assert_array_equal(func(*inp), [1,1])
     
 def test_pair():
-    
+    """Test for method to compute the mode pairs"""
+
     # setup
     norders = cs.pars['norders']
     mod = asymp_spec_model([0.5, 1], norders)
@@ -270,7 +281,8 @@ def test_pair():
     assert_array_equal(func(*inp), [1.2,  1.35])
    
 def test_model():
-    
+    """Test for method to compute the total asymptotic relation model"""
+
     # setup
     norders = cs.pars['norders']
     mod = asymp_spec_model([0.5, 1], norders)
@@ -288,7 +300,8 @@ def test_model():
     assert_allclose(func(*inp), [7.93069307, 7.73076923], atol = 0.001)
 
 def test_asymp_spec_model_call():
-    
+    """Test call method for asymptotic relation spectrum model class"""
+
     # setup
     norders = cs.pars['norders']
     mod = asymp_spec_model([0.5, 1], norders)
