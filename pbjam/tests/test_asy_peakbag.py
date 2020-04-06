@@ -1,3 +1,5 @@
+"""Tests for the asy_peakbag module"""
+
 from ..asy_peakbag import asymp_spec_model, asymptotic_fit
 import pandas as pd
 import numpy as np

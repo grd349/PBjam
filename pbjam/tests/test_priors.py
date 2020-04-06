@@ -1,3 +1,5 @@
+"""tests for the priors module"""
+
 import numpy as np
 from numpy.testing import assert_almost_equal
 from ..priors import kde
