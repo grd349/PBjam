@@ -95,8 +95,7 @@ class star(plotting):
 
         self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
-        self._set_path(path)
-        self._make_output_dir()
+        self._set_outpath(path)
 
         if prior_file is None:
             self.prior_file = get_priorpath()
@@ -122,16 +121,20 @@ class star(plotting):
 
         return os.path.join(*[self.path, x])
 
-    def _set_path(self, path):
+    def _set_outpath(self, path):
         """ Sets the path attribute for star
 
         If path is a string it is assumed to be a path name, if not the
         current working directory will be used.
 
+        Attempts to create an output directory for all the results that PBjam
+        produces. A directory is created when a star class instance is
+        initialized, so a session might create multiple directories.
+
         Parameters
         ----------
         path : str
-            Directory to store peakbagging output.
+            Directory to place the star subdirectory.
 
         """
 
@@ -140,15 +143,6 @@ class star(plotting):
             self.path = os.path.join(*[path, f'{self.ID}'])
         else:
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
-
-    def _make_output_dir(self):
-        """ Make output directory for star
-
-        Attempts to create an output directory for all the results that PBjam
-        produces. A directory is created when a star class instance is
-        initialized, so a session might create multiple directories.
-
-        """
 
         # Check if self.path exists, if not try to create it
         if not os.path.isdir(self.path):
@@ -277,7 +271,7 @@ class star(plotting):
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, verbose=False, make_plots=True, store_chains=True):
+                 nthreads=1, make_plots=True, store_chains=True):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -297,8 +291,6 @@ class star(plotting):
             Numer of tuning steps passed to pm.sample. Default is 1500.
         nthreads : int, optional.
             Number of processes to spin up in pymc3. Default is 1.
-        verbose : bool, optional.
-            Should PBjam say anything? Default is False.
         make_plots : bool, optional.
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional.
