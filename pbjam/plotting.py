@@ -110,13 +110,14 @@ class plotting():
 
             dnu = np.median(np.diff(freqs['l0']['nu']))
 
+        elif type(self) == pbjam.reggae.MyMainWindow:
+            numax = self.numax
+            dnu = self.dnu
+            freqs['l1']['nu'] = self.mixed
+            freqs['l1']['err'] = self.df.rotc.values[0] * np.ones(len(self.mixed))
 
         else:
             raise ValueError('Unrecognized class type')
-
-        # make dnu an intger multiple of bw
-        dnu -= dnu % (self.f[1] - self.f[0])
-        #nmin = np.floor(self.f.min() / dnu) + 1
 
         if pg:
             peri = pg
@@ -124,6 +125,10 @@ class plotting():
             peri = self.pg
         else:
             raise ValueError('Need spectrum to plot echelle diagram')
+
+        # make dnu an intger multiple of bw
+        dnu -= dnu % (self.pg.frequency[1] - self.pg.frequency[0]).value
+        nmin = np.floor(self.pg.frequency.min().value / dnu) + 1
 
         seismology = peri.flatten().to_seismology()
 
@@ -272,13 +277,18 @@ class plotting():
             n = self.ladder_s.shape[0]
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
-            for i in range(n):
-                for j in range(-50, 0):
+            
+            for j in range(-50, 0):
+                
+                mod = self.model(*[self.samples[x][j] for x in par_names])
+                
+                for i in range(n):
+                
                     if (i == 0) and (j==-1):
                         label='Model'
                     else:
                         label=None
-                    mod = self.model(*[self.samples[x][j] for x in par_names])
+                    
                     ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=label)
 
