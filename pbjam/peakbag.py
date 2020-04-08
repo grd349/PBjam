@@ -75,6 +75,47 @@ class peakbag(plotting):
         starinst.peakbag = self
 
 
+    def get_residual(self, k = 50):
+        """ Set peakbag result / spectrum as attribute
+        
+        Computes the residual spectrum by dividing spectrum by the median
+        peakbag model. 
+        
+        Parameters
+        ----------
+        k : int
+            Number of samples drawn from the peakbag fit to use to estimate 
+            the median model. Takes the k last points in the array.
+        
+        Returns
+        -------
+        res : ndarray
+            Array of shape equal to the input spectrum.
+        ladder_res : ndarray
+            Array of shape equal to the sections of the spectrum that are 
+            modeled in peakbag.
+        
+        """
+        
+        n, m = self.ladder_s.shape
+        par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
+                     'back']
+        
+        M = np.zeros((k, n, m))
+        for j in range(-k, 0):
+            M[j,:,:] = self.model(*[self.samples[x][j] for x in par_names])
+        
+        ladder_res = self.ladder_s / np.median(M, axis = 0)
+        
+        res = self.s.copy()
+        for i in range(7):
+            idx0 = np.where(self.f == self.ladder_f[i, 0])[0][0]
+            idx1 = idx0 + len(self.ladder_f[i, :])
+            res[idx0:idx1] = ladder_res[i, :]
+
+        return res, ladder_res
+
+
     def make_start(self):
         """
         Function uses the information in self.asy_result (the result of the
@@ -367,6 +408,9 @@ class peakbag(plotting):
                 Rhat_max = np.max([v.max() for k, v in rhatfunc(self.samples).items()])
 
                 niter += 1
+        
+
+        self.res, self.ladder_res = self.get_residual()
         
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older
         try:
