@@ -258,7 +258,7 @@ class star(plotting):
                                       savefig=make_plots)
 
 
-    def run_reggae(self):
+    def run_reggae(self, dp1_range=[70, 100]):
         ''' Will call the reggae MyMNainWindow function which
         will let you optimize the parameters to describe the l=1 modes.
 
@@ -267,7 +267,7 @@ class star(plotting):
         '''
         global app
         app = QApplication(sys.argv)
-        self.reggae = MyMainWindow(self)
+        self.reggae = MyMainWindow(self, dp1_range)
         self.reggae.show()
         app.exit(app.exec_())
 

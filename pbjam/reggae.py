@@ -15,9 +15,10 @@ from .plotting import plotting
 
 class MyMainWindow(QMainWindow, plotting):
     ''' Main window to hold the Reggae method '''
-    def __init__(self, star):
+    def __init__(self, star, dp1_range):
         super().__init__()
         self.star = star
+        self.dp1_range = dp1_range
         self.pg = self.star.pg
 
         self.dnu = 10**self.star.asy_fit.summary.loc['dnu']['mean']
@@ -61,7 +62,7 @@ class MyCentralWidget(QWidget):
         self.ng = np.arange(10, 100, 1)
         self.dnu_fac = 1000
         self.eps_fac = 1000
-        self.dp1_fac = 1000
+        self.dp1_fac = 10000
         self.q_fac = 1000
         self.epsg_fac = 100
         self.d0x_fac = 100
@@ -141,8 +142,8 @@ class MyCentralWidget(QWidget):
 
     def make_dp1_slider(self):
         ''' Make Delta P1 slider '''
-        minv = 70 * self.dp1_fac
-        maxv = 100 * self.dp1_fac
+        minv = self.main_window.dp1_range[0] * self.dp1_fac
+        maxv = self.main_window.dp1_range[1] *  self.dp1_fac
         init_val = 90.0 * self.dp1_fac
         hbox, dp1_sl = self.make_slider(min=minv, max=maxv,
                                   init_val=init_val,
