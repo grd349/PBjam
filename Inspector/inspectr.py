@@ -88,12 +88,17 @@ class MyCentralWidget(QWidget):
                 sys.exit()       
                    
         id = self.main_window.df.loc[self.idx].ID
-               
-        sfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, 'asy_%s.png' % (id)]))
-
+        
+        # There are two naming policies for pbjam figures currently in circulation
+        # This just checks for both of them.
+        sfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_{id}.png']))
+        
+        if len(sfile)==0:
+            sfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_spectrum_{id}.png']))
+            
         if len(sfile)==0:
             self.my_widget.show_image(os.path.join(*[os.getcwd(),'failed.jpg']))
-            mess = "%s/asy_%s.png not found, so I skipped it" % (id,id) 
+            mess = f"{id}/asymptotic_fit_{id}.png not found, so I skipped it"
             print(mess)
             self.write_verdict(-1, mess)
         else:
@@ -157,13 +162,14 @@ if __name__ == "__main__":
 
     df = pd.read_csv(args.target_list, converters={'ID': str, 'error_code': int})
     
-    sys.setrecursionlimit(len(df))
+    if len(df) > 100:
+        sys.setrecursionlimit(len(df))
     
-    if df.columns.contains('ID') == False:
+    if not 'ID' in df.columns:
         print('CSV file must contain a column named ID')
         sys.exit()
 
-    if df.columns.contains('error_flag') == False:
+    if not 'error_flag' in df.columns:
         df['error_flag'] = [-1 for n in range(len(df))]
     
     main(df, args.target_list, args.image_dir, shuffle=args.shuffle)

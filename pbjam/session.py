@@ -769,9 +769,8 @@ class session():
         for i, st in enumerate(self.stars):
             try:
                 st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                   model_type=self.pb_model_type, verbose=verbose, 
-                   make_plots=make_plots, store_chains=store_chains, 
-                   nthreads=nthreads)
+                   model_type=self.pb_model_type, make_plots=make_plots, 
+                   store_chains=store_chains, nthreads=nthreads)
                 
                 self.stars[i] = None
             
