@@ -22,6 +22,7 @@ jobs:
       install:
         - pip3 install --upgrade pip
         - pip3 install --user -r requirements.txt
+        - pip3 install --user pytest
       script: python3 -m pytest
       # we can add code coverage (codecov) here
 
@@ -32,6 +33,7 @@ jobs:
         - choco install python --version 3.6.8
         - python -m pip install --upgrade pip
       env: PATH=/c/Python36:/c/Python36/Scripts:$PATH
+      script: py -m pytest
  
 script:
   - pytest 
