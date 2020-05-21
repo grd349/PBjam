@@ -1,3 +1,5 @@
 language: python
 cache: pip
 os: linux
+
+script: pytest
