@@ -21,6 +21,7 @@ from .peakbag import peakbag
 from .jar import get_priorpath, to_log10
 from .plotting import plotting
 import pandas as pd
+import numpy as np
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -76,16 +77,31 @@ class star(plotting):
 
     """
 
-    def __init__(self, ID, pg, numax, dnu, teff, bp_rp, path=None,
-                 prior_file=None):
+    def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
+                 path=None, prior_file=None):
 
         self.ID = ID
         self.pg = pg.flatten()  # in case user supplies unormalized spectrum
+
+        print(teff)
+        print(bp_rp)
+
+        tst = [None,None]
+        if np.all(np.array(teff) == tst) and np.all(np.array(bp_rp) == tst):
+            raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
+        elif np.all(np.array(teff) == tst):
+            teff = [4889, 1500]
+        elif np.all(np.array(bp_rp) == tst):
+            bp_rp = [1.2927, 0.5]
 
         self.numax = numax
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
+
+        print(self.teff)
+        print(self.bp_rp)
+
 
         self.f = self.pg.frequency.value
         self.s = self.pg.power.value
