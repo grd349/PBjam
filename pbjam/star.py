@@ -83,9 +83,9 @@ class star(plotting):
         self.ID = ID
         self.pg = pg.flatten()  # in case user supplies unormalized spectrum
 
-        print(teff)
-        print(bp_rp)
-
+        # Teff and Gbp-Grp provide a lot of the same information, so only one of
+        # them need to be provided to start with. If one is not provided, PBjam
+        # will assume a wide prior on it.
         tst = [None,None]
         if np.all(np.array(teff) == tst) and np.all(np.array(bp_rp) == tst):
             raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
@@ -98,10 +98,6 @@ class star(plotting):
         self.dnu = dnu
         self.teff = teff
         self.bp_rp = bp_rp
-
-        print(self.teff)
-        print(self.bp_rp)
-
 
         self.f = self.pg.frequency.value
         self.s = self.pg.power.value

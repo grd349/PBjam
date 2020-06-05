@@ -769,16 +769,16 @@ class session():
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
-#            try:
-            st(bw_fac=bw_fac, tune=tune, norders=norders, 
+            try:
+                st(bw_fac=bw_fac, tune=tune, norders=norders, 
                    model_type=self.pb_model_type, make_plots=make_plots, 
                    store_chains=store_chains, nthreads=nthreads)
                 
-            self.stars[i] = None
+                self.stars[i] = None
             
             # Crude way to send error messages that occur in star up to Session 
             # without ending the session. Is there a better way?
-#            except Exception as ex:
-#                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-#                 print(message)
+            except Exception as ex:
+                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                 print(message)
             
