@@ -709,12 +709,10 @@ class session():
 
         # Take whatever is in the timeseries column of vardf and make it an
         # lk.lightcurve object or None
-
         _lc_to_lk(vardf, download_dir, use_cached=use_cached)
         
         # Take whatever is in the timeseries column of vardf and turn it into
         # a periodogram object in the periodogram column.
-
         _lk_to_pg(vardf)
 
 

@@ -86,13 +86,15 @@ class star(plotting):
         # Teff and Gbp-Grp provide a lot of the same information, so only one of
         # them need to be provided to start with. If one is not provided, PBjam
         # will assume a wide prior on it.
-        tst = [None,None]
-        if np.all(np.array(teff) == tst) and np.all(np.array(bp_rp) == tst):
+        teff_bad = np.all(np.array(teff) == [None,None]) or np.isnan(teff[0])
+        bp_rp_bad = np.all(np.array(bp_rp) == [None,None]) or np.isnan(bp_rp[0])
+        
+        if teff_bad and bp_rp_bad:
             raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
-        elif np.all(np.array(teff) == tst):
-            teff = [4889, 1500]
-        elif np.all(np.array(bp_rp) == tst):
-            bp_rp = [1.2927, 0.5]
+        elif teff_bad :
+            teff = [4889, 1500] # these are rough esimates from the prior
+        elif bp_rp_bad:
+            bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
 
         self.numax = numax
         self.dnu = dnu
@@ -184,6 +186,9 @@ class star(plotting):
         print('Starting KDE estimation')
         # Init
         kde(self)
+
+        print(self.dnu, self.numax, self.teff, self.bp_rp)
+        print()
 
         # Call
         self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
