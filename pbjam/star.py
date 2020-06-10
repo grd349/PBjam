@@ -187,9 +187,6 @@ class star(plotting):
         # Init
         kde(self)
 
-        print(self.dnu, self.numax, self.teff, self.bp_rp)
-        print()
-
         # Call
         self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
                  bp_rp=self.bp_rp, bw_fac=bw_fac)
@@ -204,7 +201,7 @@ class star(plotting):
                                   savefig=make_plots)
 
     def run_asy_peakbag(self, norders, make_plots=False,
-                        store_chains=False):
+                        store_chains=False, developer_mode=False):
         """ Run all steps involving asy_peakbag.
 
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
@@ -218,7 +215,12 @@ class star(plotting):
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional
             Whether or not to store MCMC chains on disk. Default is False.
-
+        developer_mode : bool
+            Run asy_peakbag in developer mode. Currently just retains the input 
+            value of dnu and numax as priors, for the purposes of expanding
+            the prior sample. Important: This is not good practice for getting 
+            science results!
+            
         """
 
         print('Starting asymptotic peakbagging')
@@ -226,7 +228,7 @@ class star(plotting):
         asymptotic_fit(self, norders=norders)
 
         # Call
-        self.asy_fit()
+        self.asy_fit(developer_mode)
 
         # Store
         self.asy_fit.summary.to_csv(self._outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
@@ -288,7 +290,8 @@ class star(plotting):
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, make_plots=True, store_chains=True):
+                 nthreads=1, make_plots=True, store_chains=True,
+                 developer_mode=False):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -312,13 +315,18 @@ class star(plotting):
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional.
             Whether or not to store MCMC chains on disk. Default is False.
-            
+        developer_mode : bool
+            Run asy_peakbag in developer mode. Currently just retains the input 
+            value of dnu and numax as priors, for the purposes of expanding
+            the prior sample. Important: This is not good practice for getting 
+            science results!    
         """
 
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains)
+                             store_chains=store_chains, 
+                             developer_mode=developer_mode)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)
