@@ -43,30 +43,42 @@ class MyCentralWidget(QWidget):
 
 
     def initUI(self):
+
+        psd_button = QPushButton('&Power spectrum', self)
+        psd_button.setShortcut('p')
+        psd_button.clicked.connect(self.on_psd_button_clicked)
+
+        echelle_button = QPushButton('&Echelle diagram', self)
+        echelle_button.setShortcut('e')
+        echelle_button.clicked.connect(self.on_echelle_button_clicked)
+
         good_button = QPushButton('&Good', self)
         good_button.setShortcut('g')
         good_button.clicked.connect(self.on_good_button_clicked)
-                
+
         bad_button = QPushButton('&Bad', self)
         bad_button.setShortcut('b')
         bad_button.clicked.connect(self.on_bad_button_clicked)
-        
-        skip_button = QPushButton('&Skip', self)
+
+        skip_button = QPushButton('&Sad bad data', self)
         skip_button.setShortcut('S')
         skip_button.clicked.connect(self.on_skip_button_clicked)
-        
+
         # define label
         self.label = QLabel(self)
         self.my_widget = MyWidget(self.label, self.main_window.df, self.main_window.image_dir)
-        
+
         # Place the buttons - HZ
         hbox = QHBoxLayout()
+        hbox.addStretch(1)
+        hbox.addWidget(psd_button)
+        hbox.addWidget(echelle_button)
         hbox.addStretch(1)
         hbox.addWidget(good_button)
         hbox.addWidget(bad_button)
         hbox.addWidget(skip_button)
         hbox.addStretch(1)
-        
+
         # place hbox and label into vbox
         vbox = QVBoxLayout()
         vbox.addWidget(self.label)
@@ -75,46 +87,62 @@ class MyCentralWidget(QWidget):
         self.next_image()
 
     def next_image(self):
-        
+
         self.idx += 1
-                
+
         while self.main_window.df.loc[self.idx].error_flag >= 0:
 
             self.idx += 1
-            
+
             if (self.idx in self.main_window.df.index) == False:
                 print('Finished going through CSV file')
                 print('If any unclassified targets remain, they may not have associated png files')
-                sys.exit()       
-                   
+                sys.exit()
+
         id = self.main_window.df.loc[self.idx].ID
-        
+
         # There are two naming policies for pbjam figures currently in circulation
         # This just checks for both of them.
-        sfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_{id}.png']))
-        
-        if len(sfile)==0:
-            sfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_spectrum_{id}.png']))
-            
-        if len(sfile)==0:
+        self.psdfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_{id}.png']))
+
+        if len(self.psdfile)==0:
+            self.psdfile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_spectrum_{id}.png']))
+
+        self.echellefile = glob.glob(os.path.join(*[self.main_window.image_dir, id, f'asymptotic_fit_echelle_{id}.png']))
+
+        if len(self.psdfile)==0:
             self.my_widget.show_image(os.path.join(*[os.getcwd(),'failed.jpg']))
             mess = f"{id}/asymptotic_fit_{id}.png not found, so I skipped it"
             print(mess)
             self.write_verdict(-1, mess)
         else:
-            self.my_widget.show_image(sfile[0])
+            self.my_widget.show_image(self.psdfile[0])
 
-            
+    def on_psd_button_clicked(self):
+        self.my_widget.show_image(self.psdfile[0])
+
+    def on_echelle_button_clicked(self):
+        if len(self.echellefile) == 0:
+            id = self.main_window.df.loc[self.idx].ID
+            message = f'No echelle diagram for {id}'
+            self.main_window.statusBar().showMessage(message)
+        else:
+            try:
+                self.my_widget.show_image(self.echellefile[0])
+            except:
+                message = f'Failed to load echelle diagram for {id}'
+                self.main_window.statusBar().showMessage(message)
+
     def on_good_button_clicked(self):
         self.write_verdict(0, 'Last star was Good')
-        
+
     def on_bad_button_clicked(self):
         self.write_verdict(1, 'Last star was Bad')
-        
+
     def on_skip_button_clicked(self):
-          
+
         self.write_verdict(-1, 'Skipping image.')
-    
+
     def write_verdict(self, err_code, mess):
         self.main_window.df.at[self.idx, 'error_flag'] = err_code
         perc = '%i / %i' % (self.idx, len(self.main_window.df))
@@ -126,7 +154,7 @@ class MyCentralWidget(QWidget):
         else:
             self.main_window.statusBar().showMessage('Finished')
             sys.exit()
-    
+
 class MyWidget():
     def __init__(self, label, df, image_dir):
         self.label = label
@@ -161,15 +189,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     df = pd.read_csv(args.target_list, converters={'ID': str, 'error_code': int})
-    
+
     if len(df) > 100:
         sys.setrecursionlimit(len(df))
-    
+
     if not 'ID' in df.columns:
         print('CSV file must contain a column named ID')
         sys.exit()
 
     if not 'error_flag' in df.columns:
         df['error_flag'] = [-1 for n in range(len(df))]
-    
+
     main(df, args.target_list, args.image_dir, shuffle=args.shuffle)
