@@ -32,14 +32,12 @@ class asymp_spec_model():
         Array of frequency bins of the spectrum (in muHz). 
     norders : int
         Number of radial order to fit.
-
-        
+         
     """
 
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
-    
 
     def _get_nmax(self, dnu, numax, eps):
         """Compute radial order at numax.
@@ -318,7 +316,12 @@ class asymptotic_fit(plotting, asymp_spec_model):
         KDE function used as a prior in the asymptotic relation fit.
     start : ndarray 
         Median of parameters in start_samples. 
-      
+    developer_mode : bool
+        Run asy_peakbag in developer mode. Currently just retains the input 
+        value of dnu and numax as priors, for the purposes of expanding
+        the prior sample. Important: This is not good practice for getting 
+        science results!
+
     """
 
     def __init__(self, st, norders=None):
@@ -337,13 +340,16 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.start_samples = st.kde.samples       
         self.kde = st.kde.kde    
         self.start = self._get_asy_start()
+        
         lfreq, ufreq = self._get_freq_range()
         self.sel = (lfreq < self.f) & (self.f < ufreq)
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
         
+        self.developer_mode = False
+        
         st.asy_fit = self
        
-    def __call__(self):
+    def __call__(self, developer_mode):
         """ Setup, run and parse the asymptotic relation fit using `emcee'.
 
         Parameters
@@ -357,14 +363,20 @@ class asymptotic_fit(plotting, asymp_spec_model):
         bp_rp : list
             The Gaia Gbp - Grp color value and uncertainty
             (probably ~< 0.01 dex).
-
+        developer_mode : bool
+            Run asy_peakbag in developer mode. Currently just retains the input 
+            value of dnu and numax as priors, for the purposes of expanding
+            the prior sample. Important: This is not good practice for getting 
+            science results!
+      
         Returns
         -------
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
             
         """
-
+        self.developer_mode = developer_mode
+        
         self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
                            self.likelihood, self.prior)
         self.fit(start_samples=self.start_samples)
@@ -442,6 +454,10 @@ class asymptotic_fit(plotting, asymp_spec_model):
         lnlike = 0
         
         # Constraint from input obs
+        if self.developer_mode:
+            lnlike += normal(p[0], *self._log_obs['dnu'])
+            lnlike += normal(p[1], *self._log_obs['numax'])
+        
         lnlike += normal(p[-2], *self._log_obs['teff'])
         lnlike += normal(p[-1], *self._obs['bp_rp'])
         

@@ -391,7 +391,7 @@ class kde(plotting):
         if not hasattr(self, '_obs'):
             self._obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}
             self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
-        
+                
         self.make_kde(bw_fac)
 
         self.samples = self.kde_sampler()

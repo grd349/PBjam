@@ -3,7 +3,7 @@ import lightkurve as lk
 import astropy.units as units
 import numpy as np
 import pbjam.tests.pbjam_tests as pbt
-import os
+import os, pytest
 from ..star import star
 
 
@@ -20,6 +20,15 @@ def test_star_init():
     pg = lk.periodogram.Periodogram(np.array([1,1])*units.microhertz, units.Quantity(np.array([1,1]), None))
     st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05), (4750, 250), (1.34, 0.1))
     
+    st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05), bp_rp = (1.34, 0.1))
+    assert(np.all(np.array(st.teff) != np.array([None,None])))
+
+    st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05), teff = (4750, 250))
+    assert(np.all(np.array(st.bp_rp) != np.array([None,None])))
+    
+    with pytest.raises(ValueError):
+        st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05))
+
     # simple check to see if all the attributes are there compared to the time
     # of test creation.
     atts = ['ID', '_fill_diag', '_log_obs', '_make_prior_corner', '_obs', 

@@ -709,14 +709,14 @@ class session():
 
         # Take whatever is in the timeseries column of vardf and make it an
         # lk.lightcurve object or None
-
         _lc_to_lk(vardf, download_dir, use_cached=use_cached)
         
         # Take whatever is in the timeseries column of vardf and turn it into
         # a periodogram object in the periodogram column.
-
         _lk_to_pg(vardf)
 
+
+       
 
         for i in range(len(vardf)):
             self.stars.append(star(ID=vardf.loc[i, 'ID'],
@@ -732,8 +732,8 @@ class session():
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
-                 nthreads=1, verbose=False, make_plots=False, store_chains=False 
-                 ):
+                 nthreads=1, verbose=False, make_plots=False, store_chains=False, 
+                 developer_mode=False):
         """ Call all the star class instances
 
         Once initialized, calling the session class instance will loop through
@@ -761,6 +761,11 @@ class session():
             Whether or not to produce plots of the results. Default is False.            
         store_chains : bool, optional.
             Whether or not to store MCMC chains on disk. Default is False.
+        developer_mode : bool
+            Run asy_peakbag in developer mode. Currently just retains the input 
+            value of dnu and numax as priors, for the purposes of expanding
+            the prior sample. Important: This is not good practice for getting 
+            science results!    
             
         """
         
@@ -770,7 +775,8 @@ class session():
             try:
                 st(bw_fac=bw_fac, tune=tune, norders=norders, 
                    model_type=self.pb_model_type, make_plots=make_plots, 
-                   store_chains=store_chains, nthreads=nthreads)
+                   store_chains=store_chains, nthreads=nthreads, 
+                   developer_mode=developer_mode)
                 
                 self.stars[i] = None
             
