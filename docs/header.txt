@@ -1,0 +1,1 @@
+dnu	numax	eps	d02	alpha	env_height	env_width	mode_width	teff	bp_rp	logL
