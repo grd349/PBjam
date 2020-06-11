@@ -10,6 +10,7 @@ import numpy as np
 import scipy.stats as st
 import cpnest.model
 import pandas as pd
+import os
 
 class mcmc():
     """ Class for MCMC sampling using `emcee'
@@ -266,11 +267,16 @@ class nested(cpnest.model.Model):
 
     """
     
-    def __init__(self, names, bounds, likelihood, prior):
+    def __init__(self, names, bounds, likelihood, prior, path):
         self.names=names
         self.bounds=bounds
         self.likelihood = likelihood
         self.prior = prior
+        
+        self.path = os.path.join(*[path, 'cpnest'])
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        
 
     def log_likelihood(self, param):
         """ Wrapper for log likelihood """
@@ -281,7 +287,7 @@ class nested(cpnest.model.Model):
         if not self.in_bounds(p): return -np.inf
         return self.prior(p.values)
 
-    def __call__(self, nlive=100, nthreads=None, maxmcmc=100, poolsize=100, output = './'):
+    def __call__(self, nlive=100, nthreads=1, maxmcmc=100, poolsize=100):
         """
         Runs the nested sampling
 
@@ -303,7 +309,7 @@ class nested(cpnest.model.Model):
         """
         
         self.nest = cpnest.CPNest(self, verbose=0, seed=53, nthreads=nthreads,
-                                  nlive=nlive, maxmcmc=maxmcmc, poolsize=poolsize, output=output)
+                                  nlive=nlive, maxmcmc=maxmcmc, poolsize=poolsize, output=self.path)
         self.nest.run()
         self.samples = pd.DataFrame(self.nest.get_posterior_samples())[self.names]
         self.flatchain = self.samples.values
