@@ -201,7 +201,8 @@ class star(plotting):
                                   savefig=make_plots)
 
     def run_asy_peakbag(self, norders, make_plots=False,
-                        store_chains=False, developer_mode=False):
+                        store_chains=False, method='mcmc', 
+                        developer_mode=False):
         """ Run all steps involving asy_peakbag.
 
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
@@ -215,6 +216,10 @@ class star(plotting):
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional
             Whether or not to store MCMC chains on disk. Default is False.
+        method : string
+            Method to be used for sampling the posterior. Options are 'mcmc' or
+            'nested. Default method is 'mcmc' that will call emcee, alternative
+            is 'nested' to call nested sampling with CPnest.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -228,7 +233,7 @@ class star(plotting):
         asymptotic_fit(self, norders=norders)
 
         # Call
-        self.asy_fit(developer_mode)
+        self.asy_fit(method, developer_mode)
 
         # Store
         self.asy_fit.summary.to_csv(self._outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
@@ -290,8 +295,8 @@ class star(plotting):
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, make_plots=True, store_chains=True,
-                 developer_mode=False):
+                 nthreads=1, make_plots=True, store_chains=True, 
+                 asy_sampling='mcmc', developer_mode=False):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -315,6 +320,10 @@ class star(plotting):
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional.
             Whether or not to store MCMC chains on disk. Default is False.
+        asy_sampling : string
+            Method to be used for sampling the posterior in asy_peakbag. Options
+            are 'mcmc' or 'nested. Default method is 'mcmc' that will call 
+            emcee, alternative is 'nested' to call nested sampling with CPnest.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -325,7 +334,7 @@ class star(plotting):
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains, 
+                             store_chains=store_chains, method=asy_sampling,
                              developer_mode=developer_mode)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,

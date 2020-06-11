@@ -14,6 +14,7 @@ import scipy.stats as scist
 from .plotting import plotting
 from .jar import normal
 from collections import OrderedDict
+import warnings
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
@@ -346,23 +347,20 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
         
         self.developer_mode = False
+        self.path = st.path
         
         st.asy_fit = self
        
-    def __call__(self, developer_mode):
-        """ Setup, run and parse the asymptotic relation fit using `emcee'.
+    def __call__(self, method, developer_mode):
+        """ Setup, run and parse the asymptotic relation fit.
 
         Parameters
         ----------
-        dnu : list
-            Large frequency spacing and uncertainty.
-        numax : list
-            Frequency of maximum power and uncertainty.
-        teff : list
-            Stellar effective temperature and uncertainty.
-        bp_rp : list
-            The Gaia Gbp - Grp color value and uncertainty
-            (probably ~< 0.01 dex).
+        method : string
+            Method to be used for sampling the posterior. Options are 'mcmc' or
+            'nested. Default method is 'mcmc' that will call emcee, alternative
+            is 'nested' to call nested sampling with CPnest.
+        
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -377,12 +375,23 @@ class asymptotic_fit(plotting, asymp_spec_model):
         """
         self.developer_mode = developer_mode
         
-        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
-                           self.likelihood, self.prior)
-        self.fit(start_samples=self.start_samples)
+        if method not in ['mcmc', 'nested']:
+            warnings.warn(f'Method {method} not found: Using method mcmc')
+            method = 'mcmc'
+
+        if method == 'mcmc':
+            self.fit = pb.mcmc(np.median(self.start_samples, axis=0),
+                               self.likelihood, self.prior)
+            self.fit(start_samples=self.start_samples)
+
+        elif method == 'nested':
+            bounds = [[self.start_samples[:, n].min(), 
+                       self.start_samples[:, n].max()] for n in range(len(self.par_names))]
+            self.fit = pb.nested(self.par_names, bounds, self.likelihood, self.prior, self.path)
+            self.fit()
+         
         self.modeID = self.get_modeIDs(self.fit, self.norders)
         self.summary  = self._get_summary_stats(self.fit)        
-        self.mle_model = self.model(self.summary['mle'])        
         self.samples = self.fit.flatchain
         self.acceptance = self.fit.acceptance
 
@@ -469,30 +478,26 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
     def _get_summary_stats(self, fit):
         """ Make dataframe with fit summary statistics
-    
+
         Creates a dataframe that contains various quantities that summarize the
-        fit. Note, these are predominantly derived from the marginalized 
-        posteriors.
-       
+        fit. Note, these are predominantly derived from the marginalized posteriors.
+
         Parameters
         ----------
-        fit : mcmc.mcmc instance
+        fit : mcmc.mcmc class instance
             mcmc class instances used in the fit
-            
+
         Returns
         -------
         summary : pandas.DataFrame
             Dataframe with the summary statistics.
-            
+
         """
-    
-        idx = np.argmax(fit.flatlnlike)
-        
+
         fc = fit.flatchain
-       
+
         # Append here to add other statistics
-        stats = OrderedDict({'mle'  : fc[idx,:], 
-                             'mean' : np.mean(fc, axis = 0),
+        stats = OrderedDict({'mean' : np.mean(fc, axis = 0),
                              'std'  : np.std(fc, axis = 0),
                              'skew' : scist.skew(fc, axis = 0),
                              '2nd'  : np.percentile(fc,  2.27501, axis=0),
@@ -501,9 +506,9 @@ class asymptotic_fit(plotting, asymp_spec_model):
                              '84th' : np.percentile(fc, 84.13447, axis=0),
                              '97th' : np.percentile(fc, 97.72498, axis=0),
                              'MAD'  : scist.median_absolute_deviation(fc, axis=0)})
-    
+
         summary = pd.DataFrame(stats, index = self.par_names)
-        
+
         return summary
        
 

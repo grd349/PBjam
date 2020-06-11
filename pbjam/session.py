@@ -733,7 +733,7 @@ class session():
 
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
-                 developer_mode=False):
+                 asy_sampling='mcmc', developer_mode=False):
         """ Call all the star class instances
 
         Once initialized, calling the session class instance will loop through
@@ -776,7 +776,7 @@ class session():
                 st(bw_fac=bw_fac, tune=tune, norders=norders, 
                    model_type=self.pb_model_type, make_plots=make_plots, 
                    store_chains=store_chains, nthreads=nthreads, 
-                   developer_mode=developer_mode)
+                   asy_sampling=asy_sampling, developer_mode=developer_mode)
                 
                 self.stars[i] = None
             
