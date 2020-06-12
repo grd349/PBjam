@@ -258,12 +258,11 @@ class nested(cpnest.model.Model):
         The bounds of the model parameters as [(0, 10), (-1, 1), ...]
 
     likelihood: func
-        Function that will return the log likelihood when
-        called as likelihood(params)
+        Function that will return the log likelihood when called as 
+        likelihood(params)
 
     prior: func
-        Function that will return the log prior when called
-        as prior(params)
+        Function that will return the log prior when called as prior(params)
 
     """
     
@@ -294,24 +293,27 @@ class nested(cpnest.model.Model):
         Parameters
         ----------
         nlive : int
-            ???
+            Number of live points to be used for the sampling. This is similar 
+            to walkers in emcee. Default is 100.
         nthreads : int
-            ???
+            Number of parallel threads to run. More than one is currently slower
+            since the likelihood is fairly quick to evaluate. Default is 1. 
         maxmcmc : int
-            ???
+            Maximum number of mcmc steps taken by the sampler. Default is 100.
         poolsize : int
-            ???
+            Number of objects for the affine invariant sampling. Default is 100.
 
         Returns
         -------
-        df: pd.DataFrame
+        df: pandas DataFrame
             A dataframe of the samples produced with the nested sampling.
         """
         
         self.nest = cpnest.CPNest(self, verbose=0, seed=53, nthreads=nthreads,
-                                  nlive=nlive, maxmcmc=maxmcmc, poolsize=poolsize, output=self.path)
+                                  nlive=nlive, maxmcmc=maxmcmc, 
+                                  poolsize=poolsize, output=self.path)
         self.nest.run()
         self.samples = pd.DataFrame(self.nest.get_posterior_samples())[self.names]
         self.flatchain = self.samples.values
-        self.acceptance = np.inf #TODO
+        self.acceptance = None
         return self.samples
