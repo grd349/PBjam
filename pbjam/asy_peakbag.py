@@ -310,6 +310,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
         Dictionary of the observational parameters (input parameters).
     _log_obs : dict
         Dictionary of the observational parametrs in log-scale.
+    prior_data : pandas DataFrame
+        Dataframe containing the samples used to the generate the KDE prior.
     start_samples : ndarray
         Array of samples drawn from the KDE to set the starting location of the
         asymptotic relation fit.
@@ -333,11 +335,13 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.norders = norders
 
         self._obs = st._obs
-        self._log_obs = st._log_obs          
-        self.prior_file = st.prior_file
+        self._log_obs = st._log_obs    
         
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
+        
+        self.prior_file = st.prior_file
+        self.prior_data = st.kde.prior_data
         self.start_samples = st.kde.samples       
         self.kde = st.kde.kde    
         self.start = self._get_asy_start()
@@ -385,8 +389,9 @@ class asymptotic_fit(plotting, asymp_spec_model):
             self.fit(start_samples=self.start_samples)
 
         elif method == 'nested':
-            bounds = [[self.start_samples[:, n].min(), 
-                       self.start_samples[:, n].max()] for n in range(len(self.par_names))]
+            #bounds = [[self.start_samples[:, n].min(), 
+            #           self.start_samples[:, n].max()] for n in range(len(self.par_names))]
+            bounds = [[self.prior_data[key].min(), self.prior_data[key].max()] for key in self.par_names]
             self.fit = pb.nested(self.par_names, bounds, self.likelihood, self.prior, self.path)
             self.fit()
          
