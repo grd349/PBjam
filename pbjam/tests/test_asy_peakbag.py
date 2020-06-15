@@ -68,7 +68,7 @@ def test_get_summary_stats():
     # simple tests
     pbt.does_it_return(func, inp)
     pbt.right_type(func, inp, pd.DataFrame)
-    pbt.right_shape(func, inp, (10,10))
+    pbt.right_shape(func, inp, (10, 9))
 
     out = func(*inp)
 
@@ -78,8 +78,8 @@ def test_get_summary_stats():
         assert_array_equal(out.loc[:, key], 0)
     
     # same as above
-    for key in ['mle', 'mean', '2nd', '16th', '50th', '84th', '97th']:
-        assert_array_equal(out.loc[:,'mle'], np.array([ 1.,  2.,  1.,  0., -2.,  1.,  1.,  1.,  1.,  1.]))
+    for key in ['mean', '2nd', '16th', '50th', '84th', '97th']:
+        assert_array_equal(out.loc[:,key], np.array([ 1.,  2.,  1.,  0., -2.,  1.,  1.,  1.,  1.,  1.]))
   
 def test_prior_function():
     """Tests for the prior function used by asy_fit"""

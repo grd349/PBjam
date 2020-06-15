@@ -147,7 +147,7 @@ class kde(plotting):
 
             if not flag_warn:
                 warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
-                'Trying to expand the range to include ~{KDEsize} stars.')
+                f'Trying to expand the range to include ~{KDEsize} stars.')
                 flag_warn = True
 
             if nsigma >= KDEsize:

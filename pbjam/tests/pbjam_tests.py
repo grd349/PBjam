@@ -95,6 +95,7 @@ class case():
         if self.ID == 'silly':
             self.st.kde = type('kde', (object,), {})()
             self.st.kde.samples = np.ones((2,10))
+            self.st.kde.prior_data = np.ones((2,10))
             
             data = np.array(self.pars['asypars']).repeat(11).reshape((10,-1))
             self.st.kde.kde = sm.nonparametric.KDEMultivariate(data=data, var_type='cccccccccc', bw='scott')
