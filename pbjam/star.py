@@ -14,7 +14,7 @@ only use the `star' class for more granular control of the peakbagging process.
 
 """
 
-import os
+import os, warnings
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
@@ -83,21 +83,12 @@ class star(plotting):
         self.ID = ID
         self.pg = pg.flatten()  # in case user supplies unormalized spectrum
 
-        # Teff and Gbp-Grp provide a lot of the same information, so only one of
-        # them need to be provided to start with. If one is not provided, PBjam
-        # will assume a wide prior on it.
-        teff_bad = np.all(np.array(teff) == [None,None]) or np.isnan(teff[0])
-        bp_rp_bad = np.all(np.array(bp_rp) == [None,None]) or np.isnan(bp_rp[0])
-        
-        if teff_bad and bp_rp_bad:
-            raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
-        elif teff_bad :
-            teff = [4889, 1500] # these are rough esimates from the prior
-        elif bp_rp_bad:
-            bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
-
+        if numax[0] < 25:
+            warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
         self.numax = numax
         self.dnu = dnu
+
+        teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
         self.teff = teff
         self.bp_rp = bp_rp
 
@@ -115,6 +106,22 @@ class star(plotting):
             self.prior_file = get_priorpath()
         else:
             self.prior_file = prior_file
+
+    def _checkTeffBpRp(self, teff, bp_rp):
+        # Teff and Gbp-Grp provide a lot of the same information, so only one of
+        # them need to be provided to start with. If one is not provided, PBjam
+        # will assume a wide prior on it.
+        teff_bad = np.all(np.array(teff) == [None,None]) or np.isnan(teff[0])
+        bp_rp_bad = np.all(np.array(bp_rp) == [None,None]) or np.isnan(bp_rp[0])
+        
+        if teff_bad and bp_rp_bad:
+            raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
+        elif teff_bad :
+            teff = [4889, 1500] # these are rough esimates from the prior
+        elif bp_rp_bad:
+            bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
+
+        return teff, bp_rp
 
     def _outpath(self, x):
         """ Shorthand for setting the full output path
