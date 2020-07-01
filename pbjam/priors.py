@@ -399,7 +399,45 @@ class kde(plotting):
 
         self.result = [self.samples[:, 2].mean(), self.samples[:, 2].std()]
 
-class MvN(plotting, kde):
+class MvN(kde):
+        """ A class to produce prior for asy_peakbag and initial starting location.
+
+        This class will take a sample of previously fit stars and compute a
+        multi-variate normal distribution (MvN) which acts as a prior for asy_peakbag.
+
+        The class will also compute a posterior, using the computed MvN and the
+        the input parameters, numax, dnu, Teff and Gbp-Grp as observational
+        constraints. This posterior is then sampled to estimate the most likely
+        initial starting location for asy_peakbag.
+
+        Examples
+        --------
+        Use MvN from the star class instance (recommended)
+
+        >>> st = pbjam.star(ID='KIC4448777', pg=pg, numax=[220.0, 3.0],
+                               dnu=[16.97, 0.01], teff=[4750, 100],
+                               bp_rp = [1.34, 0.01],
+                               prior_method='MvN')
+        >>> st.run_prior()
+
+        Using MvN on it's own.
+
+        >>> K = pbjam.prior.MvN()
+        >>> K(numax=[220.0, 3.0], dnu=[16.97, 0.01], teff=[4750, 100],
+              bp_rp = [1.34, 0.01])
+
+
+        Parameters
+        ----------
+        starinst : pbjam.star class instance, optional
+            A star class instance to use for observational parameters. Default is
+            None, which will then require observational parameters be provided at
+            the class instance call.
+        prior_file : str, optional
+            File path to the csv file containing the previous fit values to be used
+            to compute the KDE. Default is to use pbjam/data/prior_data.csv
+
+        """
         def __init__(self, starinst=None, prior_file=None):
 
             if starinst:
@@ -420,10 +458,16 @@ class MvN(plotting, kde):
             self.verbose = False
 
         def make_mvn(self):
+            """ Takes the prior data and constructs a MvN function
+
+            Computes the MvN based on the parameters of a previously fit sample of
+            targets.
+            """
+
             self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                   'env_width', 'mode_width', 'teff', 'bp_rp']
 
-            self.select_prior_data(self._log_obs['numax'])
+            self.select_prior_data(self._log_obs['numax'], KDEsize=100)
 
             if self.verbose:
                 print(f'Selected data set length {len(self.prior_data)}')
@@ -432,15 +476,39 @@ class MvN(plotting, kde):
             data = self.prior_data[self.par_names].values
 
             self.mvn = {'mu': np.mean(data, axis=0),
-                        'cov': np.cov(data),
-                        'inv_cov': np.linalg.inv(np.cov(data)))}
+                        'cov': np.cov(data.T),
+                        'inv_cov': np.linalg.inv(np.cov(data.T))}
 
         def prior(self, p):
-            return stats.multivariate_normal(p, self.mvn['mu'], self.mvn['cov'])
+            ''' Retuns the log likelihood of the 'prior' '''
+            return -0.5 * np.dot((p - self.mvn['mu']).T, self.mvn['inv_cov']).dot((p - self.mvn['mu']))
 
         def mvn_sampler(self, nwalkers=50):
+            """ Samples the posterior distribution with the MvN prior
+
+            Draws samples from the posterior given by
+
+            $p(\theta|D) \propto p(\theta) p(D|\theta)$,
+
+            where $p(\theta)$ is given by the MvN function of the prior data and
+            $p(D|\theta)$ is given by the simple observable constraints
+
+            Samples are drawn using the `emcee' package.
+
+            Parameters
+            ----------
+            nwalkers : int
+                Number of walkers to use to sample the posterior. This is passed
+                to the `emcee' package. Default is 50.
+
+            Returns
+            -------
+            flatchain : ndarray
+                Flattened chains from the emcee sampling.
+
+            """
             if self.verbose:
-                print('Running KDE sampler')
+                print('Running MvN sampler')
 
             x0 = [self._log_obs['dnu'][0],  # log10 dnu
                   self._log_obs['numax'][0],  # log10 numax
@@ -459,8 +527,7 @@ class MvN(plotting, kde):
 
             return flatchain
 
-    def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1],
-                     bp_rp=[1, -1]):
+        def __call__(self, dnu=[1, -1], numax=[1, -1], teff=[1, -1], bp_rp=[1, -1]):
             """ Compute and sample the MvN.
             Performs all the steps needed for using the MvN in the peakbagging
             process.
@@ -477,8 +544,6 @@ class MvN(plotting, kde):
                 (probably ~< 0.01)
 
             """
-
-            self.verbose = verbose
 
             if not hasattr(self, '_obs'):
                 self._obs = {'dnu': dnu, 'numax': numax, 'teff': teff, 'bp_rp': bp_rp}

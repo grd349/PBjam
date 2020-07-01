@@ -1,10 +1,10 @@
 """
 
-The `star' class is the core of PBjam and refers to a single target that is to 
-be peakbagged. Each `star' instance is assigned an ID and physical input 
-parameters, as well as a time series or power spectrum. 
+The `star' class is the core of PBjam and refers to a single target that is to
+be peakbagged. Each `star' instance is assigned an ID and physical input
+parameters, as well as a time series or power spectrum.
 
-The different steps in the peakbagging process are then passed the `star' 
+The different steps in the peakbagging process are then passed the `star'
 instance, updating it with the results of each step. The outputs of each step
 are stored in a dedicated directory created with the star ID.
 
@@ -16,7 +16,7 @@ only use the `star' class for more granular control of the peakbagging process.
 
 import os
 from .asy_peakbag import asymptotic_fit
-from .priors import kde
+from .priors import kde, MvN
 from .peakbag import peakbag
 from .jar import get_priorpath, to_log10
 from .plotting import plotting
@@ -33,9 +33,9 @@ class star(plotting):
     Examples
     --------
     Peakbag using the star class. Note that the star class only takes Lightkurve
-    periodograms, pg, as spectrum input. 
+    periodograms, pg, as spectrum input.
 
-    >>> st = pbjam.star(ID='KIC4448777', pg=pg, numax=[220.0, 3.0], 
+    >>> st = pbjam.star(ID='KIC4448777', pg=pg, numax=[220.0, 3.0],
                            dnu=[16.97, 0.01], teff=[4750, 100],
                            bp_rp = [1.34, 0.01])
     >>> st(make_plots=True)
@@ -67,7 +67,8 @@ class star(plotting):
     prior_file : str, optional
         Path to the csv file containing the prior data. Default is
         pbjam/data/prior_data.csv
-
+    prior_method : str default 'kde'
+        Chooses either the kde style prior of the MvN style prior.
     Attributes
     ----------
     f : array
@@ -77,8 +78,8 @@ class star(plotting):
 
     """
 
-    def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
-                 path=None, prior_file=None):
+    def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None],
+                 path=None, prior_file=None, prior_method='kde'):
 
         self.ID = ID
         self.pg = pg.flatten()  # in case user supplies unormalized spectrum
@@ -88,7 +89,7 @@ class star(plotting):
         # will assume a wide prior on it.
         teff_bad = np.all(np.array(teff) == [None,None]) or np.isnan(teff[0])
         bp_rp_bad = np.all(np.array(bp_rp) == [None,None]) or np.isnan(bp_rp[0])
-        
+
         if teff_bad and bp_rp_bad:
             raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
         elif teff_bad :
@@ -116,10 +117,12 @@ class star(plotting):
         else:
             self.prior_file = prior_file
 
+        self.prior_method = prior_method
+
     def _outpath(self, x):
         """ Shorthand for setting the full output path
 
-        TODO: optionally could be generallized to all of pbjam and do more 
+        TODO: optionally could be generallized to all of pbjam and do more
         advanced checks to see if the dir exists etc.
 
         Parameters
@@ -166,10 +169,10 @@ class star(plotting):
                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
                 print(message)
 
-    def run_kde(self, bw_fac=1.0, make_plots=False):
-        """ Run all steps involving KDE.
+    def run_prior(self, bw_fac=1.0, make_plots=False):
+        """ Run all steps involving prior estimation.
 
-        Starts by creating a KDE based on the prior data sample. Then samples
+        Starts by creating a prior based on the prior data sample. Then samples
         this KDE for initial starting positions for asy_peakbag.
 
         Parameters
@@ -183,30 +186,38 @@ class star(plotting):
 
         """
 
-        print('Starting KDE estimation')
-        # Init
-        kde(self)
+        print('Starting prior estimation')
 
-        # Call
-        self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
+        if self.prior_method == 'kde':
+            self.prior = kde(self)
+            self.prior(dnu=self.dnu, numax=self.numax, teff=self.teff,
                  bp_rp=self.bp_rp, bw_fac=bw_fac)
+
+        elif self.prior_method == 'MvN':
+            self.prior = MvN(self)
+            self.prior(dnu=self.dnu, numax=self.numax, teff=self.teff,
+                 bp_rp=self.bp_rp)
+
+        else:
+            message = f'Prior method not found {self.prior_method}'
+            print(message)
 
         # Store
         if make_plots:
-            self.kde.plot_corner(path=self.path, ID=self.ID,
+            self.prior.plot_corner(path=self.path, ID=self.ID,
                                  savefig=make_plots)
-            self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
+            self.prior.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
                                    savefig=make_plots)
-            self.kde.plot_echelle(path=self.path, ID=self.ID,
+            self.prior.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
 
     def run_asy_peakbag(self, norders, make_plots=False,
-                        store_chains=False, method='mcmc', 
+                        store_chains=False, method='mcmc',
                         developer_mode=False):
         """ Run all steps involving asy_peakbag.
 
         Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
-        using initial guesses and prior for the fit parameters from KDE.
+        using initial guesses and prior for the fit parameters from prior.
 
         Parameters
         ----------
@@ -221,11 +232,11 @@ class star(plotting):
             'nested. Default method is 'mcmc' that will call emcee, alternative
             is 'nested' to call nested sampling with CPnest.
         developer_mode : bool
-            Run asy_peakbag in developer mode. Currently just retains the input 
+            Run asy_peakbag in developer mode. Currently just retains the input
             value of dnu and numax as priors, for the purposes of expanding
-            the prior sample. Important: This is not good practice for getting 
+            the prior sample. Important: This is not good practice for getting
             science results!
-            
+
         """
 
         print('Starting asymptotic peakbagging')
@@ -255,7 +266,7 @@ class star(plotting):
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
 
-        Performs fit using simple Lorentzian profile pairs to subsections of 
+        Performs fit using simple Lorentzian profile pairs to subsections of
         the power spectrum, based on results from asy_peakbag.
 
         Parameters
@@ -290,28 +301,28 @@ class star(plotting):
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
-            self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
+            self.peakbag.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
 
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, make_plots=True, store_chains=True, 
+                 nthreads=1, make_plots=True, store_chains=True,
                  asy_sampling='mcmc', developer_mode=False):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
-        
+
         Parameters
         ----------
         bw_fac : float, optional.
             Scaling factor for the KDE bandwidth. By default the bandwidth is
-            automatically set, but may be scaled to adjust for sparsity of the 
+            automatically set, but may be scaled to adjust for sparsity of the
             prior sample. Default is 1.
         norders : int, optional.
             Number of orders to include in the fits. Default is 8.
         model_type : str, optional.
-            Can be either 'simple' or 'model_gp' which sets the type of mode 
-            width model. Defaults is 'simple'. 
+            Can be either 'simple' or 'model_gp' which sets the type of mode
+            width model. Defaults is 'simple'.
         tune : int, optional
             Numer of tuning steps passed to pm.sample. Default is 1500.
         nthreads : int, optional.
@@ -322,16 +333,16 @@ class star(plotting):
             Whether or not to store MCMC chains on disk. Default is False.
         asy_sampling : string
             Method to be used for sampling the posterior in asy_peakbag. Options
-            are 'mcmc' or 'nested. Default method is 'mcmc' that will call 
+            are 'mcmc' or 'nested. Default method is 'mcmc' that will call
             emcee, alternative is 'nested' to call nested sampling with CPnest.
         developer_mode : bool
-            Run asy_peakbag in developer mode. Currently just retains the input 
+            Run asy_peakbag in developer mode. Currently just retains the input
             value of dnu and numax as priors, for the purposes of expanding
-            the prior sample. Important: This is not good practice for getting 
-            science results!    
+            the prior sample. Important: This is not good practice for getting
+            science results!
         """
 
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
+        self.run_prior(bw_fac=bw_fac, make_plots=make_plots)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
                              store_chains=store_chains, method=asy_sampling,
