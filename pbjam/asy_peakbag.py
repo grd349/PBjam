@@ -14,6 +14,7 @@ import scipy.stats as scist
 from .plotting import plotting
 from .jar import normal
 from collections import OrderedDict
+import warnings
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
@@ -32,14 +33,12 @@ class asymp_spec_model():
         Array of frequency bins of the spectrum (in muHz). 
     norders : int
         Number of radial order to fit.
-
-        
+         
     """
 
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
-    
 
     def _get_nmax(self, dnu, numax, eps):
         """Compute radial order at numax.
@@ -311,6 +310,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
         Dictionary of the observational parameters (input parameters).
     _log_obs : dict
         Dictionary of the observational parametrs in log-scale.
+    prior_data : pandas DataFrame
+        Dataframe containing the samples used to the generate the KDE prior.
     start_samples : ndarray
         Array of samples drawn from the KDE to set the starting location of the
         asymptotic relation fit.
@@ -318,7 +319,12 @@ class asymptotic_fit(plotting, asymp_spec_model):
         KDE function used as a prior in the asymptotic relation fit.
     start : ndarray 
         Median of parameters in start_samples. 
-      
+    developer_mode : bool
+        Run asy_peakbag in developer mode. Currently just retains the input 
+        value of dnu and numax as priors, for the purposes of expanding
+        the prior sample. Important: This is not good practice for getting 
+        science results!
+
     """
 
     def __init__(self, st, norders=None):
@@ -329,48 +335,68 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.norders = norders
 
         self._obs = st._obs
-        self._log_obs = st._log_obs          
-        self.prior_file = st.prior_file
+        self._log_obs = st._log_obs    
         
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
+        
+        self.prior_file = st.prior_file
+        self.prior_data = st.kde.prior_data
         self.start_samples = st.kde.samples       
         self.kde = st.kde.kde    
         self.start = self._get_asy_start()
+        
         lfreq, ufreq = self._get_freq_range()
         self.sel = (lfreq < self.f) & (self.f < ufreq)
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
         
+        self.developer_mode = False
+        self.path = st.path
+        
         st.asy_fit = self
        
-    def __call__(self):
-        """ Setup, run and parse the asymptotic relation fit using `emcee'.
+    def __call__(self, method, developer_mode):
+        """ Setup, run and parse the asymptotic relation fit.
 
         Parameters
         ----------
-        dnu : list
-            Large frequency spacing and uncertainty.
-        numax : list
-            Frequency of maximum power and uncertainty.
-        teff : list
-            Stellar effective temperature and uncertainty.
-        bp_rp : list
-            The Gaia Gbp - Grp color value and uncertainty
-            (probably ~< 0.01 dex).
-
+        method : string
+            Method to be used for sampling the posterior. Options are 'mcmc' or
+            'nested. Default method is 'mcmc' that will call emcee, alternative
+            is 'nested' to call nested sampling with CPnest.
+        
+        developer_mode : bool
+            Run asy_peakbag in developer mode. Currently just retains the input 
+            value of dnu and numax as priors, for the purposes of expanding
+            the prior sample. Important: This is not good practice for getting 
+            science results!
+      
         Returns
         -------
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
             
         """
+        self.developer_mode = developer_mode
+        
+        if method not in ['mcmc', 'nested']:
+            warnings.warn(f'Method {method} not found: Using method mcmc')
+            method = 'mcmc'
 
-        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
-                           self.likelihood, self.prior)
-        self.fit(start_samples=self.start_samples)
+        if method == 'mcmc':
+            self.fit = pb.mcmc(np.median(self.start_samples, axis=0),
+                               self.likelihood, self.prior)
+            self.fit(start_samples=self.start_samples)
+
+        elif method == 'nested':
+            #bounds = [[self.start_samples[:, n].min(), 
+            #           self.start_samples[:, n].max()] for n in range(len(self.par_names))]
+            bounds = [[self.prior_data[key].min(), self.prior_data[key].max()] for key in self.par_names]
+            self.fit = pb.nested(self.par_names, bounds, self.likelihood, self.prior, self.path)
+            self.fit()
+         
         self.modeID = self.get_modeIDs(self.fit, self.norders)
         self.summary  = self._get_summary_stats(self.fit)        
-        self.mle_model = self.model(self.summary['mle'])        
         self.samples = self.fit.flatchain
         self.acceptance = self.fit.acceptance
 
@@ -442,6 +468,10 @@ class asymptotic_fit(plotting, asymp_spec_model):
         lnlike = 0
         
         # Constraint from input obs
+        if self.developer_mode:
+            lnlike += normal(p[0], *self._log_obs['dnu'])
+            lnlike += normal(p[1], *self._log_obs['numax'])
+        
         lnlike += normal(p[-2], *self._log_obs['teff'])
         lnlike += normal(p[-1], *self._obs['bp_rp'])
         
@@ -453,30 +483,26 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
     def _get_summary_stats(self, fit):
         """ Make dataframe with fit summary statistics
-    
+
         Creates a dataframe that contains various quantities that summarize the
-        fit. Note, these are predominantly derived from the marginalized 
-        posteriors.
-       
+        fit. Note, these are predominantly derived from the marginalized posteriors.
+
         Parameters
         ----------
-        fit : mcmc.mcmc instance
+        fit : mcmc.mcmc class instance
             mcmc class instances used in the fit
-            
+
         Returns
         -------
         summary : pandas.DataFrame
             Dataframe with the summary statistics.
-            
+
         """
-    
-        idx = np.argmax(fit.flatlnlike)
-        
+
         fc = fit.flatchain
-       
+
         # Append here to add other statistics
-        stats = OrderedDict({'mle'  : fc[idx,:], 
-                             'mean' : np.mean(fc, axis = 0),
+        stats = OrderedDict({'mean' : np.mean(fc, axis = 0),
                              'std'  : np.std(fc, axis = 0),
                              'skew' : scist.skew(fc, axis = 0),
                              '2nd'  : np.percentile(fc,  2.27501, axis=0),
@@ -485,9 +511,9 @@ class asymptotic_fit(plotting, asymp_spec_model):
                              '84th' : np.percentile(fc, 84.13447, axis=0),
                              '97th' : np.percentile(fc, 97.72498, axis=0),
                              'MAD'  : scist.median_absolute_deviation(fc, axis=0)})
-    
+
         summary = pd.DataFrame(stats, index = self.par_names)
-        
+
         return summary
        
 

@@ -8,6 +8,9 @@ Samplers added to PBjam should be called from this module.
 import emcee
 import numpy as np
 import scipy.stats as st
+import cpnest.model
+import pandas as pd
+import os
 
 class mcmc():
     """ Class for MCMC sampling using `emcee'
@@ -235,3 +238,82 @@ class mcmc():
             good_mad = st.median_absolute_deviation(flatchains, axis = 0) * spread
             pos[idx, :] = np.array([np.random.randn(self.ndim) * good_mad + good_med for n in range(nbad)])
         return pos
+
+
+class nested(cpnest.model.Model):
+    """
+    Runs CPnest to performed nested sampling from
+
+    log P(theta | D) ~ likelihood + prior
+
+    Note both likelihood and prior are in natural log.
+
+    Attributes
+    ----------
+
+    names: list, strings
+        A list of names of the model parameters
+
+    bounds: list of tuples
+        The bounds of the model parameters as [(0, 10), (-1, 1), ...]
+
+    likelihood: func
+        Function that will return the log likelihood when called as 
+        likelihood(params)
+
+    prior: func
+        Function that will return the log prior when called as prior(params)
+
+    """
+    
+    def __init__(self, names, bounds, likelihood, prior, path):
+        self.names=names
+        self.bounds=bounds
+        self.likelihood = likelihood
+        self.prior = prior
+        
+        self.path = os.path.join(*[path, 'cpnest'])
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        
+
+    def log_likelihood(self, param):
+        """ Wrapper for log likelihood """
+        return self.likelihood(param.values)
+
+    def log_prior(self,p):
+        """ Wrapper for log prior """
+        if not self.in_bounds(p): return -np.inf
+        return self.prior(p.values)
+
+    def __call__(self, nlive=100, nthreads=1, maxmcmc=100, poolsize=100):
+        """
+        Runs the nested sampling
+
+        Parameters
+        ----------
+        nlive : int
+            Number of live points to be used for the sampling. This is similar 
+            to walkers in emcee. Default is 100.
+        nthreads : int
+            Number of parallel threads to run. More than one is currently slower
+            since the likelihood is fairly quick to evaluate. Default is 1. 
+        maxmcmc : int
+            Maximum number of mcmc steps taken by the sampler. Default is 100.
+        poolsize : int
+            Number of objects for the affine invariant sampling. Default is 100.
+
+        Returns
+        -------
+        df: pandas DataFrame
+            A dataframe of the samples produced with the nested sampling.
+        """
+        
+        self.nest = cpnest.CPNest(self, verbose=0, seed=53, nthreads=nthreads,
+                                  nlive=nlive, maxmcmc=maxmcmc, 
+                                  poolsize=poolsize, output=self.path)
+        self.nest.run()
+        self.samples = pd.DataFrame(self.nest.get_posterior_samples())[self.names]
+        self.flatchain = self.samples.values
+        self.acceptance = None
+        return self.samples
