@@ -99,6 +99,21 @@ def test_set_outpath():
 # The test functions below require longer runs and are not suitable for GitHub
 # workflows. the mark.slow decorator doesn't seem to work with GitHub workflows.
     
-#def test_run_kde():
+def test_run_kde():
+    """Tests that a KDE can be created and sampled for given prior data
+
+    Notes
+    -----
+    This test is incomplete
+
+    """
+    # setup
+    pg = lk.periodogram.Periodogram(np.array([1,1])*units.microhertz, units.Quantity(np.array([1,1]), None))
+    st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05), (4750, 250), (1.34, 0.1))
+    func = st.run_kde
+    
+    # simple tests
+    pbt.does_it_run(func, None)
+
 #def test_run_asy_peakbag():
 #def test_run_peakbag():
