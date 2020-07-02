@@ -11,3 +11,4 @@ pymc3
 hdbscan
 sklearn
 nbsphinx
+cpnest>=0.9.9
