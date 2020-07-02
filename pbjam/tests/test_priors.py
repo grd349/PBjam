@@ -24,7 +24,7 @@ def test_kde_init():
     kde()
 
 def test_MvN_init():
-    ''' Tests the MvN init function '''
+    """ Tests the MvN init function """
     MvN()
 
 def test_select_prior_data():
@@ -137,7 +137,7 @@ def test_kde_predict():
     assert_almost_equal(out[1]/out[0], np.ones_like(out[1])*err, decimal = 1)
 
 def test_MvN_run():
-    ''' Tests a fast MvN run (should be very fast) '''
+    """ Tests a fast MvN run (should be very fast) """
     ID = '4448777'
     numax = [220.0, 3.0]
     dnu = [16.97, 0.05]
@@ -146,4 +146,4 @@ def test_MvN_run():
     st = star(ID, None,
                numax, dnu, teff, bp_rp,
                prior_method='MvN')
-    steps.run_prior()
+    st.run_prior()
