@@ -85,8 +85,8 @@ def _organize_sess_dataframe(vardf):
 
     if 'timeseries' not in vardf.keys():
         _format_col(vardf, None, 'timeseries')
-    if 'psd' not in vardf.keys():
-        _format_col(vardf, None, 'psd')
+    if 'spectrum' not in vardf.keys():
+        _format_col(vardf, None, 'spectrum')
 
 
 def _organize_sess_input(**vardct):
@@ -128,6 +128,8 @@ def _organize_sess_input(**vardct):
             vardf[key] = np.array(vardct[key]).reshape((-1, 2))[:, 0].flatten()
             vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
     return vardf
+
+
 
 
 def _launch_query(id, download_dir, lkwargs):
@@ -497,17 +499,24 @@ def _lc_to_lk(vardf, download_dir, use_cached=True):
     key = 'timeseries'
     for i, id in enumerate(vardf['ID']):
         if isinstance(vardf.loc[i, key], str):
-            t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
+            try:
+                t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1), delimiter = ',').T 
+            except:
+                try:
+                    t, d = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1), delimiter = ' ').T
+                except:
+                    raise IOError('Failed to read the provided ascii files. Please check that they have the required 2-column format, and they are use either comma or white-space delimiters.')
             d += tinyoffset
             vardf.at[i, key] = _arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
+            
         elif not vardf.loc[i, key]:
             if vardf.loc[i, 'psd']:
                 pass
             else:
-                D = {x: vardf.loc[i, x] for x in ['cadence', 'month', 'sector',
-                                                  'campaign', 'quarter', 
-                                                  'mission']}
-                lk_lc = _query_lightkurve(id, download_dir, use_cached, D)
+                lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
+                                                        'sector', 'campaign',
+                                                        'quarter', 'mission']}
+                lk_lc = _query_lightkurve(id, download_dir, use_cached, lkwargs)
                 vardf.at[i, key] = lk_lc
 
         elif vardf.loc[i, key].__module__ == lk.lightcurve.__name__:
