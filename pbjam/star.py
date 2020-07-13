@@ -123,24 +123,37 @@ class star(plotting):
 
         return teff, bp_rp
 
-    def _outpath(self, x):
-        """ Shorthand for setting the full output path
-
-        TODO: optionally could be generallized to all of pbjam and do more 
-        advanced checks to see if the dir exists etc.
+    def _get_outpath(self, fname):
+        """  Get basepath or make full file path name.
+        
+        Convenience function for either setting the base path name for the star,
+        or if given fname as input, will append this to the basepath name to 
+        create a full path to the file in question. 
 
         Parameters
         ----------
-        x : str
-            Base filename
-
+        fname : str, optional
+            If not None, will append this to the pathname of the star. Use this
+            to store files such as plots or tables.
+        
         Returns
         -------
-        outpath : str
-            Full output pathname
+        path : str
+            If fname is None, path is the path name of the star. Otherwise it is
+            the full file path name for the file in question.
         """
-
-        return os.path.join(*[self.path, x])
+    
+        if fname is None:
+            return self.path
+        elif isinstance(fname, str):
+            path = os.path.join(*[self.path, fname])
+        else:
+            raise ValueError(f'Unrecognized input {fname}.')
+        
+        if not os.path.isdir(self.path):
+            raise IOError(f'You are trying to access {self.path} which is a directory that does not exist.')
+        else:
+            return path
 
     def _set_outpath(self, path):
         """ Sets the path attribute for star
@@ -160,9 +173,10 @@ class star(plotting):
         """
 
         if isinstance(path, str):
-            # If path is str, presume user wants to override self.path
+            # If path is str, presume user wants to put stuff somewhere specific.
             self.path = os.path.join(*[path, f'{self.ID}'])
         else:
+            # Otherwise just create a subdir in cwd.
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
 
         # Check if self.path exists, if not try to create it
@@ -170,8 +184,10 @@ class star(plotting):
             try:
                 os.makedirs(self.path)
             except Exception as ex:
-                message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+                message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
                 print(message)
+
+
 
     def run_kde(self, bw_fac=1.0, make_plots=False):
         """ Run all steps involving KDE.
@@ -243,9 +259,9 @@ class star(plotting):
         self.asy_fit(method, developer_mode)
 
         # Store
-        self.asy_fit.summary.to_csv(self._outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
+        self.asy_fit.summary.to_csv(self._get_outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
                                     index=True, index_label='name')
-        self.asy_fit.modeID.to_csv(self._outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
+        self.asy_fit.modeID.to_csv(self._get_outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
                                    index=False)
         if make_plots:
             self.asy_fit.plot_spectrum(path=self.path, ID=self.ID,
@@ -254,9 +270,9 @@ class star(plotting):
                                      savefig=make_plots)
             self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
-
         if store_chains:
-            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(self._outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
+            asy_chains = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
+            asy_chains.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
@@ -289,7 +305,7 @@ class star(plotting):
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
 
         # Store
-        self.peakbag.summary.to_csv(self._outpath(f'peakbag_summary_{self.ID}.csv'),
+        self.peakbag.summary.to_csv(self._get_outpath(f'peakbag_summary_{self.ID}.csv'),
                                     index_label='name')
 
         if store_chains:
