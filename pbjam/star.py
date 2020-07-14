@@ -81,7 +81,6 @@ class star(plotting):
                  path=None, prior_file=None):
 
         self.ID = ID
-        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
 
         if numax[0] < 25:
             warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
@@ -92,12 +91,12 @@ class star(plotting):
         self.teff = teff
         self.bp_rp = bp_rp
 
+        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
         self.f = self.pg.frequency.value
         self.s = self.pg.power.value
 
         self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
                      'bp_rp': self.bp_rp}
-
         self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self._set_outpath(path)

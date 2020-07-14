@@ -49,9 +49,250 @@ import lightkurve as lk
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import os, glob, warnings
+import os, glob, warnings, re, time, numbers
 from .star import star
+from astroquery.mast import ObservationsClass as AsqMastObsCl
+from astroquery.mast import Catalogs
+from astroquery.simbad import Simbad
+from astroquery.gaia import Gaia
 
+def _querySimbad(ID):
+    """ Query simbad for Gaia DR2 source ID.
+    
+    Looks up the target ID on Simbad to check if it has a Gaia DR2 ID.
+    
+    The input ID can be any commonly used identifier, such as a Bayer 
+    designation, HD number or KIC.
+    
+    Notes
+    -----
+    TIC numbers are note currently listed on Simbad. Do a separate MAST quiry 
+    for this.
+    
+    Parameters
+    ----------
+    ID : str
+        Target identifier.
+        
+    Returns
+    -------
+    gaiaID : str
+        Gaia DR2 source ID. Returns None if no Gaia ID is found.   
+    """
+    
+    print('Querying Simbad for Gaia ID')
+    
+    try:
+        job = Simbad.query_objectids(ID)
+    except:
+        print(f'Unable to resolve {ID} with Simbad')
+        return None
+    
+    for line in job['ID']:
+        if 'Gaia DR2' in line:
+            return line.replace('Gaia DR2 ', '')
+    return None
+
+def _queryTIC(ID, radius = 20):
+    """ Find bp_rp in TIC
+    
+    Queries the TIC at MAST to search for a target ID to return bp-rp value. The
+    TIC is already cross-matched with the Gaia catalog, so it contains a bp-rp 
+    value for many targets (not all though).
+    
+    For some reason it does a cone search, which may return more than one 
+    target. In which case the target matching the ID is found in the returned
+    list. 
+    
+    Parameters
+    ----------
+    ID : str
+        The TIC identifier to search for.
+    radius : float, optional
+        Radius in arcseconds to use for the sky cone search. Default is 20".
+    
+    Returns
+    -------
+    bp_rp : float
+        Gaia bp-rp value from the TIC.   
+    """
+    
+    print('Querying TIC for Gaia values.')
+    job = Catalogs.query_object(objectname=ID, catalog='TIC', objType='STAR', 
+                                radius = radius*units.arcsec)
+
+    if len(job) > 0:
+        idx = job['ID'] == str(ID.replace('TIC','').replace(' ', ''))
+        return float(job['gaiabp'][idx] - job['gaiarp'][idx]) #This should crash if len(result) > 1.
+    else:
+        return np.nan
+
+def _queryMAST(ID):
+    """ Query ID at MAST
+    
+    Sends a query for a target ID to MAST which returns an Astropy Skycoords 
+    object with the target coordinates.
+    
+    ID can be any commonly used identifier such as a Bayer designation, HD, KIC,
+    2MASS or other name.
+    
+    Parameters
+    ----------
+    ID : str
+        Target identifier
+    
+    Returns
+    -------
+    job : astropy.Skycoords
+        An Astropy Skycoords object with the target coordinates.
+    
+    """
+
+    print(f'Querying MAST for the {ID} coordinates.')
+    mastobs = AsqMastObsCl()
+    try:            
+        return mastobs.resolve_object(objectname = ID)
+    except:
+        return None
+
+def _queryGaia(ID=None,coords=None, radius = 20):
+    """ Query Gaia archive
+    
+    Sends an ADQL query to the Gaia archive to look up a requested target ID or
+    set of coordinates. 
+        
+    If the query is based on coordinates a cone search will be performed and the
+    closest target is returned. Provided coordinates must be astropy.Skycoords.
+    
+    Parameters
+    ----------
+    ID : str
+        Gaia source ID to search for.
+    coord : astropy.Skycoords
+        An Astropy Skycoords object with the target coordinates. Must only 
+        contain one target.
+    radius : float, optional
+        Radius in arcseconds to use for the sky cone search. Default is 20".
+    
+    Returns
+    -------
+    bp_rp : float
+        Gaia bp-rp value of the requested target from the Gaia archive.  
+    """
+    
+    if ID is not None:
+        adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
+        try:
+            job = Gaia.launch_job(adql_query).get_results()
+        except:
+            return np.nan
+        return float(job['bp_rp'][0])
+    
+    elif coords is not None:
+        ra = coords.to_value()
+        dec = coords.to_value()
+        adql_query = f"SELECT DISTANCE(POINT('ICRS', ra, dec), POINT('ICRS', {ra}, {dec})) AS dist, * FROM gaiadr2.gaia_source WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec}, {radius})) ORDER BY dist ASC"
+
+        try:
+            job = Gaia.launch_job(adql_query).get_results()
+        except:
+            return np.nan
+        return float(job['bp_rp'][0])
+    else:
+        raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
+
+def _format_name(name):
+    """ Format input ID
+    
+    Users tend to be inconsistent in naming targets, which is an issue for 
+    looking stuff up on, e.g., Simbad. 
+    
+    This function formats the name so that Simbad doesn't throw a fit.
+    
+    If the name doesn't look like anything in the variant list it will only be 
+    changed to a lower-case string.
+    
+    Parameters
+    ----------
+    name : str
+        Name to be formatted.
+    
+    Returns
+    -------
+    name : str
+        Formatted name
+        
+    """
+        
+    name = str(name)
+    name = name.lower()
+    
+    # Add naming exceptions here
+    variants = {'KIC': ['kic', 'kplr', 'KIC'],
+                'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2', 'Gaia DR2'],
+                'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1', 'Gaia DR1'], 
+                'EPIC': ['epic', 'ktwo', 'EPIC'],
+                'TIC': ['tic', 'tess', 'TIC']
+               }
+    
+    fname = None
+    for key in variants:   
+        for x in variants[key]:
+            if x in name:
+                fname = name.replace(x,'')
+                fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
+                fname = key+' '+fname
+                return fname
+            
+    return name
+           
+        
+def get_bp_rp(ID):
+    """ Search online for bp_rp values based on ID.
+       
+    First a check is made to see if the target is a TIC number, in which case 
+    the TIC will be queried, since this is already cross-matched with Gaia DR2. 
+    
+    If it is not a TIC number, Simbad is queries to identify a possible Gaia 
+    source ID. 
+    
+    As a last resort MAST is queried to provide the target coordinates, after 
+    which a Gaia query is launched to find the closest target. The default 
+    search radius is 20" around the provided coordinates. 
+    
+    Parameters
+    ----------
+    ID : str
+        Target identifier to search for.
+    
+    Returns
+    -------
+    bp_rp : float
+        Gaia bp-rp value for the target. Is nan if no result is found or the
+        queries failed.
+    
+    """
+    
+    time.sleep(1)
+
+    ID = _format_name(ID)
+    
+    if 'TIC' in ID:
+        bp_rp = _queryTIC(ID)          
+
+    else:
+        try:
+            gaiaID = _querySimbad(ID)
+            bp_rp = _queryGaia(ID=gaiaID)
+        except:
+            try:
+                coords = _queryMAST(ID)
+                bp_rp = _queryGaia(coords=coords)
+            except:
+                print(f'Unable to retrieve a bp_rp value for {ID}.')
+                bp_rp = np.nan
+
+    return bp_rp
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -128,8 +369,6 @@ def _organize_sess_input(**vardct):
             vardf[key] = np.array(vardct[key]).reshape((-1, 2))[:, 0].flatten()
             vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
     return vardf
-
-
 
 
 def _launch_query(id, download_dir, lkwargs):
@@ -401,16 +640,16 @@ def _arr_to_lk(x, y, name, typ):
     
     if typ == 'timeseries':
         return lk.LightCurve(time=x, flux=y, targetid=name)
-    elif typ == 'psd':
+    elif typ == 'spectrum':
         return lk.periodogram.Periodogram(x*units.microhertz,
                                           units.Quantity(y, None),
                                           targetid=name)
     else:
-        raise KeyError("Don't modify anything but psd and timeseries cols")
+        raise KeyError("Don't modify anything but spectrum and timeseries cols")
 
 
 def _format_col(vardf, col, key):
-    """ Add timeseries or psd column to dataframe based on input
+    """ Add timeseries or spectrum column to dataframe based on input
 
     Based on the contents of col, will try to format col and add it as a column
     to vardf with column name key. col can be many things, so the decision is
@@ -433,7 +672,7 @@ def _format_col(vardf, col, key):
     Parameters
     ----------
     vardf : pandas.DataFrame instance
-        Pandas Dataframe instance to which either a timeseries or psd column
+        Pandas Dataframe instance to which either a timeseries or spectrum column
         will be added.
     col : object
         Input from Session call, corresponding to key
@@ -485,7 +724,7 @@ def _lc_to_lk(vardf, download_dir, use_cached=True):
     it to a Lightkurve.LightCurve object. If string, it's assumed to be a file
     path name, if None, it will query the LightCurve cache locally or MAST if
     nothing is found. Skips column entries which are already LightKurve objects
-    or if a psd for the star in question exists in the psd column.
+    or if a spectrum for the star in question exists in the spectrum column.
 
     Parameters
     ----------
@@ -510,7 +749,7 @@ def _lc_to_lk(vardf, download_dir, use_cached=True):
             vardf.at[i, key] = _arr_to_lk(t, d, vardf.loc[i, 'ID'], key)
             
         elif not vardf.loc[i, key]:
-            if vardf.loc[i, 'psd']:
+            if vardf.loc[i, 'spectrum']:
                 pass
             else:
                 lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
@@ -529,9 +768,9 @@ def _lc_to_lk(vardf, download_dir, use_cached=True):
 
 
 def _lk_to_pg(vardf):
-    """ Convert psd column in dataframe to Lightkurve periodgram object list
+    """ Convert spectrum column in dataframe to Lightkurve periodgram object list
 
-    Takes whatever is in the psd column of a dataframe and tries to turn it
+    Takes whatever is in the spectrum column of a dataframe and tries to turn it
     into a Lightkurve.periodogram object. If column entry is a string, it
     assumes it's a path name, if None, it will try to take what's in the
     timeseries column and compute periodogram based on that. If a periodogram
@@ -541,12 +780,12 @@ def _lk_to_pg(vardf):
     Parameters
     ----------
     vardf : pandas.DataFrame instance
-        Dataframe containing a 'psd' column consisting of None, strings or
+        Dataframe containing a 'spectrum' column consisting of None, strings or
         Lightkurve.periodogram objects.
 
     """
 
-    key = 'psd'
+    key = 'spectrum'
     for i, id in enumerate(vardf['ID']):
         if isinstance(vardf.loc[i, key], str):
             f, s = np.genfromtxt(vardf.loc[i, key], usecols=(0, 1)).T
@@ -627,14 +866,14 @@ class session():
         Timeseries input. Leave as None for PBjam to download it automatically.
         Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
         strings for pathnames are accepted.
-    psd : object, optional
+    spectrum : object, optional
         Periodogram input. Leave as None for PBjam to use Timeseries to compute
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
     dictlike : pandas.DataFrame or dictionary, optional
         DataFrame, dictionary, record array with a list of targets, and their
         properties. If string, PBjam will assume it's a pathname to a csv file.
-        Specify timeseries and psd columns with file pathnames to use manually
+        Specify timeseries and spectrum columns with file pathnames to use manually
         reduced data.
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
@@ -686,7 +925,7 @@ class session():
     """
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
-                 timeseries=None, psd=None, dictlike=None, use_cached=False, 
+                 timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
                  cadence=None, campaign=None, sector=None, month=None, 
                  quarter=None, mission=None, path=None, download_dir=None):
 
@@ -714,7 +953,7 @@ class session():
                                         mission=mission)
             
             _format_col(vardf, timeseries, 'timeseries')
-            _format_col(vardf, psd, 'psd')
+            _format_col(vardf, spectrum, 'spectrum')
 
         # Take whatever is in the timeseries column of vardf and make it an
         # lk.lightcurve object or None
@@ -725,11 +964,14 @@ class session():
         _lk_to_pg(vardf)
 
 
-       
-
-        for i in range(len(vardf)):
+        for i in vardf.index:
+            
+            if not isinstance(vardf.loc[i, 'bp_rp'], (numbers.Real)):
+                vardf.at[i, 'bp_rp'] = get_bp_rp(vardf.loc[i, 'ID'])
+                vardf.at[i, 'bp_rp_err'] = 0.1
+            
             self.stars.append(star(ID=vardf.loc[i, 'ID'],
-                                   pg=vardf.loc[i, 'psd'],
+                                   pg=vardf.loc[i, 'spectrum'],
                                    numax=vardf.loc[i, ['numax', 'numax_err']].values,
                                    dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
