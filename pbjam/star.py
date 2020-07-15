@@ -531,7 +531,7 @@ def _queryGaia(ID=None,coords=None, radius = 20):
     else:
         raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
 
-def _format_name(name):
+def _format_name(ID):
     """ Format input ID
     
     Users tend to be inconsistent in naming targets, which is an issue for 
@@ -553,9 +553,9 @@ def _format_name(name):
         Formatted name
         
     """
-        
-    name = str(name)
-    name = name.lower()
+
+    ID = str(ID)
+    ID = ID.lower()
     
     # Add naming exceptions here
     variants = {'KIC': ['kic', 'kplr', 'KIC'],
@@ -568,13 +568,12 @@ def _format_name(name):
     fname = None
     for key in variants:   
         for x in variants[key]:
-            if x in name:
-                fname = name.replace(x,'')
+            if x in ID:
+                fname = ID.replace(x,'')
                 fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
-                fname = key+' '+fname
-                return fname
-            
-    return name
+                fname = key+' '+str(int(fname))
+                return fname 
+    return ID
 
 def get_bp_rp(ID):
     """ Search online for bp_rp values based on ID.
