@@ -278,7 +278,7 @@ class plotting():
                         label='Model'
                     else:
                         label=None
-                    mod = self.model(*[self.samples[x][j] for x in par_names])
+                    mod = self.model(*[self.traces[x][j] for x in par_names])
                     ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=label)
 

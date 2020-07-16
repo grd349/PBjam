@@ -360,7 +360,7 @@ class peakbag(plotting):
                 mean_field = pm.fit(n=200000, method='fullrank_advi',
                                     start=self.start,
                                     callbacks=[cb])
-                self.samples = mean_field.sample(1000)
+                self.traces = mean_field.sample(1000)
         else:
             Rhat_max = 10
             niter = 1
@@ -369,19 +369,24 @@ class peakbag(plotting):
                     warnings.warn('Did not converge!')
                     break
                 with self.pm_model:
-                    self.samples = pm.sample(tune=tune * niter, cores=nthreads,
+                    self.traces = pm.sample(tune=tune * niter, cores=nthreads,
                                              start=self.start,
                                              init=self.init_sampler,
                                              target_accept=self.target_accept,
                                              progressbar=False)
-                Rhat_max = np.max([v.max() for k, v in rhatfunc(self.samples).items()])
+                Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
                 niter += 1
         
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older
         try:
-            self.summary = pm.summary(self.samples)
+            self.summary = pm.summary(self.traces)
         except:
-            self.summary = pm.stats.summary(self.samples)
-            
+            self.summary = pm.stats.summary(self.traces)
+                   
         self.par_names = self.summary.index
+        
+        samps = np.array([self.traces[x] for x in self.traces.varnames if not x.endswith('_log__')])
+        self.samples = np.array([]).reshape((samps.shape[1], 0))
+        for i in range(samps.shape[0]):   
+            self.samples = np.concatenate((self.samples, samps[i, :, :]), axis =1)
         

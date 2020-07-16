@@ -25,7 +25,6 @@ import numpy as np
 from astroquery.mast import ObservationsClass as AsqMastObsCl
 from astroquery.mast import Catalogs
 from astroquery.simbad import Simbad
-from astroquery.gaia import Gaia
 import astropy.units as units
 
 
@@ -198,7 +197,7 @@ class star(plotting):
 
 
 
-    def run_kde(self, bw_fac=1.0, make_plots=False):
+    def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
 
         Starts by creating a KDE based on the prior data sample. Then samples
@@ -223,7 +222,7 @@ class star(plotting):
         self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
                  bp_rp=self.bp_rp, bw_fac=bw_fac)
 
-        # Store
+        # Store          
         if make_plots:
             self.kde.plot_corner(path=self.path, ID=self.ID,
                                  savefig=make_plots)
@@ -231,6 +230,10 @@ class star(plotting):
                                    savefig=make_plots)
             self.kde.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
+
+        if store_chains:
+            kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
+            kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
 
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='mcmc', 
@@ -279,9 +282,10 @@ class star(plotting):
                                      savefig=make_plots)
             self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
+            
         if store_chains:
-            asy_chains = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
-            asy_chains.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
+            asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
+            asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
@@ -316,9 +320,6 @@ class star(plotting):
         # Store
         self.peakbag.summary.to_csv(self._get_outpath(f'peakbag_summary_{self.ID}.csv'),
                                     index_label='name')
-
-        if store_chains:
-            pass  # TODO need to pickle the samples if requested.
             
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
@@ -326,9 +327,12 @@ class star(plotting):
             self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
                                       savefig=make_plots)
 
+        if store_chains:
+            peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
+            peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, make_plots=True, store_chains=True, 
+                 nthreads=1, make_plots=True, store_chains=False, 
                  asy_sampling='mcmc', developer_mode=False):
         """ Perform all the PBjam steps
 
@@ -364,7 +368,7 @@ class star(plotting):
             science results!    
         """
 
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
+        self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
                              store_chains=store_chains, method=asy_sampling,
@@ -498,6 +502,8 @@ def _queryGaia(ID=None,coords=None, radius = 20):
     """
     
     print('Querying Gaia archive for bp-rp values.')
+    
+    from astroquery.gaia import Gaia
 
     if ID is not None:
         adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
