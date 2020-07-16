@@ -93,6 +93,8 @@ def test_set_outpath():
     inp = [pth]
     func(*inp)
     assert(os.path.isdir(st.path))
+    
+    # cleanup
     os.rmdir(st.path)
 
 
@@ -114,6 +116,9 @@ def test_run_kde():
     
     # simple tests
     pbt.does_it_run(func, None)
+    
+    # cleanup
+    os.rmdir(st.path)
 
 def test_format_name():
 
