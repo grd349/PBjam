@@ -155,151 +155,6 @@ def _sort_lc(lc):
     lc.flux = lc.flux[sidx]
     return lc
 
-#def _launch_query(id, download_dir, lkwargs):
-#    """ Search for target on MAST server.
-#
-#    Get all the lightcurves available for a target id, using options in kwargs
-#    dictionary. The lightcurves are downloaded using the lightkurve API, and
-#    the target ID must therefore be parseable by lightkurve.
-#
-#    Parameters
-#    ----------
-#    id : string
-#        Target id, must be resolvable by Lightkurve.
-#
-#    download_dir : str
-#        Directory to download the lightcurves into.
-#
-#    lkwargs : dictionary containing keywords for the LightKurve search. For 
-#        example cadence, quarter, campaign, sector, month.
-#
-#    Returns
-#    -------
-#    search_results : list
-#        List of fits files for the requested target
-#        
-#    """
-#
-#    print(f'Querying MAST for {id} light curve.')
-#    search_results = lk.search_lightcurvefile(target=id, **lkwargs)
-#    if len(search_results) == 0:
-#        warnings.warn('LightKurve did not return %s cadence data for %s' % (lkwargs['cadence'], id))
-#        return []
-#    else:
-#        return search_results.download_all(download_dir=download_dir)
-
-
-
-
-
-
-
-#def _set_cadence(lkwargs):
-#    """ Select the cadence of the data to download
-#    
-#    Determines the extension to use later in the lookup of cached fits files,
-#    to be passed to LightKurve for online lookup.
-#    
-#    If no cadence argument is passed it will default to long cadence. 
-#    
-#    Parameters
-#    ----------
-#    lkwargs : dict
-#        Dictionary to be passed to LightKurve.
-#        
-#    Returns
-#    -------
-#    ext : str
-#        Fits file short/long cadence extension.
-#        
-#    """
-#    if not lkwargs['cadence']:
-#        lkwargs['cadence'] = 'long'
-#    
-#    if lkwargs['cadence'] == 'short':
-#        ext = '*_slc.fits'
-#    elif lkwargs['cadence'] == 'long':
-#        ext = '*_lc.fits'
-#    else:
-#        raise TypeError('Unrecognized cadence input for %s' % (id))
-#    return ext
-
-#def _set_cache_dir(download_dir):
-#    """ Determine which directory to use as cache
-#    
-#    Parameters
-#    ----------
-#    download_dir : str
-#        None or path to store results from a star
-#    
-#    Returns
-#    -------
-#    cache_dir : str
-#        Path to store results from a star
-#        
-#    """
-#    
-#    if not download_dir:
-#        download_dir = os.path.join(*[os.path.expanduser('~'), 
-#                                     '.lightkurve-cache'])
-#    return download_dir    
-
-#def _set_mission(ID, lkwargs):
-#    """ Set mission keyword in lkwargs
-#    
-#    If no mission is selected will attempt to figure it out based on any
-#    prefixes in the ID string, and add this to the LightKurve keywords 
-#    arguments dictionary.
-#    
-#    Parameters
-#    ----------
-#    ID : str
-#        ID string of the target
-#    lkwargs : dict
-#        Dictionary to be passed to LightKurve
-#        
-#    """
-#    if lkwargs['mission'] is None:
-#        if ('kic' in ID.lower()) or ('kplr' in ID.lower()) :
-#            lkwargs['mission'] = 'kepler'
-#        elif ('ktwo' in ID.lower()) or ('epic' in ID.lower()):
-#            lkwargs['mission'] = 'k2'
-#        elif ('tic' in ID.lower()) or ('tess' in ID.lower()):
-#            lkwargs['mission'] = 'tess'
-#        else:
-#            warnings.warn('Unknown mission selected. MAST might not understand.')
-
-#def _lookup_cached_files(ID, download_dir, ext):
-#    """ Look through the local cache directory for target files
-#    
-#    Looks through the local cache directory for any files matching the ID of 
-#    the target, and with the requested extension.
-#    
-#    Parameters
-#    ----------
-#    id : str
-#        Input ID for the target
-#    download_dir : str
-#        Path to the cache directory
-#    ext : str
-#        Fits file short/long cadence extension
-#    
-#    Returns
-#    -------
-#    tgtfiles : list
-#        List of file names matching the search criteria
-#        
-#    """
-#    
-#    if isinstance(ID, str):
-#        baseid = ID.lower()
-#        for prefix in ['kic','epic','tic','kplr']:
-#            baseid = baseid.replace(prefix, '')
-#        baseid = str(int(baseid))
-#      
-#    tgtfiles = glob.glob(os.path.join(*[download_dir, 'mastDownload', '*', 
-#                                        f'*{baseid}*', ext]))
-#    return tgtfiles
 
 def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     
@@ -319,58 +174,6 @@ def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     
     return lc
     
-#    """ Check cache for fits file, or download it.
-#
-#    Based on use_cached flag, will look in the cache for fits file
-#    corresponding to request id star. If nothing is found in cached it will be
-#    downloaded from the MAST server.
-#
-#    Parameters
-#    ----------
-#    id : string
-#        Identifier for the requested star. Must be resolvable by Lightkurve.
-#    download_dir : str
-#        Path to the cache directory    
-#    use_cached: bool
-#        Whether or not to used data in the Lightkurve cache.
-#    lkwargs : dict
-#        Dictionary containing keywords for the Lightkurve search.
-#        cadence, quarter, campaign, sector, month.
-#
-#    Note:
-#    -----
-#    Prioritizes long cadence over short cadence unless otherwise specified.
-#
-#    """
-#    
-#    cache_dir = _set_cache_dir(download_dir)
-#    
-#    _set_mission(ID, lkwargs)
-#    
-#    ext = _set_cadence(lkwargs)
-#
-#    tgtfiles = _lookup_cached_files(ID, cache_dir, ext)
-#
-#    if (use_cached and (len(tgtfiles) != 0)):
-#        lc_col = [lk.open(n) for n in tgtfiles]
-#        
-#    elif (not use_cached) or (use_cached and (len(tgtfiles) == 0)):
-#        if (use_cached and (len(tgtfiles) == 0)):
-#            warnings.warn('Could not find %s cadence data for %s in cache, checking MAST...' % (lkwargs['cadence'], ID))
-#
-#        lc_col = _launch_query(ID, cache_dir, lkwargs)
-#
-#        if len(lc_col) == 0:
-#            raise ValueError("Could not find %s cadence data for %s in cache or on MAST" % (lkwargs['cadence'], ID))
-#    else:
-#        raise ValueError('Could not find any cached data, and failed to access MAST')
-#    
-#    # Perform reduction on first lc of the lc collection and append the rest
-#    lc0 = _clean_lc(lc_col[0].PDCSAP_FLUX)
-#    for i, lc in enumerate(lc_col[1:]):
-#        lc0 = lc0.append(_clean_lc(lc.PDCSAP_FLUX))
-#        
-#    return lc0
 
       
 def _arr_to_lk(x, y, name, typ):
@@ -508,7 +311,8 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
                 raise IOError('Failed to read the provided ascii files. Please check that they have the required 2-column format, and they are use either comma or white-space delimiters.')
         
         d += tinyoffset
-        tsOut = _arr_to_lk(t, d, ID, 'timeseries')
+        
+        tsOut = lk.LightCurve(time=t, flux=d, targetid=ID)
         
     elif not tsIn:
         if specIn:
@@ -547,7 +351,9 @@ def _lk_to_pg(ID, tsIn, specIn):
     
     if isinstance(specIn, str):
         f, s = np.genfromtxt(specIn, usecols=(0, 1)).T
-        specOut = _arr_to_lk(f, s, ID, 'spectrum')
+        specOut = lk.periodogram.Periodogram(f*units.microhertz,
+                                          units.Quantity(s, None),
+                                          targetid=ID) 
         
     elif not specIn:
         specOut = tsIn.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()

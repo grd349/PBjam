@@ -4,7 +4,7 @@ import astropy.units as units
 import numpy as np
 import pbjam.tests.pbjam_tests as pbt
 import os, pytest
-from ..star import star
+from ..star import star, _format_name
 
 
 def test_star_init():
@@ -26,13 +26,13 @@ def test_star_init():
     st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05), teff = (4750, 250))
     assert(np.all(np.array(st.bp_rp) != np.array([None,None])))
     
-    with pytest.raises(ValueError):
-        st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05))
+    with pytest.raises(TypeError):
+        st = star('thisisatest', pg)
 
     # simple check to see if all the attributes are there compared to the time
     # of test creation.
     atts = ['ID', '_fill_diag', '_log_obs', '_make_prior_corner', '_obs', 
-            '_outpath', '_plot_offdiag', '_save_my_fig', '_set_outpath', 
+            '_get_outpath', '_plot_offdiag', '_save_my_fig', '_set_outpath', 
             'bp_rp', 'dnu', 'f', 'numax', 'path', 'pg', 'plot_corner', 
             'plot_echelle', 'plot_prior', 'plot_spectrum', 'plot_start', 
             'prior_file', 'run_asy_peakbag', 'run_kde', 'run_peakbag', 
@@ -56,7 +56,7 @@ def test_outpath():
     # setup
     pg = lk.periodogram.Periodogram(np.array([1,1])*units.microhertz, units.Quantity(np.array([1,1]), None))
     st = star('thisisatest', pg, (220.0, 3.0), (16.97, 0.05), (4750, 250), (1.34, 0.1))
-    func = st._outpath
+    func = st._get_outpath
     inp = ['test.png']
     
     # simple tests
@@ -115,5 +115,21 @@ def test_run_kde():
     # simple tests
     pbt.does_it_run(func, None)
 
+def test_format_name():
+
+    ID_in = ['HD16417', 'HD 16417', 
+             'TIC 176860064', 'TIC176860064', 
+             'tess 176860064', 'tess176860064', 
+             'kplr 8006161', 'KIC 8006161', 'kplr8006161', 'KIC8006161',
+             'kplr 008006161', 'kplr008006161', 'KIC 008006161', 'KIC008006161']
+    
+    ID_out = ['hd16417', 'hd 16417', 
+              'TIC 176860064', 'TIC 176860064', 
+              'TIC 176860064', 'TIC 176860064',
+              'KIC 8006161', 'KIC 8006161', 'KIC 8006161', 'KIC 8006161',
+              'KIC 8006161','KIC 8006161','KIC 8006161','KIC 8006161']
+    
+    for i,name in enumerate(ID_in):
+        assert(_format_name(name) == ID_out[i])
 #def test_run_asy_peakbag():
 #def test_run_peakbag():
