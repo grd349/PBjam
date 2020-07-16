@@ -1,11 +1,14 @@
 import setuptools
+import os
 
-__version__ = []
-exec(open('pbjam/version.py').read())
+version = {}
+
+with open(os.path.join(*['pbjam','version.py'])) as fp:
+	exec(fp.read(), version)
 
 setuptools.setup(
     name="pbjam",
-    version=__version__,
+    version=version['__version__'],
     author="Martin Nielsen, Guy Davies, Oliver Hall",
     author_email="m.b.nielsen.1@bham.ac.uk",
     description="A package for peakbagging solar-like oscillators",
