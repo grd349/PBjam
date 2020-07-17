@@ -50,11 +50,8 @@ import numpy as np
 import astropy.units as units
 import pandas as pd
 import os, pickle, warnings
-from .star import star
+from .star import star, _format_name
 from datetime import datetime
-
-        
-
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -146,8 +143,7 @@ def _sort_lc(lc):
     Returns
     -------
     lc : Lightkurve.LightCurve instance
-        The sorted Lightkurve object
-        
+        The sorted Lightkurve object   
     """
 
     sidx = np.argsort(lc.time)
@@ -157,25 +153,49 @@ def _sort_lc(lc):
 
 
 def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
+    """ Get time series using LightKurve
+    
+    Performs a search for available fits files on MAST and then downloads them
+    if nessary.
+    
+    The search results are cached with an expiration of 30 days. If a search
+    result is found, the fits file cache is searched for a matching file list
+    which is then used.
+    
+    Parameters
+    ----------
+    ID : str
+        ID string of the target
+    download_dir : str
+        Directory for fits file and search results caches. 
+    use_cached : bool, optional
+        Whether or not to use the cached time series. Default is True.
+    lkwargs : dict
+        Dictionary to be passed to LightKurve  
+    
+    Returns
+    -------
+    lc : Lightkurve.LightCurve instance
+        The concatenated time series for the target.
+    """
     
     ID = _format_name(ID)
     
     _set_mission(ID, lkwargs)
     
-    ID = check_ID(ID, lkwargs)
+    ID = _getMASTidentifier(ID, lkwargs)
     
-    search = perform_search(ID, lkwargs)
+    search = _perform_search(ID, lkwargs)
     
-    fitsFiles = check_lc_cache(search, lkwargs)
-    
-    lc = load_fits(fitsFiles, lkwargs)
+    fitsFiles = _check_lc_cache(search, lkwargs['mission'])
+
+    lc = _load_fits(fitsFiles, lkwargs['mission'])
     
     lc = _clean_lc(lc)
     
     return lc
     
 
-      
 def _arr_to_lk(x, y, name, typ):
     """ LightKurve object from input.
 
@@ -198,7 +218,6 @@ def _arr_to_lk(x, y, name, typ):
     lkobj : object
         Either lightkurve.LightCurve or lightkurve.periodogram object
         depending on typ.
-
     """
     
     if typ == 'timeseries':
@@ -279,8 +298,6 @@ def _format_col(vardf, col, key):
     else:
         print('Unhandled exception')
 
-
-
 def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
     """ Convert time series column in dataframe to lk.LightCurve object
 
@@ -292,10 +309,19 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
 
     Parameters
     ----------
-    vardf : pandas.DataFrame instance
-        Dataframe containing a 'timeseries' column consisting of None, strings
-        or Lightkurve.LightCurve objects.
-
+     ID : str
+        ID string of the target
+    tsIn : Lightkurve.LightCurve object
+        Lightkurve.LightCurve with the time series of the target. If specIn is
+        None, this will be used to compute the spectrum.
+    specIn : str or Lightkurve.periodogram object
+        Lightkurve.periodogram object containing the spectrum of the target.
+    download_dir : str
+        Directory for fits file and search results caches. 
+    use_cached : bool
+        Whether or not to use the cached time series. 
+    lkwargs : dict
+        Dictionary with arguments to be passed to lightkurve. 
     """
 
     tinyoffset = 1  # to avoid cases LC median = 0 (lk doesn't like it) This may no longer be necessary.
@@ -332,7 +358,7 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
 
 
 def _lk_to_pg(ID, tsIn, specIn):
-    """ Convert spectrum column in dataframe to Lightkurve periodgram object list
+    """ Convert spectrum column in dataframe to Lightkurve.periodgram objects
 
     Takes whatever is in the spectrum column of a dataframe and tries to turn it
     into a Lightkurve.periodogram object. If column entry is a string, it
@@ -343,17 +369,26 @@ def _lk_to_pg(ID, tsIn, specIn):
 
     Parameters
     ----------
-    vardf : pandas.DataFrame instance
-        Dataframe containing a 'spectrum' column consisting of None, strings or
-        Lightkurve.periodogram objects.
+    ID : str
+        ID string of the target
+    tsIn : Lightkurve.LightCurve object
+        Lightkurve.LightCurve with the time series of the target. If specIn is
+        None, this will be used to compute the spectrum.
+    specIn : str or Lightkurve.periodogram object
+        Lightkurve.periodogram object containing the spectrum of the target.
 
+    Returns
+    -------
+    specOut : Lightkurve.periodogram object
+        Lightkurve.periodogram object containing the spectrum of the target.
+        Note this is now flattened so that it corresponds to the SNR spectrum.
     """
     
     if isinstance(specIn, str):
         f, s = np.genfromtxt(specIn, usecols=(0, 1)).T
         specOut = lk.periodogram.Periodogram(f*units.microhertz,
                                           units.Quantity(s, None),
-                                          targetid=ID) 
+                                          targetid=ID).flatten() 
         
     elif not specIn:
         specOut = tsIn.to_periodogram(freq_unit=units.microHertz, normalization='psd').flatten()
@@ -373,7 +408,7 @@ class session():
 
     Use this class to initialize a star class instance for one or more targets.
 
-    Once initialized, calling this class instance will execute a complete
+    Once initialized, calling the session class instance will execute a complete
     peakbagging run.
 
     Data can be provided in multiple different ways, the simplest of which is
@@ -381,10 +416,10 @@ class session():
     timeseries/power spectra, lightkurve.LightCurve/lightkurve.periodogram,
     or just path names as strings, is also possible.
 
-    The physical parameters, numax, dnu, teff, must each be provided at least
-    as a list of length 2 for each star. This should contain the parameter
-    value and it's error estimate.
-
+    The physical parameters, such numax, dnu, teff, bp_rp, must each be provided
+    at least as a list of length 2 for each star. This should contain the 
+    parameter value and it's error estimate.
+        
     For multiple targets all the above can be provided as lists, but the
     easiest way is to simply provide a dataframe from a csv file.
 
@@ -398,16 +433,23 @@ class session():
     
     Note
     ----
-    If you have a large directory of cached lightcurves or power spectra, it 
+    1. If you have a large directory of cached lightcurves or power spectra, it 
     is best to supply the filenames to the files.
-
+    
+    2. Teff and bp_rp provide much of the same information, so providing both is 
+    not strictly necessary. However, for best results you should try to provide
+    both. If bp_rp is omitted though, PBjam will attempt to find this value in 
+    online catalogs.
+    
+    3. PBjam will not combine time series from different missions.
+    
     Examples
     --------
     Peakbagging run for a single target:
 
     >>> jam_sess = pbjam.session(ID =  '4448777',  numax = [220.0, 3.0],
-                             dnu = [16.97, 0.01], teff = [4750, 100],
-                             bp_rp = [1.34, 0.01], cadence = 'short')
+                                 dnu = [16.97, 0.01], teff = [4750, 100],
+                                 bp_rp = [1.34, 0.01], cadence = 'short')
     >>> jam_sess()
 
     Peakbagging run for multiple targets:
@@ -417,9 +459,9 @@ class session():
     Parameters
     ----------
     ID : string, optional
-        Target identifier, if custom timeseries/periodogram is provided it can
-        be anything. Otherwise it must be resolvable by LightKurve so that it 
-        can be download (KIC, TIC, EPIC, HD, etc.)
+        Target identifier, most commonly used identifiers can be used if you 
+        want PBjam to download the data (KIC, TIC, HD, Bayer etc.). If you 
+        provide data yourself the name can be any string.
     numax : list, optional
         List of the form [numax, numax_error], list of lists for multiple
         targets
@@ -435,20 +477,17 @@ class session():
         Otherwise, arrays of shape (2,N), lightkurve.LightCurve objects, or
         strings for pathnames are accepted.
     spectrum : object, optional
-        Periodogram input. Leave as None for PBjam to use Timeseries to compute
+        Spectrum input. Leave as None for PBjam to use Timeseries to compute
         it for you. Otherwise, arrays of shape (2,N), lightkurve.periodogram
         objects, or strings for pathnames are accepted.
     dictlike : pandas.DataFrame or dictionary, optional
         DataFrame, dictionary, record array with a list of targets, and their
         properties. If string, PBjam will assume it's a pathname to a csv file.
-        Specify timeseries and spectrum columns with file pathnames to use manually
-        reduced data.
+        Specify timeseries and spectrum columns with file pathnames to use 
+        manually reduced data.
     store_chains : bool, optional
         Flag for storing all the full set of samples from the MCMC run.
         Warning, if running multiple targets, make sure you have enough memory.
-    nthreads : int
-        Number of multiprocessing threads to use to perform the HMC peakbag 
-        fit. 
     use_cached : bool, optional
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
@@ -477,13 +516,9 @@ class session():
     download_dir : str, optional
         Directory to cache lightkurve downloads. Lightkurve will place the fits
         files in the default lightkurve cache path in your home directory.     
-    model_type : str, optional
-        Argument passed to peakbag, defines which model type to be used to 
-        represent the mode linewidths. Options are 'simple' or 'model_gp'.
            
     Attributes
     ----------
-
     stars : list
         Session will store star class instances in this list, based on the
         requested targets.   
@@ -582,12 +617,14 @@ class session():
             Whether or not to produce plots of the results. Default is False.            
         store_chains : bool, optional.
             Whether or not to store MCMC chains on disk. Default is False.
+        asy_sampling : str, optional.
+            Which type of sampler to use for the asymptotic peakbagging. The 
+            options are 'mcmc' and 'cpnest'. Default is 'mcmc'.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
             the prior sample. Important: This is not good practice for getting 
-            science results!    
-            
+            science results!               
         """
         
         self.pb_model_type = model_type
@@ -607,72 +644,15 @@ class session():
                  message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
                  print(message)
             
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-def _format_name(name):
-    """ Format input ID
-    
-    Users tend to be inconsistent in naming targets, which is an issue for 
-    looking stuff up on, e.g., Simbad. 
-    
-    This function formats the name so that Simbad doesn't throw a fit.
-    
-    If the name doesn't look like anything in the variant list it will only be 
-    changed to a lower-case string.
-    
-    Parameters
-    ----------
-    name : str
-        Name to be formatted.
-    
-    Returns
-    -------
-    name : str
-        Formatted name
-        
-    """
-    import re
-    name = str(name)
-    name = name.lower()
-    
-    # Add naming exceptions here
-    variants = {'KIC': ['kic', 'kplr', 'KIC'],
-                'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2', 'Gaia DR2'],
-                'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1', 'Gaia DR1'], 
-                'EPIC': ['epic', 'ktwo', 'EPIC'],
-                'TIC': ['tic', 'tess', 'TIC']
-               }
-    
-    fname = None
-    for key in variants:   
-        for x in variants[key]:
-            if x in name:
-                fname = name.replace(x,'')
-                fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
-                fname = key+' '+str(int(fname))
-                return fname
-            
-    return name
-
-def load_fits(files, lkwargs):
+def _load_fits(files, mission):
     """ Read fitsfiles into a Lightkurve object
     
     Parameters
     ----------
     files : list
         List of pathnames to fits files
+    mission : str
+        Which mission to download the data from.
     
     Returns
     -------
@@ -681,18 +661,18 @@ def load_fits(files, lkwargs):
         quarters.
         
     """
-    if lkwargs['mission'] in ['Kepler', 'K2']:
+    if mission in ['Kepler', 'K2']:
         lcs = [lk.lightcurvefile.KeplerLightCurveFile(file) for file in files]
         lccol = lk.collections.LightCurveFileCollection(lcs)
         lc = lccol.PDCSAP_FLUX.stitch()
-    elif lkwargs['mission'] in ['TESS']:
+    elif mission in ['TESS']:
         lcs = [lk.lightcurvefile.TessLightCurveFile(file) for file in files]
         lccol = lk.collections.LightCurveFileCollection(lcs)
         lc = lccol.PDCSAP_FLUX.stitch()
     return lc
 
 def _set_mission(ID, lkwargs):
-    """ Set mission keyword in lkwargs
+    """ Set mission keyword in lkwargs.
     
     If no mission is selected will attempt to figure it out based on any
     prefixes in the ID string, and add this to the LightKurve keywords 
@@ -717,25 +697,65 @@ def _set_mission(ID, lkwargs):
         else:
             lkwargs['mission'] = ('Kepler', 'K2', 'TESS')
             
-def search_and_dump(ID, cadence, mission, search_cache):
-    """ Get search result and store it in dictionary
+def _search_and_dump(ID, lkwargs, search_cache):
+    """ Get lightkurve search result online.
     
+    Uses the lightkurve search_lightcurvefile to find the list of available
+    data for a target ID. 
+    
+    Stores the result in the ~/.lightkurve-cache/searchResult directory as a 
+    dictionary with the search result object and a timestamp.
+    
+    Parameters
+    ----------
+    ID : str
+        ID string of the target
+    lkwargs : dict
+        Dictionary to be passed to LightKurve
+    search_cache : str
+        Directory to store the search results in. 
+        
+    Returns
+    -------
+    resultDict : dict
+        Dictionary with the search result object and timestamp.    
     """
+    
     current_date = datetime.now().isoformat()
     store_date = current_date[:current_date.index('T')].replace('-','')
        
-    search = lk.search_lightcurvefile(ID, cadence=cadence, mission=mission)
+    search = lk.search_lightcurvefile(ID, cadence=lkwargs['cadence'], 
+                                      mission=lkwargs['mission'])
 
     resultDict = {'result': search,
                   'timestamp': store_date}
     
-    fname = os.path.join(*[search_cache, f"{ID}_{cadence}.lksearchresult"])
-
+    fname = os.path.join(*[search_cache, f"{ID}_{lkwargs['cadence']}.lksearchresult"])
+    
     pickle.dump(resultDict, open(fname, "wb"))
     
     return resultDict   
 
-def check_ID(ID, lkwargs):
+def _getMASTidentifier(ID, lkwargs):
+    """ return KIC/TIC/EPIC for given ID.
+    
+    If input ID is not a KIC/TIC/EPIC identifier then the target is looked up
+    on MAST and the identifier is retried. If a mission is not specified the 
+    set of observations with the most quarters/sectors etc. will be used. 
+    
+    Parameters
+    ----------
+    ID : str
+        Target ID
+    lkwargs : dict
+        Dictionary with arguments to be passed to lightkurve. In this case
+        mission and cadence.
+    
+    Returns
+    -------
+    ID : str
+        The KIC/TIC/EPIC ID of the target.    
+    """
     
     if not any([x in ID for x in ['KIC', 'TIC', 'EPIC']]):
         
@@ -760,7 +780,8 @@ def check_ID(ID, lkwargs):
         ID = ID.replace(' ', '')
     return ID
 
-def perform_search(ID, lkwargs, download_dir=None, cache_expire = 30):
+def _perform_search(ID, lkwargs, use_cached=True, download_dir=None, 
+                    cache_expire=30):
     """ Find filenames related to target
     
     Preferentially accesses cached search results, otherwise searches the 
@@ -770,20 +791,22 @@ def perform_search(ID, lkwargs, download_dir=None, cache_expire = 30):
     ----------
     ID : str
         Target ID (must be KIC, TIC, or ktwo prefixed)
-    cadence : str
-        Cadence of the observations, 'short' or 'long'
-    mission : str
-        Mission 
-    download_dir : str
-        Directory for fits file and search results caches. Default is ~/.lightkurve-cache. 
-    cache_expire : int
-        Expiration time for the search cache results. Files older than this will be 
+    lkwargs : dict
+        Dictionary with arguments to be passed to lightkurve. In this case
+        mission and cadence.
+    use_cached : bool, optional
+        Whether or not to use the cached time series. Default is True.
+    download_dir : str, optional.
+        Directory for fits file and search results caches. Default is 
+        ~/.lightkurve-cache. 
+    cache_expire : int, optional.
+        Expiration time for the search cache results. Files older than this 
+        will be. The default is 30 days.
         
     Returns
     -------
     search : lightkurve.search.SearchResult
-        Search result from MAST. 
-    
+        Search result from MAST.  
     """
        
     # Set default lightkurve cache directory if nothing else is given
@@ -797,7 +820,7 @@ def perform_search(ID, lkwargs, download_dir=None, cache_expire = 30):
 
     filepath = os.path.join(*[cachepath, f"{ID}_{lkwargs['cadence']}.lksearchresult"])
     
-    if os.path.exists(filepath):  
+    if os.path.exists(filepath) and use_cached:  
         
         resultDict = pickle.load(open(filepath, "rb"))
         fdate = resultDict['timestamp'] 
@@ -805,14 +828,14 @@ def perform_search(ID, lkwargs, download_dir=None, cache_expire = 30):
         
         # If file is saved more than cache_expire days ago, a new search is performed
         if ddate.days > cache_expire:   
-            resultDict = search_and_dump(ID, lkwargs['cadence'], lkwargs['mission'], cachepath)
+            resultDict = _search_and_dump(ID, lkwargs, cachepath)
             
     else:
-        resultDict = search_and_dump(ID, lkwargs['cadence'], lkwargs['mission'], cachepath)
+        resultDict = _search_and_dump(ID, lkwargs, cachepath)
         
     return resultDict['result']
 
-def check_lc_cache(search, lkwargs, download_dir=None):
+def _check_lc_cache(search, mission, download_dir=None):
     """ Query cache directory or download fits files.
     
     Searches the Lightkurve cache directory set by download_dir for fits files
@@ -826,7 +849,9 @@ def check_lc_cache(search, lkwargs, download_dir=None):
     ----------
     search : lightkurve.search.SearchResult
         Search result from MAST. 
-    download_dir : str
+    mission : str
+        Which mission to download the data from.
+    download_dir : str, optional.
         Top level of the Lightkurve cache directory. default is 
         ~/.lightkurve-cache
         
@@ -834,7 +859,6 @@ def check_lc_cache(search, lkwargs, download_dir=None):
     -------
     files_in_cache : list
         List of path names to the fits files in the cache directory
-    
     """
         
     if download_dir is None:
@@ -843,13 +867,13 @@ def check_lc_cache(search, lkwargs, download_dir=None):
     files_in_cache = []
 
     for i, row in enumerate(search.table):
-        fname = os.path.join(*[download_dir, 'mastDownload', lkwargs['mission'], row['obs_id'], row['productFilename']])
+        fname = os.path.join(*[download_dir, 'mastDownload', mission, row['obs_id'], row['productFilename']])
         if os.path.exists(fname):
             files_in_cache.append(fname)
     
     if len(files_in_cache) != len(search):       
         search.download_all(download_dir = download_dir)
-        files_in_cache = [os.path.join(*[download_dir, 'mastDownload', lkwargs['mission'], row['obs_id'], row['productFilename']]) for row in search.table]
+        files_in_cache = [os.path.join(*[download_dir, 'mastDownload', mission, row['obs_id'], row['productFilename']]) for row in search.table]
 
     return files_in_cache
 

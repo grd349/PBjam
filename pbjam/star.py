@@ -211,6 +211,8 @@ class star(plotting):
             prior sample.
         make_plots : bool, optional
             Whether or not to produce plots of the results. Default is False.
+        store_chains : bool, optional
+            Whether or not to store posterior samples on disk. Default is False.
 
         """
 
@@ -250,7 +252,7 @@ class star(plotting):
         make_plots : bool, optional
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional
-            Whether or not to store MCMC chains on disk. Default is False.
+            Whether or not to store posterior samples on disk. Default is False.
         method : string
             Method to be used for sampling the posterior. Options are 'mcmc' or
             'nested. Default method is 'mcmc' that will call emcee, alternative
@@ -305,8 +307,8 @@ class star(plotting):
             Number of processes to spin up in pymc3. Default is 1.
         make_plots : bool, optional.
             Whether or not to produce plots of the results. Default is False.
-        store_chains : bool, optional.
-            Whether or not to store MCMC chains on disk. Default is False.
+        store_chains : bool, optional
+            Whether or not to store posterior samples on disk. Default is False.
 
         """
 
@@ -355,8 +357,8 @@ class star(plotting):
             Number of processes to spin up in pymc3. Default is 1.
         make_plots : bool, optional.
             Whether or not to produce plots of the results. Default is False.
-        store_chains : bool, optional.
-            Whether or not to store MCMC chains on disk. Default is False.
+        store_chains : bool, optional
+            Whether or not to store posterior samples on disk. Default is False.
         asy_sampling : string
             Method to be used for sampling the posterior in asy_peakbag. Options
             are 'mcmc' or 'nested. Default method is 'mcmc' that will call 
@@ -378,12 +380,14 @@ class star(plotting):
                          make_plots=make_plots, store_chains=store_chains)
 
 def _querySimbad(ID):
-    """ Query simbad for Gaia DR2 source ID.
+    """ Query any ID at Simbad for Gaia DR2 source ID.
     
     Looks up the target ID on Simbad to check if it has a Gaia DR2 ID.
     
     The input ID can be any commonly used identifier, such as a Bayer 
     designation, HD number or KIC.
+    
+    Returns None if there is not a valid cross-match with GDR2 on Simbad.
     
     Notes
     -----
@@ -393,7 +397,7 @@ def _querySimbad(ID):
     Parameters
     ----------
     ID : str
-        Target identifier.
+        Target identifier. If Simbad can resolve the name then it should work. 
         
     Returns
     -------
@@ -415,7 +419,7 @@ def _querySimbad(ID):
     return None
 
 def _queryTIC(ID, radius = 20):
-    """ Find bp_rp in TIC
+    """ Query TIC for bp-rp value
     
     Queries the TIC at MAST to search for a target ID to return bp-rp value. The
     TIC is already cross-matched with the Gaia catalog, so it contains a bp-rp 
@@ -424,6 +428,8 @@ def _queryTIC(ID, radius = 20):
     For some reason it does a cone search, which may return more than one 
     target. In which case the target matching the ID is found in the returned
     list. 
+    
+    Returns None if the target does not have a GDR2 ID.
     
     Parameters
     ----------
@@ -449,7 +455,7 @@ def _queryTIC(ID, radius = 20):
         return None
 
 def _queryMAST(ID):
-    """ Query ID at MAST
+    """ Query any ID at MAST
     
     Sends a query for a target ID to MAST which returns an Astropy Skycoords 
     object with the target coordinates.
@@ -477,7 +483,7 @@ def _queryMAST(ID):
         return None
 
 def _queryGaia(ID=None,coords=None, radius = 20):
-    """ Query Gaia archive
+    """ Query Gaia archive for bp-rp
     
     Sends an ADQL query to the Gaia archive to look up a requested target ID or
     set of coordinates. 
@@ -530,21 +536,20 @@ def _format_name(ID):
     """ Format input ID
     
     Users tend to be inconsistent in naming targets, which is an issue for 
-    looking stuff up on, e.g., Simbad. 
-    
-    This function formats the name so that Simbad doesn't throw a fit.
+    looking stuff up on, e.g., Simbad. This function formats the ID so that 
+    Simbad doesn't throw a fit.
     
     If the name doesn't look like anything in the variant list it will only be 
     changed to a lower-case string.
     
     Parameters
     ----------
-    name : str
+    ID : str
         Name to be formatted.
     
     Returns
     -------
-    name : str
+    ID : str
         Formatted name
         
     """
@@ -576,7 +581,7 @@ def get_bp_rp(ID):
     First a check is made to see if the target is a TIC number, in which case 
     the TIC will be queried, since this is already cross-matched with Gaia DR2. 
     
-    If it is not a TIC number, Simbad is queries to identify a possible Gaia 
+    If it is not a TIC number, Simbad is queried to identify a possible Gaia 
     source ID. 
     
     As a last resort MAST is queried to provide the target coordinates, after 
@@ -592,12 +597,11 @@ def get_bp_rp(ID):
     -------
     bp_rp : float
         Gaia bp-rp value for the target. Is nan if no result is found or the
-        queries failed.
-    
+        queries failed. 
     """
     
-    time.sleep(1)
-
+    time.sleep(1) # Sleep timer to prevent temporary blacklisting by CDS servers.
+    
     ID = _format_name(ID)
     
     if 'TIC' in ID:
