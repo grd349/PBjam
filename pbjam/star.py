@@ -14,7 +14,7 @@ only use the `star' class for more granular control of the peakbagging process.
 
 """
 
-import os, warnings
+import os, warnings, re, time, numbers
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
@@ -22,6 +22,11 @@ from .jar import get_priorpath, to_log10
 from .plotting import plotting
 import pandas as pd
 import numpy as np
+from astroquery.mast import ObservationsClass as AsqMastObsCl
+from astroquery.mast import Catalogs
+from astroquery.simbad import Simbad
+import astropy.units as units
+
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -81,7 +86,6 @@ class star(plotting):
                  path=None, prior_file=None):
 
         self.ID = ID
-        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
 
         if numax[0] < 25:
             warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
@@ -92,12 +96,12 @@ class star(plotting):
         self.teff = teff
         self.bp_rp = bp_rp
 
+        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
         self.f = self.pg.frequency.value
         self.s = self.pg.power.value
 
         self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
                      'bp_rp': self.bp_rp}
-
         self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
 
         self._set_outpath(path)
@@ -111,36 +115,53 @@ class star(plotting):
         # Teff and Gbp-Grp provide a lot of the same information, so only one of
         # them need to be provided to start with. If one is not provided, PBjam
         # will assume a wide prior on it.
-        teff_bad = np.all(np.array(teff) == [None,None]) or np.isnan(teff[0])
-        bp_rp_bad = np.all(np.array(bp_rp) == [None,None]) or np.isnan(bp_rp[0])
         
-        if teff_bad and bp_rp_bad:
+        if not isinstance(bp_rp[0], numbers.Real):
+            bp_rp = [get_bp_rp(self.ID), 0.1]
+          
+        teff_good = isinstance(teff[0], numbers.Real)
+        bprp_good = isinstance(bp_rp[0], numbers.Real)
+        
+        if not teff_good and not bprp_good:
             raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
-        elif teff_bad :
+        elif not teff_good:
             teff = [4889, 1500] # these are rough esimates from the prior
-        elif bp_rp_bad:
+        elif not bprp_good:
             bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
-
+        
         return teff, bp_rp
 
-    def _outpath(self, x):
-        """ Shorthand for setting the full output path
-
-        TODO: optionally could be generallized to all of pbjam and do more 
-        advanced checks to see if the dir exists etc.
+    def _get_outpath(self, fname):
+        """  Get basepath or make full file path name.
+        
+        Convenience function for either setting the base path name for the star,
+        or if given fname as input, will append this to the basepath name to 
+        create a full path to the file in question. 
 
         Parameters
         ----------
-        x : str
-            Base filename
-
+        fname : str, optional
+            If not None, will append this to the pathname of the star. Use this
+            to store files such as plots or tables.
+        
         Returns
         -------
-        outpath : str
-            Full output pathname
+        path : str
+            If fname is None, path is the path name of the star. Otherwise it is
+            the full file path name for the file in question.
         """
-
-        return os.path.join(*[self.path, x])
+    
+        if fname is None:
+            return self.path
+        elif isinstance(fname, str):
+            path = os.path.join(*[self.path, fname])
+        else:
+            raise ValueError(f'Unrecognized input {fname}.')
+        
+        if not os.path.isdir(self.path):
+            raise IOError(f'You are trying to access {self.path} which is a directory that does not exist.')
+        else:
+            return path
 
     def _set_outpath(self, path):
         """ Sets the path attribute for star
@@ -160,9 +181,10 @@ class star(plotting):
         """
 
         if isinstance(path, str):
-            # If path is str, presume user wants to override self.path
+            # If path is str, presume user wants to put stuff somewhere specific.
             self.path = os.path.join(*[path, f'{self.ID}'])
         else:
+            # Otherwise just create a subdir in cwd.
             self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
 
         # Check if self.path exists, if not try to create it
@@ -170,10 +192,12 @@ class star(plotting):
             try:
                 os.makedirs(self.path)
             except Exception as ex:
-                message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+                message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
                 print(message)
 
-    def run_kde(self, bw_fac=1.0, make_plots=False):
+
+
+    def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
 
         Starts by creating a KDE based on the prior data sample. Then samples
@@ -187,6 +211,8 @@ class star(plotting):
             prior sample.
         make_plots : bool, optional
             Whether or not to produce plots of the results. Default is False.
+        store_chains : bool, optional
+            Whether or not to store posterior samples on disk. Default is False.
 
         """
 
@@ -198,7 +224,7 @@ class star(plotting):
         self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
                  bp_rp=self.bp_rp, bw_fac=bw_fac)
 
-        # Store
+        # Store          
         if make_plots:
             self.kde.plot_corner(path=self.path, ID=self.ID,
                                  savefig=make_plots)
@@ -206,6 +232,10 @@ class star(plotting):
                                    savefig=make_plots)
             self.kde.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
+
+        if store_chains:
+            kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
+            kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
 
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='mcmc', 
@@ -222,7 +252,7 @@ class star(plotting):
         make_plots : bool, optional
             Whether or not to produce plots of the results. Default is False.
         store_chains : bool, optional
-            Whether or not to store MCMC chains on disk. Default is False.
+            Whether or not to store posterior samples on disk. Default is False.
         method : string
             Method to be used for sampling the posterior. Options are 'mcmc' or
             'nested. Default method is 'mcmc' that will call emcee, alternative
@@ -243,9 +273,9 @@ class star(plotting):
         self.asy_fit(method, developer_mode)
 
         # Store
-        self.asy_fit.summary.to_csv(self._outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
+        self.asy_fit.summary.to_csv(self._get_outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
                                     index=True, index_label='name')
-        self.asy_fit.modeID.to_csv(self._outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
+        self.asy_fit.modeID.to_csv(self._get_outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
                                    index=False)
         if make_plots:
             self.asy_fit.plot_spectrum(path=self.path, ID=self.ID,
@@ -254,9 +284,10 @@ class star(plotting):
                                      savefig=make_plots)
             self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
-
+            
         if store_chains:
-            pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names).to_csv(self._outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
+            asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
+            asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
@@ -276,8 +307,8 @@ class star(plotting):
             Number of processes to spin up in pymc3. Default is 1.
         make_plots : bool, optional.
             Whether or not to produce plots of the results. Default is False.
-        store_chains : bool, optional.
-            Whether or not to store MCMC chains on disk. Default is False.
+        store_chains : bool, optional
+            Whether or not to store posterior samples on disk. Default is False.
 
         """
 
@@ -289,20 +320,21 @@ class star(plotting):
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
 
         # Store
-        self.peakbag.summary.to_csv(self._outpath(f'peakbag_summary_{self.ID}.csv'),
+        self.peakbag.summary.to_csv(self._get_outpath(f'peakbag_summary_{self.ID}.csv'),
                                     index_label='name')
-
-        if store_chains:
-            pass  # TODO need to pickle the samples if requested.
+            
         if make_plots:
             self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
                                        savefig=make_plots)
             self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
                                       savefig=make_plots)
 
+        if store_chains:
+            peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
+            peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, make_plots=True, store_chains=True, 
+                 nthreads=1, make_plots=True, store_chains=False, 
                  asy_sampling='mcmc', developer_mode=False):
         """ Perform all the PBjam steps
 
@@ -325,8 +357,8 @@ class star(plotting):
             Number of processes to spin up in pymc3. Default is 1.
         make_plots : bool, optional.
             Whether or not to produce plots of the results. Default is False.
-        store_chains : bool, optional.
-            Whether or not to store MCMC chains on disk. Default is False.
+        store_chains : bool, optional
+            Whether or not to store posterior samples on disk. Default is False.
         asy_sampling : string
             Method to be used for sampling the posterior in asy_peakbag. Options
             are 'mcmc' or 'nested. Default method is 'mcmc' that will call 
@@ -338,7 +370,7 @@ class star(plotting):
             science results!    
         """
 
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots)
+        self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
                              store_chains=store_chains, method=asy_sampling,
@@ -346,3 +378,245 @@ class star(plotting):
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)
+
+def _querySimbad(ID):
+    """ Query any ID at Simbad for Gaia DR2 source ID.
+    
+    Looks up the target ID on Simbad to check if it has a Gaia DR2 ID.
+    
+    The input ID can be any commonly used identifier, such as a Bayer 
+    designation, HD number or KIC.
+    
+    Returns None if there is not a valid cross-match with GDR2 on Simbad.
+    
+    Notes
+    -----
+    TIC numbers are note currently listed on Simbad. Do a separate MAST quiry 
+    for this.
+    
+    Parameters
+    ----------
+    ID : str
+        Target identifier. If Simbad can resolve the name then it should work. 
+        
+    Returns
+    -------
+    gaiaID : str
+        Gaia DR2 source ID. Returns None if no Gaia ID is found.   
+    """
+    
+    print('Querying Simbad for Gaia ID')
+    
+    try:
+        job = Simbad.query_objectids(ID)
+    except:
+        print(f'Unable to resolve {ID} with Simbad')
+        return None
+    
+    for line in job['ID']:
+        if 'Gaia DR2' in line:
+            return line.replace('Gaia DR2 ', '')
+    return None
+
+def _queryTIC(ID, radius = 20):
+    """ Query TIC for bp-rp value
+    
+    Queries the TIC at MAST to search for a target ID to return bp-rp value. The
+    TIC is already cross-matched with the Gaia catalog, so it contains a bp-rp 
+    value for many targets (not all though).
+    
+    For some reason it does a cone search, which may return more than one 
+    target. In which case the target matching the ID is found in the returned
+    list. 
+    
+    Returns None if the target does not have a GDR2 ID.
+    
+    Parameters
+    ----------
+    ID : str
+        The TIC identifier to search for.
+    radius : float, optional
+        Radius in arcseconds to use for the sky cone search. Default is 20".
+    
+    Returns
+    -------
+    bp_rp : float
+        Gaia bp-rp value from the TIC.   
+    """
+    
+    print('Querying TIC for Gaia bp-rp values.')
+    job = Catalogs.query_object(objectname=ID, catalog='TIC', objType='STAR', 
+                                radius = radius*units.arcsec)
+
+    if len(job) > 0:
+        idx = job['ID'] == str(ID.replace('TIC','').replace(' ', ''))
+        return float(job['gaiabp'][idx] - job['gaiarp'][idx]) #This should crash if len(result) > 1.
+    else:
+        return None
+
+def _queryMAST(ID):
+    """ Query any ID at MAST
+    
+    Sends a query for a target ID to MAST which returns an Astropy Skycoords 
+    object with the target coordinates.
+    
+    ID can be any commonly used identifier such as a Bayer designation, HD, KIC,
+    2MASS or other name.
+    
+    Parameters
+    ----------
+    ID : str
+        Target identifier
+    
+    Returns
+    -------
+    job : astropy.Skycoords
+        An Astropy Skycoords object with the target coordinates.
+    
+    """
+
+    print(f'Querying MAST for the {ID} coordinates.')
+    mastobs = AsqMastObsCl()
+    try:            
+        return mastobs.resolve_object(objectname = ID)
+    except:
+        return None
+
+def _queryGaia(ID=None,coords=None, radius = 20):
+    """ Query Gaia archive for bp-rp
+    
+    Sends an ADQL query to the Gaia archive to look up a requested target ID or
+    set of coordinates. 
+        
+    If the query is based on coordinates a cone search will be performed and the
+    closest target is returned. Provided coordinates must be astropy.Skycoords.
+    
+    Parameters
+    ----------
+    ID : str
+        Gaia source ID to search for.
+    coord : astropy.Skycoords
+        An Astropy Skycoords object with the target coordinates. Must only 
+        contain one target.
+    radius : float, optional
+        Radius in arcseconds to use for the sky cone search. Default is 20".
+    
+    Returns
+    -------
+    bp_rp : float
+        Gaia bp-rp value of the requested target from the Gaia archive.  
+    """
+    
+    print('Querying Gaia archive for bp-rp values.')
+    
+    from astroquery.gaia import Gaia
+
+    if ID is not None:
+        adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
+        try:
+            job = Gaia.launch_job(adql_query).get_results()
+        except:
+            return None
+        return float(job['bp_rp'][0])
+    
+    elif coords is not None:
+        ra = coords.to_value()
+        dec = coords.to_value()
+        adql_query = f"SELECT DISTANCE(POINT('ICRS', ra, dec), POINT('ICRS', {ra}, {dec})) AS dist, * FROM gaiadr2.gaia_source WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec}, {radius})) ORDER BY dist ASC"
+
+        try:
+            job = Gaia.launch_job(adql_query).get_results()
+        except:
+            return None
+        return float(job['bp_rp'][0])
+    else:
+        raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
+
+def _format_name(ID):
+    """ Format input ID
+    
+    Users tend to be inconsistent in naming targets, which is an issue for 
+    looking stuff up on, e.g., Simbad. This function formats the ID so that 
+    Simbad doesn't throw a fit.
+    
+    If the name doesn't look like anything in the variant list it will only be 
+    changed to a lower-case string.
+    
+    Parameters
+    ----------
+    ID : str
+        Name to be formatted.
+    
+    Returns
+    -------
+    ID : str
+        Formatted name
+        
+    """
+
+    ID = str(ID)
+    ID = ID.lower()
+    
+    # Add naming exceptions here
+    variants = {'KIC': ['kic', 'kplr', 'KIC'],
+                'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2', 'Gaia DR2'],
+                'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1', 'Gaia DR1'], 
+                'EPIC': ['epic', 'ktwo', 'EPIC'],
+                'TIC': ['tic', 'tess', 'TIC']
+               }
+    
+    fname = None
+    for key in variants:   
+        for x in variants[key]:
+            if x in ID:
+                fname = ID.replace(x,'')
+                fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
+                fname = key+' '+str(int(fname))
+                return fname 
+    return ID
+
+def get_bp_rp(ID):
+    """ Search online for bp_rp values based on ID.
+       
+    First a check is made to see if the target is a TIC number, in which case 
+    the TIC will be queried, since this is already cross-matched with Gaia DR2. 
+    
+    If it is not a TIC number, Simbad is queried to identify a possible Gaia 
+    source ID. 
+    
+    As a last resort MAST is queried to provide the target coordinates, after 
+    which a Gaia query is launched to find the closest target. The default 
+    search radius is 20" around the provided coordinates. 
+    
+    Parameters
+    ----------
+    ID : str
+        Target identifier to search for.
+    
+    Returns
+    -------
+    bp_rp : float
+        Gaia bp-rp value for the target. Is nan if no result is found or the
+        queries failed. 
+    """
+    
+    time.sleep(1) # Sleep timer to prevent temporary blacklisting by CDS servers.
+    
+    ID = _format_name(ID)
+    
+    if 'TIC' in ID:
+        bp_rp = _queryTIC(ID)          
+
+    else:
+        try:
+            gaiaID = _querySimbad(ID)
+            bp_rp = _queryGaia(ID=gaiaID)
+        except:
+            try:
+                coords = _queryMAST(ID)
+                bp_rp = _queryGaia(coords=coords)
+            except:
+                print(f'Unable to retrieve a bp_rp value for {ID}.')
+                bp_rp = np.nan
+
+    return bp_rp

@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from numpy.testing import assert_allclose, assert_array_equal
 import pbjam.tests.pbjam_tests as pbt
+import os
 
 cs = pbt.case('silly')
 
@@ -319,6 +320,9 @@ def test_asymp_spec_model_call():
     # check that the function doesn't change the output 
     assert_allclose(mod(inp), mod.model(*inp))
 
+def test_clean_up():
+
+    os.rmdir(cs.st.path)
         
 # The test functions below require longer runs and are not suitable for GitHub
 # workflows. the mark.slow decorator doesn't seem to work with GitHub workflows.

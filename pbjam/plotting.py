@@ -230,12 +230,11 @@ class plotting():
         # The raw and smoothed spectrum will always be plotted
         fig, ax = plt.subplots(figsize=[16,9])
         ax.plot(f, s, 'k-', label='Data', alpha=0.2)
-        fac = 0.1 / (f[1] - f[0]) #0.005 * self.dnu[0]  / (f[1] - f[0])
+        fac = max([1, 0.1 / (f[1] - f[0])])
         kernel = conv.Gaussian1DKernel(stddev=fac)
         smoo = conv.convolve(s, kernel)
         ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
-       
-       
+              
         if isinstance(self, pbjam.star): #type(self) == pbjam.star:
              xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
 
@@ -279,7 +278,7 @@ class plotting():
                         label='Model'
                     else:
                         label=None
-                    mod = self.model(*[self.samples[x][j] for x in par_names])
+                    mod = self.model(*[self.traces[x][j] for x in par_names])
                     ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
                             label=label)
 
