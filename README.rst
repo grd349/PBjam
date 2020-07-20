@@ -37,11 +37,13 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 
 Authors
 -------
-=====  =====  ======
-  A      B    A or B
-=====  =====  ======
-`Lindsey Carboneau <https://github.com/lmcarboneau>`_  `Warrick Ball <https://github.com/warrickball>`_  Othman Benomar
-`Guy Davies <https://github.com/grd349>`_   `Joel Ong <https://github.com/darthoctopus>`_  Othman Benomar
-`Oliver Hall <https://github.com/ojhall94>`_  `Tanda Li <https://github.com/litanda>`_   Bill Chaplin
-True   True   True
-=====  =====  ======
+===== ========= =====
+Table Headings  Here
+--------------- -----
+Sub   Headings  Too
+===== ========= =====
+column spanning no
+--------------- -----
+cell  cell      row
+column spanning spans
+=============== =====
