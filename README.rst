@@ -40,6 +40,6 @@ Authors
 ================= =============== ====================
 Main Contributors Chaos Engineers Scientific Oversight
 ================= =============== ====================
-cell              cell            cell
+`Lindsey Carboneau <https://github.com/lmcarboneau>`_ `Warrick Ball <https://github.com/warrickball>`_ Othman Benomar
 cell              cell            cell
 ================= =============== ====================
