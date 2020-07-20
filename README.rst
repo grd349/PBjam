@@ -39,5 +39,7 @@ Authors
 -------
 .. csv-table:: a title
    :file: https://github.com/grd349/PBjam/blob/master/authors.csv
+   :widths: 33 33 33
+   :header-row: 1
 
 
