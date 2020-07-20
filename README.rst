@@ -37,9 +37,9 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 
 Authors
 -------
-================= =============== ====================
-Main Contributors Chaos Engineers Scientific Oversight
-================= =============== ====================
+===================================================== ================================================ ====================
+Main Contributors                                     Chaos Engineers                                  Scientific Oversight
+===================================================== ================================================ ====================
 `Lindsey Carboneau <https://github.com/lmcarboneau>`_ `Warrick Ball <https://github.com/warrickball>`_ Othman Benomar
 cell              cell            cell
-================= =============== ====================
+===================================================== ================================================ ====================
