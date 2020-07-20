@@ -35,10 +35,8 @@ Contributing
 If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
 
 
-Authors
--------
-.. tabularcolumns:: |p{7cm}|p{7cm}|
-.. csv-table:: Table Title
+
+.. csv-table:: Authors
    :file: authors.csv
    :widths: 30, 70
    :header-rows: 1
