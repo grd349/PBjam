@@ -40,6 +40,6 @@ Authors
 ================= =============== ====================
 Main Contributors Chaos Engineers Scientific Oversight
 ================= =============== ====================
-`Lindsey Carboneau <https://github.com/lmcarboneau>`_   cell      cell
-cell  cell      cell
-================= ========= =====
+cell              cell            cell
+cell              cell            cell
+================= =============== ====================
