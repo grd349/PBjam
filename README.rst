@@ -39,7 +39,6 @@ Authors
 -------
 .. csv-table:: a title
    :file: https://github.com/nielsenmb/PBjam/blob/master/authors.csv
+   :header: "Main Contributors"	"Chaos Engineers" "Scientific Oversight"
    :widths: 33 33 33
-   :header-row: 1
-
 
