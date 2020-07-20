@@ -37,7 +37,9 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 
 Authors
 -------
-.. csv-table:: Authors
-   :file: https://github.com/grd349/PBjam/blob/master/authors.rst
-   :widths: 30, 70
-   :header-rows: 1
+.. csv-table:: a title
+   :header: "name", "firstname", "age"
+   :widths: 20, 20, 10
+
+   "Smith", "John", 40
+   "Smith", "John, Junior", 20
