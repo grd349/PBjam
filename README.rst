@@ -38,7 +38,8 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 Authors
 -------
 .. csv-table:: a title
+   :file: https://github.com/grd349/PBjam/blob/master/authors.csv
    :header: "name", "firstname", "age"
    :widths: 20, 20, 10
 
-   :file: https://github.com/grd349/PBjam/blob/master/authors.csv
+
