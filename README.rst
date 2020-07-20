@@ -45,5 +45,5 @@ Main Contributors                                     Chaos Engineers           
 `Oliver Hall <https://github.com/ojhall94>`_	      `Tanda Li <https://github.com/litanda>`_	       Enrico Corsaro
 `Alex Lyttle <https://github.com/alexlyttle>`_	      `Rafa Garcia <https://github.com/rgarcibus>`_    Patrick Gaulme   
 `Martin Nielsen <https://github.com/nielsenmb>`_                                                       Benoit Mosser
-                                                                                                       Andy Moya
+|                                                     |                                                Andy Moya
 ===================================================== ================================================ ======================
