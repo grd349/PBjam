@@ -35,8 +35,9 @@ Contributing
 If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
 
 
-
+Authors
+-------
 .. csv-table:: Authors
-   :file: authors.csv
+   :file: https://github.com/grd349/PBjam/blob/master/authors.rst
    :widths: 30, 70
    :header-rows: 1
