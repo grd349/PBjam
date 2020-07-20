@@ -37,9 +37,9 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 
 Authors
 -------
-===== ========= =====
-Table Headings  Here
-===== ========= =====
+================= =============== ====================
+Main Contributors Chaos Engineers Scientific Oversight
+================= =============== ====================
+`Lindsey Carboneau <https://github.com/lmcarboneau>`_   cell      cell
 cell  cell      cell
-cell  cell      cell
-===== ========= =====
+================= ========= =====
