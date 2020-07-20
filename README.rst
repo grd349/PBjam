@@ -38,14 +38,7 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 Authors
 -------
 .. csv-table:: a title
-   :header: "Main Contributors", "Chaos Engineers", "Scientific Oversight"
+   :file: authors.csv
+   :header-rows: 1
    :widths: 33 33 33
-   `Lindsey Carboneau <https://github.com/lmcarboneau>`_,`Warrick Ball <https://github.com/warrickball>`_,Othman Benomar
-   `Guy Davies <https://github.com/grd349>`_,`Joel Ong <https://github.com/darthoctopus>`_,Bill Chaplin
-   `Oliver Hall <https://github.com/ojhall94>`_,`Tanda Li <https://github.com/litanda>`_,Enrico Corsaro
-   `Alex Lyttle <https://github.com/alexlyttle>`_,`Rafa Garcia <https://github.com/rgarcibus>`_,Patrick Gaulme
-   `Martin Nielsen <https://github.com/nielsenmb>`_,,Mikkel Lund
-   ,,Benoit Mosser
-   ,,Andy Moya
-   ,,Ian Roxburgh
 
