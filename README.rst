@@ -37,17 +37,7 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 
 Authors
 -------
-Main Contributors
-^^^^^^^^^^^^^^^^^
-- `Guy Davies <https://github.com/grd349>`_
-- `Martin Nielsen <https://github.com/nielsenmb>`_
-- `Alex Lyttle <https://github.com/alexlyttle>`_
-- `Oliver Hall <https://github.com/ojhall94>`_
-
-Chaos Engineers
-^^^^^^^^^^^^^^^
-- `Warrick Ball <https://github.com/warrickball>`_
-- `Joel Ong <https://github.com/darthoctopus>`_
-- Bill Chaplin
-- `Tanda Li <https://github.com/litanda>`_
-- `Rafa Garcia <https://github.com/rgarcibus>`_
+.. csv-table:: Table Title
+   :file: authors.csv
+   :widths: 30, 70
+   :header-rows: 1
