@@ -44,6 +44,11 @@ Main Contributors                                     Chaos Engineers           
 `Guy Davies <https://github.com/grd349>`_	      `Joel Ong <https://github.com/darthoctopus>`_    Bill Chaplin
 `Oliver Hall <https://github.com/ojhall94>`_	      `Tanda Li <https://github.com/litanda>`_	       Enrico Corsaro
 `Alex Lyttle <https://github.com/alexlyttle>`_	      `Rafa Garcia <https://github.com/rgarcibus>`_    Patrick Gaulme   
-`Martin Nielsen <https://github.com/nielsenmb>`_                                                       Benoit Mosser
+`Martin Nielsen <https://github.com/nielsenmb>`_      |                                                Benoit Mosser
 |                                                     |                                                Andy Moya
+|                                                     |                                                Ian Roxburgh
+|                                                     |                                                Mikkel Lund
+|                                                     |                                                Benoit Mosser
+|                                                     |                                                Andy Moya
+|                                                     |                                                Ian Roxburgh
 ===================================================== ================================================ ======================
