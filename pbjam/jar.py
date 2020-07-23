@@ -1,3 +1,9 @@
+"""
+
+This module contains general purpose functions that are used throughout PBjam.
+
+"""
+
 from . import PACKAGEDIR
 import os
 import numpy as np
@@ -7,8 +13,8 @@ def get_priorpath():
     
     Returns
     -------
-    priorpath : str
-        Default path to the prior in the pacakage directory structure
+    prior_file : str
+        Default path to the prior in the package directory structure.
         
     """
     
@@ -25,8 +31,9 @@ def get_percentiles(X, sigma = 2, **kwargs):
     ----------
     X : numpy.array()
         Array to find percentiles of
-    sigma : int
-        Sigma values to compute the percentiles of 68% 95% etc.
+    sigma : int, optional.
+        Sigma values to compute the percentiles of, e.g. 68% 95% are 1 and 2 
+        sigma, etc. Default is 2.
     kwargs : dict
         Arguments to be passed to numpy.percentile
     
@@ -51,31 +58,46 @@ def get_percentiles(X, sigma = 2, **kwargs):
 
 
 def to_log10(x, xerr):
-    """ Transforms observables into log10 space.
+    """ Transform to value to log10
+    
+    Takes a value and related uncertainty and converts them to logscale.
+    Approximate.
+
+    Parameters
+    ----------
+    x : float
+        Value to transform to logscale
+    xerr : float
+        Value uncertainty
+
+    Returns
+    -------
+    logval : list
+        logscaled value and uncertainty
 
     """
-
+    
     if xerr > 0:
         return [np.log10(x), xerr/x/np.log(10.0)]
     return [x, xerr]
 
 def normal(x, mu, sigma):
-    """ logarithm of normal distribution (not normalized!!)
+    """ Evaluate logarithm of normal distribution (not normalized!!)
 
     Evaluates the logarithm of a normal distribution at x. 
 
     Inputs
     ------
-    x : real
-        observed value
-    mu : real
-        distribution mean
-    sigma : real
-        distribution standard deviation
+    x : float
+        Values to evaluate the normal distribution at.
+    mu : float
+        Distribution mean.
+    sigma : float
+        Distribution standard deviation.
 
     Returns
     -------
-    y : real
+    y : float
         Logarithm of the normal distribution at x
     """
 

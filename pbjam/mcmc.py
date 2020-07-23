@@ -1,43 +1,71 @@
+""" 
+
+PBjam uses MC sampling at several points during the peakbagging process. 
+Samplers added to PBjam should be called from this module. 
+
+"""
+
 import emcee
 import numpy as np
 import scipy.stats as st
+import cpnest.model
+import pandas as pd
+import os
 
 class mcmc():
-    """ Class for MCMC sampling
+    """ Class for MCMC sampling using `emcee'
 
-    Use EMCEE to fit a provided model to a spectrum.
+    Uses `emcee' to sample the parameterspace of a provided spectrum model.
 
     Parameters
     ----------
     start : ndarray
-        An array of size ndim for the starting position of the parameters.
+        An array of starting position of the parameters.
     likelihood : function
         Function to call that returns the log likelihood when passed the
         parameters.
-    lp : function
+    prior : function
         Function to call that returns the log prior probability when passed
         the parameters.
-    nwalkers : int
-        The number of walkers that emcee will use.
-
+    nwalkers : int, optional
+        The number of walkers that `emcee' will use.
+        
+    Attributes
+    ----------
+    ndim : int
+        Number of model parameters (length of start input).
+    sampler : emcee.EnsembleSampler class instance
+        A `emcee' sampler class instance initialized with the number of walkers,
+        number of parameters, and the posterior comprised of the likelihood and
+        prior input functions.
+    chain : ndarray
+        Sampled locations in parameters space of each walker at each step.
+    lnlike : ndarray
+        Likelihood at the sampled locations in parameter space.
+    flatchain : ndarray
+        Flattened chain.
+    flatlnlike : ndarray
+        Flattened likelihoods
+    acceptance : ndarray
+        Acceptance fraction at each step.
+        
     """
 
     def __init__(self, start, likelihood, prior, nwalkers=50):
 
         self.start = start
-        self.ndim = len(start)
         self.likelihood = likelihood
         self.prior = prior
-
         self.nwalkers = nwalkers
-
+        
+        self.ndim = len(start)
         self.sampler = emcee.EnsembleSampler(self.nwalkers,
                                              self.ndim,
                                              self.logpost)
 
         self.chain = None
-        self.flatchain = None
         self.lnlike = None
+        self.flatchain = None
         self.flatlnlike = None
         self.acceptance = None
 
@@ -66,16 +94,22 @@ class mcmc():
             return -np.inf
 
         loglike = self.likelihood(p)
+        
         return logp + loglike
 
     def stationarity(self, nfactor=20):
-        """
-        Tests to see if stationarity metrics are satified.
-
-        nfactor should be nearer 100 follwing the emcee docs
-        but in PBjam useage I get better than reasonable results
-        when using 20.
+        """ Tests to see if stationarity metrics are satified.
         
+        Uses the autocorrelation timescale to estimate whether the MC chains
+        have reached a stationary state. 
+        
+        Parameters
+        ----------
+        nfactor : int, optional
+            Factor used to test stationary. If the number of steps in the
+            MC chain exceeds nfactor*tau, where tau is the autocorrelation
+            timescale of the chain, the sampling is considered stationary.
+            
         """
         
         tau = self.sampler.get_autocorr_time(tol=0)
@@ -88,14 +122,15 @@ class mcmc():
 
         Parameters
         ----------
-        max_iter: int
-            Don't run the sampler for longer than this.  The sampler will
-            stop if convergence is deemed to have been achieved.
-        spread : float
+        max_iter: int, optional
+            Maximum number of steps to take in the sampling. Stationarity is
+            tested intermittently, so it might stop before this number is 
+            reached.
+        spread : float, optional
             Percent spread around the intial position of the walkers. Small
             value starts the walkers in a tight ball, large value fills out
             the range set by parameter bounds.
-        start_samples: ndarray
+        start_samples: ndarray, optional
             An array that has samples from the distribution that you want to
             start the sampler at.
 
@@ -161,6 +196,7 @@ class mcmc():
         self.flatlnlike = self.sampler.get_log_prob(discard=discard, thin=thin, flat=True)
 
         self.sampler.reset()  # This hopefully minimizes emcee memory leak
+        
         return self.flatchain
 
 
@@ -172,18 +208,26 @@ class mcmc():
         folded back into the main distribution, estimated based on the median
         of the walkers with an acceptance fraction above the threshold.
 
-        The stuck walkers are relocated with multivariate Gaussian, with mean
-        equal to the median of the high acceptancew walkers, and a standard
+        The stuck walkers are redistributed with multivariate Gaussian, with
+        mean equal to the median of the high acceptance walkers, and a standard
         deviation equal to the median absolute deviation of these.
 
         Parameters
         ----------
-        pos : array
-            The final position of the walkers after the burn-in phase.
-        accept_lim: float
+        pos : ndarray, optional
+            The positions of the walkers after the burn-in phase.
+        accept_lim: float, optional
             The value below which walkers will be labelled as bad and/or hence
             stuck.
-            
+        spread : float, optional
+            Factor by which to scatter the folded walkers.
+        
+        Returns
+        -------
+        pos : ndarray
+            The positions of the walkers after the low accepatance walkers have
+            been folded into high acceptance distribution.
+        
         """
         
         idx = self.sampler.acceptance_fraction < accept_lim
@@ -194,3 +238,82 @@ class mcmc():
             good_mad = st.median_absolute_deviation(flatchains, axis = 0) * spread
             pos[idx, :] = np.array([np.random.randn(self.ndim) * good_mad + good_med for n in range(nbad)])
         return pos
+
+
+class nested(cpnest.model.Model):
+    """
+    Runs CPnest to performed nested sampling from
+
+    log P(theta | D) ~ likelihood + prior
+
+    Note both likelihood and prior are in natural log.
+
+    Attributes
+    ----------
+
+    names: list, strings
+        A list of names of the model parameters
+
+    bounds: list of tuples
+        The bounds of the model parameters as [(0, 10), (-1, 1), ...]
+
+    likelihood: func
+        Function that will return the log likelihood when called as 
+        likelihood(params)
+
+    prior: func
+        Function that will return the log prior when called as prior(params)
+
+    """
+    
+    def __init__(self, names, bounds, likelihood, prior, path):
+        self.names=names
+        self.bounds=bounds
+        self.likelihood = likelihood
+        self.prior = prior
+        
+        self.path = os.path.join(*[path, 'cpnest'])
+        if not os.path.isdir(self.path):
+            os.mkdir(self.path)
+        
+
+    def log_likelihood(self, param):
+        """ Wrapper for log likelihood """
+        return self.likelihood(param.values)
+
+    def log_prior(self,p):
+        """ Wrapper for log prior """
+        if not self.in_bounds(p): return -np.inf
+        return self.prior(p.values)
+
+    def __call__(self, nlive=100, nthreads=1, maxmcmc=100, poolsize=100):
+        """
+        Runs the nested sampling
+
+        Parameters
+        ----------
+        nlive : int
+            Number of live points to be used for the sampling. This is similar 
+            to walkers in emcee. Default is 100.
+        nthreads : int
+            Number of parallel threads to run. More than one is currently slower
+            since the likelihood is fairly quick to evaluate. Default is 1. 
+        maxmcmc : int
+            Maximum number of mcmc steps taken by the sampler. Default is 100.
+        poolsize : int
+            Number of objects for the affine invariant sampling. Default is 100.
+
+        Returns
+        -------
+        df: pandas DataFrame
+            A dataframe of the samples produced with the nested sampling.
+        """
+        
+        self.nest = cpnest.CPNest(self, verbose=0, seed=53, nthreads=nthreads,
+                                  nlive=nlive, maxmcmc=maxmcmc, 
+                                  poolsize=poolsize, output=self.path)
+        self.nest.run()
+        self.samples = pd.DataFrame(self.nest.get_posterior_samples())[self.names]
+        self.flatchain = self.samples.values
+        self.acceptance = None
+        return self.samples

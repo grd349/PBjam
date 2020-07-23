@@ -1,8 +1,9 @@
-"""Fitting the asymptotic relation to an SNR spectrum
+"""
 
 This module fits the asymptotic relation to the p-modes in a frequency range
-around nu_max, the central frequency of the seismic mode envelope,
-in a solar-like oscillator. Only l=0 and l=2 are fit, l=1 modes are ignored.
+around $\nu_{max}$, the central frequency of the seismic mode envelope,
+in a solar-like oscillator. Only $l=0$ and $l=2$ are fit, $l=1$ modes are 
+currently ignored.
 
 """
 
@@ -11,35 +12,33 @@ import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
 from .plotting import plotting
-from .jar import to_log10, normal
+from .jar import normal
 from collections import OrderedDict
+import warnings
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
+    
+    This class is meant to provide initial inputs and mode ID for the final
+    fit using peakbag. 
+    
+    As such the spectrum model is simplified. The mode frequencies are estimated
+    by the asymptotic relation, the mode heights by a Gaussian centered at 
+    nu_max, and we only use a single width for all modes across the p-mode
+    envelope.
 
     Parameters
     ---------_
-    f : float, ndarray
-        Array of frequency bins of the spectrum (muHz). Truncated to the range
-        around numax.
+    f : ndarray
+        Array of frequency bins of the spectrum (in muHz). 
     norders : int
-        Number of radial order to fit
-
-    Attributes
-    ----------
-    f : float, ndarray
-        Array of frequency bins of the spectrum (muHz). Truncated to the range
-        around numax.
-
-    norders : int
-        Number of radial order to fit
-        
+        Number of radial order to fit.
+         
     """
 
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
-    
 
     def _get_nmax(self, dnu, numax, eps):
         """Compute radial order at numax.
@@ -81,7 +80,8 @@ class asymp_spec_model():
         Returns
         -------
         enns : ndarray
-                Numpy array of norders radial orders (integers) around numax (nmax).
+                Numpy array of norders radial orders (integers) around nu_max 
+                (nmax).
                 
         """
     
@@ -111,8 +111,8 @@ class asymp_spec_model():
         alpha : float
             Curvature factor of l=0 ridge (second order term, unitless).
         norders : int
-            Number of desired radial orders to calculate frequncies for, centered
-            around numax.
+            Number of desired radial orders to calculate frequncies for, 
+            centered around numax.
     
         Returns
         -------
@@ -136,13 +136,10 @@ class asymp_spec_model():
         ----------
         nu : float
             Frequency (in muHz).
-    
         hmax : float
             Height of p-mode envelope (in SNR).
-    
         numax : float
             Frequency of maximum power of the p-mode envelope (in muHz).
-    
         width : float
             Width of the p-mode envelope (in muHz).
     
@@ -165,7 +162,7 @@ class asymp_spec_model():
         h : float
             Height of the lorentizan (SNR).
         w : float
-            Full width of the lorentzian (log10(muHz)).
+            Full width of the lorentzian (muHz).
 
         Returns
         -------
@@ -217,7 +214,7 @@ class asymp_spec_model():
         The asymptotic relation for p-modes with angular degree, l=0, is
         defined as:
 
-        nu_nl = (n + epsilon + alpha/2(n - nmax)**2) * log(dnu) ,
+        $nu_nl = (n + \epsilon + \alpha/2(n - nmax)^2) * \log{dnu}$ ,
 
         where nmax = numax / dnu - epsilon.
 
@@ -229,7 +226,6 @@ class asymp_spec_model():
             Large separation log10(muHz)
         lognumax : float
             Frequency of maximum power of the p-mode envelope log10(muHz)
-
         eps : float
             Phase term of the asymptotic relation (unitless)
         alpha : float
@@ -288,10 +284,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
     Parameters
     ----------
-    st : star class instance
+    st : star class instance.
+        The star to fit using the asymptotic relation.
     
     norders : int, optional
-        Number of radial orders to fit
+        Number of radial orders to fit.
 
     Attributes
     ----------
@@ -302,69 +299,104 @@ class asymptotic_fit(plotting, asymp_spec_model):
     sel : ndarray, bool
         Numpy array of boolean values specifying the frequency range to be
         considered in the asymptotic relation fit.
-    model : asy_peakbag.model.model instance
+    model : asymp_spec_model.model instance
         Function for computing a spectrum model given a set of parameters.
-    bounds : ndarray
-        Numpy array of upper and lower boundaries for the asymptotic relation
-        fit. These limits truncate the likelihood function.
-    gaussian : ndarray
-        Numpy array of tuples of mean and sigma for Gaussian
-        priors on each of the fit parameters (To be removed when full
-        KDE is implimented).
-        
+    prior_file : str
+        Path to the csv file containing the prior data. Default is 
+        pbjam/data/prior_data.csv
+    par_names : list
+        List of parameters names of the spectrum model.
+    _obs : dict
+        Dictionary of the observational parameters (input parameters).
+    _log_obs : dict
+        Dictionary of the observational parametrs in log-scale.
+    prior_data : pandas DataFrame
+        Dataframe containing the samples used to the generate the KDE prior.
+    start_samples : ndarray
+        Array of samples drawn from the KDE to set the starting location of the
+        asymptotic relation fit.
+    kde : statsmodels.kde instance
+        KDE function used as a prior in the asymptotic relation fit.
+    start : ndarray 
+        Median of parameters in start_samples. 
+    developer_mode : bool
+        Run asy_peakbag in developer mode. Currently just retains the input 
+        value of dnu and numax as priors, for the purposes of expanding
+        the prior sample. Important: This is not good practice for getting 
+        science results!
+
     """
 
     def __init__(self, st, norders=None):
+        
         self.pg = st.pg
         self.f = st.f
         self.s = st.s
         self.norders = norders
-        self.obs = {'dnu': st.dnu, 'numax': st.numax, 'teff': st.teff, 'bp_rp': st.bp_rp}
-        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x != 'bp_rp'}
-                        
+
+        self._obs = st._obs
+        self._log_obs = st._log_obs    
+        
         self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
+        
+        self.prior_file = st.prior_file
+        self.prior_data = st.kde.prior_data
         self.start_samples = st.kde.samples       
         self.kde = st.kde.kde    
         self.start = self._get_asy_start()
+        
         lfreq, ufreq = self._get_freq_range()
         self.sel = (lfreq < self.f) & (self.f < ufreq)
         self.model = asymp_spec_model(self.f[self.sel], self.norders)
         
+        self.developer_mode = False
+        self.path = st.path
+        
         st.asy_fit = self
        
-    def __call__(self):
-        """ Setup, run and parse the asymptotic relation fit using EMCEE.
+    def __call__(self, method, developer_mode):
+        """ Setup, run and parse the asymptotic relation fit.
 
         Parameters
         ----------
-        dnu : [real, real]
-            Large frequency spacing and uncertainty
-        numax : [real, real]
-            Frequency of maximum power and uncertainty
-        teff : [real, real]
-            Stellar effective temperature and uncertainty
-        bp_rp : [real, real]
-            The Gaia Gbp - Grp color value and uncertainty
-            (probably ~< 0.01 dex).
-
+        method : string
+            Method to be used for sampling the posterior. Options are 'mcmc' or
+            'nested. Default method is 'mcmc' that will call emcee, alternative
+            is 'nested' to call nested sampling with CPnest.
+        
+        developer_mode : bool
+            Run asy_peakbag in developer mode. Currently just retains the input 
+            value of dnu and numax as priors, for the purposes of expanding
+            the prior sample. Important: This is not good practice for getting 
+            science results!
+      
         Returns
         -------
         asy_result : Dict
             A dictionary of the modeID DataFrame and the summary DataFrame.
             
         """
-        #self._start_init() # TODO - finish up this function
+        self.developer_mode = developer_mode
+        
+        if method not in ['mcmc', 'nested']:
+            warnings.warn(f'Method {method} not found: Using method mcmc')
+            method = 'mcmc'
 
-        self.fit = pb.mcmc(np.median(self.start_samples, axis=0), 
-                           self.likelihood, self.prior)
+        if method == 'mcmc':
+            self.fit = pb.mcmc(np.median(self.start_samples, axis=0),
+                               self.likelihood, self.prior)
+            self.fit(start_samples=self.start_samples)
 
-        self.fit(start_samples=self.start_samples)
-
-
+        elif method == 'nested':
+            #bounds = [[self.start_samples[:, n].min(), 
+            #           self.start_samples[:, n].max()] for n in range(len(self.par_names))]
+            bounds = [[self.prior_data[key].min(), self.prior_data[key].max()] for key in self.par_names]
+            self.fit = pb.nested(self.par_names, bounds, self.likelihood, self.prior, self.path)
+            self.fit()
+         
         self.modeID = self.get_modeIDs(self.fit, self.norders)
         self.summary  = self._get_summary_stats(self.fit)        
-        self.mle_model = self.model(self.summary['mle'])        
         self.samples = self.fit.flatchain
         self.acceptance = self.fit.acceptance
 
@@ -382,12 +414,12 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         Parameters
         ----------
-        p : array
-            Array of model parameters
+        p : ndarray
+            Array of model parameters.
 
         Returns
         -------
-        lp : real
+        lp : float
             The log likelihood evaluated at p.
 
         """
@@ -423,7 +455,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         Parameters
         ----------
-        p : array
+        p : ndarray
             Array of model parameters
 
         Returns
@@ -436,8 +468,12 @@ class asymptotic_fit(plotting, asymp_spec_model):
         lnlike = 0
         
         # Constraint from input obs
-        lnlike += normal(p[-2], *self.log_obs['teff'])
-        lnlike += normal(p[-1], *self.obs['bp_rp'])
+        if self.developer_mode:
+            lnlike += normal(p[0], *self._log_obs['dnu'])
+            lnlike += normal(p[1], *self._log_obs['numax'])
+        
+        lnlike += normal(p[-2], *self._log_obs['teff'])
+        lnlike += normal(p[-1], *self._obs['bp_rp'])
         
         # Constraint from the periodogram
         mod = self.model(p)
@@ -447,29 +483,26 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
     def _get_summary_stats(self, fit):
         """ Make dataframe with fit summary statistics
-    
+
         Creates a dataframe that contains various quantities that summarize the
         fit. Note, these are predominantly derived from the marginalized posteriors.
-       
+
         Parameters
         ----------
         fit : mcmc.mcmc class instance
             mcmc class instances used in the fit
-            
+
         Returns
         -------
         summary : pandas.DataFrame
             Dataframe with the summary statistics.
-            
+
         """
-    
-        idx = np.argmax(fit.flatlnlike)
-        
+
         fc = fit.flatchain
-       
+
         # Append here to add other statistics
-        stats = OrderedDict({'mle'  : fc[idx,:], 
-                             'mean' : np.mean(fc, axis = 0),
+        stats = OrderedDict({'mean' : np.mean(fc, axis = 0),
                              'std'  : np.std(fc, axis = 0),
                              'skew' : scist.skew(fc, axis = 0),
                              '2nd'  : np.percentile(fc,  2.27501, axis=0),
@@ -478,9 +511,9 @@ class asymptotic_fit(plotting, asymp_spec_model):
                              '84th' : np.percentile(fc, 84.13447, axis=0),
                              '97th' : np.percentile(fc, 97.72498, axis=0),
                              'MAD'  : scist.median_absolute_deviation(fc, axis=0)})
-    
+
         summary = pd.DataFrame(stats, index = self.par_names)
-        
+
         return summary
        
 
@@ -488,8 +521,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
         """ Set mode ID in a dataframe
 
         Evaluates the asymptotic relation for each walker position from the
-        MCMC fit. The median values of the resulting set of frequencies are
-        then returned in a pandas.DataFrame
+        `emcee' sampling. The median values of the resulting set of frequencies 
+        are then returned in a pandas DataFrame
 
         Parameters
         ----------
@@ -517,20 +550,19 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         ells = np.array([2, 0]*norders) 
 
-        df = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
+        modeID = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
 
-        df.at[::2, 'nu_med'] = nus_med[1, :]
-        df.at[1::2, 'nu_med'] = nus_med[0, :]
+        modeID.at[::2, 'nu_med'] = nus_med[1, :]
+        modeID.at[1::2, 'nu_med'] = nus_med[0, :]
         
-        df.at[::2, 'nu_mad'] = nus_mad[1, :]
-        df.at[1::2, 'nu_mad'] = nus_mad[0, :]
+        modeID.at[::2, 'nu_mad'] = nus_mad[1, :]
+        modeID.at[1::2, 'nu_mad'] = nus_mad[0, :]
 
-        return df
-
+        return modeID
 
     
     def _get_asy_start(self):
-        """ Get start averages for sampling
+        """ Get start averages for sampling start locations
         """
  
         mu = np.median(self.start_samples, axis=0)
@@ -540,7 +572,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
 
     def _get_freq_range(self):
-        """ Get frequency range for model
+        """ Get frequency range around numax for model 
         """
         
         dnu, numax, eps = self.start[:3]
@@ -548,21 +580,23 @@ class asymptotic_fit(plotting, asymp_spec_model):
         nmax = self._get_nmax(dnu, numax, eps)
         enns = self._get_enns(nmax, self.norders)
 
+        # The range is set +/- 25% of the upper and lower mode frequency 
+        # estimate
         lfreq = (min(enns) - 1.25 + eps) * dnu
         ufreq = (max(enns) + 1.25 + eps) * dnu
         return lfreq, ufreq    
     
     
     
-    def _start_init(self, verbose=False):
-        """ This is in pre-alpha
-        
-        Bodge a better starting point
-        """
-        
-        like_start = np.ones(len(self.start_samples[:, 0]))
-        for idx, samp in enumerate(self.start_samples):
-            like_start[idx] = self.likelihood(samp)
-        if verbose:
-            print(f'Likelihood at the start : {np.max(like_start)}')
-            print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')
+#    def _start_init(self, verbose=False):
+#        """ This is in pre-alpha
+#        
+#        Bodge a better starting point
+#        """
+#        
+#        like_start = np.ones(len(self.start_samples[:, 0]))
+#        for idx, samp in enumerate(self.start_samples):
+#            like_start[idx] = self.likelihood(samp)
+#        if verbose:
+#            print(f'Likelihood at the start : {np.max(like_start)}')
+#            print(f'Start params from init : {self.start_samples[np.argmax(like_start), :]}')

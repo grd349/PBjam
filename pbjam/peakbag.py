@@ -1,5 +1,9 @@
-#import matplotlib
-#matplotlib.use('Agg')
+"""
+
+This module is used for constructing a `PyMC3' model of the power spectrum using
+the outputs from asy_peakbag as priors.
+
+"""
 
 import numpy as np
 import pymc3 as pm
@@ -7,28 +11,28 @@ import warnings
 from .plotting import plotting
 
 class peakbag(plotting):
-    """
-    Class for PBjam peakbagging.
+    """ Class for the final peakbagging.
 
-    This class allows for simple manipulation of the data, the fitting of a
-    PyMC3 model to the data, and some plotting of results functionality.
+    This class is used after getting the frequency intervals from asy_peakbag,
+    that include the $l=0,2$ mode pairs.
+
+    The
 
     Examples
     --------
-    Star API interaction (recommended)
+    Using peakbag from the star class instance (recommended)
 
-    >>> from pbjam import star
-    >>> star = pb.star(kic, pg, numax, dnu, teff, bp_rp, store_chains=True, nthreads=4)
-    >>> star.run_epsilon()
-    >>> star.run_asy_peakbag(norders=7)
-    >>> star.run_peakbag()
+    >>> st = pbjam.star(ID='KIC4448777', pg=pg, numax=[220.0, 3.0],
+                           dnu=[16.97, 0.01], teff=[4750, 100],
+                           bp_rp = [1.34, 0.01])
+    >>> st.run_kde()
+    >>> st.run_asy_peakbag(norders=7)
+    >>> st.run_peakbag()
 
-    Lower level API interaction.
+    Using peakbag on it's own. Requires output from `asy_peakbag'.
 
-    >>> import PBjam
-    >>> pbag = pbjam.peakbag(frequency, snr, asy_result)
-    >>> pbag.sample(model_type='simple', cores=4)
-    >>> pbag.plot_fit()
+    >>> pb = pbjam.peakbag(st.asy_fit)
+    >>> pb()
 
     Parameters
     ----------
@@ -37,7 +41,7 @@ class peakbag(plotting):
         around numax.
     snr : float, array
         Array of SNR values for the frequency bins in f (dimensionless).
-    asy_result : asy_result
+    asy_fit : asy_fit
         The result from the asy_peakbag method.
     init : bool
         If true runs make_start and trim_ladder to prepare starting
@@ -50,7 +54,7 @@ class peakbag(plotting):
         around numax.
     snr : float, ndarray
         Array of SNR values for the frequency bins in f (dimensionless).
-    asy_result : asy_result
+    asy_fit : asy_fit
         The result from the asy_peakbag method.
         This is a dictionary of 'modeID' and 'summary'.
         'modeID' is a DataFrame with a list of modes and basic properties.
@@ -59,14 +63,13 @@ class peakbag(plotting):
 
     """
 
-    def __init__(self, starinst, asyinst, init=True, path=None,
-                       verbose=False):
+    def __init__(self, starinst, init=True, path=None,  verbose=False):
 
         self.pg = starinst.pg
         self.f = starinst.f
         self.s = starinst.s
-        self.asy_result = asyinst
-        self.norders = asyinst.norders
+        self.asy_fit = starinst.asy_fit
+        self.norders = self.asy_fit.norders
         if init:
             self.make_start()
             self.trim_ladder(verbose=verbose)
@@ -76,25 +79,25 @@ class peakbag(plotting):
 
 
     def make_start(self):
-        """
-        Function uses the information in self.asy_result (the result of the
-        asymptotic peakbagging) and builds a dictionary of starting values
-        for the peakbagging methods.
+        """ Set the starting model for peakbag
+
+        Function uses the result of the asymptotic peakbagging and builds a
+        dictionary of starting values for the peakbagging methods.
 
         """
 
-        idxl0 = self.asy_result.modeID.ell == 0
-        idxl2 = self.asy_result.modeID.ell == 2
+        idxl0 = self.asy_fit.modeID.ell == 0
+        idxl2 = self.asy_fit.modeID.ell == 2
 
-        l0 = self.asy_result.modeID.loc[idxl0, 'nu_med'].values.flatten()
-        l2 = self.asy_result.modeID.loc[idxl2, 'nu_med'].values.flatten()
+        l0 = self.asy_fit.modeID.loc[idxl0, 'nu_med'].values.flatten()
+        l2 = self.asy_fit.modeID.loc[idxl2, 'nu_med'].values.flatten()
 
         l0, l2 = self.remove_outsiders(l0, l2)
 
-        width = 10**(np.ones(len(l0)) * self.asy_result.summary.loc['mode_width', 'mean']).flatten()
-        height =  (10**self.asy_result.summary.loc['env_height', 'mean'] * \
-                 np.exp(-0.5 * (l0 - 10**self.asy_result.summary.loc['numax', 'mean'])**2 /
-                 (10**self.asy_result.summary.loc['env_width', 'mean'])**2)).flatten()
+        width = 10**(np.ones(len(l0)) * self.asy_fit.summary.loc['mode_width', 'mean']).flatten()
+        height =  (10**self.asy_fit.summary.loc['env_height', 'mean'] * \
+                 np.exp(-0.5 * (l0 - 10**self.asy_fit.summary.loc['numax', 'mean'])**2 /
+                 (10**self.asy_fit.summary.loc['env_width', 'mean'])**2)).flatten()
         back = np.ones(len(l0))
 
         self.parnames = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
@@ -103,9 +106,7 @@ class peakbag(plotting):
         pars = [l0, l2, width, width, height, 0.7*height, back]
 
         self.start ={x:y for x,y in zip(self.parnames, pars)}
-#        self.start = {'l0': l0, 'l2': l2, 'width0': width, 'width2': width,
-#                      'height0': height, 'height2': height*0.7,
-#                      'back': np.ones(len(l0))}
+
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
     def remove_outsiders(self, l0, l2):
@@ -114,39 +115,43 @@ class peakbag(plotting):
         Drops modes where the guess frequency is outside of the supplied
         frequency range.
 
+        Parameters
+        ----------
+
+        l0 : ndarray
+            Array of l0 mode frequencies
+        l2 : ndarray
+            Array of l2 mode frequencies
+
         """
 
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
     def trim_ladder(self, lw_fac=10, extra=0.01, verbose=False):
-        """
-        This function makes ladders and then selects only the orders
-        in the ladders that have modes that are to be fitted,
-        i.e, it trims the ladder.
+        """ Turns mode frequencies into list of pairs
 
-        Each ladder rung is constructed so that the central frequency is
+        This function turns the list of mode frequencies into pairs and then
+        selects only the pairs in the ladder that have modes that are to be fit.
+
+        Each pair is constructed so that the central frequency is
         the mid point between the l=0 and l=2 modes as determined by the
-        info in the asy_result dictionary.
-
-        The width of the rung is determined by d02, line width, and some
-        parameters lw_fac and extra.  The basic calculation is the width is:
-        d02 + (lw_fac * line_width) + (extra * dnu)
+        information in the asy_fit dictionary.
 
         Parameters
         ----------
         lw_fac: float
             The factor by which the mode line width is multiplied in order
-            to contribute to the rung width.
+            to contribute to the pair width.
         extra: float
             The factor by which dnu is multiplied in order to contribute to
-            the rung width.
+            the pair width.
 
         """
 
-        d02 = 10**self.asy_result.summary.loc['d02','mean']
-        d02_lw = d02 + lw_fac * 10**self.asy_result.summary.loc['mode_width', 'mean']
-        w = d02_lw + (extra * 10**self.asy_result.summary.loc['dnu', 'mean'])
+        d02 = 10**self.asy_fit.summary.loc['d02', 'mean']
+        d02_lw = d02 + lw_fac * 10**self.asy_fit.summary.loc['mode_width', 'mean']
+        w = d02_lw + (extra * 10**self.asy_fit.summary.loc['dnu', 'mean'])
         bw = self.f[1] - self.f[0]
         w /= bw
         if verbose:
@@ -157,7 +162,7 @@ class peakbag(plotting):
         for idx, freq in enumerate(self.start['l0']):
             loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
             if loc_mid_02 == 0:
-                warnings.warn('Did not find optimal rung location')
+                warnings.warn('Did not find optimal pair location')
             if verbose:
                 print(f'loc_mid_02 = {loc_mid_02}')
                 print(f'w/2 = {int(w/2)}')
@@ -169,67 +174,58 @@ class peakbag(plotting):
         self.ladder_s = ladder_trim_s
 
     def lor(self, freq, w, h):
-        """
-        This function calculates a lorentzian for each rung of the frequency
-        ladder.  The ladder is a 2D array.  freq, w, and h should be 1D arrays
-        of length that matches the height of the ladder.  No checks are made
-        for this so as to reduce overheads.
+        """ Simple Lorentzian profile
 
-         Parameters
-         ----------
-         freq : float, ndarray
-            A length H array of Lorentzian central frequencies where H is the
-            height of self.ladder_f .
-         w : float, ndarray
-            A length H array of Lorentzian width where H is the
-            height of self.ladder_f .
-         h : float, ndarray
-            A length H array of Lorentzian heightswhere H is the
-            height of self.ladder_f .
+        Calculates N Lorentzian profiles, where N is the number of pairs in the
+        frequency list.
+
+        Parameters
+        ----------
+        freq : float, ndarray
+            Central frequencies the N Lorentzians
+        w : float, ndarray
+            Widths of the N Lorentzians
+        h : float, ndarray
+            Heights of the N Lorentzians
 
         Returns
         -------
-        lorentzians : float, ladder
-           A ladder containing one Lorentzian per rung.
+        lors : ndarray
+           A list containing one Lorentzian per pair.
 
         """
 
         norm = 1.0 + 4.0 / w**2 * (self.ladder_f.T - freq)**2
+
         return h / norm
 
     def model(self, l0, l2, width0, width2, height0, height2, back):
         """
         Calcuates a simple model of a flat backgroud plus two lorentzians
-        for each rung of self.ladder_f .
+        for each of the N pairs in the list of frequencies under consideration.
 
         Parameters
         ----------
-        l0 : float, ndarray
-            A length H array of l=0 mode central frequencies where H is the
-            height of self.ladder_f .
-        l2 : float, ndarray
-            A length H array of l=2 mode central frequencies where H is the
-            height of self.ladder_f .
-        width0 : float, ndarray
-            A length H array of l=0 mode widths where H is the
-            height of self.ladder_f .
-        width2 : float, ndarray
-            A length H array of l=2 mode widths where H is the
-            height of self.ladder_f .
-        height0 : float, ndarray
-            A length H array of l=0 mode heights where H is the
-            height of self.ladder_f .
-        height2 : float, ndarray
-            A length H array of l=2 mode heights where H is the
-            height of self.ladder_f .
-        back : float, ndarray
-            A length H array of background values where H is the
-            height of self.ladder_f .
+        l0 : ndarray
+            Array of length N, of the l=0 mode frequencies.
+        l2 : ndarray
+            Array of length N, of the l=2 mode frequencies.
+        width0 : ndarray
+            Array of length N, of the l=0 mode widths.
+        width2 : ndarray
+            Array of length N, of the l=2 mode widths.
+        height0 : ndarray
+            Array of length N, of the l=0 mode heights.
+        height2 : ndarray
+            Array of length N, of the l=2 mode heights.
+        back : ndarray
+            Array of length N, of the background levels.
 
         Returns
         -------
-        mod : float, ndarray
-            A 2D array (or 'ladder') containing the calculated model.
+        mod : ndarray
+            A 2D array (or 'ladder') containing the calculated models for each
+            of the N pairs.
 
         """
 
@@ -239,14 +235,26 @@ class peakbag(plotting):
         return mod.T
 
     def init_model(self, model_type):
-        """
-        TODO - Need to describe what is happening here.
-        Complete docs when model is settled on.  Probably quiet a
-        long docs needed to explain.
+        """ Initialize the pymc3 model for peakbag
+
+        Sets up the pymc3 model to sample, to perform the final peakbagging.
+
+        Two treatements of the mode widths are available, the default
+        independent mode widths for each pair, or modeling the mode widths as
+        a function of freqeuency as a Gaussian Process.
+
+        Parameters
+        ----------
+        model_type : str
+            Model choice for the mode widths. The default is to treat the all
+            mode widths independently. Alternatively they can be modeled as
+            a GP.
 
         """
 
-        dnu = 10**self.asy_result.summary.loc['dnu', 'mean']
+        self.pm_model = pm.Model()
+
+        dnu = 10**self.asy_fit.summary.loc['dnu', 'mean']
         dnu_fac = 0.03 # Prior on mode frequency has width 3% of Dnu.
         height_fac = 0.4 # Lognorrmal prior on height has std=0.4.
         width_fac = 1.0 # Lognorrmal prior on width has std=1.0.
@@ -303,14 +311,17 @@ class peakbag(plotting):
             back = pm.Lognormal('back', mu=np.log(1.0), sigma=back_fac, shape=N)
 
             limit = self.model(l0, l2, width0, width2, height0, height2, back)
+
             pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
 
 
 
     def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4,
                      advi=False):
-        """
-        Function to perform the sampling of a defined model.
+        """ Perform all the steps in peakbag.
+
+        Initializes and samples the `PyMC3' model that is set up using the
+        outputs from asy_peakbag as priors.
 
         Parameters
         ----------
@@ -318,29 +329,27 @@ class peakbag(plotting):
             Defaults to 'simple'.
             Can be either 'simple' or 'model_gp' which sets the type of model
             to be fitted to the data.
-        tune : int
-            Numer of tuning steps passed to pym3.sample
-        nthreads : int
-            Number of cores to use - passed to pym3.sample
-        maxiter : int
-            Number of times to attempt to reach convergence
-        advo : bool
-            Whether or not to fit using the fullrank_advi option in pymc3
+        tune : int, optional
+            Numer of tuning steps passed to pym3.sample. Default is 1500.
+        nthreads : int, optional
+            Number of cores to use - passed to pym3.sample. Default is 1.
+        maxiter : int, optional
+            Number of times to attempt to reach convergence. Default is 4.
+        advi : bool, optional
+            Whether or not to fit using the fullrank_advi option in pymc3.
+            Default is False.
 
         """
 
-        self.pm_model = pm.Model()
-
         self.init_model(model_type=model_type)
-        
-        
-        # REMOVE THIS WHEN pymc3 v3.8 is a bit older
+
+        # REMOVE THIS WHEN pymc3 v3.8 is a bit older.
         try:
             rhatfunc = pm.diagnostics.gelman_rubin
-            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', warnings.DeprecationWarning)
+            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
         except:
             rhatfunc = pm.stats.rhat
-        
+
 
         if advi:
             with self.pm_model:
@@ -369,11 +378,10 @@ class peakbag(plotting):
                 Rhat_max = np.max([v.max() for k, v in rhatfunc(self.samples).items()])
 
                 niter += 1
-        
+
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older
         try:
             self.summary = pm.summary(self.samples)
         except:
             self.summary = pm.stats.summary(self.samples)
-            
         self.par_names = self.summary.index
