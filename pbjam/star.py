@@ -18,7 +18,7 @@ import os, warnings, re, time, numbers
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
-from .jar import get_priorpath, to_log10
+from .jar import get_priorpath, to_log10, references
 from .plotting import plotting
 import pandas as pd
 import numpy as np
@@ -92,6 +92,9 @@ class star(plotting):
         self.numax = numax
         self.dnu = dnu
 
+        self.references = references()
+        self.references._addRef('Oliphant2006')
+
         teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
         self.teff = teff
         self.bp_rp = bp_rp
@@ -110,8 +113,10 @@ class star(plotting):
             self.prior_file = get_priorpath()
         else:
             self.prior_file = prior_file
+            
 
     def _checkTeffBpRp(self, teff, bp_rp):
+        self.references._addRef('Evans2018')
         # Teff and Gbp-Grp provide a lot of the same information, so only one of
         # them need to be provided to start with. If one is not provided, PBjam
         # will assume a wide prior on it.
