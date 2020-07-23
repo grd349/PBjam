@@ -52,6 +52,8 @@ import pandas as pd
 import os, pickle, warnings
 from .star import star, _format_name
 from datetime import datetime
+from .jar import references
+
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -533,6 +535,8 @@ class session():
                  quarter=None, mission=None, path=None, download_dir=None):
 
         self.stars = []
+        self.references = references()
+        self.references._addRef('python1995')
         
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
             if isinstance(dictlike, str):
@@ -582,7 +586,7 @@ class session():
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
                                    path=path))
-
+            
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
@@ -636,7 +640,9 @@ class session():
                    store_chains=store_chains, nthreads=nthreads, 
                    asy_sampling=asy_sampling, developer_mode=developer_mode)
                 
-                self.stars[i] = None
+                self.references._reflist += st.references._reflist
+                
+                #self.stars[i] = None
             
             # Crude way to send error messages that occur in star up to Session 
             # without ending the session. Is there a better way?

@@ -22,7 +22,7 @@ class references():
         
         self.bibfile = os.path.join(*[PACKAGEDIR, 'data', 'pbjam_references.bib'])
         
-        self.reflist = []
+        self._reflist = []
         
         entries = np.unique(self._parseBibFile())
 
@@ -109,21 +109,21 @@ class references():
         
         """
         
-        self.reflist.append(self.bibdict[ref])
+        self._reflist.append(self.bibdict[ref])
         
     def __call__(self, to_file=False):
         """ Print the list of references used.
         
         """
         
-        out = '\n\n'.join(np.unique(self.reflist))
+        out = '\n\n'.join(np.unique(self._reflist))
         print('References used in this run.')
         print(out)
         
         if to_file:
             with open('pbjam.bib', mode='w') as file_object: #robustify the filepath so it goes to the right place all the time.
                 print(out, file=file_object)
-            
+                            
 def get_priorpath():
     """ Get default prior path name
     

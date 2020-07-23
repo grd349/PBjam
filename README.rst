@@ -49,3 +49,11 @@ Main Contributors                                     Chaos Engineers           
 |                                                     |                                                Andy Moya
 |                                                     |                                                Ian Roxburgh
 ===================================================== ================================================ ====================================================
+
+
+Acknowledgements
+----------------
+If you use PBjam in your work please cite the PBjam paper (forthcoming), and if possible provide links to the GitHub repository. 
+
+We encourage PBjam users to also cite the packages that PBjam makes use of. To get a list of publications that your peakbagging run made use of, the :mod:`~pbjam.session` and :mod:`~pbjam.star` classes have a handy references method, that can be called after you have performed your run. This will list all the bibtex entries you require for citing the relevant publications.
+
