@@ -75,6 +75,8 @@ class peakbag(plotting):
             self.trim_ladder(verbose=verbose)
         self.gp0 = [] # Used for gp linewidth info.
 
+        starinst.references._addRef('pymc3')
+        
         starinst.peakbag = self
 
 

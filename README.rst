@@ -34,9 +34,9 @@ Contributing
 ------------
 If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
 
-
 Authors
 -------
+There are different ways to contribute to PBjam, the Scientific Influencers help guide the scientific aspects of PBjam, the Chaos Engineers try to break the code or simply report bugs, while the Main Contributors submit Pull Requests with somewhat bigger additions to the code or documentation. 
 ===================================================== ================================================ ====================================================
 Main Contributors                                     Chaos Engineers                                  Scientific Influencers
 ===================================================== ================================================ ====================================================
@@ -55,5 +55,5 @@ Acknowledgements
 ----------------
 If you use PBjam in your work please cite the PBjam paper (forthcoming), and if possible provide links to the GitHub repository. 
 
-We encourage PBjam users to also cite the packages that PBjam makes use of. PBjam can list the publications that were used during a run (see the `Referencing Notebook <https://github.com/grd349/PBjam/tree/master/Examples/Example-references.ipynb>`_).
+We encourage PBjam users to also cite the packages and publications that PBjam makes use of. PBjam will automatically keep track of the publications that were used during a run, and can list them for you in bibtex format (see the `Referencing Notebook <https://github.com/grd349/PBjam/tree/master/Examples/Example-references.ipynb>`_).
 
