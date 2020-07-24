@@ -61,7 +61,7 @@ def test_get_percentiles():
     
     # setup
     func = get_percentiles
-    inp = [np.random.normal(0,1, size = 10), 3]
+    inp = [np.random.normal(size = 100), 3]
     print(func(*inp))
 
     #print(func(*inp)[])
@@ -73,7 +73,7 @@ def test_get_percentiles():
     pbt.right_shape(func, inp, (2*inp[1]+1,))
     
     # check some different inputs
-    inp = [np.random.normal(0,1, size = 30000), 5]
+    inp = [np.random.normal(size = 30000), 4]
     pbt.right_shape(func, inp, (2*inp[1]+1,))
     
     inp = [[0,0,0,1,1], 1]

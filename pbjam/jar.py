@@ -112,6 +112,8 @@ class references():
                     
                     if safety > 1000:
                         break
+                    
+            bibitems = np.unique(bibitems)
             
             bibdict = {}
             for i, item in enumerate(bibitems):
@@ -186,7 +188,7 @@ def get_percentiles(X, nsigma = 2, **kwargs):
     
     """
 
-    a = np.array([0.5*(1+erf(z/np.sqrt(2))) for z in range(nsigma)])
+    a = np.array([0.5*(1+erf(z/np.sqrt(2))) for z in range(nsigma+1)])
     
     percs = np.append((1-a[::-1][:-1]),a)*100
 
