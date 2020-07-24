@@ -37,6 +37,7 @@ If you want to raise and issue or contribute code to PBjam, see the `guidelines 
 Authors
 -------
 There are different ways to contribute to PBjam, the Scientific Influencers help guide the scientific aspects of PBjam, the Chaos Engineers try to break the code or simply report bugs, while the Main Contributors submit Pull Requests with somewhat bigger additions to the code or documentation. 
+
 ===================================================== ================================================ ====================================================
 Main Contributors                                     Chaos Engineers                                  Scientific Influencers
 ===================================================== ================================================ ====================================================
