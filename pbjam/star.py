@@ -54,17 +54,13 @@ class star(plotting):
         A lightkurve periodogram object containing frequencies in units of
         microhertz and power (in arbitrary units).
     numax : list
-        List of the form [numax, numax_error]. For multiple targets, use a list
-        of lists.
+        List of the form [numax, numax_error]. 
     dnu : list
-        List of the form [dnu, dnu_error]. For multiple targets, use a list
-        of lists.
+        List of the form [dnu, dnu_error]. 
     teff : list
-        List of the form [teff, teff_error]. For multiple targets, use a list
-        of lists.
+        List of the form [teff, teff_error]. 
     bp_rp : list
-        List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
-        of lists.
+        List of the form [bp_rp, bp_rp_error]. 
     path : str, optional
         The path at which to store output. If no path is set but make_plots is
         True, output will be saved in the current working directory. Default is
@@ -93,8 +89,10 @@ class star(plotting):
         self.dnu = dnu
 
         self.references = references()
-        self.references._addRef('Oliphant2006')
-
+        self.references._addRef('numpy')
+        self.references._addRef('python')
+        self.references._addRef('lightkurve')
+        
         teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
         self.teff = teff
         self.bp_rp = bp_rp
@@ -116,10 +114,33 @@ class star(plotting):
             
 
     def _checkTeffBpRp(self, teff, bp_rp):
-        self.references._addRef('Evans2018')
-        # Teff and Gbp-Grp provide a lot of the same information, so only one of
-        # them need to be provided to start with. If one is not provided, PBjam
-        # will assume a wide prior on it.
+        """ Set the Teff and/or bp_rp values
+        
+        Checks the input Teff and Gbp-Grp values to see if any are missing.
+        
+        If Gbp-Grp is missing it will be looked up online either from the TIC or 
+        the Gaia archive.
+        
+        Teff and Gbp-Grp provide a lot of the same information, so only one of
+        them need to be provided to start with. If one is not provided, PBjam
+        will assume a wide prior on it.
+        
+        Parameters
+        ----------
+        teff : list
+            List of the form [teff, teff_error]. For multiple targets, use a list
+            of lists.
+        bp_rp : list
+            List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
+            of lists.
+        
+        Returns
+        -------
+        teff : list
+            The checked teff value. List of the form [teff, teff_error]. 
+        bp_rp : list
+            The checked bp_rp value. List of the form [bp_rp, bp_rp_error]. 
+        """
         
         if not isinstance(bp_rp[0], numbers.Real):
             bp_rp = [get_bp_rp(self.ID), 0.1]
@@ -133,6 +154,9 @@ class star(plotting):
             teff = [4889, 1500] # these are rough esimates from the prior
         elif not bprp_good:
             bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
+            
+        self.references._addRef('Evans2018')
+        self.references._addRef('astropy')
         
         return teff, bp_rp
 
@@ -222,6 +246,7 @@ class star(plotting):
         """
 
         print('Starting KDE estimation')
+        
         # Init
         kde(self)
 
@@ -241,6 +266,9 @@ class star(plotting):
         if store_chains:
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
+            
+        self.references._addRef('pandas')
+
 
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='mcmc', 
@@ -294,6 +322,9 @@ class star(plotting):
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
+        self.references._addRef('pandas')
+
+    
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
@@ -337,6 +368,9 @@ class star(plotting):
         if store_chains:
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
+            
+        self.references._addRef('pandas')
+
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
@@ -384,6 +418,8 @@ class star(plotting):
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)
 
+        self.references._addRef('pandas')
+
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
     
@@ -411,7 +447,7 @@ def _querySimbad(ID):
     """
     
     print('Querying Simbad for Gaia ID')
-    
+
     try:
         job = Simbad.query_objectids(ID)
     except:

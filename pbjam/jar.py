@@ -91,7 +91,9 @@ class references():
             
             openers = ['@ARTICLE', '@article', 
                        '@MISC', '@misc',
-                       '@BOOK', '@book'] #Update this if other types of entries are added to the bib file.
+                       '@BOOK', '@book',
+                       '@SOFTWARE', '@software',
+                       '@INPROCEEDINGS', '@inproceedings'] #Update this if other types of entries are added to the bib file.
             
             bibitems = []   
             safety = 0
