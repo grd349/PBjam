@@ -55,5 +55,5 @@ Acknowledgements
 ----------------
 If you use PBjam in your work please cite the PBjam paper (forthcoming), and if possible provide links to the GitHub repository. 
 
-We encourage PBjam users to also cite the packages that PBjam makes use of. PBjam can list the publications that were used during a run (see the `Reference Examples Notebook <https://github.com/grd349/PBjam/tree/master/Examples/Example-references.ipynb>`_.
+We encourage PBjam users to also cite the packages that PBjam makes use of. PBjam can list the publications that were used during a run (see the `Referencing Notebook <https://github.com/grd349/PBjam/tree/master/Examples/Example-references.ipynb>`_).
 
