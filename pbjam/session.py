@@ -642,7 +642,7 @@ class session():
                 
                 self.references._reflist += st.references._reflist
                 
-                #self.stars[i] = None
+                self.stars[i] = None
             
             # Crude way to send error messages that occur in star up to Session 
             # without ending the session. Is there a better way?

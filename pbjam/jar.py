@@ -9,12 +9,19 @@ import os
 import numpy as np
 from scipy.special import erf
 
-
-
 class references():
     """ A class for managing references used when running PBjam.
 
     This is inherited by session and star. 
+    
+    Attributes
+    ----------
+    bibfile : str
+        The pathname to the pbjam references list.
+    _reflist : list
+        List of references that is updated when new functions are used.
+    bibdict : dict
+        Dictionary of bib items from the PBjam reference list.
     
     """
     
@@ -24,28 +31,27 @@ class references():
         
         self._reflist = []
         
-        entries = np.unique(self._parseBibFile())
+        self.bibdict = self._parseBibFile()
 
-        self.bibdict = {}
-        for i, block in enumerate(entries):
-            key = block[block.index('{')+1:block.index(',')]
-            self.bibdict[key] = block
-            
     def _findBlockEnd(self, string, idx):
         """ Find block of {}
         
-        Go through string starting at idx, and find
-        the index corresponding to the curly bracket
-        that closes the opening curly bracket.
+        Go through string starting at idx, and find the index corresponding to 
+        the curly bracket that closes the opening curly bracket.
         
-        So { will be closed by } even if there are more
-        curly brackets in between.
+        So { will be closed by } even if there are more curly brackets in 
+        between.
         
         Note
         ----
-        This also works in reverse, so opening with }
-        will be closed by {.
+        This also works in reverse, so opening with } will be closed by {.
         
+        Parameters
+        ----------
+        string : str
+            The string to parse.
+        idx : int
+            The index in string to start at.         
         """
         
         a = 0
@@ -68,9 +74,16 @@ class references():
     def _parseBibFile(self):
         """ Put contents of a bibtex file into a dictionary.
         
-        Article shorthand names (e.g., @Article{shorthand_name) becomes the
-        dictionary key.
+        Takes the contents of the PBjam bib file and stores it as a dictionary
+        of bib items.
         
+        Article shorthand names (e.g., @Article{shorthand_name) become the
+        dictionary key, similar to the way LaTeX handles citations.
+        
+        Returns
+        -------
+        bibdict : dict
+            Dictionary of bib items from the PBjam reference list.
         """
         
         with open(self.bibfile, 'r') as bib:
@@ -80,7 +93,7 @@ class references():
                        '@MISC', '@misc',
                        '@BOOK', '@book'] #Update this if other types of entries are added to the bib file.
             
-            blocks = []   
+            bibitems = []   
             safety = 0
             while any([x in bib for x in openers]):
                 for opener in openers:
@@ -89,7 +102,7 @@ class references():
         
                         end = self._findBlockEnd(bib, start+len(opener))
          
-                        blocks.append([bib[start:end+1]])
+                        bibitems.append([bib[start:end+1]])
         
                         bib = bib[:start] + bib[end+1:]
                             
@@ -99,29 +112,42 @@ class references():
                     
                     if safety > 1000:
                         break
+            
+            bibdict = {}
+            for i, item in enumerate(bibitems):
+                key = item[item.index('{')+1:item.index(',')]
+                bibdict[key] = item
                 
-            return blocks
+            return bibdict
             
     def _addRef(self, ref):
         """ Add reference from bibdict to active list
         
-        Remember to add the relevant references to the bibfile
+        The reference must be listed in the PBjam bibfile.
         
+        Parameters
+        ----------
+        ref : str
+            Bib entry to add to the list
         """
         
         self._reflist.append(self.bibdict[ref])
         
-    def __call__(self, to_file=False):
+    def __call__(self, bibfile=None):
         """ Print the list of references used.
         
+        Parameters
+        ----------
+        bibfile : str
+            Filepath to print the list of bib items.
         """
         
         out = '\n\n'.join(np.unique(self._reflist))
         print('References used in this run.')
         print(out)
         
-        if to_file:
-            with open('pbjam.bib', mode='w') as file_object: #robustify the filepath so it goes to the right place all the time.
+        if bibfile is not None:
+            with open(bibfile, mode='w') as file_object: #robustify the filepath so it goes to the right place all the time.
                 print(out, file=file_object)
                             
 def get_priorpath():

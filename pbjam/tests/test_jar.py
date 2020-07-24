@@ -62,7 +62,8 @@ def test_get_percentiles():
     # setup
     func = get_percentiles
     inp = [np.random.normal(0,1, size = 10), 3]
-    
+    print(func(*inp))
+
     #print(func(*inp)[])
     
     # simple tests

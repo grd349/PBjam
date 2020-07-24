@@ -1,7 +1,8 @@
 """
 
-The priors module contains the `KDE' class, which is used to construct the prior
-for `asy_peakbag' as well as providing the initial starting location .
+The priors module contains the :class:`~pbjam.priors.kde` class, which is used 
+to construct the prior for `asy_peakbag' as well as providing the initial 
+starting location .
 
 """
 
