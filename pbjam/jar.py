@@ -134,8 +134,11 @@ class references():
         ref : str
             Bib entry to add to the list
         """
-        
-        self._reflist.append(self.bibdict[ref])
+        if isinstance(ref, list):
+            for r in ref:
+                self._reflist.append(self.bibdict[r])
+        else:
+            self._reflist.append(self.bibdict[ref])
         
     def __call__(self, bibfile=None):
         """ Print the list of references used.

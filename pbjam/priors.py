@@ -61,6 +61,8 @@ class kde(plotting):
             self.pg = starinst.pg
             self._obs = starinst._obs
             self._log_obs = starinst._log_obs
+            starinst.references._addRef(['statsmodels', 'pandas', 'emcee', 
+                                         'numpy'])
             starinst.kde = self
 
         if prior_file:

@@ -89,9 +89,7 @@ class star(plotting):
         self.dnu = dnu
 
         self.references = references()
-        self.references._addRef('numpy')
-        self.references._addRef('python')
-        self.references._addRef('lightkurve')
+        self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
         
         teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
         self.teff = teff
@@ -155,8 +153,7 @@ class star(plotting):
         elif not bprp_good:
             bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
             
-        self.references._addRef('Evans2018')
-        self.references._addRef('astropy')
+        self.references._addRef(['Evans2018'])
         
         return teff, bp_rp
 
@@ -262,16 +259,16 @@ class star(plotting):
                                    savefig=make_plots)
             self.kde.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
+            
+            self.references._addRef('matplotlib')
 
         if store_chains:
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
             
-        self.references._addRef('pandas')
-
 
     def run_asy_peakbag(self, norders, make_plots=False,
-                        store_chains=False, method='mcmc', 
+                        store_chains=False, method='emcee', 
                         developer_mode=False):
         """ Run all steps involving asy_peakbag.
 
@@ -304,6 +301,7 @@ class star(plotting):
 
         # Call
         self.asy_fit(method, developer_mode)
+        self.references._addRef(method)
 
         # Store
         self.asy_fit.summary.to_csv(self._get_outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
@@ -317,12 +315,11 @@ class star(plotting):
                                      savefig=make_plots)
             self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
-            
+            self.references._addRef('matplotlib')
+
         if store_chains:
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
-
-        self.references._addRef('pandas')
 
     
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
@@ -364,13 +361,12 @@ class star(plotting):
                                        savefig=make_plots)
             self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
                                       savefig=make_plots)
+            self.references._addRef('matplotlib')
 
         if store_chains:
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
             
-        self.references._addRef('pandas')
-
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 

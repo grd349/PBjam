@@ -536,7 +536,8 @@ class session():
 
         self.stars = []
         self.references = references()
-        self.references._addRef('python1995')
+        self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
+                                 'lightkurve'])
         
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
             if isinstance(dictlike, str):
