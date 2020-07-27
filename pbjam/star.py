@@ -297,19 +297,14 @@ class star(plotting):
                                       savefig=make_plots)
 
 
-    def run_reggae(self):
+    def run_reggae(self, dp1_range=[70, 100]):
         ''' Will call the reggae MyMNainWindow function which
         will let you optimize the parameters to describe the l=1 modes.
-
         def __init__(self, pg, dnu, numax):
-
         '''
         global app
         app = QApplication(sys.argv)
-        dnu = 10**self.asy_fit.summary.loc['dnu']['mean']
-        numax = 10**self.asy_fit.summary.loc['numax']['mean']
-        epsilon = self.asy_fit.summary.loc['eps']['mean']
-        self.reggae = MyMainWindow(self.pg, dnu, numax, epsilon)
+        self.reggae = MyMainWindow(self, dp1_range)
         self.reggae.show()
         app.exit(app.exec_())
 
