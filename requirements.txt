@@ -8,7 +8,7 @@ lightkurve>=1.5.0
 astropy>=3.2.1
 corner
 pymc3
-hdbscan
+#hdbscan
 sklearn
 nbsphinx
 pyqt5
