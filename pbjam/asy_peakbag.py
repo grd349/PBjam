@@ -362,8 +362,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
         ----------
         method : string
             Method to be used for sampling the posterior. Options are 'emcee' or
-            'nested. Default method is 'emcee' that will call emcee, alternative
-            is 'nested' to call nested sampling with CPnest.
+            'cpnest. Default method is 'emcee' that will call emcee, alternative
+            is 'cpnest' to call nested sampling with CPnest.
         
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
@@ -379,8 +379,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
         """
         self.developer_mode = developer_mode
         
-        if method not in ['emcee', 'nested']:
-            warnings.warn(f'Method {method} not found: Using method mcmc')
+        if method not in ['emcee', 'cpnest']:
+            warnings.warn(f'Method {method} not found: Using method emcee')
             method = 'emcee'
 
         if method == 'emcee':
@@ -388,7 +388,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
                                self.likelihood, self.prior)
             self.fit(start_samples=self.start_samples)
 
-        elif method == 'nested':
+        elif method == 'cpnest':
             bounds = [[self.prior_data[key].min(), self.prior_data[key].max()] for key in self.par_names]
             self.fit = pb.nested(self.par_names, bounds, self.likelihood, self.prior, self.path)
             self.fit()

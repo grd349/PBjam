@@ -284,9 +284,9 @@ class star(plotting):
         store_chains : bool, optional
             Whether or not to store posterior samples on disk. Default is False.
         method : string
-            Method to be used for sampling the posterior. Options are 'mcmc' or
-            'nested. Default method is 'mcmc' that will call emcee, alternative
-            is 'nested' to call nested sampling with CPnest.
+            Method to be used for sampling the posterior. Options are 'emcee' or
+            'cpnest. Default method is 'emcee' that will call emcee, alternative
+            is 'cpnest' to call nested sampling with CPnest.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -370,7 +370,7 @@ class star(plotting):
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
-                 asy_sampling='mcmc', developer_mode=False):
+                 asy_sampling='emcee', developer_mode=False):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -396,8 +396,8 @@ class star(plotting):
             Whether or not to store posterior samples on disk. Default is False.
         asy_sampling : string
             Method to be used for sampling the posterior in asy_peakbag. Options
-            are 'mcmc' or 'nested. Default method is 'mcmc' that will call 
-            emcee, alternative is 'nested' to call nested sampling with CPnest.
+            are 'emcee' or 'cpnest. Default method is 'emcee' that will call 
+            emcee, alternative is 'cpnest' to call nested sampling with CPnest.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding

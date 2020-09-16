@@ -594,7 +594,7 @@ class session():
 
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
-                 asy_sampling='mcmc', developer_mode=False):
+                 asy_sampling='emcee', developer_mode=False):
         """ Call all the star class instances
 
         Once initialized, calling the session class instance will loop through
@@ -624,7 +624,7 @@ class session():
             Whether or not to store MCMC chains on disk. Default is False.
         asy_sampling : str, optional.
             Which type of sampler to use for the asymptotic peakbagging. The 
-            options are 'mcmc' and 'cpnest'. Default is 'mcmc'.
+            options are 'emcee' and 'cpnest'. Default is 'emcee'.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
