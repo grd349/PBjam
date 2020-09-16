@@ -89,7 +89,7 @@ class references():
         with open(self.bibfile, 'r') as bib:
             bib = bib.read()
             
-            openers = ['@ARTICLE', '@article', 
+            openers = ['@ARTICLE', '@article', '@Article'
                        '@MISC', '@misc',
                        '@BOOK', '@book',
                        '@SOFTWARE', '@software',
