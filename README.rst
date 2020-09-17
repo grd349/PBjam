@@ -34,20 +34,27 @@ Contributing
 ------------
 If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
 
-
 Authors
 -------
-Main Contributors
-^^^^^^^^^^^^^^^^^
-- `Guy Davies <https://github.com/grd349>`_
-- `Martin Nielsen <https://github.com/nielsenmb>`_
-- `Alex Lyttle <https://github.com/alexlyttle>`_
-- `Oliver Hall <https://github.com/ojhall94>`_
+There are different ways to contribute to PBjam, the Scientific Influencers help guide the scientific aspects of PBjam, the Chaos Engineers try to break the code or simply report bugs, while the Main Contributors submit Pull Requests with somewhat bigger additions to the code or documentation. 
 
-Chaos Engineers
-^^^^^^^^^^^^^^^
-- `Warrick Ball <https://github.com/warrickball>`_
-- `Joel Ong <https://github.com/darthoctopus>`_
-- Bill Chaplin
-- `Tanda Li <https://github.com/litanda>`_
-- `Rafa Garcia <https://github.com/rgarcibus>`_
+===================================================== ================================================ ====================================================
+Main Contributors                                     Chaos Engineers                                  Scientific Influencers
+===================================================== ================================================ ====================================================
+`Lindsey Carboneau <https://github.com/lmcarboneau>`_ `Warrick Ball <https://github.com/warrickball>`_ `Othman Benomar <https://github.com/OthmanB>`_
+`Guy Davies <https://github.com/grd349>`_             `Rafa Garcia <https://github.com/rgarcibus>`_    Bill Chaplin 
+`Oliver Hall <https://github.com/ojhall94>`_          `Tanda Li <https://github.com/litanda>`_	       `Enrico Corsaro <https://github.com/EnricoCorsaro>`_
+`Alex Lyttle <https://github.com/alexlyttle>`_        `Joel Ong <https://github.com/darthoctopus>`_    `Patrick Gaulme <https://github.com/gaulme>`_  
+`Martin Nielsen <https://github.com/nielsenmb>`_      |                                                `Mikkel Lund <https://github.com/Miklnl>`_
+|                                                     |                                                Benoit Mosser 
+|                                                     |                                                Andy Moya
+|                                                     |                                                Ian Roxburgh
+===================================================== ================================================ ====================================================
+
+
+Acknowledgements
+----------------
+If you use PBjam in your work please cite the PBjam paper (forthcoming), and if possible provide links to the GitHub repository. 
+
+We encourage PBjam users to also cite the packages and publications that PBjam makes use of. PBjam will automatically keep track of the publications that were used during a run, and can list them for you in bibtex format (see the `Referencing Notebook <https://github.com/grd349/PBjam/tree/master/Examples/Example-references.ipynb>`_).
+

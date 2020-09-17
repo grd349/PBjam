@@ -52,6 +52,8 @@ import pandas as pd
 import os, pickle, warnings
 from .star import star, _format_name
 from datetime import datetime
+from .jar import references
+
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -533,6 +535,9 @@ class session():
                  quarter=None, mission=None, path=None, download_dir=None):
 
         self.stars = []
+        self.references = references()
+        self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
+                                 'lightkurve'])
         
         if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
             if isinstance(dictlike, str):
@@ -582,14 +587,14 @@ class session():
                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
                                    path=path))
-
+            
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
-                 asy_sampling='mcmc', developer_mode=False):
+                 asy_sampling='emcee', developer_mode=False):
         """ Call all the star class instances
 
         Once initialized, calling the session class instance will loop through
@@ -619,7 +624,7 @@ class session():
             Whether or not to store MCMC chains on disk. Default is False.
         asy_sampling : str, optional.
             Which type of sampler to use for the asymptotic peakbagging. The 
-            options are 'mcmc' and 'cpnest'. Default is 'mcmc'.
+            options are 'emcee' and 'cpnest'. Default is 'emcee'.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -635,6 +640,8 @@ class session():
                    model_type=self.pb_model_type, make_plots=make_plots, 
                    store_chains=store_chains, nthreads=nthreads, 
                    asy_sampling=asy_sampling, developer_mode=developer_mode)
+                
+                self.references._reflist += st.references._reflist
                 
                 self.stars[i] = None
             

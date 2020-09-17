@@ -75,6 +75,8 @@ class peakbag(plotting):
             self.trim_ladder(verbose=verbose)
         self.gp0 = [] # Used for gp linewidth info.
 
+        starinst.references._addRef('pymc3')
+        
         starinst.peakbag = self
 
 
@@ -315,6 +317,28 @@ class peakbag(plotting):
             pm.Gamma('yobs', alpha=1, beta=1.0/limit, observed=self.ladder_s)
 
 
+    def _addPPRatio(self):
+        """ Add the prior/posterior width ratio to summary
+        
+        Computes the ratio of the prior width and the posterior width. This is a
+        quantity which indicates which probability predominantly informs the 
+        resulting mode frequency. If the ratio is < 1 the prior dominates, and
+        vice versa for ratios > 1. 
+        
+        No cut-off is made based on this ratio, it is merely to inform the user.
+                
+        """
+        
+        dnu = 10**self.asy_fit.summary.loc['dnu', 'mean']
+        
+        log_ppr = np.log10((0.03*dnu))-np.log10(self.summary['sd'])
+        
+        idx = np.array(['l' in name for name in self.summary.index], dtype = 'bool')
+        
+        self.summary['log_ppr'] = np.nan
+        
+        self.summary.at[idx, 'log_ppr'] = log_ppr[idx]
+
 
     def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4,
                      advi=False):
@@ -382,7 +406,7 @@ class peakbag(plotting):
             self.summary = pm.summary(self.traces)
         except:
             self.summary = pm.stats.summary(self.traces)
-                   
+        
         self.par_names = self.summary.index
         
         samps = np.array([self.traces[x] for x in self.traces.varnames if not x.endswith('_log__')])

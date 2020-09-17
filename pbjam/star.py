@@ -18,7 +18,7 @@ import os, warnings, re, time, numbers
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
-from .jar import get_priorpath, to_log10
+from .jar import get_priorpath, to_log10, references
 from .plotting import plotting
 import pandas as pd
 import numpy as np
@@ -54,17 +54,13 @@ class star(plotting):
         A lightkurve periodogram object containing frequencies in units of
         microhertz and power (in arbitrary units).
     numax : list
-        List of the form [numax, numax_error]. For multiple targets, use a list
-        of lists.
+        List of the form [numax, numax_error]. 
     dnu : list
-        List of the form [dnu, dnu_error]. For multiple targets, use a list
-        of lists.
+        List of the form [dnu, dnu_error]. 
     teff : list
-        List of the form [teff, teff_error]. For multiple targets, use a list
-        of lists.
+        List of the form [teff, teff_error]. 
     bp_rp : list
-        List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
-        of lists.
+        List of the form [bp_rp, bp_rp_error]. 
     path : str, optional
         The path at which to store output. If no path is set but make_plots is
         True, output will be saved in the current working directory. Default is
@@ -92,6 +88,9 @@ class star(plotting):
         self.numax = numax
         self.dnu = dnu
 
+        self.references = references()
+        self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
+        
         teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
         self.teff = teff
         self.bp_rp = bp_rp
@@ -110,11 +109,36 @@ class star(plotting):
             self.prior_file = get_priorpath()
         else:
             self.prior_file = prior_file
+            
 
     def _checkTeffBpRp(self, teff, bp_rp):
-        # Teff and Gbp-Grp provide a lot of the same information, so only one of
-        # them need to be provided to start with. If one is not provided, PBjam
-        # will assume a wide prior on it.
+        """ Set the Teff and/or bp_rp values
+        
+        Checks the input Teff and Gbp-Grp values to see if any are missing.
+        
+        If Gbp-Grp is missing it will be looked up online either from the TIC or 
+        the Gaia archive.
+        
+        Teff and Gbp-Grp provide a lot of the same information, so only one of
+        them need to be provided to start with. If one is not provided, PBjam
+        will assume a wide prior on it.
+        
+        Parameters
+        ----------
+        teff : list
+            List of the form [teff, teff_error]. For multiple targets, use a list
+            of lists.
+        bp_rp : list
+            List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
+            of lists.
+        
+        Returns
+        -------
+        teff : list
+            The checked teff value. List of the form [teff, teff_error]. 
+        bp_rp : list
+            The checked bp_rp value. List of the form [bp_rp, bp_rp_error]. 
+        """
         
         if not isinstance(bp_rp[0], numbers.Real):
             bp_rp = [get_bp_rp(self.ID), 0.1]
@@ -128,6 +152,8 @@ class star(plotting):
             teff = [4889, 1500] # these are rough esimates from the prior
         elif not bprp_good:
             bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
+            
+        self.references._addRef(['Evans2018'])
         
         return teff, bp_rp
 
@@ -217,6 +243,7 @@ class star(plotting):
         """
 
         print('Starting KDE estimation')
+        
         # Init
         kde(self)
 
@@ -232,13 +259,16 @@ class star(plotting):
                                    savefig=make_plots)
             self.kde.plot_echelle(path=self.path, ID=self.ID,
                                   savefig=make_plots)
+            
+            self.references._addRef('matplotlib')
 
         if store_chains:
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
+            
 
     def run_asy_peakbag(self, norders, make_plots=False,
-                        store_chains=False, method='mcmc', 
+                        store_chains=False, method='emcee', 
                         developer_mode=False):
         """ Run all steps involving asy_peakbag.
 
@@ -254,9 +284,9 @@ class star(plotting):
         store_chains : bool, optional
             Whether or not to store posterior samples on disk. Default is False.
         method : string
-            Method to be used for sampling the posterior. Options are 'mcmc' or
-            'nested. Default method is 'mcmc' that will call emcee, alternative
-            is 'nested' to call nested sampling with CPnest.
+            Method to be used for sampling the posterior. Options are 'emcee' or
+            'cpnest. Default method is 'emcee' that will call emcee, alternative
+            is 'cpnest' to call nested sampling with CPnest.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -271,6 +301,7 @@ class star(plotting):
 
         # Call
         self.asy_fit(method, developer_mode)
+        self.references._addRef(method)
 
         # Store
         self.asy_fit.summary.to_csv(self._get_outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
@@ -284,11 +315,13 @@ class star(plotting):
                                      savefig=make_plots)
             self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
                                       savefig=make_plots)
-            
+            self.references._addRef('matplotlib')
+
         if store_chains:
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
+    
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
@@ -328,14 +361,16 @@ class star(plotting):
                                        savefig=make_plots)
             self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
                                       savefig=make_plots)
+            self.references._addRef('matplotlib')
 
         if store_chains:
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
+            
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
-                 asy_sampling='mcmc', developer_mode=False):
+                 asy_sampling='emcee', developer_mode=False):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -361,8 +396,8 @@ class star(plotting):
             Whether or not to store posterior samples on disk. Default is False.
         asy_sampling : string
             Method to be used for sampling the posterior in asy_peakbag. Options
-            are 'mcmc' or 'nested. Default method is 'mcmc' that will call 
-            emcee, alternative is 'nested' to call nested sampling with CPnest.
+            are 'emcee' or 'cpnest. Default method is 'emcee' that will call 
+            emcee, alternative is 'cpnest' to call nested sampling with CPnest.
         developer_mode : bool
             Run asy_peakbag in developer mode. Currently just retains the input 
             value of dnu and numax as priors, for the purposes of expanding
@@ -378,6 +413,8 @@ class star(plotting):
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)
+
+        self.references._addRef('pandas')
 
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
@@ -406,7 +443,7 @@ def _querySimbad(ID):
     """
     
     print('Querying Simbad for Gaia ID')
-    
+
     try:
         job = Simbad.query_objectids(ID)
     except:
