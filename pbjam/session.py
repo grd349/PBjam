@@ -349,7 +349,7 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
             tsOut = _query_lightkurve(ID, download_dir, use_cached, lkwargs)
 
     elif tsIn.__module__ == lk.lightcurve.__name__:
-        pass
+        tsOut = tsIn
     else:
         raise TypeError("Can't handle this type of time series object")
 
