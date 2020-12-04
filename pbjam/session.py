@@ -562,6 +562,8 @@ class session():
             
             _format_col(vardf, timeseries, 'timeseries')
             _format_col(vardf, spectrum, 'spectrum')
+        else:
+            raise TypeError('session.__init__ requires either ID or dictlike')
 
         for i in vardf.index:
             
