@@ -466,7 +466,7 @@ def _queryTIC(ID, radius = 20):
     target. In which case the target matching the ID is found in the returned
     list. 
     
-    Returns None if the target does not have a GDR2 ID.
+    Returns None if the target does not have a GDR3 ID.
     
     Parameters
     ----------
@@ -514,12 +514,13 @@ def _queryMAST(ID):
 
     print(f'Querying MAST for the {ID} coordinates.')
     mastobs = AsqMastObsCl()
+
     try:            
-        return mastobs.resolve_object(objectname = ID)
+        return mastobs.resolve_object(objectname=ID)
     except:
         return None
 
-def _queryGaia(ID=None,coords=None, radius = 20):
+def _queryGaia(ID=None, coords=None, radius=2):
     """ Query Gaia archive for bp-rp
     
     Sends an ADQL query to the Gaia archive to look up a requested target ID or
@@ -544,11 +545,10 @@ def _queryGaia(ID=None,coords=None, radius = 20):
         Gaia bp-rp value of the requested target from the Gaia archive.  
     """
     
-    print('Querying Gaia archive for bp-rp values.')
-    
     from astroquery.gaia import Gaia
 
     if ID is not None:
+        print('Querying Gaia archive for bp-rp values by target ID.')
         adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
         try:
             job = Gaia.launch_job(adql_query).get_results()
@@ -557,10 +557,10 @@ def _queryGaia(ID=None,coords=None, radius = 20):
         return float(job['bp_rp'][0])
     
     elif coords is not None:
-        ra = coords.to_value()
-        dec = coords.to_value()
-        adql_query = f"SELECT DISTANCE(POINT('ICRS', ra, dec), POINT('ICRS', {ra}, {dec})) AS dist, * FROM gaiadr2.gaia_source WHERE 1=CONTAINS(POINT('ICRS', ra, dec), CIRCLE('ICRS', {ra}, {dec}, {radius})) ORDER BY dist ASC"
-
+        print('Querying Gaia archive for bp-rp values by target coordinates.')
+        ra = coords.ra.value
+        dec = coords.dec.value
+        adql_query = f"SELECT DISTANCE(POINT('ICRS', {ra}, {dec}), POINT('ICRS', ra, dec)) AS dist, * FROM gaiaedr3.gaia_source WHERE 1=CONTAINS(  POINT('ICRS', {ra}, {dec}),  CIRCLE('ICRS', ra, dec,{radius})) ORDER BY dist ASC"
         try:
             job = Gaia.launch_job(adql_query).get_results()
         except:
@@ -596,6 +596,7 @@ def _format_name(ID):
     
     # Add naming exceptions here
     variants = {'KIC': ['kic', 'kplr', 'KIC'],
+                'Gaia EDR3': ['gaia edr3', 'gedr3', 'edr3', 'Gaia EDR3'],
                 'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2', 'Gaia DR2'],
                 'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1', 'Gaia DR1'], 
                 'EPIC': ['epic', 'ktwo', 'EPIC'],
@@ -655,5 +656,4 @@ def get_bp_rp(ID):
             except:
                 print(f'Unable to retrieve a bp_rp value for {ID}.')
                 bp_rp = np.nan
-
     return bp_rp
