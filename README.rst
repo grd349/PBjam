@@ -17,6 +17,8 @@ PBjam
     :target: https://badge.fury.io/py/pbjam
 .. image:: https://travis-ci.com/grd349/PBjam.svg?branch=master
     :target: https://travis-ci.com/grd349/PBjam
+.. image:: http://img.shields.io/badge/arXiv-2012.00580-B31B1B.svg
+    :target: https://arxiv.org/abs/2012.00580
 
 PBjam is toolbox for modeling the oscillation spectra of solar-like oscillators. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies.
 
