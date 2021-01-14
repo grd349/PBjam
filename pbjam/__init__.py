@@ -5,7 +5,6 @@ import os
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 
 import logging
-
 _logger = logging.getLogger(__name__)
 # TODO: add stream handler if need be
 
