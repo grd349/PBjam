@@ -6,7 +6,8 @@ PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 
 import logging
 _logger = logging.getLogger(__name__)
-# TODO: add stream handler if need be
+_logger.addHandler(logging.StreamHandler())
+# TODO: format stream handler if need be.
 
 from .version import __version__
 from .priors import kde
