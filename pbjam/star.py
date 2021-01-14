@@ -27,6 +27,9 @@ from astroquery.mast import Catalogs
 from astroquery.simbad import Simbad
 import astropy.units as units
 
+import logging
+
+_logger = logging.getLogger(__name__)  # For module-level logging
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -82,6 +85,9 @@ class star(plotting):
                  path=None, prior_file=None):
 
         self.ID = ID
+
+        self._logger = logging.getLogger('.'.join([__name__, self.__class__.__name__]))
+        self._logger.info(f"Initialising star with ID {self.ID}.")
 
         if numax[0] < 25:
             warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
