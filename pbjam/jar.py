@@ -4,10 +4,138 @@ This module contains general purpose functions that are used throughout PBjam.
 
 """
 
-from . import PACKAGEDIR
+from . import PACKAGEDIR, _FMT
 import os
 import numpy as np
 from scipy.special import erf
+
+import functools, logging
+from . import _logger as pbjam_logger
+
+_logger = logging.getLogger(__name__)
+_logger.debug('Initialised module logger')
+
+def _entering_function(func, logger):
+    """ Pre function logging. """
+    logger.debug("Entering %s", func.__qualname__)
+    # TODO: stuff to check before entering function
+
+def _exiting_function(func, logger):
+    """ Post function logging. """
+    # TODO: stuff to check before exiting function
+    logger.debug("Exiting  %s", func.__qualname__)
+
+def log(logger):
+    """
+    Function logging decorator. 
+    
+    Parameters
+    ----------
+    logger: logging.Logger
+        Specify the logger in which to submit entering and exiting logs, highly recommended to be the module-level
+        logger (see Examples).
+
+    Examples
+    --------
+    Logging a function called `my_func` defined in a module with name `__name__`,
+
+    ```python
+    import logging
+    from pbjam.jar import log
+
+    _logger = logging.getLogger(__name__)
+
+    @log(_logger)
+    def my_func(a, b):
+        _logger.debug('Function in progress.')
+        return a + b
+
+    if __name__ == "__main__":
+        logging.basicConfig()
+        _logger.setLevel('DEBUG')
+        
+        result = my_func(1, 2)
+        _logger.debug(f'result = {result}')
+    ```
+
+    Outputs,
+
+    ```python
+    DEBUG:__main__:Entering my_func
+    DEBUG:__main__:Function in progress.
+    DEBUG:__main__:Exiting  my_func
+    DEBUG:__main__:result = 3
+    ```
+
+    For use within classes,
+
+    ```python
+    import logging
+    from pbjam.jar import log
+
+    _logger = logging.getLogger(__name__)
+
+
+    class myClass:
+
+        @log(_logger)
+        def __init__(self):
+            _logger.debug('Initializing class.')
+            self.a = 1
+            self.b = 2
+
+        @log(_logger)
+        def my_mthd(self):
+            _logger.debug('Method in progress.')
+            return self.a + self.b
+
+    if __name__ == "__main__":
+        logging.basicConfig()
+        _logger.setLevel('DEBUG')
+        
+        obj = myClass()
+        result = obj.my_mthd()
+        _logger.debug(f'result = {result}')
+    ```
+
+    Outputs,
+
+    ```python
+    DEBUG:__main__:Entering myClass.__init__.
+    DEBUG:__main__:Initializing class.
+    DEBUG:__main__:Exiting  myClass.__init__.
+    DEBUG:__main__:Entering myClass.my_mthd.
+    DEBUG:__main__:Method in progress.
+    DEBUG:__main__:Exiting  myClass.my_mthd.
+    DEBUG:__main__:result = 3
+    ```
+
+    """
+    def _log(func):
+        @functools.wraps(func)
+        def wrap(*args, **kwargs):
+            _entering_function(func, logger)
+            result = func(*args, **kwargs)
+            _exiting_function(func, logger)                
+            return result
+        return wrap
+    
+    return _log
+
+
+class file_handler:
+    def __init__(self, path, level='DEBUG', **kwargs):
+        self.handler = logging.FileHandler(path, **kwargs)
+        self.handler.setFormatter(_FMT)
+        self.handler.setLevel(level)
+    
+    def __enter__(self):
+        pbjam_logger.addHandler(self.handler)
+        return self.handler
+    
+    def __exit__(self, type, value, traceback):
+        pbjam_logger.handlers.remove(self.handler)
+
 
 class references():
     """ A class for managing references used when running PBjam.
