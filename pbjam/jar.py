@@ -4,26 +4,26 @@ This module contains general purpose functions that are used throughout PBjam.
 
 """
 
-from . import PACKAGEDIR, _FMT
+from . import PACKAGEDIR, HANDLER_FMT
 import os
 import numpy as np
 from scipy.special import erf
 
 import functools, logging
-from . import _logger as pbjam_logger
+from contextlib import contextmanager
 
-_logger = logging.getLogger(__name__)
-_logger.debug('Initialised module logger')
+logger = logging.getLogger(__name__)
+logger.debug('Initialised module logger')
 
 def _entering_function(func, logger):
     """ Pre function logging. """
-    logger.debug("Entering %s", func.__qualname__)
+    logger.debug("Entering %s.", func.__qualname__)
     # TODO: stuff to check before entering function
 
 def _exiting_function(func, logger):
     """ Post function logging. """
     # TODO: stuff to check before exiting function
-    logger.debug("Exiting  %s", func.__qualname__)
+    logger.debug("Exiting  %s.", func.__qualname__)
 
 def log(logger):
     """
@@ -43,19 +43,19 @@ def log(logger):
     import logging
     from pbjam.jar import log
 
-    _logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
-    @log(_logger)
+    @log(logger)
     def my_func(a, b):
-        _logger.debug('Function in progress.')
+        logger.debug('Function in progress.')
         return a + b
 
     if __name__ == "__main__":
         logging.basicConfig()
-        _logger.setLevel('DEBUG')
+        logger.setLevel('DEBUG')
         
         result = my_func(1, 2)
-        _logger.debug(f'result = {result}')
+        logger.debug(f'result = {result}')
     ```
 
     Outputs,
@@ -73,29 +73,29 @@ def log(logger):
     import logging
     from pbjam.jar import log
 
-    _logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
 
     class myClass:
 
-        @log(_logger)
+        @log(logger)
         def __init__(self):
-            _logger.debug('Initializing class.')
+            logger.debug('Initializing class.')
             self.a = 1
             self.b = 2
 
-        @log(_logger)
+        @log(logger)
         def my_mthd(self):
-            _logger.debug('Method in progress.')
+            logger.debug('Method in progress.')
             return self.a + self.b
 
     if __name__ == "__main__":
         logging.basicConfig()
-        _logger.setLevel('DEBUG')
+        logger.setLevel('DEBUG')
         
         obj = myClass()
         result = obj.my_mthd()
-        _logger.debug(f'result = {result}')
+        logger.debug(f'result = {result}')
     ```
 
     Outputs,
@@ -123,18 +123,56 @@ def log(logger):
     return _log
 
 
-class file_handler:
+class file_logger:
+    """
+    Context manager for file logging. It logs everything under the `pbjam` parent level in some file at a given `path`.
+
+    Parameters
+    ----------
+    path : str
+        File path to save the log
+    
+    level : str, optional
+        Logging level. Default is 'DEBUG'
+    
+    **kwargs :
+        Keyword arguments passed to `logging.FileHandler`.
+
+    Attributes
+    ----------
+    handler : logging.FileHandler
+        File handler object.
+
+    Examples
+    --------
+    ```python
+    from pbjam.jar import file_logger
+
+    with file_logger('example.log') as flog:
+        # Do some stuff here and it will be logged to 'example.log'
+        ...
+
+    # Do some stuff here and it won't be logged to 'example.log'
+
+    with flog:
+        # Do some stuff here and it will be logged to 'example.log'
+        ... 
+    ```
+
+    """
+    _logger = logging.getLogger('pbjam')
+
     def __init__(self, path, level='DEBUG', **kwargs):
         self.handler = logging.FileHandler(path, **kwargs)
-        self.handler.setFormatter(_FMT)
+        self.handler.setFormatter(HANDLER_FMT)
         self.handler.setLevel(level)
     
     def __enter__(self):
-        pbjam_logger.addHandler(self.handler)
-        return self.handler
+        self._logger.addHandler(self.handler)
+        return self
     
     def __exit__(self, type, value, traceback):
-        pbjam_logger.handlers.remove(self.handler)
+        self._logger.handlers.remove(self.handler)
 
 
 class references():

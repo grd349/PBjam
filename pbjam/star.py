@@ -28,10 +28,10 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 
 import logging
-from .jar import log, file_handler
+from .jar import log, file_logger
 
-_logger = logging.getLogger(__name__)  # For module-level logging
-_logger.debug('Initialized module logger.')
+logger = logging.getLogger(__name__)  # For module-level logging
+logger.debug('Initialized module logger.')
 
 
 class star(plotting):
@@ -114,7 +114,7 @@ class star(plotting):
         else:
             self.prior_file = prior_file
 
-        _logger.info(f"Initialized star with ID {self.ID}.")
+        logger.info(f"Initialized star with ID {self.ID}.")
 
     def _checkTeffBpRp(self, teff, bp_rp):
         """ Set the Teff and/or bp_rp values
@@ -376,7 +376,7 @@ class star(plotting):
     #     logger = logging.getLogger('pbjam')  # <--- logs everything under pbjam
     #     fpath = os.path.join(self.path, 'star.log')
     #     self.handler = logging.FileHandler(fpath)
-    #     self.handler.setFormatter(_FMT)
+    #     self.handler.setFormatter(HANDLER_FMT)
     #     logger.addHandler(self.handler)
     
     # def remove_file_handler(self)
@@ -420,7 +420,7 @@ class star(plotting):
             science results!    
         """
         # self.add_file_handler()
-        with file_handler(self.path):
+        with file_logger(self.path):
             self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
             self.run_asy_peakbag(norders=norders, make_plots=make_plots,
@@ -432,8 +432,9 @@ class star(plotting):
 
             self.references._addRef('pandas')
 
-            self.remove_file_handler()
+         # self.remove_file_handler()
 
+@log(logger)
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
     
@@ -460,12 +461,12 @@ def _querySimbad(ID):
         Gaia DR2 source ID. Returns None if no Gaia ID is found.   
     """
     
-    _logger.debug('Querying Simbad for Gaia ID.')
+    logger.debug('Querying Simbad for Gaia ID.')
 
     try:
         job = Simbad.query_objectids(ID)
     except:
-        _logger.debug(f'Unable to resolve {ID} with Simbad.')
+        logger.debug(f'Unable to resolve {ID} with Simbad.')
         return None
     
     for line in job['ID']:
@@ -473,6 +474,7 @@ def _querySimbad(ID):
             return line.replace('Gaia DR2 ', '')
     return None
 
+@log(logger)
 def _queryTIC(ID, radius = 20):
     """ Query TIC for bp-rp value
     
@@ -499,7 +501,7 @@ def _queryTIC(ID, radius = 20):
         Gaia bp-rp value from the TIC.   
     """
     
-    _logger.debug('Querying TIC for Gaia bp-rp values.')
+    logger.debug('Querying TIC for Gaia bp-rp values.')
     job = Catalogs.query_object(objectname=ID, catalog='TIC', objType='STAR', 
                                 radius = radius*units.arcsec)
 
@@ -509,6 +511,7 @@ def _queryTIC(ID, radius = 20):
     else:
         return None
 
+@log(logger)
 def _queryMAST(ID):
     """ Query any ID at MAST
     
@@ -530,13 +533,14 @@ def _queryMAST(ID):
     
     """
 
-    _logger.debug(f'Querying MAST for the {ID} coordinates.')
+    logger.debug(f'Querying MAST for the {ID} coordinates.')
     mastobs = AsqMastObsCl()
     try:            
         return mastobs.resolve_object(objectname = ID)
     except:
         return None
 
+@log(logger)
 def _queryGaia(ID=None,coords=None, radius = 20):
     """ Query Gaia archive for bp-rp
     
@@ -562,7 +566,7 @@ def _queryGaia(ID=None,coords=None, radius = 20):
         Gaia bp-rp value of the requested target from the Gaia archive.  
     """
     
-    _logger.debug('Querying Gaia archive for bp-rp values.')
+    logger.debug('Querying Gaia archive for bp-rp values.')
     
     from astroquery.gaia import Gaia
 
@@ -571,7 +575,7 @@ def _queryGaia(ID=None,coords=None, radius = 20):
         try:
             job = Gaia.launch_job(adql_query).get_results()
         except:
-            _logger.debug(f'Unable to query Gaia archive using ID={ID}.')
+            logger.debug(f'Unable to query Gaia archive using ID={ID}.')
             return None
         return float(job['bp_rp'][0])
     
@@ -583,12 +587,13 @@ def _queryGaia(ID=None,coords=None, radius = 20):
         try:
             job = Gaia.launch_job(adql_query).get_results()
         except:
-            _logger.debug('Unable to query Gaia archive using coords={coords}.')
+            logger.debug('Unable to query Gaia archive using coords={coords}.')
             return None
         return float(job['bp_rp'][0])
     else:
         raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
 
+@log(logger)
 def _format_name(ID):
     """ Format input ID
     
@@ -632,6 +637,7 @@ def _format_name(ID):
                 return fname 
     return ID
 
+@log(logger)
 def get_bp_rp(ID):
     """ Search online for bp_rp values based on ID.
        
@@ -673,9 +679,9 @@ def get_bp_rp(ID):
                 coords = _queryMAST(ID)
                 bp_rp = _queryGaia(coords=coords)
             except Exception as exc:
-                # Note that _logger.exception gives the full Traceback or just set exc_info
-                _logger.debug(f'Exception: {exc}.', exc_info=1)
-                _logger.warning(f'Unable to retrieve a bp_rp value for {ID}.')
+                # Note that logger.exception gives the full Traceback or just set exc_info
+                logger.debug(f'Exception: {exc}.', exc_info=1)
+                logger.warning(f'Unable to retrieve a bp_rp value for {ID}.')
                 bp_rp = np.nan
 
     return bp_rp

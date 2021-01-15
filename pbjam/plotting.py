@@ -15,8 +15,8 @@ import pandas as pd
 
 from .jar import log
 
-_logger = logging.getLogger(__name__)  # For module-level logging
-_logger.debug('Initialized module logger.')
+logger = logging.getLogger(__name__)  # For module-level logging
+logger.debug('Initialized module logger.')
 
 
 class plotting:
@@ -30,7 +30,7 @@ class plotting:
     called from. 
     
     """
-    @log(_logger)
+    @log(logger)
     def __init__(self):
         pass
 
@@ -59,7 +59,7 @@ class plotting:
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
     
-    @log(_logger)
+    @log(logger)
     def plot_echelle(self, pg=None, path=None, ID=None, savefig=False):
         """ Make echelle plot
 

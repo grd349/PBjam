@@ -52,8 +52,10 @@ import pandas as pd
 import os, pickle, warnings
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references, log, file_handler
+from .jar import references, log, file_logger
 
+logger = logging.getLogger(__name__)
+logger.debug('Initialised module logger')
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -598,7 +600,7 @@ class session():
     #     logger = logging.getLogger('pbjam')  # <--- logs everything under pbjam
     #     fpath = os.path.join(self.path, 'session.log')
     #     self.handler = logging.FileHandler(fpath)
-    #     self.handler.setFormatter(_FMT)
+    #     self.handler.setFormatter(HANDLER_FMT)
     #     logger.addHandler(self.handler)
     
     # def remove_file_handler(self)
@@ -645,7 +647,7 @@ class session():
             science results!               
         """
         # self.add_file_handler()  # <--- conder changing this to a "with" statement for safe closing
-        with file_handler(self.path):
+        with file_logger(self.path):
             self.pb_model_type = model_type
 
             for i, st in enumerate(self.stars):
