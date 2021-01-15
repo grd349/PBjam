@@ -13,7 +13,13 @@ import numpy as np
 import astropy.units as u
 import pandas as pd
 
-class plotting():
+from .jar import log
+
+_logger = logging.getLogger(__name__)  # For module-level logging
+_logger.debug('Initialized module logger.')
+
+
+class plotting:
     """ Class inherited by PBjam modules to plot results
     
     This is used to standardize the plots produced at various steps of the 
@@ -24,7 +30,7 @@ class plotting():
     called from. 
     
     """
-    
+    @log(_logger)
     def __init__(self):
         pass
 
@@ -52,7 +58,8 @@ class plotting():
         if path and ID:
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
-
+    
+    @log(_logger)
     def plot_echelle(self, pg=None, path=None, ID=None, savefig=False):
         """ Make echelle plot
 
