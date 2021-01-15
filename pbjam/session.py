@@ -52,7 +52,7 @@ import pandas as pd
 import os, pickle, warnings
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references
+from .jar import references, log, file_handler
 
 
 def _organize_sess_dataframe(vardf):
@@ -593,7 +593,18 @@ class session():
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
                 warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
-
+    
+    # def add_file_handler(self):
+    #     logger = logging.getLogger('pbjam')  # <--- logs everything under pbjam
+    #     fpath = os.path.join(self.path, 'session.log')
+    #     self.handler = logging.FileHandler(fpath)
+    #     self.handler.setFormatter(_FMT)
+    #     logger.addHandler(self.handler)
+    
+    # def remove_file_handler(self)
+    #     logger = logging.getLogger('pbjam')
+    #     logger.handlers.remove(self.handler)
+    
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
@@ -633,25 +644,28 @@ class session():
             the prior sample. Important: This is not good practice for getting 
             science results!               
         """
-        
-        self.pb_model_type = model_type
+        # self.add_file_handler()  # <--- conder changing this to a "with" statement for safe closing
+        with file_handler(self.path):
+            self.pb_model_type = model_type
 
-        for i, st in enumerate(self.stars):
-            try:
-                st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                   model_type=self.pb_model_type, make_plots=make_plots, 
-                   store_chains=store_chains, nthreads=nthreads, 
-                   asy_sampling=asy_sampling, developer_mode=developer_mode)
+            for i, st in enumerate(self.stars):
+                try:
+                    st(bw_fac=bw_fac, tune=tune, norders=norders, 
+                    model_type=self.pb_model_type, make_plots=make_plots, 
+                    store_chains=store_chains, nthreads=nthreads, 
+                    asy_sampling=asy_sampling, developer_mode=developer_mode)
+                    
+                    self.references._reflist += st.references._reflist
+                    
+                    self.stars[i] = None
                 
-                self.references._reflist += st.references._reflist
-                
-                self.stars[i] = None
-            
-            # Crude way to send error messages that occur in star up to Session 
-            # without ending the session. Is there a better way?
-            except Exception as ex:
-                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                 print(message)
+                # Crude way to send error messages that occur in star up to Session 
+                # without ending the session. Is there a better way?
+                except Exception as ex:
+                    message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                    print(message)
+        
+        # self.remove_file_handler()
             
 def _load_fits(files, mission):
     """ Read fitsfiles into a Lightkurve object

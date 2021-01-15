@@ -28,9 +28,11 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 
 import logging
+from .jar import log, file_handler
 
 _logger = logging.getLogger(__name__)  # For module-level logging
 _logger.debug('Initialized module logger.')
+
 
 class star(plotting):
     """ Class for each star to be peakbagged
@@ -81,14 +83,9 @@ class star(plotting):
         power spectrum
 
     """
-
     def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
                  path=None, prior_file=None):
-
         self.ID = ID
-
-        self._logger = logging.getLogger('.'.join([__name__, self.__class__.__name__]))
-        self._logger.debug('Initialized class logger.')
 
         if numax[0] < 25:
             warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
@@ -117,7 +114,7 @@ class star(plotting):
         else:
             self.prior_file = prior_file
 
-        self._logger.info(f"Initialized star with ID {self.ID}.")
+        _logger.info(f"Initialized star with ID {self.ID}.")
 
     def _checkTeffBpRp(self, teff, bp_rp):
         """ Set the Teff and/or bp_rp values
@@ -375,6 +372,16 @@ class star(plotting):
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
             
+    # def add_file_handler(self):
+    #     logger = logging.getLogger('pbjam')  # <--- logs everything under pbjam
+    #     fpath = os.path.join(self.path, 'star.log')
+    #     self.handler = logging.FileHandler(fpath)
+    #     self.handler.setFormatter(_FMT)
+    #     logger.addHandler(self.handler)
+    
+    # def remove_file_handler(self)
+    #     logger = logging.getLogger('pbjam')
+    #     logger.handlers.remove(self.handler)
 
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
@@ -412,17 +419,20 @@ class star(plotting):
             the prior sample. Important: This is not good practice for getting 
             science results!    
         """
+        # self.add_file_handler()
+        with file_handler(self.path):
+            self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
+            self.run_asy_peakbag(norders=norders, make_plots=make_plots,
+                                store_chains=store_chains, method=asy_sampling,
+                                developer_mode=developer_mode)
 
-        self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains, method=asy_sampling,
-                             developer_mode=developer_mode)
+            self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
+                            make_plots=make_plots, store_chains=store_chains)
 
-        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
-                         make_plots=make_plots, store_chains=store_chains)
+            self.references._addRef('pandas')
 
-        self.references._addRef('pandas')
+            self.remove_file_handler()
 
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
@@ -662,9 +672,10 @@ def get_bp_rp(ID):
             try:
                 coords = _queryMAST(ID)
                 bp_rp = _queryGaia(coords=coords)
-            except:
-                # Note that _logger.exception gives the full Traceback
-                _logger.exception(f'Unable to retrieve a bp_rp value for {ID}.')
+            except Exception as exc:
+                # Note that _logger.exception gives the full Traceback or just set exc_info
+                _logger.debug(f'Exception: {exc}.', exc_info=1)
+                _logger.warning(f'Unable to retrieve a bp_rp value for {ID}.')
                 bp_rp = np.nan
 
     return bp_rp
