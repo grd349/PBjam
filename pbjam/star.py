@@ -420,7 +420,7 @@ class star(plotting):
             science results!    
         """
         # self.add_file_handler()
-        with file_logging(self.path):
+        with file_logging(os.path.join(self.path, 'star.log')):
             self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
             self.run_asy_peakbag(norders=norders, make_plots=make_plots,

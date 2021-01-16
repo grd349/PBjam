@@ -647,7 +647,7 @@ class session():
             science results!               
         """
         # self.add_file_handler()  # <--- conder changing this to a "with" statement for safe closing
-        with file_logging(self.path):
+        with file_logging(os.path.join(self.path, 'session.log')):
             self.pb_model_type = model_type
 
             for i, st in enumerate(self.stars):
