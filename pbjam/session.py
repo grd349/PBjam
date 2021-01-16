@@ -49,10 +49,10 @@ import lightkurve as lk
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import os, pickle, warnings
+import os, pickle, warnings, logging
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references, log, file_logger
+from .jar import references, log, file_logging
 
 logger = logging.getLogger(__name__)
 logger.debug('Initialised module logger')
@@ -647,7 +647,7 @@ class session():
             science results!               
         """
         # self.add_file_handler()  # <--- conder changing this to a "with" statement for safe closing
-        with file_logger(self.path):
+        with file_logging(self.path):
             self.pb_model_type = model_type
 
             for i, st in enumerate(self.stars):

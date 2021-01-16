@@ -28,7 +28,7 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 
 import logging
-from .jar import log, file_logger
+from .jar import log, file_logging
 
 logger = logging.getLogger(__name__)  # For module-level logging
 logger.debug('Initialized module logger.')
@@ -420,7 +420,7 @@ class star(plotting):
             science results!    
         """
         # self.add_file_handler()
-        with file_logger(self.path):
+        with file_logging(self.path):
             self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
             self.run_asy_peakbag(norders=norders, make_plots=make_plots,

@@ -4,7 +4,7 @@ This module contains general purpose functions that are used throughout PBjam.
 
 """
 
-from . import PACKAGEDIR, HANDLER_FMT
+from . import PACKAGEDIR
 import os
 import numpy as np
 from scipy.special import erf
@@ -123,7 +123,7 @@ def log(logger):
     return _log
 
 
-class file_logger:
+class file_logging:
     """
     Context manager for file logging. It logs everything under the `pbjam` parent level in some file at a given `path`.
 
@@ -146,9 +146,9 @@ class file_logger:
     Examples
     --------
     ```python
-    from pbjam.jar import file_logger
+    from pbjam.jar import file_logging
 
-    with file_logger('example.log') as flog:
+    with file_logging('example.log') as flog:
         # Do some stuff here and it will be logged to 'example.log'
         ...
 
@@ -161,18 +161,26 @@ class file_logger:
 
     """
     _logger = logging.getLogger('pbjam')
-
-    def __init__(self, path, level='DEBUG', **kwargs):
-        self.handler = logging.FileHandler(path, **kwargs)
-        self.handler.setFormatter(HANDLER_FMT)
-        self.handler.setLevel(level)
+    def __init__(self, path, level='DEBUG', handler_kwargs={}):
+        self.path = path
+        self.level = level
+        self.handler_kwargs = handler_kwargs
+        self.file_handler = None
     
+    def add_file_handler(self):
+        self.file_handler = logging.FileHandler(self.path, **self.handler_kwargs)
+        self.file_handler.setFormatter(HANDLER_FMT)
+        self.file_handler.setLevel(self.level)
+
     def __enter__(self):
-        self._logger.addHandler(self.handler)
+        self.add_file_handler(self)
+        self._logger.addHandler(self.file_handler)
         return self
     
     def __exit__(self, type, value, traceback):
-        self._logger.handlers.remove(self.handler)
+        self._logger.removeHandler(self.file_handler)
+        self.file_handler.close()
+        self.file_handler = None
 
 
 class references():
