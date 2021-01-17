@@ -4,18 +4,15 @@
 import os
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 
-import logging
-# from .config import stdout_handler, stderr_handler
-from .config import console_handler
-
 # Setup global pbjam logger
+import logging
 logger = logging.getLogger(__name__)
-logger.setLevel('DEBUG')  # <--- minimum possible level for global pbjam logger
+logger.setLevel('DEBUG')  # <--- minimum level for global pbjam package logger
 
-# logger.addHandler(stdout_handler())
-# logger.addHandler(stderr_handler())
-logger.addHandler(console_handler())
-
+# Setup console handler
+from .jar import stream_handler
+console_handler = stream_handler(level='INFO')
+logger.addHandler(console_handler)
 logger.debug(f'Initializing {__name__}')
 
 from .version import __version__

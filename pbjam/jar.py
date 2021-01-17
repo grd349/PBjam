@@ -12,6 +12,7 @@ from scipy.special import erf
 import functools, logging
 from contextlib import contextmanager
 
+HANDLER_FMT = logging.Formatter("%(asctime)-15s : %(levelname)-8s : %(name)-17s : %(message)s")
 logger = logging.getLogger(__name__)
 logger.debug('Initialised module logger')
 
@@ -123,24 +124,42 @@ def log(logger):
     return _log
 
 
+class _handler(logging.Handler):
+    def __init__(self, level='NOTSET', **kwargs):
+        super().__init__(**kwargs)
+        self.setFormatter(HANDLER_FMT)
+        self.setLevel(level)
+
+
+class stream_handler(_handler, logging.StreamHandler):
+    def __init__(self, level='INFO', **kwargs):
+        super().__init__(level=level, **kwargs)
+
+
+class file_handler(_handler, logging.FileHandler):
+    def __init__(self, filename, level='DEBUG', **kwargs):
+        super().__init__(filename=filename, level=level, **kwargs)
+
+
 class file_logging:
     """
-    Context manager for file logging. It logs everything under the `pbjam` parent level in some file at a given `path`.
+    Context manager for file logging. It logs everything under the `loggername` logger, by default this is the `'pbjam'`
+    logger (i.e. logs everything from the pbjam package).
 
     Parameters
     ----------
-    path : str
-        File path to save the log
+    filename : str
+        Filename to save the log
     
     level : str, optional
-        Logging level. Default is 'DEBUG'
+        Logging level. Default is 'DEBUG'.
     
-    **kwargs :
-        Keyword arguments passed to `logging.FileHandler`.
+    loggername : str, optional
+        Name of logger which will send logs to `filename`. Default is `'pbjam'`.
 
     Attributes
     ----------
-    handler : logging.FileHandler
+    handler : pbjam.jar.file_handler
         File handler object.
 
     Examples
@@ -160,27 +179,22 @@ class file_logging:
     ```
 
     """
-    _logger = logging.getLogger('pbjam')
-    def __init__(self, path, level='DEBUG', handler_kwargs={}):
-        self.path = path
-        self.level = level
-        self.handler_kwargs = handler_kwargs
-        self.file_handler = None
-    
-    def add_file_handler(self):
-        self.file_handler = logging.FileHandler(self.path, **self.handler_kwargs)
-        self.file_handler.setFormatter(HANDLER_FMT)
-        self.file_handler.setLevel(self.level)
+
+    def __init__(self, filename, level='DEBUG', loggername='pbjam'):
+        self._filename = filename
+        self._level = level
+        self._logger = logging.getLogger(loggername)
+        self.handler = None
 
     def __enter__(self):
-        self.add_file_handler(self)
-        self._logger.addHandler(self.file_handler)
+        self.handler = file_handler(self._filename, level=self._level)
+        self._logger.addHandler(self.handler)
         return self
     
     def __exit__(self, type, value, traceback):
-        self._logger.removeHandler(self.file_handler)
-        self.file_handler.close()
-        self.file_handler = None
+        self._logger.removeHandler(self.handler)
+        self.handler.close()
+        self.handler = None
 
 
 class references():
