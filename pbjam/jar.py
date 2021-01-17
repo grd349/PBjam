@@ -162,6 +162,14 @@ class file_logging:
     handler : pbjam.jar.file_handler
         File handler object.
 
+    Methods
+    -------
+    open() : 
+        Activates file logging process
+    
+    close() :
+        Safely closes file logging process
+
     Examples
     --------
     ```python
@@ -186,16 +194,22 @@ class file_logging:
         self._logger = logging.getLogger(loggername)
         self.handler = None
 
-    def __enter__(self):
+    def open(self):
         self.handler = file_handler(self._filename, level=self._level)
         self._logger.addHandler(self.handler)
-        return self
-    
-    def __exit__(self, type, value, traceback):
+
+    def close(self):
         self._logger.removeHandler(self.handler)
         self.handler.close()
         self.handler = None
 
+    def __enter__(self):
+        self.open()
+        return self
+    
+    def __exit__(self, type, value, traceback):
+        self.close()
+    
 
 class references():
     """ A class for managing references used when running PBjam.
