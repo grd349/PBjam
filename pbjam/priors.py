@@ -12,7 +12,11 @@ from .mcmc import mcmc
 import warnings
 from .plotting import plotting
 import statsmodels.api as sm
-from .jar import get_priorpath, to_log10, normal
+from .jar import get_priorpath, to_log10, normal, log
+
+import logging
+logger = logging.getLogger(__name__)
+
 
 class kde(plotting):
     """ A class to produce prior for asy_peakbag and initial starting location.
@@ -52,7 +56,7 @@ class kde(plotting):
         to compute the KDE. Default is to use pbjam/data/prior_data.csv 
 
     """
-
+    @log(logger)
     def __init__(self, starinst=None, prior_file=None):
 
         if starinst:
@@ -74,6 +78,7 @@ class kde(plotting):
 
         self.verbose = False
 
+    @log(logger)
     def select_prior_data(self, numax=None, KDEsize = 100):
         """ Selects useful prior data based on proximity to estimated numax.
 
@@ -170,7 +175,7 @@ class kde(plotting):
         return pdata.sample(KDEsize, weights=idx, replace=False)
 
 
-
+    @log(logger)
     def make_kde(self, bw_fac=1.0):
         """ Takes the prior data and constructs a KDE function
 
@@ -223,7 +228,7 @@ class kde(plotting):
                             var_type='c'*len(self.par_names), bw=bw)
 
 
-
+    @log(logger)
     def prior(self, p):
         """ Calculates the log prior for the initial guess fit.
 
@@ -254,6 +259,7 @@ class kde(plotting):
 
         return lp
 
+    @log(logger)
     def likelihood(self, p):
         """ Calculate likelihood for the initial guess fit
 
@@ -282,6 +288,7 @@ class kde(plotting):
 
         return lnlike
 
+    @log(logger)
     def kde_predict(self, n):
         """ Predict the l=0 mode frequencies from the KDE samples.
 
@@ -314,7 +321,7 @@ class kde(plotting):
         
         return freq.mean(axis=1), freq.std(axis=1)
 
-
+    @log(logger)
     def kde_sampler(self, nwalkers=50):
         """ Samples the posterior distribution with the KDE prior
 

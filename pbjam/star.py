@@ -83,9 +83,12 @@ class star(plotting):
         power spectrum
 
     """
+    @log(logger)
     def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
                  path=None, prior_file=None):
+        
         self.ID = ID
+        logger.info(f"Initializing star with ID {self.ID}.")
 
         if numax[0] < 25:
             warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
@@ -113,8 +116,6 @@ class star(plotting):
             self.prior_file = get_priorpath()
         else:
             self.prior_file = prior_file
-
-        logger.info(f"Initialized star with ID {self.ID}.")
 
     def _checkTeffBpRp(self, teff, bp_rp):
         """ Set the Teff and/or bp_rp values
@@ -223,11 +224,11 @@ class star(plotting):
             try:
                 os.makedirs(self.path)
             except Exception as ex:
-                message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
-                print(message)
+                # message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+                logger.exception(f"Could not create directory for star {self.ID}.")
 
 
-
+    @log(logger)
     def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
 
@@ -247,7 +248,7 @@ class star(plotting):
 
         """
 
-        print('Starting KDE estimation')
+        logger.info('Starting KDE estimation')
         
         # Init
         kde(self)
@@ -271,7 +272,7 @@ class star(plotting):
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
             
-
+    @log(logger)
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='emcee', 
                         developer_mode=False):
@@ -300,7 +301,7 @@ class star(plotting):
             
         """
 
-        print('Starting asymptotic peakbagging')
+        logger.info('Starting asymptotic peakbagging')
         # Init
         asymptotic_fit(self, norders=norders)
 
@@ -326,7 +327,7 @@ class star(plotting):
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
 
-    
+    @log(logger)
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
@@ -350,7 +351,7 @@ class star(plotting):
 
         """
 
-        print('Starting peakbagging')
+        logger.info('Starting peakbagging')
         # Init
         peakbag(self, self.asy_fit)
 
@@ -434,7 +435,6 @@ class star(plotting):
 
          # self.remove_file_handler()
 
-@log(logger)
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
     
@@ -474,7 +474,6 @@ def _querySimbad(ID):
             return line.replace('Gaia DR2 ', '')
     return None
 
-@log(logger)
 def _queryTIC(ID, radius = 20):
     """ Query TIC for bp-rp value
     
@@ -511,7 +510,6 @@ def _queryTIC(ID, radius = 20):
     else:
         return None
 
-@log(logger)
 def _queryMAST(ID):
     """ Query any ID at MAST
     
@@ -540,7 +538,6 @@ def _queryMAST(ID):
     except:
         return None
 
-@log(logger)
 def _queryGaia(ID=None,coords=None, radius = 20):
     """ Query Gaia archive for bp-rp
     
@@ -593,7 +590,6 @@ def _queryGaia(ID=None,coords=None, radius = 20):
     else:
         raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
 
-@log(logger)
 def _format_name(ID):
     """ Format input ID
     
