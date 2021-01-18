@@ -1,9 +1,12 @@
 """Tests for the jar module"""
 
-from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles
+from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, file_logging, jam, log
 import pbjam.tests.pbjam_tests as pbt
 import numpy as np
 from numpy.testing import assert_almost_equal, assert_array_equal
+import logging, os
+
+logger = logging.getLogger('pbjam.tests')
 
 def test_normal():
     """Test for the log of a normal distribution"""
@@ -79,4 +82,106 @@ def test_get_percentiles():
     inp = [[0,0,0,1,1], 1]
     assert_array_equal(func(*inp), [0., 0., 1.])
 
+def test_jam():
+    """Tests subclassing `jam` to use the log file record decorator"""
+    test_message = 'This should be logged in file.'
+
+    class jam_test(jam):
+        def __init__(self):
+            self.log_file = file_logging('test_jam.log')
+            logger.debug('This should not be logged in file.')
+            with self.log_file:
+                # Records content in context to `log_file`
+                logger.debug(test_message)
+        
+        @jam.record  # records content of `example_method` to `log_file`
+        def method(self):
+            logger.debug(test_message)
     
+    jt = jam_test()
+    jt.method()
+
+    filename = jt.log_file._filename
+    with open(filename, 'r') as file_in:
+        lines = file_in.read().splitlines()
+        messages = [line.split('::')[-1].strip() for line in lines]
+        assert(all([message == test_message for message in messages]))
+
+    os.remove(filename)
+
+def test_file_logging():
+    """Test `file_logging` context manager."""
+    filename = 'test_file_logging.log'
+    test_level = 'DEBUG'
+    log_file = file_logging(filename, level=test_level)
+    
+    with log_file:
+        test_message = 'This should be logged in file.'
+        logger.debug(test_message)
+    logger.debug('This should not be logged in file')
+
+    with open(filename, 'r') as file_in:
+        lines = file_in.read().splitlines()
+        assert(len(lines) == 1)
+
+        record = lines.pop().split('::')
+        level = record[1].strip()
+        assert(level == test_level)
+
+        message = record[-1].strip()
+        assert(message == test_message)  
+    
+    os.remove(filename)
+
+def test_log_debug():
+    """Tests `log` decorator debug messages"""
+    test_message = 'Function in progress.'
+    
+    @log(logger)
+    def log_test():
+        logger.debug(test_message)
+
+    filename = 'test_log.log'
+    log_file = file_logging(filename)
+
+    with log_file:
+        log_test()
+
+    with open(filename, 'r') as file_in:
+        lines = file_in.read().splitlines()
+
+        messages = [line.split('::')[-1].strip() for line in lines]
+        
+        end = log_test.__qualname__ + '.'
+        assert(messages[0].startswith('Entering') and messages[0].endswith(end))
+        assert(messages[-1].startswith('Exiting') and messages[-1].endswith(end))
+        assert(test_message in messages)
+
+    os.remove(filename)
+
+def test_log_info():
+    """Tests `log` decorator with no debug info."""
+
+    test_message = 'Function in progress.'
+    
+    @log(logger)
+    def log_test():
+        logger.debug(test_message)
+        logger.info(test_message)
+        logger.warning(test_message)
+        logger.error(test_message)
+        logger.critical(test_message)
+
+    filename = 'test_log.log'
+    log_file = file_logging(filename, level='INFO')  # level='INFO' same as console_handler 
+
+    with log_file:
+        log_test()
+
+    with open(filename, 'r') as file_in:
+        lines = file_in.read().splitlines()
+
+        levels = [line.split('::')[0].strip() for line in lines]
+        assert('DEBUG' not in levels)
+
+    os.remove(filename)
