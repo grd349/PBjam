@@ -12,7 +12,7 @@ from scipy.special import erf
 import functools, logging
 from contextlib import contextmanager
 
-HANDLER_FMT = logging.Formatter("%(asctime)-15s : %(levelname)-8s : %(name)-17s : %(message)s")
+HANDLER_FMT = logging.Formatter("%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s")
 logger = logging.getLogger(__name__)
 logger.debug('Initialised module logger')
 
@@ -250,7 +250,7 @@ class jam:
         """
         Decorator for recording logs to `log_file` during function operation, closing the log file upon completion.
         """
-        @functools.wraps(mthd)
+        @functools.wraps(func)
         def wrap(self, *args, **kwargs):
             self.log_file.open()
             result = func(self, *args, **kwargs)
