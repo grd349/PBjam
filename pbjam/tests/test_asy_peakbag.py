@@ -321,7 +321,7 @@ def test_asymp_spec_model_call():
     assert_allclose(mod(inp), mod.model(*inp))
 
 def test_clean_up():
-
+    os.remove(cs.st.log_file._filename)  # Removes log file
     os.rmdir(cs.st.path)
         
 # The test functions below require longer runs and are not suitable for GitHub
