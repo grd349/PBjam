@@ -193,15 +193,20 @@ class file_logging:
         self._level = level
         self._logger = logging.getLogger(loggername)
         self.handler = None
+        self._isopen = False
 
     def open(self):
-        self.handler = file_handler(self._filename, level=self._level)
-        self._logger.addHandler(self.handler)
+        if not self._isopen:
+            self.handler = file_handler(self._filename, level=self._level)
+            self._logger.addHandler(self.handler)
+            self._isopen = True
 
     def close(self):
-        self._logger.removeHandler(self.handler)
-        self.handler.close()
-        self.handler = None
+        if self._isopen:
+            self._logger.removeHandler(self.handler)
+            self.handler.close()
+            self.handler = None
+            self._isopen = False
 
     def __enter__(self):
         self.open()
@@ -210,6 +215,49 @@ class file_logging:
     def __exit__(self, type, value, traceback):
         self.close()
     
+
+class jam:
+    """
+    Base pbjam class. Currently has a method `record` for recording logs to `log_file`. This can be used as a method
+    decorator in subclasses, e.g.
+
+    ```python
+    # pbjam/example.py
+    import logging
+    from .jar import jam, file_logging
+    logger = logging.getLogger(__name__)  # here, __name__ == 'pbjam.example'
+
+    class example_class(jam):
+        def __init__(self):
+            self.log_file = file_logging('example.log')
+            
+            with self.log_file:
+                # Records content in context to `log_file`
+                logger.info('Initializing class.')
+                ...
+        
+        @jam.record  # records content of `example_method` to `log_file`
+        def example_method(self):
+            logger.info('Performing function tasks.')
+            ...
+    ```
+
+    """
+    log_file = file_logging('pbjam.log')  # Placeholder variable, overwrite in subclass __init__
+
+    @staticmethod
+    def record(func):
+        """
+        Decorator for recording logs to `log_file` during function operation, closing the log file upon completion.
+        """
+        @functools.wraps(mthd)
+        def wrap(self, *args, **kwargs):
+            self.log_file.open()
+            result = func(self, *args, **kwargs)
+            self.log_file.close()
+            return result
+        return wrap
+
 
 class references():
     """ A class for managing references used when running PBjam.

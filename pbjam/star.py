@@ -28,13 +28,13 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 
 import logging
-from .jar import log, file_logging
+from .jar import log, file_logging, jam
 
 logger = logging.getLogger(__name__)  # For module-level logging
 logger.debug('Initialized module logger.')
 
 
-class star(plotting):
+class star(plotting, jam):
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
@@ -88,34 +88,35 @@ class star(plotting):
                  path=None, prior_file=None):
         
         self.ID = ID
-        logger.info(f"Initializing star with ID {self.ID}.")
-
-        if numax[0] < 25:
-            warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
-        self.numax = numax
-        self.dnu = dnu
-
-        self.references = references()
-        self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
-        
-        teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
-        self.teff = teff
-        self.bp_rp = bp_rp
-
-        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
-        self.f = self.pg.frequency.value
-        self.s = self.pg.power.value
-
-        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
-                     'bp_rp': self.bp_rp}
-        self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
-
         self._set_outpath(path)
+        self.log_file = file_logging(os.path.join(self.path, 'star.log'), level='DEBUG')
+        with self.log_file:
+            logger.info(f"Initializing star with ID {self.ID}.")
 
-        if prior_file is None:
-            self.prior_file = get_priorpath()
-        else:
-            self.prior_file = prior_file
+            if numax[0] < 25:
+                warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
+            self.numax = numax
+            self.dnu = dnu
+
+            self.references = references()
+            self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
+            
+            teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
+            self.teff = teff
+            self.bp_rp = bp_rp
+
+            self.pg = pg.flatten()  # in case user supplies unormalized spectrum
+            self.f = self.pg.frequency.value
+            self.s = self.pg.power.value
+
+            self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
+                        'bp_rp': self.bp_rp}
+            self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
+
+            if prior_file is None:
+                self.prior_file = get_priorpath()
+            else:
+                self.prior_file = prior_file
 
     def _checkTeffBpRp(self, teff, bp_rp):
         """ Set the Teff and/or bp_rp values
@@ -227,7 +228,7 @@ class star(plotting):
                 # message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
                 logger.exception(f"Could not create directory for star {self.ID}.")
 
-
+    @jam.record
     @log(logger)
     def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
@@ -271,7 +272,8 @@ class star(plotting):
         if store_chains:
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
-            
+
+    @jam.record
     @log(logger)
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='emcee', 
@@ -326,7 +328,8 @@ class star(plotting):
         if store_chains:
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
-
+    
+    @jam.record
     @log(logger)
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
@@ -372,18 +375,8 @@ class star(plotting):
         if store_chains:
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
-            
-    # def add_file_handler(self):
-    #     logger = logging.getLogger('pbjam')  # <--- logs everything under pbjam
-    #     fpath = os.path.join(self.path, 'star.log')
-    #     self.handler = logging.FileHandler(fpath)
-    #     self.handler.setFormatter(HANDLER_FMT)
-    #     logger.addHandler(self.handler)
-    
-    # def remove_file_handler(self)
-    #     logger = logging.getLogger('pbjam')
-    #     logger.handlers.remove(self.handler)
 
+    @jam.record
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
@@ -420,20 +413,17 @@ class star(plotting):
             the prior sample. Important: This is not good practice for getting 
             science results!    
         """
-        # self.add_file_handler()
-        with file_logging(os.path.join(self.path, 'star.log')):
-            self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
+        self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
-            self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                                store_chains=store_chains, method=asy_sampling,
-                                developer_mode=developer_mode)
+        self.run_asy_peakbag(norders=norders, make_plots=make_plots,
+                            store_chains=store_chains, method=asy_sampling,
+                            developer_mode=developer_mode)
 
-            self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
-                            make_plots=make_plots, store_chains=store_chains)
+        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
+                        make_plots=make_plots, store_chains=store_chains)
 
-            self.references._addRef('pandas')
+        self.references._addRef('pandas')
 
-         # self.remove_file_handler()
 
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.

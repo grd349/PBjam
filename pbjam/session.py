@@ -52,7 +52,7 @@ import pandas as pd
 import os, pickle, warnings, logging
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references, log, file_logging
+from .jar import references, log, file_logging, jam
 
 logger = logging.getLogger(__name__)
 logger.debug('Initialised module logger')
@@ -407,7 +407,7 @@ def _lk_to_pg(ID, tsIn, specIn):
 
 
 
-class session():
+class session(jam):
     """ Main class used to initiate peakbagging.
 
     Use this class to initialize a star class instance for one or more targets.
@@ -536,77 +536,72 @@ class session():
                  cadence=None, campaign=None, sector=None, month=None, 
                  quarter=None, mission=None, path=None, download_dir=None):
 
-        self.stars = []
-        self.references = references()
-        self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
-                                 'lightkurve'])
-        
-        if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
-            if isinstance(dictlike, str):
-                vardf = pd.read_csv(dictlike)
+
+        self.log_file = file_logging(os.path.join(path, 'session.log'), level='DEBUG')
+        with self.log_file:
+            # Records everything in context to the log file
+            logger.info('Starting session.')
+            self.stars = []
+            self.references = references()
+            self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
+                                    'lightkurve'])
+            
+            if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
+                if isinstance(dictlike, str):
+                    vardf = pd.read_csv(dictlike)
+                else:
+                    try:
+                        vardf = pd.DataFrame.from_records(dictlike)
+                    except TypeError:
+                        print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+
+                if any([ID, numax, dnu, teff, bp_rp]):
+                    warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
+
+                _organize_sess_dataframe(vardf)
+
+            elif ID:
+                vardf = _organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
+                                            bp_rp=bp_rp, cadence=cadence,
+                                            campaign=campaign, sector=sector,
+                                            month=month, quarter=quarter, 
+                                            mission=mission)
+                
+                _format_col(vardf, timeseries, 'timeseries')
+                _format_col(vardf, spectrum, 'spectrum')
             else:
-                try:
-                    vardf = pd.DataFrame.from_records(dictlike)
-                except TypeError:
-                    print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+                raise TypeError('session.__init__ requires either ID or dictlike')
 
-            if any([ID, numax, dnu, teff, bp_rp]):
-                warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
-
-            _organize_sess_dataframe(vardf)
-
-        elif ID:
-            vardf = _organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                         bp_rp=bp_rp, cadence=cadence,
-                                         campaign=campaign, sector=sector,
-                                         month=month, quarter=quarter, 
-                                         mission=mission)
-            
-            _format_col(vardf, timeseries, 'timeseries')
-            _format_col(vardf, spectrum, 'spectrum')
-        else:
-            raise TypeError('session.__init__ requires either ID or dictlike')
-
-        for i in vardf.index:
-            
-            lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
-                                                    'sector', 'campaign',
-                                                    'quarter', 'mission']}
+            for i in vardf.index:
+                
+                lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
+                                                        'sector', 'campaign',
+                                                        'quarter', 'mission']}
+        
+                vardf.at[i, 'timeseries'] = _lc_to_lk(vardf.loc[i, 'ID'], 
+                                                    vardf.loc[i, 'timeseries'], 
+                                                    vardf.loc[i, 'spectrum'],
+                                                    download_dir, 
+                                                    use_cached,
+                                                    lkwargs)
+                
+                vardf.at[i,'spectrum'] = _lk_to_pg(vardf.loc[i,'ID'], 
+                                                vardf.loc[i, 'timeseries'], 
+                                                vardf.loc[i, 'spectrum'])
+                
+                self.stars.append(star(ID=vardf.loc[i, 'ID'],
+                                    pg=vardf.loc[i, 'spectrum'],
+                                    numax=vardf.loc[i, ['numax', 'numax_err']].values,
+                                    dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
+                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
+                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
+                                    path=path))
+                
+            for i, st in enumerate(self.stars):
+                if st.numax[0] > st.f[-1]:
+                    warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
     
-            vardf.at[i, 'timeseries'] = _lc_to_lk(vardf.loc[i, 'ID'], 
-                                                  vardf.loc[i, 'timeseries'], 
-                                                  vardf.loc[i, 'spectrum'],
-                                                  download_dir, 
-                                                  use_cached,
-                                                  lkwargs)
-            
-            vardf.at[i,'spectrum'] = _lk_to_pg(vardf.loc[i,'ID'], 
-                                               vardf.loc[i, 'timeseries'], 
-                                               vardf.loc[i, 'spectrum'])
-            
-            self.stars.append(star(ID=vardf.loc[i, 'ID'],
-                                   pg=vardf.loc[i, 'spectrum'],
-                                   numax=vardf.loc[i, ['numax', 'numax_err']].values,
-                                   dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
-                                   teff=vardf.loc[i, ['teff', 'teff_err']].values,
-                                   bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
-                                   path=path))
-            
-        for i, st in enumerate(self.stars):
-            if st.numax[0] > st.f[-1]:
-                warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
-    
-    # def add_file_handler(self):
-    #     logger = logging.getLogger('pbjam')  # <--- logs everything under pbjam
-    #     fpath = os.path.join(self.path, 'session.log')
-    #     self.handler = logging.FileHandler(fpath)
-    #     self.handler.setFormatter(HANDLER_FMT)
-    #     logger.addHandler(self.handler)
-    
-    # def remove_file_handler(self)
-    #     logger = logging.getLogger('pbjam')
-    #     logger.handlers.remove(self.handler)
-    
+    @jam.record
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
@@ -646,28 +641,25 @@ class session():
             the prior sample. Important: This is not good practice for getting 
             science results!               
         """
-        # self.add_file_handler()  # <--- conder changing this to a "with" statement for safe closing
-        with file_logging(os.path.join(self.path, 'session.log')):
-            self.pb_model_type = model_type
+        self.pb_model_type = model_type
 
-            for i, st in enumerate(self.stars):
-                try:
-                    st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                    model_type=self.pb_model_type, make_plots=make_plots, 
-                    store_chains=store_chains, nthreads=nthreads, 
-                    asy_sampling=asy_sampling, developer_mode=developer_mode)
-                    
-                    self.references._reflist += st.references._reflist
-                    
-                    self.stars[i] = None
+        for i, st in enumerate(self.stars):
+            try:
+                st(bw_fac=bw_fac, tune=tune, norders=norders, 
+                model_type=self.pb_model_type, make_plots=make_plots, 
+                store_chains=store_chains, nthreads=nthreads, 
+                asy_sampling=asy_sampling, developer_mode=developer_mode)
                 
-                # Crude way to send error messages that occur in star up to Session 
-                # without ending the session. Is there a better way?
-                except Exception as ex:
-                    message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                    print(message)
+                self.references._reflist += st.references._reflist
+                
+                self.stars[i] = None
+            
+            # Crude way to send error messages that occur in star up to Session 
+            # without ending the session. Is there a better way?
+            except Exception as ex:
+                message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                print(message)
         
-        # self.remove_file_handler()
             
 def _load_fits(files, mission):
     """ Read fitsfiles into a Lightkurve object
