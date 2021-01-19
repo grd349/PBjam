@@ -9,6 +9,6 @@ astropy>=3.2.1
 corner
 pymc3
 hdbscan
-sklearn
+scikit-learn<=0.22.0
 nbsphinx
 cpnest>=0.9.9
