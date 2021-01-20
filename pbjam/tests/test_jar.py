@@ -152,7 +152,7 @@ def test_log_debug():
 
         messages = [line.split('::')[-1].strip() for line in lines]
         
-        end = log_test.__qualname__ + '.'
+        end = log_test.__qualname__
         assert(messages[0].startswith('Entering') and messages[0].endswith(end))
         assert(messages[-1].startswith('Exiting') and messages[-1].endswith(end))
         assert(test_message in messages)
