@@ -228,7 +228,6 @@ class kde(plotting):
                             var_type='c'*len(self.par_names), bw=bw)
 
 
-    @log(logger)
     def prior(self, p):
         """ Calculates the log prior for the initial guess fit.
 
@@ -259,7 +258,6 @@ class kde(plotting):
 
         return lp
 
-    @log(logger)
     def likelihood(self, p):
         """ Calculate likelihood for the initial guess fit
 
