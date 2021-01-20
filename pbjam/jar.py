@@ -9,22 +9,39 @@ import os
 import numpy as np
 from scipy.special import erf
 
-import functools, logging
-from contextlib import contextmanager
+import functools, logging, inspect
 
 HANDLER_FMT = logging.Formatter("%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s")
 logger = logging.getLogger(__name__)
 logger.debug('Initialised module logger')
 
-def _entering_function(func, logger):
-    """ Pre function logging. """
-    logger.debug("Entering %s.", func.__qualname__)
-    # TODO: stuff to check before entering function
 
-def _exiting_function(func, logger):
-    """ Post function logging. """
-    # TODO: stuff to check before exiting function
-    logger.debug("Exiting  %s.", func.__qualname__)
+class function_logger:
+    """ Handlers the logging upon entering and exiting functions. """
+    def __init__(self, func, logger):
+        self.func = func
+        self.signature = inspect.signature(self.func)
+        self.logger = logger
+        self.width = 10  # Width of log message prefix
+
+    def _log_bound_args(self, args, kwargs):
+        """ Logs bound arguments - `args` and `kwargs` passed to func. """
+        bargs = self.signature.bind(*args, **kwargs)
+        self.logger.debug(f"{'Bound args':{self.width}} {dict(bargs.arguments)}")
+        
+    def entering_function(self, args, kwargs):
+        """ Log before function execution. """
+        self.logger.debug(f"{'Entering':{self.width}} {self.func.__qualname__}")
+        self.logger.debug(f"{'Signature':{self.width}} {self.signature}")
+        self._log_bound_args(args, kwargs)
+        # TODO: stuff to check before entering function
+
+    def exiting_function(self, result):
+        """ Log after function execution. """
+        # TODO: stuff to check before exiting function
+        self.logger.debug(f"{'Returns':{self.width}} {repr(result)}")
+        self.logger.debug(f"{'Exiting':{self.width}} {self.func.__qualname__}")
+
 
 def log(logger):
     """
@@ -115,9 +132,10 @@ def log(logger):
     def _log(func):
         @functools.wraps(func)
         def wrap(*args, **kwargs):
-            _entering_function(func, logger)
+            flog = function_logger(func, logger)
+            flog.entering_function(args, kwargs)
             result = func(*args, **kwargs)
-            _exiting_function(func, logger)                
+            flog.exiting_function(result)
             return result
         return wrap
     
