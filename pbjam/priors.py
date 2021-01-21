@@ -56,7 +56,7 @@ class kde(plotting):
         to compute the KDE. Default is to use pbjam/data/prior_data.csv 
 
     """
-    @log(logger)
+    # @log(logger)
     def __init__(self, starinst=None, prior_file=None):
 
         if starinst:
@@ -77,6 +77,9 @@ class kde(plotting):
             self.prior_file = get_priorpath()
 
         self.verbose = False
+
+    def __repr__(self):
+        return f'<pbjam.kde>'
 
     @log(logger)
     def select_prior_data(self, numax=None, KDEsize = 100):
@@ -154,7 +157,9 @@ class kde(plotting):
             idx = np.abs(pdata.numax.values - numax[0]) < nsigma * numax[1]
 
             if not flag_warn:
-                warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
+                # warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
+                # f'Trying to expand the range to include ~{KDEsize} stars.')
+                logger.warning(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
                 f'Trying to expand the range to include ~{KDEsize} stars.')
                 flag_warn = True
 
@@ -169,11 +174,12 @@ class kde(plotting):
             raise ValueError('No prior targets found within range of target. This might mean no prior samples exist for stars like this, consider increasing the uncertainty on your numax input.')
 
         elif ntgts < KDEsize:
-            warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
+            # warnings.warn recommend user change their code but logger.warning does not. Which is best here? I think the former - A. Lyttle
+            # warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
+            warnings.warn(f'Sample size for estimating KDE is {ntgts}, less than the requested {KDEsize}.')  # Add user instruction here, e.g. increase numax uncertainty?
             KDEsize = ntgts
         
         return pdata.sample(KDEsize, weights=idx, replace=False)
-
 
     @log(logger)
     def make_kde(self, bw_fac=1.0):
@@ -208,19 +214,23 @@ class kde(plotting):
 
         self.select_prior_data(self._log_obs['numax'])
 
-        if self.verbose:
-                print(f'Selected data set length {len(self.prior_data)}')
+        # if self.verbose:
+                # print(f'Selected data set length {len(self.prior_data)}')
+        logger.debug(f'Selected prior dataset length: {len(self.prior_data)}')
 
         if bw_fac != 1:
+            logger.info('Selecting stars for KDE with user-specified bandwidth.')
             from statsmodels.nonparametric.bandwidths import select_bandwidth
             bw = select_bandwidth(self.prior_data[self.par_names].values,
                                   bw = 'scott', kernel=None) 
             bw *= bw_fac
             
         else:
-            if self.verbose:
-                print('Selecting sensible stars for kde')
-                print(f'Full data set length {len(self.prior_data)}')
+            # if self.verbose:
+                # print('Selecting sensible stars for kde')
+                # print(f'Full data set length {len(self.prior_data)}')
+            
+            logger.info('Automatically selecting stars for KDE')
             bw = 'cv_ml'
 
         self.kde = sm.nonparametric.KDEMultivariate(
@@ -345,8 +355,9 @@ class kde(plotting):
 
         """
 
-        if self.verbose:
-            print('Running KDE sampler')
+        # if self.verbose:
+            # print('Running KDE sampler')
+        logger.info('Running KDE sampler')
 
         x0 = [self._log_obs['dnu'][0],  # log10 dnu
               self._log_obs['numax'][0],  # log10 numax

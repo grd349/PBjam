@@ -55,7 +55,6 @@ from datetime import datetime
 from .jar import references, log, file_logging, jam
 
 logger = logging.getLogger(__name__)
-logger.debug('Initialised module logger')
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -537,7 +536,7 @@ class session(jam):
                  quarter=None, mission=None, path=None, download_dir=None):
 
 
-        self.log_file = file_logging(os.path.join(path, 'session.log'), level='DEBUG')
+        self.log_file = file_logging(os.path.join(path or os.getcwd(), 'session.log'), level='DEBUG', loggername='pbjam.session')
         with self.log_file:
             # Records everything in context to the log file
             logger.info('Starting session.')
@@ -545,7 +544,7 @@ class session(jam):
             self.references = references()
             self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
                                     'lightkurve'])
-            
+
             if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
                 if isinstance(dictlike, str):
                     vardf = pd.read_csv(dictlike)
@@ -553,10 +552,13 @@ class session(jam):
                     try:
                         vardf = pd.DataFrame.from_records(dictlike)
                     except TypeError:
+                        # TODO: Shouldn't this raise an exception?
                         print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+                        
 
                 if any([ID, numax, dnu, teff, bp_rp]):
-                    warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
+                    # warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
+                    logger.warning('Dictlike provided as input, ignoring other input fit parameters.')
 
                 _organize_sess_dataframe(vardf)
 
@@ -571,6 +573,12 @@ class session(jam):
                 _format_col(vardf, spectrum, 'spectrum')
             else:
                 raise TypeError('session.__init__ requires either ID or dictlike')
+
+            with pd.option_context(
+                'display.max_rows', None, 'display.max_columns', None, 
+                'expand_frame_repr', False, 'max_colwidth', 15
+            ):   
+                logger.debug('Input DataFrame:\n' + str(vardf))
 
             for i in vardf.index:
                 
@@ -589,6 +597,7 @@ class session(jam):
                                                 vardf.loc[i, 'timeseries'], 
                                                 vardf.loc[i, 'spectrum'])
                 
+                logger.debug(f'Adding star with ID {repr(vardf.loc[i, "ID"])}')
                 self.stars.append(star(ID=vardf.loc[i, 'ID'],
                                     pg=vardf.loc[i, 'spectrum'],
                                     numax=vardf.loc[i, ['numax', 'numax_err']].values,
@@ -600,8 +609,24 @@ class session(jam):
             for i, st in enumerate(self.stars):
                 if st.numax[0] > st.f[-1]:
                     warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
-    
+
+    def __repr__(self):
+        """ Repr for the `session` class. Displays up to 3 IDs from stars in the session. """
+        n_stars = len(self.stars)
+        max_IDs = 3  # Max IDs to display
+        if n_stars == 1:
+            ID = repr(self.stars[0].ID)
+        else:
+            ID = '['
+            _ID = [repr(star.ID) for _, star in zip(range(max_IDs), self.stars)]
+            ID += ', '.join(_ID)
+            if n_stars > max_IDs:
+                ID += ' ...'
+            ID += ']'
+        return f'<pbjam.session ID={ID}>'
+   
     @jam.record
+    @log(logger)
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
@@ -656,9 +681,12 @@ class session(jam):
             
             # Crude way to send error messages that occur in star up to Session 
             # without ending the session. Is there a better way?
+            # Yes: logging using `logger.exception` - logs full traceback!
             except Exception as ex:
-                message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                print(message)
+                # message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                # print(message)
+                logger.exception(f"{st} failed due to the following exception, continuing to the next star.")
+
         
             
 def _load_fits(files, mission):

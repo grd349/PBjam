@@ -16,7 +16,6 @@ import pandas as pd
 from .jar import log
 
 logger = logging.getLogger(__name__)  # For module-level logging
-logger.debug('Initialized module logger.')
 
 
 class plotting:
@@ -30,7 +29,7 @@ class plotting:
     called from. 
     
     """
-    @log(logger)
+    # @log(logger)
     def __init__(self):
         pass
 
@@ -160,6 +159,7 @@ class plotting:
             
         return fig
 
+    @log(logger)
     def plot_corner(self, path=None, ID=None, savefig=False):
         """ Make corner plot of result.
         
@@ -195,6 +195,7 @@ class plotting:
 
         return fig
 
+    @log(logger)
     def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
         """ Plot the power spectrum
 
@@ -428,8 +429,7 @@ class plotting:
     
         return crnr,  crnr.get_axes()
         
-
-
+    @log(logger)
     def plot_prior(self, path=None, ID=None, savefig=False):
         """ Corner of result in relation to prior sample.
         
@@ -481,6 +481,7 @@ class plotting:
 
         return crnr
     
+    @log(logger)
     def plot_start(self):
         """ Plot starting point for peakbag
         

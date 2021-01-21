@@ -7,8 +7,12 @@ the outputs from asy_peakbag as priors.
 
 import numpy as np
 import pymc3 as pm
-import warnings
+import warnings, logging
 from .plotting import plotting
+from .jar import log
+
+logger = logging.getLogger(__name__)
+
 
 class peakbag(plotting):
     """ Class for the final peakbagging.
@@ -62,7 +66,7 @@ class peakbag(plotting):
         See asy_peakbag asymptotic_fit for more details.
 
     """
-
+    # @log(logger)
     def __init__(self, starinst, init=True, path=None,  verbose=False):
 
         self.pg = starinst.pg
@@ -79,7 +83,10 @@ class peakbag(plotting):
         
         starinst.peakbag = self
 
+    def __repr__(self):
+        return '<pbjam.peakbag>'
 
+    @log(logger)
     def make_start(self):
         """ Set the starting model for peakbag
         
@@ -111,6 +118,7 @@ class peakbag(plotting):
 
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
+    @log(logger)
     def remove_outsiders(self, l0, l2):
         """ Drop outliers
 
@@ -130,6 +138,7 @@ class peakbag(plotting):
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
+    @log(logger)
     def trim_ladder(self, lw_fac=10, extra=0.01, verbose=False):
         """ Turns mode frequencies into list of pairs
         
@@ -156,18 +165,23 @@ class peakbag(plotting):
         w = d02_lw + (extra * 10**self.asy_fit.summary.loc['dnu', 'mean'])
         bw = self.f[1] - self.f[0]
         w /= bw
-        if verbose:
-            print(f'w = {int(w)}')
-            print(f'bw = {bw}')
+        # if verbose:
+            # print(f'w = {int(w)}')
+            # print(f'bw = {bw}')
+        logger.debug(f'w = {int(w)}')
+        logger.debug(f'bw = {bw}')
+
         ladder_trim_f = np.zeros([len(self.start['l0']), int(w)])
         ladder_trim_s = np.zeros([len(self.start['l0']), int(w)])
         for idx, freq in enumerate(self.start['l0']):
             loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
             if loc_mid_02 == 0:
                 warnings.warn('Did not find optimal pair location')
-            if verbose:
-                print(f'loc_mid_02 = {loc_mid_02}')
-                print(f'w/2 = {int(w/2)}')
+            # if verbose:
+                # print(f'loc_mid_02 = {loc_mid_02}')
+                # print(f'w/2 = {int(w/2)}')
+                logger.debug(f'loc_mid_02 = {loc_mid_02}')
+                logger.debug(f'w/2 = {int(w/2)}')
             ladder_trim_f[idx, :] = \
                 self.f[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w)]
             ladder_trim_s[idx, :] = \
@@ -236,6 +250,7 @@ class peakbag(plotting):
         mod += self.lor(l2, width2, height2)
         return mod.T
 
+    @log(logger)
     def init_model(self, model_type):
         """ Initialize the pymc3 model for peakbag
         
@@ -339,7 +354,7 @@ class peakbag(plotting):
         
         self.summary.at[idx, 'log_ppr'] = log_ppr[idx]
 
-
+    @log(logger)
     def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4,
                      advi=False):
         """ Perform all the steps in peakbag.

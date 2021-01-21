@@ -7,13 +7,13 @@ This module contains general purpose functions that are used throughout PBjam.
 from . import PACKAGEDIR
 import os
 import numpy as np
+import pandas as pd
 from scipy.special import erf
 
 import functools, logging, inspect
 
 HANDLER_FMT = logging.Formatter("%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s")
 logger = logging.getLogger(__name__)
-logger.debug('Initialised module logger')
 
 
 class function_logger:
@@ -23,6 +23,7 @@ class function_logger:
         self.signature = inspect.signature(self.func)
         self.logger = logger
         self.width = 10  # Width of log message prefix
+        self._print_options = dict(precision=4, threshold=10, linewidth=99)  # Numpy print options
 
     def _log_bound_args(self, args, kwargs):
         """ Logs bound arguments - `args` and `kwargs` passed to func. """
@@ -31,16 +32,18 @@ class function_logger:
         
     def entering_function(self, args, kwargs):
         """ Log before function execution. """
-        self.logger.debug(f"{'Entering':{self.width}} {self.func.__qualname__}")
-        self.logger.debug(f"{'Signature':{self.width}} {self.signature}")
-        self._log_bound_args(args, kwargs)
+        with np.printoptions(**self._print_options):
+            self.logger.debug(f"{'Entering':{self.width}} {self.func.__qualname__}")
+            self.logger.debug(f"{'Signature':{self.width}} {self.signature}")
+            self._log_bound_args(args, kwargs)
         # TODO: stuff to check before entering function
 
     def exiting_function(self, result):
         """ Log after function execution. """
         # TODO: stuff to check before exiting function
-        self.logger.debug(f"{'Returns':{self.width}} {repr(result)}")
-        self.logger.debug(f"{'Exiting':{self.width}} {self.func.__qualname__}")
+        with np.printoptions(**self._print_options):
+            self.logger.debug(f"{'Returns':{self.width}} {repr(result)}")
+            self.logger.debug(f"{'Exiting':{self.width}} {self.func.__qualname__}")
 
 
 def log(logger):
@@ -151,13 +154,13 @@ class _handler(logging.Handler):
 
 class stream_handler(_handler, logging.StreamHandler):
     def __init__(self, level='INFO', **kwargs):
-        super().__init__(level=level, **kwargs)
+        super(stream_handler, self).__init__(level=level, **kwargs)
 
 
 class file_handler(_handler, logging.FileHandler):
     def __init__(self, filename, level='DEBUG', **kwargs):
-        super().__init__(filename=filename, level=level, **kwargs)
-
+        super(file_handler, self).__init__(filename=filename, level=level, **kwargs)
+    
 
 class file_logging:
     """

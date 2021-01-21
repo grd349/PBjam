@@ -31,7 +31,6 @@ import logging
 from .jar import log, file_logging, jam
 
 logger = logging.getLogger(__name__)  # For module-level logging
-logger.debug('Initialized module logger.')
 
 
 class star(plotting, jam):
@@ -74,6 +73,11 @@ class star(plotting, jam):
     prior_file : str, optional
         Path to the csv file containing the prior data. Default is
         pbjam/data/prior_data.csv
+    level : str, optional
+        Level at which logs will be recorded to a log file called 'star.log' at
+        `path`. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 'INFO', 
+        'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including and
+        following `logging_level` will be recorded to the file.
 
     Attributes
     ----------
@@ -83,15 +87,15 @@ class star(plotting, jam):
         power spectrum
 
     """
-    @log(logger)
+    # @log(logger)
     def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
-                 path=None, prior_file=None):
+                 path=None, prior_file=None, level='DEBUG'):
         
         self.ID = ID
         self._set_outpath(path)
-        self.log_file = file_logging(os.path.join(self.path, 'star.log'), level='DEBUG')
+        self.log_file = file_logging(os.path.join(self.path, 'star.log'), level=level)
         with self.log_file:
-            logger.info(f"Initializing star with ID {self.ID}.")
+            logger.info(f"Initializing star with ID {repr(self.ID)}.")
 
             if numax[0] < 25:
                 warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
@@ -117,6 +121,9 @@ class star(plotting, jam):
                 self.prior_file = get_priorpath()
             else:
                 self.prior_file = prior_file
+
+    def __repr__(self):
+        return f'<pbjam.star ID={repr(self.ID)}>'
 
     def _checkTeffBpRp(self, teff, bp_rp):
         """ Set the Teff and/or bp_rp values
@@ -557,7 +564,7 @@ def _queryGaia(ID=None, coords=None, radius=2):
     logger.debug('Querying Gaia archive for bp-rp values.')
 
     if ID is not None:
-        print('Querying Gaia archive for bp-rp values by target ID.')
+        logger.info('Querying Gaia archive for bp-rp values by target ID.')
         adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
         try:
             job = Gaia.launch_job(adql_query).get_results()
@@ -567,7 +574,7 @@ def _queryGaia(ID=None, coords=None, radius=2):
         return float(job['bp_rp'][0])
     
     elif coords is not None:
-        print('Querying Gaia archive for bp-rp values by target coordinates.')
+        logger.info('Querying Gaia archive for bp-rp values by target coordinates.')
         ra = coords.ra.value
         dec = coords.dec.value
         adql_query = f"SELECT DISTANCE(POINT('ICRS', {ra}, {dec}), POINT('ICRS', ra, dec)) AS dist, * FROM gaiaedr3.gaia_source WHERE 1=CONTAINS(  POINT('ICRS', {ra}, {dec}),  CIRCLE('ICRS', ra, dec,{radius})) ORDER BY dist ASC"

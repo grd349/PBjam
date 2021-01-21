@@ -12,9 +12,12 @@ import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
 from .plotting import plotting
-from .jar import normal
+from .jar import normal, log
 from collections import OrderedDict
-import warnings
+import warnings, logging
+
+logger = logging.getLogger(__name__)
+
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
@@ -35,7 +38,7 @@ class asymp_spec_model():
         Number of radial order to fit.
          
     """
-
+    # @log(logger)
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
@@ -326,7 +329,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         science results!
 
     """
-
+    # @log(logger)
     def __init__(self, st, norders=None):
         
         self.pg = st.pg
@@ -354,7 +357,8 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.path = st.path
         
         st.asy_fit = self
-       
+
+    @log(logger) 
     def __call__(self, method, developer_mode):
         """ Setup, run and parse the asymptotic relation fit.
 
@@ -399,7 +403,6 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.acceptance = self.fit.acceptance
 
         return {'modeID': self.modeID, 'summary': self.summary}
-
 
     def prior(self, p):
         """ Calculates the log prior 
@@ -514,7 +517,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         return summary
        
-
+    @log(logger)
     def get_modeIDs(self, fit, norders):
         """ Set mode ID in a dataframe
 
