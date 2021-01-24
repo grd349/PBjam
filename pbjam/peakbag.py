@@ -414,14 +414,16 @@ class peakbag(plotting):
                                              init=self.init_sampler,
                                              target_accept=self.target_accept,
                                              progressbar=False)
-                Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
-                niter += 1
+                    
+                    Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
+                    niter += 1
         
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older
-        try:
-            self.summary = pm.summary(self.traces)
-        except:
-            self.summary = az.summary(self.traces)
+        with self.pm_model:
+            try:
+                self.summary = pm.summary(self.traces)
+            except:
+                self.summary = az.summary(self.traces)
         
         self.par_names = self.summary.index
         
