@@ -7,6 +7,7 @@ the outputs from asy_peakbag as priors.
 
 import numpy as np
 import pymc3 as pm
+import arviz as az
 import warnings, logging
 from .plotting import plotting
 from .jar import log
@@ -385,9 +386,9 @@ class peakbag(plotting):
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older. 
         try:
             rhatfunc = pm.diagnostics.gelman_rubin
-            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
+            # warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
         except:
-            rhatfunc = pm.stats.rhat
+            rhatfunc = az.rhat
         
 
         if advi:
@@ -420,7 +421,7 @@ class peakbag(plotting):
         try:
             self.summary = pm.summary(self.traces)
         except:
-            self.summary = pm.stats.summary(self.traces)
+            self.summary = az.summary(self.traces)
         
         self.par_names = self.summary.index
         
