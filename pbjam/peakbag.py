@@ -8,7 +8,7 @@ the outputs from asy_peakbag as priors.
 import numpy as np
 import pymc3 as pm
 import arviz as az
-import warnings, logging
+import warnings, logging, inspect
 from .plotting import plotting
 from .jar import log
 
@@ -404,16 +404,26 @@ class peakbag(plotting):
         else:
             Rhat_max = 10
             niter = 1
+
+            sample_kwargs = dict(tune=tune * niter, cores=nthreads,
+                                start=self.start,
+                                init=self.init_sampler,
+                                target_accept=self.target_accept,
+                                progressbar=False)
+
+            # To surpress future warning - check back in future
+            if 'return_inferencedata' in inspect.getfullargspec(pm.sample).kwonlyargs:
+                sample_kwargs['return_inferencedata'] = False
+
             while Rhat_max > 1.05:
                 if niter > maxiter:
                     warnings.warn('Did not converge!')
                     break
+                
+                sample_kwargs['tune'] = tune * niter
+                    
                 with self.pm_model:
-                    self.traces = pm.sample(tune=tune * niter, cores=nthreads,
-                                             start=self.start,
-                                             init=self.init_sampler,
-                                             target_accept=self.target_accept,
-                                             progressbar=False)
+                    self.traces = pm.sample(**sample_kwargs)
                     
                     Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
                     niter += 1
