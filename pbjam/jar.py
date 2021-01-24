@@ -10,10 +10,52 @@ import numpy as np
 import pandas as pd
 from scipy.special import erf
 
-import functools, logging, inspect
+import functools, logging, inspect, sys
+from pprint import PrettyPrinter, saferepr
 
 HANDLER_FMT = logging.Formatter("%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s")
 logger = logging.getLogger(__name__)
+
+
+class pretty_printer(PrettyPrinter):
+
+    def _format_ndarray(self, object, stream, indent, allowance, context, level):
+        write = stream.write
+        max_width = self._width - indent - allowance
+        with np.printoptions(linewidth=max_width):
+            string = repr(object)
+
+        lines = string.split('\n')
+        string = ('\n' + indent * ' ').join(lines)
+        write(string)
+
+    def _pprint_ndarray(self, object, stream, indent, allowance, context, level):
+        self._format_ndarray(object, stream, indent, allowance, context, level)
+
+    PrettyPrinter._dispatch[np.ndarray.__repr__] = _pprint_ndarray
+
+    def _format_dataframe(self, object, stream, indent, allowance, context, level):
+        write = stream.write
+        max_width = self._width - indent - allowance
+        with pd.option_context('display.width', max_width, 'display.max_columns', None):
+            string = repr(object)
+
+        lines = string.split('\n')
+        string = f'\n{indent*" "}'.join(lines)
+        write(string)
+
+    def _pprint_dataframe(self, object, stream, indent, allowance, context, level):
+        self._format_dataframe(object, stream, indent, allowance, context, level)
+
+    PrettyPrinter._dispatch[pd.DataFrame.__repr__] = _pprint_dataframe
+
+
+_pp_kwargs = {'width': 120}
+if sys.version_info[0] == 3 and sys.version_info[1] >= 8:
+    # 'sort_dicts' kwarg new to Python 3.8
+    _pp_kwargs['sort_dicts'] = False
+
+pprinter = pretty_printer(**_pp_kwargs)
 
 
 class function_logger:
@@ -22,28 +64,31 @@ class function_logger:
         self.func = func
         self.signature = inspect.signature(self.func)
         self.logger = logger
-        self.width = 10  # Width of log message prefix
-        self._print_options = dict(precision=4, threshold=10, linewidth=99)  # Numpy print options
 
     def _log_bound_args(self, args, kwargs):
         """ Logs bound arguments - `args` and `kwargs` passed to func. """
         bargs = self.signature.bind(*args, **kwargs)
-        self.logger.debug(f"{'Bound args':{self.width}} {dict(bargs.arguments)}")
+        # self.logger.debug(f"{'Bound args':{self.width}} {dict(bargs.arguments)}")
+        bargs_dict = dict(bargs.arguments)
+        self.logger.debug(f"Bound arguments:\n{pprinter.pformat(bargs_dict)}")
         
     def entering_function(self, args, kwargs):
         """ Log before function execution. """
-        with np.printoptions(**self._print_options):
-            self.logger.debug(f"{'Entering':{self.width}} {self.func.__qualname__}")
-            self.logger.debug(f"{'Signature':{self.width}} {self.signature}")
-            self._log_bound_args(args, kwargs)
+        # self.logger.debug(f"{'Entering':{self.width}} {self.func.__qualname__}")
+        # self.logger.debug(f"{'Signature':{self.width}} {self.signature}")
+        self.logger.debug(f"Entering {self.func.__qualname__}")
+        self.logger.debug(f"Signature:\n{self.func.__name__ + str(self.signature)}")
+        self._log_bound_args(args, kwargs)
         # TODO: stuff to check before entering function
 
     def exiting_function(self, result):
         """ Log after function execution. """
         # TODO: stuff to check before exiting function
-        with np.printoptions(**self._print_options):
-            self.logger.debug(f"{'Returns':{self.width}} {repr(result)}")
-            self.logger.debug(f"{'Exiting':{self.width}} {self.func.__qualname__}")
+        # self.logger.debug(f"{'Returns':{self.width}} {repr(result)}")
+        # self.logger.debug(f"{'Exiting':{self.width}} {self.func.__qualname__}")
+        if result is not None:
+            self.logger.debug(f"Returns:\n{pprinter.pformat(result)}")
+        self.logger.debug(f"Exiting {self.func.__qualname__}")
 
 
 def log(logger):
