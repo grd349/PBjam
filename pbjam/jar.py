@@ -11,44 +11,10 @@ import pandas as pd
 from scipy.special import erf
 
 import functools, logging, inspect, sys
-from pprint import PrettyPrinter, saferepr
+from .mason import pretty_printer
 
-HANDLER_FMT = logging.Formatter("%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s")
+HANDLER_FMT = "%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s"
 logger = logging.getLogger(__name__)
-
-
-class pretty_printer(PrettyPrinter):
-
-    def _format_ndarray(self, object, stream, indent, allowance, context, level):
-        write = stream.write
-        max_width = self._width - indent - allowance
-        with np.printoptions(linewidth=max_width):
-            string = repr(object)
-
-        lines = string.split('\n')
-        string = ('\n' + indent * ' ').join(lines)
-        write(string)
-
-    def _pprint_ndarray(self, object, stream, indent, allowance, context, level):
-        self._format_ndarray(object, stream, indent, allowance, context, level)
-
-    PrettyPrinter._dispatch[np.ndarray.__repr__] = _pprint_ndarray
-
-    def _format_dataframe(self, object, stream, indent, allowance, context, level):
-        write = stream.write
-        max_width = self._width - indent - allowance
-        with pd.option_context('display.width', max_width, 'display.max_columns', None):
-            string = repr(object)
-
-        lines = string.split('\n')
-        string = f'\n{indent*" "}'.join(lines)
-        write(string)
-
-    def _pprint_dataframe(self, object, stream, indent, allowance, context, level):
-        self._format_dataframe(object, stream, indent, allowance, context, level)
-
-    PrettyPrinter._dispatch[pd.DataFrame.__repr__] = _pprint_dataframe
-
 
 _pp_kwargs = {'width': 120}
 if sys.version_info[0] == 3 and sys.version_info[1] >= 8:
@@ -60,6 +26,8 @@ pprinter = pretty_printer(**_pp_kwargs)
 
 class function_logger:
     """ Handlers the logging upon entering and exiting functions. """
+
+
     def __init__(self, func, logger):
         self.func = func
         self.signature = inspect.signature(self.func)
@@ -190,19 +158,32 @@ def log(logger):
     return _log
 
 
+class _formatter(logging.Formatter):
+    
+    indent = 2
+    def format(self, *args, **kwargs):
+        s = super(_formatter, self).format(*args, **kwargs)
+        lines = s.split('\n')
+        return ('\n' + ' '*self.indent).join(lines)
+
+
 class _handler(logging.Handler):
+
     def __init__(self, level='NOTSET', **kwargs):
         super().__init__(**kwargs)
-        self.setFormatter(HANDLER_FMT)
+        fmt = _formatter(HANDLER_FMT)
+        self.setFormatter(fmt)
         self.setLevel(level)
 
 
 class stream_handler(_handler, logging.StreamHandler):
+    
     def __init__(self, level='INFO', **kwargs):
         super(stream_handler, self).__init__(level=level, **kwargs)
 
 
 class file_handler(_handler, logging.FileHandler):
+    
     def __init__(self, filename, level='DEBUG', **kwargs):
         super(file_handler, self).__init__(filename=filename, level=level, **kwargs)
     
