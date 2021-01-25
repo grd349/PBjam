@@ -29,9 +29,9 @@ class plotting:
     called from. 
     
     """
-    # @log(logger)
-    def __init__(self):
-        pass
+
+    def __init__(self, *args, **kwargs):
+        super(plotting, self).__init__(*args, **kwargs)
 
     def _save_my_fig(self, fig, figtype, path, ID):
         """ Save the figure object

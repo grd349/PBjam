@@ -33,7 +33,7 @@ from .jar import log, file_logger
 logger = logging.getLogger(__name__)  # For module-level logging
 
 
-class star(plotting):
+class star(plotting, file_logger):
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
@@ -87,14 +87,15 @@ class star(plotting):
         power spectrum
 
     """
-    # @log(logger)
+
     def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
                  path=None, prior_file=None, level='DEBUG'):
         
         self.ID = ID
         self._set_outpath(path)
-        self.log_file = file_logger(os.path.join(self.path, f'{self.ID}.log'), level=level)
-        # file_logger(os.path.join(self.path, 'star.log'), level=level)
+        logfilename = os.path.join(self.path, f'{self.ID}.log')
+        super(star, self).__init__(filename=logfilename, level=level)
+
         with self.log_file:
             logger.info(f"Initializing star with ID {repr(self.ID)}.")
 

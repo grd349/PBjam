@@ -406,7 +406,7 @@ def _lk_to_pg(ID, tsIn, specIn):
 
 
 
-class session(object):
+class session(file_logger):
     """ Main class used to initiate peakbagging.
 
     Use this class to initialize a star class instance for one or more targets.
@@ -524,6 +524,11 @@ class session(object):
         the `log_file` for the session. Give this a unique name when running
         multiple sessions with the same `path`, otherwise logs will be appended
         to the same file.
+    level : str, optional
+        Level at which logs will be recorded to a log file called 'star.log' at
+        `path`. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 'INFO', 
+        'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including and
+        following `logging_level` will be recorded to the file.
       
     Attributes
     ----------
@@ -539,10 +544,12 @@ class session(object):
                  timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
                  cadence=None, campaign=None, sector=None, month=None, 
                  quarter=None, mission=None, path=None, download_dir=None, 
-                 session_ID=None):
+                 session_ID=None, level='DEBUG'):
         
         self.session_ID = session_ID or 'session'
-        self.log_file = file_logger(os.path.join(path or os.getcwd(), f'{self.session_ID}.log'), level='DEBUG', loggername='pbjam.session')
+        logfilename = os.path.join(path or os.getcwd(), f'{self.session_ID}.log')
+        super(session, self).__init__(filename=logfilename, level=level, loggername='pbjam.session')
+        
         with self.log_file:
             # Records everything in context to the log file
             logger.info('Starting session.')
