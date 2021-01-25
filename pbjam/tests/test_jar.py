@@ -1,6 +1,6 @@
 """Tests for the jar module"""
 
-from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, file_logging, jam, log
+from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, file_logger, log
 import pbjam.tests.pbjam_tests as pbt
 import numpy as np
 from numpy.testing import assert_almost_equal, assert_array_equal
@@ -88,13 +88,13 @@ def test_jam():
 
     class jam_test(jam):
         def __init__(self):
-            self.log_file = file_logging('test_jam.log')
+            self.log_file = file_logger('test_jam.log')
             logger.debug('This should not be logged in file.')
             with self.log_file:
                 # Records content in context to `log_file`
                 logger.debug(test_message)
         
-        @jam.record  # records content of `example_method` to `log_file`
+        @file_logger.record  # records content of `example_method` to `log_file`
         def method(self):
             logger.debug(test_message)
     
@@ -109,11 +109,11 @@ def test_jam():
 
     os.remove(filename)
 
-def test_file_logging():
-    """Test `file_logging` context manager."""
-    filename = 'test_file_logging.log'
+def test_file_logger():
+    """Test `file_logger` context manager."""
+    filename = 'test_file_logger.log'
     test_level = 'DEBUG'
-    log_file = file_logging(filename, level=test_level)
+    log_file = file_logger(filename, level=test_level)
     
     with log_file:
         test_message = 'This should be logged in file.'
@@ -142,7 +142,7 @@ def test_log_debug():
         logger.debug(test_message)
 
     filename = 'test_log.log'
-    log_file = file_logging(filename)
+    log_file = file_logger(filename)
 
     with log_file:
         log_test()
@@ -173,7 +173,7 @@ def test_log_info():
         logger.critical(test_message)
 
     filename = 'test_log.log'
-    log_file = file_logging(filename, level='INFO')  # level='INFO' same as console_handler 
+    log_file = file_logger(filename, level='INFO')  # level='INFO' same as console_handler 
 
     with log_file:
         log_test()
