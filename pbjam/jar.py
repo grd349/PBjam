@@ -27,7 +27,6 @@ pprinter = pretty_printer(**_pp_kwargs)
 class function_logger:
     """ Handlers the logging upon entering and exiting functions. """
 
-
     def __init__(self, func, logger):
         self.func = func
         self.signature = inspect.signature(self.func)
@@ -40,20 +39,16 @@ class function_logger:
         bargs_dict = dict(bargs.arguments)
         self.logger.debug(f"Bound arguments:\n{pprinter.pformat(bargs_dict)}")
         
-    def entering_function(self, args, kwargs):
+    def _entering_function(self, args, kwargs):
         """ Log before function execution. """
-        # self.logger.debug(f"{'Entering':{self.width}} {self.func.__qualname__}")
-        # self.logger.debug(f"{'Signature':{self.width}} {self.signature}")
         self.logger.debug(f"Entering {self.func.__qualname__}")
         self.logger.debug(f"Signature:\n{self.func.__name__ + str(self.signature)}")
         self._log_bound_args(args, kwargs)
         # TODO: stuff to check before entering function
 
-    def exiting_function(self, result):
+    def _exiting_function(self, result):
         """ Log after function execution. """
         # TODO: stuff to check before exiting function
-        # self.logger.debug(f"{'Returns':{self.width}} {repr(result)}")
-        # self.logger.debug(f"{'Exiting':{self.width}} {self.func.__qualname__}")
         if result is not None:
             self.logger.debug(f"Returns:\n{pprinter.pformat(result)}")
         self.logger.debug(f"Exiting {self.func.__qualname__}")
@@ -112,7 +107,6 @@ def log(logger):
 
     class myClass:
 
-        @log(logger)
         def __init__(self):
             logger.debug('Initializing class.')
             self.a = 1
@@ -149,9 +143,9 @@ def log(logger):
         @functools.wraps(func)
         def wrap(*args, **kwargs):
             flog = function_logger(func, logger)
-            flog.entering_function(args, kwargs)
+            flog._entering_function(args, kwargs)
             result = func(*args, **kwargs)
-            flog.exiting_function(result)
+            flog._exiting_function(result)
             return result
         return wrap
     
@@ -188,7 +182,7 @@ class file_handler(_handler, logging.FileHandler):
         super(file_handler, self).__init__(filename=filename, level=level, **kwargs)
     
 
-class file_logging:
+class file_logger:
     """
     Context manager for file logging. It logs everything under the `loggername` logger, by default this is the `'pbjam'`
     logger (i.e. logs everything from the pbjam package).
@@ -220,9 +214,9 @@ class file_logging:
     Examples
     --------
     ```python
-    from pbjam.jar import file_logging
+    from pbjam.jar import file_logger
 
-    with file_logging('example.log') as flog:
+    with file_logger('example.log') as flog:
         # Do some stuff here and it will be logged to 'example.log'
         ...
 
@@ -261,39 +255,9 @@ class file_logging:
     
     def __exit__(self, type, value, traceback):
         self.close()
-    
-
-class jam:
-    """
-    Base pbjam class. Currently has a method `record` for recording logs to `log_file`. This can be used as a method
-    decorator in subclasses, e.g.
-
-    ```python
-    # pbjam/example.py
-    import logging
-    from .jar import jam, file_logging
-    logger = logging.getLogger(__name__)  # here, __name__ == 'pbjam.example'
-
-    class example_class(jam):
-        def __init__(self):
-            self.log_file = file_logging('example.log')
-            
-            with self.log_file:
-                # Records content in context to `log_file`
-                logger.info('Initializing class.')
-                ...
-        
-        @jam.record  # records content of `example_method` to `log_file`
-        def example_method(self):
-            logger.info('Performing function tasks.')
-            ...
-    ```
-
-    """
-    log_file = file_logging('pbjam.log')  # Placeholder variable, overwrite in subclass __init__
 
     @staticmethod
-    def record(func):
+    def listen(func):
         """
         Decorator for recording logs to `log_file` during function operation, closing the log file upon completion.
         """
@@ -303,7 +267,50 @@ class jam:
             result = func(self, *args, **kwargs)
             self.log_file.close()
             return result
-        return wrap
+        return wrap    
+
+
+# class jam:
+#     """
+#     Base pbjam class. Currently has a method `record` for recording logs to `log_file`. This can be used as a method
+#     decorator in subclasses, e.g.
+
+#     ```python
+#     # pbjam/example.py
+#     import logging
+#     from .jar import jam, file_logger
+#     logger = logging.getLogger(__name__)  # here, __name__ == 'pbjam.example'
+
+#     class example_class(jam):
+#         def __init__(self):
+#             self.log_file = file_logger('example.log')
+            
+#             with self.log_file:
+#                 # Records content in context to `log_file`
+#                 logger.info('Initializing class.')
+#                 ...
+        
+#         @jam.record  # records content of `example_method` to `log_file`
+#         def example_method(self):
+#             logger.info('Performing function tasks.')
+#             ...
+#     ```
+
+#     """
+#     log_file = file_logger('pbjam.log')  # Placeholder variable, overwrite in subclass __init__
+
+#     @staticmethod
+#     def record(func):
+#         """
+#         Decorator for recording logs to `log_file` during function operation, closing the log file upon completion.
+#         """
+#         @functools.wraps(func)
+#         def wrap(self, *args, **kwargs):
+#             self.log_file.open()
+#             result = func(self, *args, **kwargs)
+#             self.log_file.close()
+#             return result
+#         return wrap
 
 
 class references():

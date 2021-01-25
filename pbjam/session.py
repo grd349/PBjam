@@ -52,7 +52,7 @@ import pandas as pd
 import os, pickle, warnings, logging
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references, log, file_logging, jam
+from .jar import references, log, file_logger
 
 logger = logging.getLogger(__name__)
 
@@ -406,7 +406,7 @@ def _lk_to_pg(ID, tsIn, specIn):
 
 
 
-class session(jam):
+class session(object):
     """ Main class used to initiate peakbagging.
 
     Use this class to initialize a star class instance for one or more targets.
@@ -536,7 +536,7 @@ class session(jam):
                  quarter=None, mission=None, path=None, download_dir=None):
 
 
-        self.log_file = file_logging(os.path.join(path or os.getcwd(), 'session.log'), level='DEBUG', loggername='pbjam.session')
+        self.log_file = file_logger(os.path.join(path or os.getcwd(), 'session.log'), level='DEBUG', loggername='pbjam.session')
         with self.log_file:
             # Records everything in context to the log file
             logger.info('Starting session.')
@@ -625,7 +625,7 @@ class session(jam):
             ID += ']'
         return f'<pbjam.session ID={ID}>'
    
-    @jam.record
+    @file_logger.listen
     @log(logger)
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 

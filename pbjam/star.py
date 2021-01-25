@@ -28,12 +28,12 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 
 import logging
-from .jar import log, file_logging, jam
+from .jar import log, file_logger
 
 logger = logging.getLogger(__name__)  # For module-level logging
 
 
-class star(plotting, jam):
+class star(plotting):
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
@@ -93,7 +93,8 @@ class star(plotting, jam):
         
         self.ID = ID
         self._set_outpath(path)
-        self.log_file = file_logging(os.path.join(self.path, 'star.log'), level=level)
+        self.log_file = file_logger(os.path.join(self.path, f'{self.ID}.log'), level=level)
+        # file_logger(os.path.join(self.path, 'star.log'), level=level)
         with self.log_file:
             logger.info(f"Initializing star with ID {repr(self.ID)}.")
 
@@ -235,7 +236,7 @@ class star(plotting, jam):
                 # message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
                 logger.exception(f"Could not create directory for star {self.ID}.")
 
-    @jam.record
+    @file_logger.listen
     @log(logger)
     def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
@@ -280,7 +281,7 @@ class star(plotting, jam):
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
 
-    @jam.record
+    @file_logger.listen
     @log(logger)
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='emcee', 
@@ -336,7 +337,7 @@ class star(plotting, jam):
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
     
-    @jam.record
+    @file_logger.listen
     @log(logger)
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
@@ -383,7 +384,7 @@ class star(plotting, jam):
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
 
-    @jam.record
+    @file_logger.listen
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
