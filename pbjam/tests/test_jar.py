@@ -86,7 +86,7 @@ def test_jam():
     """Tests subclassing `jam` to use the log file record decorator"""
     test_message = 'This should be logged in file.'
 
-    class jam_test(jam):
+    class jam_test:
         def __init__(self):
             self.log_file = file_logger('test_jam.log')
             logger.debug('This should not be logged in file.')
@@ -94,7 +94,7 @@ def test_jam():
                 # Records content in context to `log_file`
                 logger.debug(test_message)
         
-        @file_logger.record  # records content of `example_method` to `log_file`
+        @file_logger.listen  # records content of `example_method` to `log_file`
         def method(self):
             logger.debug(test_message)
     
