@@ -519,7 +519,12 @@ class session(object):
     download_dir : str, optional
         Directory to cache lightkurve downloads. Lightkurve will place the fits
         files in the default lightkurve cache path in your home directory.     
-           
+    session_ID : str, optional
+        Session identifier. Default is `'session'`. This is the name given to
+        the `log_file` for the session. Give this a unique name when running
+        multiple sessions with the same `path`, otherwise logs will be appended
+        to the same file.
+      
     Attributes
     ----------
     stars : list
@@ -533,10 +538,11 @@ class session(object):
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
                  cadence=None, campaign=None, sector=None, month=None, 
-                 quarter=None, mission=None, path=None, download_dir=None):
-
-
-        self.log_file = file_logger(os.path.join(path or os.getcwd(), 'session.log'), level='DEBUG', loggername='pbjam.session')
+                 quarter=None, mission=None, path=None, download_dir=None, 
+                 session_ID=None):
+        
+        self.session_ID = session_ID or 'session'
+        self.log_file = file_logger(os.path.join(path or os.getcwd(), f'{self.session_ID}.log'), level='DEBUG', loggername='pbjam.session')
         with self.log_file:
             # Records everything in context to the log file
             logger.info('Starting session.')
@@ -611,19 +617,19 @@ class session(object):
                     warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
     def __repr__(self):
-        """ Repr for the `session` class. Displays up to 3 IDs from stars in the session. """
-        n_stars = len(self.stars)
-        max_IDs = 3  # Max IDs to display
-        if n_stars == 1:
-            ID = repr(self.stars[0].ID)
-        else:
-            ID = '['
-            _ID = [repr(star.ID) for _, star in zip(range(max_IDs), self.stars)]
-            ID += ', '.join(_ID)
-            if n_stars > max_IDs:
-                ID += ' ...'
-            ID += ']'
-        return f'<pbjam.session ID={ID}>'
+        """ Repr for the `session` class. """
+        # n_stars = len(self.stars)
+        # max_IDs = 3  # Max IDs to display
+        # if n_stars == 1:
+        #     ID = repr(self.stars[0].ID)
+        # else:
+        #     ID = '['
+        #     _ID = [repr(star.ID) for _, star in zip(range(max_IDs), self.stars)]
+        #     ID += ', '.join(_ID)
+        #     if n_stars > max_IDs:
+        #         ID += ' ...'
+        #     ID += ']'
+        return f'<pbjam.session ID={self.session_ID}>'
    
     @file_logger.listen
     @log(logger)
