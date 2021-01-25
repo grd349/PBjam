@@ -1,6 +1,3 @@
-# mason.py
-# Named after John Landis Mason - inventor of the Mason jar
-# This contains functions and classes which make things look pretty
 import numpy as np
 import pandas as pd
 from pprint import PrettyPrinter
