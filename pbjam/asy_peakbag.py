@@ -358,6 +358,9 @@ class asymptotic_fit(plotting, asymp_spec_model):
         
         st.asy_fit = self
 
+    def __repr__(self):
+        return f'<pbjam.asymptotic_fit norders={self.norders}>'
+
     @log(logger) 
     def __call__(self, method, developer_mode):
         """ Setup, run and parse the asymptotic relation fit.

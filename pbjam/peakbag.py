@@ -85,7 +85,7 @@ class peakbag(plotting):
         starinst.peakbag = self
 
     def __repr__(self):
-        return '<pbjam.peakbag>'
+        return '<pbjam.peakbag norders={self.norders}>'
 
     @log(logger)
     def make_start(self):

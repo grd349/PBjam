@@ -79,7 +79,7 @@ class kde(plotting):
         self.verbose = False
 
     def __repr__(self):
-        return f'<pbjam.kde>'
+        return f'<pbjam.kde prior_file={self.prior_file}>'
 
     @log(logger)
     def select_prior_data(self, numax=None, KDEsize = 100):
