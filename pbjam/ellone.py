@@ -75,7 +75,7 @@ class ellone(plotting):
     instead, in which case the l=2,0 modes may be picked up instead of the l=1.
     
     """
-    # @log(logger)
+
     def __init__(self, pbinst=None, f=None, s=None):
         
         if pbinst:

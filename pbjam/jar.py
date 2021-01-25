@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from scipy.special import erf
 
-import functools, logging, inspect, sys
+import functools, logging, inspect, sys, warnings
 from .printer import pretty_printer
 
 HANDLER_FMT = "%(asctime)-23s :: %(levelname)-8s :: %(name)-17s :: %(message)s"
@@ -393,12 +393,12 @@ class references():
                 a += 1
                 
             if (i >= len(string[idx:])-1) and (a != 0):    
-                print('Warning: Reached end of bibtex file with no closing curly bracket. Your .bib file may be formatted incorrectly. The reference list may be garbled.')
+                warnings.warn('Warning: Reached end of bibtex file with no closing curly bracket. Your .bib file may be formatted incorrectly. The reference list may be garbled.')
             if a ==0:
                 break  
         
         if string[idx+i] == '{':
-            print('Warning: Ended on an opening bracket. Your .bib file may be formatted incorrectly.')
+            warnings.warn('Warning: Ended on an opening bracket. Your .bib file may be formatted incorrectly.')
             
         return idx+i
         

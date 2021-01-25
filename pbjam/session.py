@@ -299,7 +299,7 @@ def _format_col(vardf, col, key):
                              np.array([_arr_to_lk(x, y, vardf.loc[i, 'ID'], key)]))
         vardf[key] = temp
     else:
-        print('Unhandled exception')
+        logger.critical('Unhandled exception.')
 
 def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
     """ Convert time series column in dataframe to lk.LightCurve object
@@ -566,7 +566,7 @@ class session(file_logger):
                         vardf = pd.DataFrame.from_records(dictlike)
                     except TypeError:
                         # TODO: Shouldn't this raise an exception?
-                        print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+                        logger.critical('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
                         
 
                 if any([ID, numax, dnu, teff, bp_rp]):
