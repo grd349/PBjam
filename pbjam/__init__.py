@@ -10,8 +10,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel('DEBUG')  # <--- minimum level for global pbjam package logger
 
 # Setup console handler
-from .jar import stream_handler
-console_handler = stream_handler(level='INFO')
+from .jar import _stream_handler
+console_handler = _stream_handler(level='INFO')
 logger.addHandler(console_handler)
 logger.debug(f'Initializing {__name__}')
 

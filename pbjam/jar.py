@@ -11,9 +11,10 @@ import pandas as pd
 from scipy.special import erf
 
 import functools, logging, inspect, sys
-from .mason import pretty_printer
+from .printer import pretty_printer
 
-HANDLER_FMT = "%(asctime)-15s :: %(levelname)-8s :: %(name)-17s :: %(message)s"
+HANDLER_FMT = "%(asctime)-23s :: %(levelname)-8s :: %(name)-17s :: %(message)s"
+INDENT = 60  # Set to length of logger info before `message` or just indent by 2?
 logger = logging.getLogger(__name__)
 
 _pp_kwargs = {'width': 120}
@@ -24,7 +25,7 @@ if sys.version_info[0] == 3 and sys.version_info[1] >= 8:
 pprinter = pretty_printer(**_pp_kwargs)
 
 
-class function_logger:
+class _function_logger:
     """ Handlers the logging upon entering and exiting functions. """
 
     def __init__(self, func, logger):
@@ -35,7 +36,6 @@ class function_logger:
     def _log_bound_args(self, args, kwargs):
         """ Logs bound arguments - `args` and `kwargs` passed to func. """
         bargs = self.signature.bind(*args, **kwargs)
-        # self.logger.debug(f"{'Bound args':{self.width}} {dict(bargs.arguments)}")
         bargs_dict = dict(bargs.arguments)
         self.logger.debug(f"Bound arguments:\n{pprinter.pformat(bargs_dict)}")
         
@@ -56,13 +56,14 @@ class function_logger:
 
 def log(logger):
     """
-    Function logging decorator. 
+    Function logging decorator. Logs function metadata upon entering and 
+    sexiting.
     
     Parameters
     ----------
     logger: logging.Logger
-        Specify the logger in which to submit entering and exiting logs, highly recommended to be the module-level
-        logger (see Examples).
+        Specify the logger in which to submit entering and exiting logs, highly 
+        recommended to be the module-level logger (see Examples).
 
     Examples
     --------
@@ -142,7 +143,7 @@ def log(logger):
     def _log(func):
         @functools.wraps(func)
         def wrap(*args, **kwargs):
-            flog = function_logger(func, logger)
+            flog = _function_logger(func, logger)
             flog._entering_function(args, kwargs)
             result = func(*args, **kwargs)
             flog._exiting_function(result)
@@ -154,11 +155,10 @@ def log(logger):
 
 class _formatter(logging.Formatter):
     
-    indent = 2
     def format(self, *args, **kwargs):
         s = super(_formatter, self).format(*args, **kwargs)
         lines = s.split('\n')
-        return ('\n' + ' '*self.indent).join(lines)
+        return ('\n' + ' '*INDENT).join(lines)
 
 
 class _handler(logging.Handler):
@@ -170,54 +170,52 @@ class _handler(logging.Handler):
         self.setLevel(level)
 
 
-class stream_handler(_handler, logging.StreamHandler):
+class _stream_handler(_handler, logging.StreamHandler):
     
     def __init__(self, level='INFO', **kwargs):
-        super(stream_handler, self).__init__(level=level, **kwargs)
+        super(_stream_handler, self).__init__(level=level, **kwargs)
 
 
-class file_handler(_handler, logging.FileHandler):
+class _file_handler(_handler, logging.FileHandler):
     
     def __init__(self, filename, level='DEBUG', **kwargs):
-        super(file_handler, self).__init__(filename=filename, level=level, **kwargs)
-    
+        super(_file_handler, self).__init__(filename=filename, level=level, **kwargs)
 
-class file_logger:
+  
+class log_file:
     """
-    Context manager for file logging. It logs everything under the `loggername` logger, by default this is the `'pbjam'`
-    logger (i.e. logs everything from the pbjam package).
+    Context manager for file logging. It logs everything under the `loggername` 
+    logger, by default this is the `'pbjam'` logger (i.e. logs everything from 
+    the pbjam package).
 
     Parameters
     ----------
     filename : str
         Filename to save the log
-    
     level : str, optional
         Logging level. Default is 'DEBUG'.
-    
     loggername : str, optional
         Name of logger which will send logs to `filename`. Default is `'pbjam'`.
 
     Attributes
     ----------
-    handler : pbjam.jar.file_handler
+    handler : pbjam.jar._file_handler
         File handler object.
 
     Methods
     -------
     open() : 
         Activates file logging process
-    
     close() :
         Safely closes file logging process
 
     Examples
     --------
     ```python
-    from pbjam.jar import file_logger
+    from pbjam.jar import log_file
 
-    with file_logger('example.log') as flog:
-        # Do some stuff here and it will be logged to 'example.log'
+    with log_file('example.log') as flog:
+        # Do some pbjam stuff here and it will be logged to 'example.log'
         ...
 
     # Do some stuff here and it won't be logged to 'example.log'
@@ -226,9 +224,7 @@ class file_logger:
         # Do some stuff here and it will be logged to 'example.log'
         ... 
     ```
-
     """
-
     def __init__(self, filename, level='DEBUG', loggername='pbjam'):
         self._filename = filename
         self._level = level
@@ -237,17 +233,35 @@ class file_logger:
         self._isopen = False
 
     def open(self):
+        """ If log file is not open, creates a file handler at the log level """
         if not self._isopen:
-            self.handler = file_handler(self._filename, level=self._level)
+            self.handler = _file_handler(self._filename, level=self._level)
             self._logger.addHandler(self.handler)
             self._isopen = True
 
     def close(self):
+        """ If log file is open, safely closes the file handler """
         if self._isopen:
             self._logger.removeHandler(self.handler)
             self.handler.close()
             self.handler = None
             self._isopen = False
+
+    def get_level(self):
+        return self._level
+
+    def set_level(self, level):
+        """ Set the level of the file handler.
+        
+        Parameters
+        ----------
+        level : str
+            Choose from 'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL' or
+            'NOTSET'. 
+        """
+        self._level = level
+        if self._isopen:
+            self.handler.setLevel(self._level)
 
     def __enter__(self):
         self.open()
@@ -256,10 +270,66 @@ class file_logger:
     def __exit__(self, type, value, traceback):
         self.close()
 
+
+class file_logger:
+    """
+    Creates a `log_file` at `filename` to which logs under `loggername` at
+    a given `level` are recorded when the file logger is listening. This
+    class is indended to be sub-classed (see Examples). 
+
+    To listen to a method in a sub-class of `file_logger` (i.e. record all logs 
+    which occur during the method execution) decorate the class method with
+    `@file_logger.listen`.
+    
+    Parameters
+    ----------
+    filename : str
+        Filename to save the log
+    level : str, optional
+        Logging level. Default is 'DEBUG'.
+    loggername : str, optional
+        Name of logger which will send logs to `filename`. Default is `'pbjam'`.
+
+    Attributes
+    ----------
+    log_file : pbjam.jar.log_file
+
+    Methods
+    -------
+    listen :
+        Decorator for recording logs in a sub-class method to `log_file`.
+
+    Examples
+    --------
+    
+    ```python
+    # pbjam/example.py
+    from .jar import file_logger
+
+    class example_class(file_logger):
+        def __init__(self):
+            super(example_class, self).__init__('example.log', level='INFO')
+            
+            with self.log_file:
+                # Records content in context to `log_file`
+                logger.info('Initializing class.')
+                ...
+        
+        @file_logger.listen  # records content of `example_method` to `log_file`
+        def example_method(self):
+            logger.info('Performing function tasks.')
+            ...
+    ```
+    """
+
+    def __init__(self, *args, **kwargs):
+        self.log_file = log_file(*args, **kwargs)
+
     @staticmethod
     def listen(func):
         """
-        Decorator for recording logs to `log_file` during function operation, closing the log file upon completion.
+        Decorator for recording logs to `log_file` during function operation, 
+        closing the log file upon completion.
         """
         @functools.wraps(func)
         def wrap(self, *args, **kwargs):
@@ -268,49 +338,6 @@ class file_logger:
             self.log_file.close()
             return result
         return wrap    
-
-
-# class jam:
-#     """
-#     Base pbjam class. Currently has a method `record` for recording logs to `log_file`. This can be used as a method
-#     decorator in subclasses, e.g.
-
-#     ```python
-#     # pbjam/example.py
-#     import logging
-#     from .jar import jam, file_logger
-#     logger = logging.getLogger(__name__)  # here, __name__ == 'pbjam.example'
-
-#     class example_class(jam):
-#         def __init__(self):
-#             self.log_file = file_logger('example.log')
-            
-#             with self.log_file:
-#                 # Records content in context to `log_file`
-#                 logger.info('Initializing class.')
-#                 ...
-        
-#         @jam.record  # records content of `example_method` to `log_file`
-#         def example_method(self):
-#             logger.info('Performing function tasks.')
-#             ...
-#     ```
-
-#     """
-#     log_file = file_logger('pbjam.log')  # Placeholder variable, overwrite in subclass __init__
-
-#     @staticmethod
-#     def record(func):
-#         """
-#         Decorator for recording logs to `log_file` during function operation, closing the log file upon completion.
-#         """
-#         @functools.wraps(func)
-#         def wrap(self, *args, **kwargs):
-#             self.log_file.open()
-#             result = func(self, *args, **kwargs)
-#             self.log_file.close()
-#             return result
-#         return wrap
 
 
 class references():

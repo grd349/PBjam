@@ -1,6 +1,6 @@
 """Tests for the jar module"""
 
-from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, file_logger, log
+from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, log_file, file_logger, log
 import pbjam.tests.pbjam_tests as pbt
 import numpy as np
 from numpy.testing import assert_almost_equal, assert_array_equal
@@ -82,13 +82,13 @@ def test_get_percentiles():
     inp = [[0,0,0,1,1], 1]
     assert_array_equal(func(*inp), [0., 0., 1.])
 
-def test_jam():
+def test_file_logger():
     """Tests subclassing `jam` to use the log file record decorator"""
     test_message = 'This should be logged in file.'
 
-    class jam_test:
+    class file_logger_test(file_logger):
         def __init__(self):
-            self.log_file = file_logger('test_jam.log')
+            super(file_logger_test, self).__init__(filename='test_jam.log')
             logger.debug('This should not be logged in file.')
             with self.log_file:
                 # Records content in context to `log_file`
@@ -98,7 +98,7 @@ def test_jam():
         def method(self):
             logger.debug(test_message)
     
-    jt = jam_test()
+    jt = file_logger_test()
     jt.method()
 
     filename = jt.log_file._filename
@@ -109,13 +109,13 @@ def test_jam():
 
     os.remove(filename)
 
-def test_file_logger():
+def test_log_file():
     """Test `file_logger` context manager."""
     filename = 'test_file_logger.log'
     test_level = 'DEBUG'
-    log_file = file_logger(filename, level=test_level)
+    flog = log_file(filename, level=test_level)
     
-    with log_file:
+    with flog:
         test_message = 'This should be logged in file.'
         logger.debug(test_message)
     logger.debug('This should not be logged in file')
@@ -142,9 +142,9 @@ def test_log_debug():
         logger.debug(test_message)
 
     filename = 'test_log.log'
-    log_file = file_logger(filename)
+    flog = log_file(filename)
 
-    with log_file:
+    with flog:
         log_test()
 
     with open(filename, 'r') as file_in:
@@ -173,9 +173,9 @@ def test_log_info():
         logger.critical(test_message)
 
     filename = 'test_log.log'
-    log_file = file_logger(filename, level='INFO')  # level='INFO' same as console_handler 
+    flog = log_file(filename, level='INFO')  # level='INFO' same as console_handler 
 
-    with log_file:
+    with flog:
         log_test()
 
     with open(filename, 'r') as file_in:
