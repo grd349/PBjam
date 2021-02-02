@@ -35,7 +35,7 @@ import warnings, logging
 from .plotting import plotting
 import astropy.units as units
 import lightkurve as lk
-from .jar import log
+from .jar import debug
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class ellone(plotting):
         self.hdbX = None
         self.hdb_clusterN = None
     
-    @log(logger)
+    @debug(logger)
     def residual(self,):
         """ Compute the residual after dividing out l=2,0
         
@@ -182,7 +182,7 @@ class ellone(plotting):
         idx = k < reject
         return idx, k
     
-    @log(logger)
+    @debug(logger)
     def H0_inconsistent(self, dnu, Nmax, rejection_level):
         """ Find bins inconsistent with noise
         
@@ -225,7 +225,7 @@ class ellone(plotting):
             
         return nu, N, pH0s
     
-    @log(logger)
+    @debug(logger)
     def clustering_preprocess(self, nu, N, limits = (0, 100000)):
         """ Preprocess the samples before clustering
         
@@ -274,7 +274,7 @@ class ellone(plotting):
         
         return max(x)-min(x)
     
-    @log(logger)
+    @debug(logger)
     def clustering(self, nu, N, Nmax, outlier_limit=0.5, cluster_prob=0.9):
         """ Perform HDBscan clustering
         
@@ -333,7 +333,7 @@ class ellone(plotting):
         
         return nus[1:], nstds[1:]
     
-    @log(logger)
+    @debug(logger)
     def get_ell1(self, dnu):
         """ Estimate frequency of l=1 modes (p-modes)
         
@@ -386,7 +386,7 @@ class ellone(plotting):
                 
         return nul1s, nul1s_std
 
-    @log(logger)
+    @debug(logger)
     def __call__(self, dnu, Nmax = 30, rejection_level = 0.1):
         """ Perform all the steps to estimate l=1 frequencies
         

@@ -1,6 +1,6 @@
 """Tests for the jar module"""
 
-from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, log_file, file_logger, log
+from pbjam.jar import normal, to_log10, get_priorpath, get_percentiles, log_file, file_logger, debug
 import pbjam.tests.pbjam_tests as pbt
 import numpy as np
 from numpy.testing import assert_almost_equal, assert_array_equal
@@ -133,11 +133,11 @@ def test_log_file():
     
     os.remove(filename)
 
-def test_log_debug():
+def test_debug_logger():
     """Tests `log` decorator debug messages"""
     test_message = 'Function in progress.'
     
-    @log(logger)
+    @debug(logger)
     def log_test():
         logger.debug(test_message)
 
@@ -159,12 +159,12 @@ def test_log_debug():
 
     os.remove(filename)
 
-def test_log_info():
-    """Tests `log` decorator with no debug info."""
+def test_debug_info():
+    """Tests `debug` decorator with INFO level."""
 
     test_message = 'Function in progress.'
     
-    @log(logger)
+    @debug(logger)
     def log_test():
         logger.debug(test_message)
         logger.info(test_message)

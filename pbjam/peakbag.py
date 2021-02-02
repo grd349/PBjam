@@ -10,7 +10,7 @@ import pymc3 as pm
 import arviz as az
 import warnings, logging, inspect
 from .plotting import plotting
-from .jar import log
+from .jar import debug
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class peakbag(plotting):
         See asy_peakbag asymptotic_fit for more details.
 
     """
-    # @log(logger)
+    # @debug(logger)
     def __init__(self, starinst, init=True, path=None,  verbose=False):
 
         self.pg = starinst.pg
@@ -87,7 +87,7 @@ class peakbag(plotting):
     def __repr__(self):
         return '<pbjam.peakbag norders={self.norders}>'
 
-    @log(logger)
+    @debug(logger)
     def make_start(self):
         """ Set the starting model for peakbag
         
@@ -119,7 +119,7 @@ class peakbag(plotting):
 
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
-    @log(logger)
+    @debug(logger)
     def remove_outsiders(self, l0, l2):
         """ Drop outliers
 
@@ -139,7 +139,7 @@ class peakbag(plotting):
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
-    @log(logger)
+    @debug(logger)
     def trim_ladder(self, lw_fac=10, extra=0.01, verbose=False):
         """ Turns mode frequencies into list of pairs
         
@@ -251,7 +251,7 @@ class peakbag(plotting):
         mod += self.lor(l2, width2, height2)
         return mod.T
 
-    @log(logger)
+    @debug(logger)
     def init_model(self, model_type):
         """ Initialize the pymc3 model for peakbag
         
@@ -355,7 +355,7 @@ class peakbag(plotting):
         
         self.summary.at[idx, 'log_ppr'] = log_ppr[idx]
 
-    @log(logger)
+    @debug(logger)
     def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4,
                      advi=False):
         """ Perform all the steps in peakbag.

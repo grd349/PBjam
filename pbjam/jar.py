@@ -54,7 +54,7 @@ class _function_logger:
         self.logger.debug(f"Exiting {self.func.__qualname__}")
 
 
-def log(logger):
+def debug(logger):
     """
     Function logging decorator. Logs function metadata upon entering and 
     sexiting.
@@ -71,11 +71,11 @@ def log(logger):
 
     ```python
     import logging
-    from pbjam.jar import log
+    from pbjam.jar import debug
 
     logger = logging.getLogger(__name__)
 
-    @log(logger)
+    @debug(logger)
     def my_func(a, b):
         logger.debug('Function in progress.')
         return a + b
@@ -101,7 +101,7 @@ def log(logger):
 
     ```python
     import logging
-    from pbjam.jar import log
+    from pbjam.jar import debug
 
     logger = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ def log(logger):
             self.a = 1
             self.b = 2
 
-        @log(logger)
+        @debug(logger)
         def my_mthd(self):
             logger.debug('Method in progress.')
             return self.a + self.b

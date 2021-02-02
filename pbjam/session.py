@@ -52,7 +52,7 @@ import pandas as pd
 import os, pickle, warnings, logging
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references, log, file_logger
+from .jar import references, debug, file_logger
 
 logger = logging.getLogger(__name__)
 
@@ -628,7 +628,7 @@ class session(file_logger):
         return f'<pbjam.session ID={self.session_ID}>'
    
     @file_logger.listen
-    @log(logger)
+    @debug(logger)
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):

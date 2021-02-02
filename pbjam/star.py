@@ -28,7 +28,7 @@ from astroquery.simbad import Simbad
 import astropy.units as units
 
 import logging
-from .jar import log, file_logger
+from .jar import debug, file_logger
 
 logger = logging.getLogger(__name__)  # For module-level logging
 
@@ -238,7 +238,7 @@ class star(plotting, file_logger):
                 logger.exception(f"Could not create directory for star {self.ID}.")
 
     @file_logger.listen
-    @log(logger)
+    @debug(logger)
     def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
 
@@ -283,7 +283,7 @@ class star(plotting, file_logger):
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
 
     @file_logger.listen
-    @log(logger)
+    @debug(logger)
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='emcee', 
                         developer_mode=False):
@@ -339,7 +339,7 @@ class star(plotting, file_logger):
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
     
     @file_logger.listen
-    @log(logger)
+    @debug(logger)
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
@@ -633,7 +633,7 @@ def _format_name(ID):
                 return fname 
     return ID
 
-@log(logger)
+@debug(logger)
 def get_bp_rp(ID):
     """ Search online for bp_rp values based on ID.
        
