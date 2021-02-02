@@ -625,17 +625,6 @@ class session(file_logger):
 
     def __repr__(self):
         """ Repr for the `session` class. """
-        # n_stars = len(self.stars)
-        # max_IDs = 3  # Max IDs to display
-        # if n_stars == 1:
-        #     ID = repr(self.stars[0].ID)
-        # else:
-        #     ID = '['
-        #     _ID = [repr(star.ID) for _, star in zip(range(max_IDs), self.stars)]
-        #     ID += ', '.join(_ID)
-        #     if n_stars > max_IDs:
-        #         ID += ' ...'
-        #     ID += ']'
         return f'<pbjam.session ID={self.session_ID}>'
    
     @file_logger.listen
