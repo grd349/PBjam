@@ -435,6 +435,7 @@ class star(plotting, file_logger):
         self.references._addRef('pandas')
 
 
+@debugger
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
     
@@ -474,6 +475,7 @@ def _querySimbad(ID):
             return line.replace('Gaia DR2 ', '')
     return None
 
+@debugger
 def _queryTIC(ID, radius = 20):
     """ Query TIC for bp-rp value
     
@@ -510,6 +512,7 @@ def _queryTIC(ID, radius = 20):
     else:
         return None
 
+@debugger
 def _queryMAST(ID):
     """ Query any ID at MAST
     
@@ -539,6 +542,7 @@ def _queryMAST(ID):
     except:
         return None
 
+@debugger
 def _queryGaia(ID=None, coords=None, radius=2):
     """ Query Gaia archive for bp-rp
     
@@ -590,6 +594,7 @@ def _queryGaia(ID=None, coords=None, radius=2):
     else:
         raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
 
+@debugger
 def _format_name(ID):
     """ Format input ID
     

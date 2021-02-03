@@ -57,6 +57,7 @@ from .jar import references, debug, file_logger
 logger = logging.getLogger(__name__)
 debugger = debug(logger)
 
+@debugger
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
 
@@ -92,7 +93,7 @@ def _organize_sess_dataframe(vardf):
     if 'spectrum' not in vardf.keys():
         _format_col(vardf, None, 'spectrum')
 
-
+@debugger
 def _organize_sess_input(**vardct):
     """ Takes input and organizes them in a dataframe.
 
@@ -133,6 +134,7 @@ def _organize_sess_input(**vardct):
             vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
     return vardf
 
+@debugger
 def _sort_lc(lc):
     """ Sort a lightcurve in Lightkurve object.
 
@@ -156,6 +158,7 @@ def _sort_lc(lc):
     return lc
 
 
+@debugger
 def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     """ Get time series using LightKurve
     
@@ -199,7 +202,7 @@ def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     
     return lc
     
-
+@debugger
 def _arr_to_lk(x, y, name, typ):
     """ LightKurve object from input.
 
@@ -233,7 +236,7 @@ def _arr_to_lk(x, y, name, typ):
     else:
         raise KeyError("Don't modify anything but spectrum and timeseries cols")
 
-
+@debugger
 def _format_col(vardf, col, key):
     """ Add timeseries or spectrum column to dataframe based on input
 
@@ -302,6 +305,7 @@ def _format_col(vardf, col, key):
     else:
         logger.critical('Unhandled exception.')
 
+@debugger
 def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
     """ Convert time series column in dataframe to lk.LightCurve object
 
@@ -360,7 +364,7 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
 
     return tsOut
 
-
+@debugger
 def _lk_to_pg(ID, tsIn, specIn):
     """ Convert spectrum column in dataframe to Lightkurve.periodgram objects
 
@@ -404,7 +408,6 @@ def _lk_to_pg(ID, tsIn, specIn):
         raise TypeError("Can't handle this type of time series object")
 
     return specOut
-
 
 
 class session(file_logger):
@@ -692,7 +695,7 @@ class session(file_logger):
                 logger.exception(f"{st} failed due to the following exception, continuing to the next star.")
 
         
-            
+@debugger           
 def _load_fits(files, mission):
     """ Read fitsfiles into a Lightkurve object
     
@@ -720,6 +723,7 @@ def _load_fits(files, mission):
         lc = lccol.PDCSAP_FLUX.stitch()
     return lc
 
+@debugger
 def _set_mission(ID, lkwargs):
     """ Set mission keyword in lkwargs.
     
@@ -745,7 +749,8 @@ def _set_mission(ID, lkwargs):
             lkwargs['mission'] = 'TESS'
         else:
             lkwargs['mission'] = ('Kepler', 'K2', 'TESS')
-            
+
+@debugger         
 def _search_and_dump(ID, lkwargs, search_cache):
     """ Get lightkurve search result online.
     
@@ -785,6 +790,7 @@ def _search_and_dump(ID, lkwargs, search_cache):
     
     return resultDict   
 
+@debugger
 def _getMASTidentifier(ID, lkwargs):
     """ return KIC/TIC/EPIC for given ID.
     
@@ -829,6 +835,7 @@ def _getMASTidentifier(ID, lkwargs):
         ID = ID.replace(' ', '')
     return ID
 
+@debugger
 def _perform_search(ID, lkwargs, use_cached=True, download_dir=None, 
                     cache_expire=30):
     """ Find filenames related to target
@@ -884,6 +891,7 @@ def _perform_search(ID, lkwargs, use_cached=True, download_dir=None,
         
     return resultDict['result']
 
+@debugger
 def _check_lc_cache(search, mission, download_dir=None):
     """ Query cache directory or download fits files.
     
@@ -926,6 +934,7 @@ def _check_lc_cache(search, mission, download_dir=None):
 
     return files_in_cache
 
+@debugger
 def _clean_lc(lc):
     """ Perform Lightkurve operations on object.
 
