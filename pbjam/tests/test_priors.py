@@ -55,10 +55,6 @@ def test_prior_size_check():
             for sigma in [10, 100]:
                 pdata_cut = func(pdata, to_log10(numax, sigma), KDEsize)            
                 assert((len(pdata_cut) > 0) & (len(pdata_cut) <= KDEsize))
-    
-    # These combinations should show warnings
-    with pytest.warns(UserWarning):
-        func(pdata, to_log10(300, 1), 500)
 
     # These combinations should raise errors
     with pytest.raises(ValueError):  
