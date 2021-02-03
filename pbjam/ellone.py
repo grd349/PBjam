@@ -383,7 +383,7 @@ class ellone(plotting):
             nul1s_std[i] = self.cluster_stds[nuidx][maxidx]
             
             if (nul0s[i] - nul1s[i])/d01 > 0.2:
-                warnings.warn('Cluster nu_l1 exceeds UP estimate by more than 20%')
+                logger.warning('Cluster nu_l1 exceeds UP estimate by more than 20%')
                 
         return nul1s, nul1s_std
 

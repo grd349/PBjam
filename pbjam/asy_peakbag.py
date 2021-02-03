@@ -388,7 +388,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.developer_mode = developer_mode
         
         if method not in ['emcee', 'cpnest']:
-            warnings.warn(f'Method {method} not found: Using method emcee')
+            logger.warning(f'Method {method} not found: Using default method emcee')
             method = 'emcee'
 
         if method == 'emcee':

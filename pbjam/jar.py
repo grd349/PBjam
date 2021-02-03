@@ -395,12 +395,12 @@ class references():
                 a += 1
                 
             if (i >= len(string[idx:])-1) and (a != 0):    
-                warnings.warn('Warning: Reached end of bibtex file with no closing curly bracket. Your .bib file may be formatted incorrectly. The reference list may be garbled.')
+                logger.warning('Reached end of bibtex file with no closing curly bracket. Your .bib file may be formatted incorrectly. The reference list may be garbled.')
             if a ==0:
                 break  
         
         if string[idx+i] == '{':
-            warnings.warn('Warning: Ended on an opening bracket. Your .bib file may be formatted incorrectly.')
+            logger.warning('Ended on an opening bracket. Your .bib file may be formatted incorrectly.')
             
         return idx+i
         

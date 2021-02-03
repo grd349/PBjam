@@ -178,7 +178,7 @@ class peakbag(plotting):
         for idx, freq in enumerate(self.start['l0']):
             loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
             if loc_mid_02 == 0:
-                warnings.warn('Did not find optimal pair location')
+                logger.warning('Did not find optimal pair location')
             # if verbose:
                 # print(f'loc_mid_02 = {loc_mid_02}')
                 # print(f'w/2 = {int(w/2)}')
@@ -284,7 +284,7 @@ class peakbag(plotting):
 
             if model_type != 'model_gp':
                 if model_type != 'simple': # defaults to simple if bad input
-                    warnings.warn('Model not defined - using simple model')
+                    logger.warning('Model not defined - using simple model')
                 width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
                                   sigma=width_fac, shape=N)
                 width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
@@ -294,7 +294,7 @@ class peakbag(plotting):
                 self.target_accept = 0.9
 
             elif model_type == 'model_gp':
-                warnings.warn('This model is developmental - use carefully')
+                logger.warning('This model is developmental - use carefully')
                 # Place a GP over the l=0 mode widths ...
                 m0 = pm.Normal('gradient0', 0, 10)
                 c0 = pm.Normal('intercept0', 0, 10)
@@ -387,7 +387,6 @@ class peakbag(plotting):
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older. 
         try:
             rhatfunc = pm.diagnostics.gelman_rubin
-            # warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
         except:
             rhatfunc = az.rhat
         
@@ -418,7 +417,7 @@ class peakbag(plotting):
 
             while Rhat_max > 1.05:
                 if niter > maxiter:
-                    warnings.warn('Did not converge!')
+                    logger.warning('Did not converge!')
                     break
                 
                 sample_kwargs['tune'] = tune * niter

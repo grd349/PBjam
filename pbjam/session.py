@@ -575,7 +575,6 @@ class session(file_logger):
                         
 
                 if any([ID, numax, dnu, teff, bp_rp]):
-                    # warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
                     logger.warning('Dictlike provided as input, ignoring other input fit parameters.')
 
                 _organize_sess_dataframe(vardf)
@@ -626,7 +625,8 @@ class session(file_logger):
                 
             for i, st in enumerate(self.stars):
                 if st.numax[0] > st.f[-1]:
-                    warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
+                    # TODO: should this raise an exception? We know this will break later on.
+                    logger.critical("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
     def __repr__(self):
         """ Repr for the `session` class. """

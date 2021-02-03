@@ -101,7 +101,7 @@ class star(plotting, file_logger):
             logger.info(f"Initializing star with ID {repr(self.ID)}.")
 
             if numax[0] < 25:
-                warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
+                logger.warning('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
             self.numax = numax
             self.dnu = dnu
 

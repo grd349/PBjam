@@ -158,14 +158,9 @@ class kde(plotting):
             idx = np.abs(pdata.numax.values - numax[0]) < nsigma * numax[1]
 
             if not flag_warn:
-                # If this is a use warning, must give user instructions.
-                # Otherwise, make this a logger.warning
-                # Maybe user warning if len(pdata[idx]) == 0?
-                warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
-                f'Trying to expand the range to include ~{KDEsize} stars.')
-                # logger.warning(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
-                # f'Trying to expand the range to include ~{KDEsize} stars.')
-                flag_warn = True
+                logger.warning(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
+                               f'Trying to expand the range to include ~{KDEsize} stars.')
+                flag_warn = True  # So this message only appears once
 
             if nsigma >= KDEsize:
                 break
@@ -175,12 +170,13 @@ class kde(plotting):
         ntgts = len(idx[idx==1])
         
         if ntgts == 0:
-            raise ValueError('No prior targets found within range of target. This might mean no prior samples exist for stars like this, consider increasing the uncertainty on your numax input.')
+            raise ValueError('No prior targets found within range of target. This might mean no prior samples exist' + \
+                             ' for stars like this, consider increasing the uncertainty on your numax input.')
 
         elif ntgts < KDEsize:
-            # warnings.warn recommend user change their code but logger.warning does not. Which is best here? I think the former - A. Lyttle
-            # warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
-            warnings.warn(f'Sample size for estimating KDE is {ntgts}, less than the requested {KDEsize}.')  # Add user instruction here, e.g. increase numax uncertainty?
+            msg = f'Sample size for estimating prior KDE is {ntgts}, less than the desired {KDEsize} - ' + \
+                   'the prior may not comprise similar stars. If your uncertainty on numax is < 1 per cent, it may be too small.'
+            logger.warning(msg)
             KDEsize = ntgts
         
         return pdata.sample(KDEsize, weights=idx, replace=False)
