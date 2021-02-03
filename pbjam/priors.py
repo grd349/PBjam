@@ -13,9 +13,10 @@ import warnings
 from .plotting import plotting
 import statsmodels.api as sm
 from .jar import get_priorpath, to_log10, normal, debug
-
 import logging
+
 logger = logging.getLogger(__name__)
+debugger = debug(logger)
 
 
 class kde(plotting):
@@ -56,7 +57,7 @@ class kde(plotting):
         to compute the KDE. Default is to use pbjam/data/prior_data.csv 
 
     """
-    # @debug(logger)
+    # @debugger
     def __init__(self, starinst=None, prior_file=None):
 
         if starinst:
@@ -81,7 +82,7 @@ class kde(plotting):
     def __repr__(self):
         return f'<pbjam.kde prior_file={self.prior_file}>'
 
-    @debug(logger)
+    @debugger
     def select_prior_data(self, numax=None, KDEsize = 100):
         """ Selects useful prior data based on proximity to estimated numax.
 
@@ -184,7 +185,7 @@ class kde(plotting):
         
         return pdata.sample(KDEsize, weights=idx, replace=False)
 
-    @debug(logger)
+    @debugger
     def make_kde(self, bw_fac=1.0):
         """ Takes the prior data and constructs a KDE function
 
@@ -299,7 +300,7 @@ class kde(plotting):
 
         return lnlike
 
-    @debug(logger)
+    @debugger
     def kde_predict(self, n):
         """ Predict the l=0 mode frequencies from the KDE samples.
 
@@ -332,7 +333,7 @@ class kde(plotting):
         
         return freq.mean(axis=1), freq.std(axis=1)
 
-    @debug(logger)
+    @debugger
     def kde_sampler(self, nwalkers=50):
         """ Samples the posterior distribution with the KDE prior
 

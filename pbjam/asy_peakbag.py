@@ -17,6 +17,7 @@ from collections import OrderedDict
 import warnings, logging
 
 logger = logging.getLogger(__name__)
+debugger = debug(logger)
 
 
 class asymp_spec_model():
@@ -38,7 +39,7 @@ class asymp_spec_model():
         Number of radial order to fit.
          
     """
-    # @debug(logger)
+    # @debugger
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
@@ -329,7 +330,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         science results!
 
     """
-    # @debug(logger)
+    # @debugger
     def __init__(self, st, norders=None):
         
         self.pg = st.pg
@@ -361,7 +362,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
     def __repr__(self):
         return f'<pbjam.asymptotic_fit norders={self.norders}>'
 
-    @debug(logger) 
+    @debugger 
     def __call__(self, method, developer_mode):
         """ Setup, run and parse the asymptotic relation fit.
 
@@ -520,7 +521,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         return summary
        
-    @debug(logger)
+    @debugger
     def get_modeIDs(self, fit, norders):
         """ Set mode ID in a dataframe
 

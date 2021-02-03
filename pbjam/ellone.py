@@ -38,6 +38,7 @@ import lightkurve as lk
 from .jar import debug
 
 logger = logging.getLogger(__name__)
+debugger = debug(logger)
 
 
 class ellone(plotting):
@@ -106,7 +107,7 @@ class ellone(plotting):
         self.hdbX = None
         self.hdb_clusterN = None
     
-    @debug(logger)
+    @debugger
     def residual(self,):
         """ Compute the residual after dividing out l=2,0
         
@@ -182,7 +183,7 @@ class ellone(plotting):
         idx = k < reject
         return idx, k
     
-    @debug(logger)
+    @debugger
     def H0_inconsistent(self, dnu, Nmax, rejection_level):
         """ Find bins inconsistent with noise
         
@@ -225,7 +226,7 @@ class ellone(plotting):
             
         return nu, N, pH0s
     
-    @debug(logger)
+    @debugger
     def clustering_preprocess(self, nu, N, limits = (0, 100000)):
         """ Preprocess the samples before clustering
         
@@ -274,7 +275,7 @@ class ellone(plotting):
         
         return max(x)-min(x)
     
-    @debug(logger)
+    @debugger
     def clustering(self, nu, N, Nmax, outlier_limit=0.5, cluster_prob=0.9):
         """ Perform HDBscan clustering
         
@@ -333,7 +334,7 @@ class ellone(plotting):
         
         return nus[1:], nstds[1:]
     
-    @debug(logger)
+    @debugger
     def get_ell1(self, dnu):
         """ Estimate frequency of l=1 modes (p-modes)
         
@@ -386,7 +387,7 @@ class ellone(plotting):
                 
         return nul1s, nul1s_std
 
-    @debug(logger)
+    @debugger
     def __call__(self, dnu, Nmax = 30, rejection_level = 0.1):
         """ Perform all the steps to estimate l=1 frequencies
         

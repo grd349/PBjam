@@ -74,8 +74,9 @@ def debug(logger):
     from pbjam.jar import debug
 
     logger = logging.getLogger(__name__)
+    debugger = debug(logger)
 
-    @debug(logger)
+    @debugger
     def my_func(a, b):
         logger.debug('Function in progress.')
         return a + b
@@ -104,6 +105,7 @@ def debug(logger):
     from pbjam.jar import debug
 
     logger = logging.getLogger(__name__)
+    debugger = debug(logger)
 
 
     class myClass:
@@ -113,7 +115,7 @@ def debug(logger):
             self.a = 1
             self.b = 2
 
-        @debug(logger)
+        @debugger
         def my_mthd(self):
             logger.debug('Method in progress.')
             return self.a + self.b

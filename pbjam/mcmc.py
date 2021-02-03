@@ -15,6 +15,7 @@ import os, logging
 from .jar import debug
 
 logger = logging.getLogger(__name__)
+debugger = debug(logger)
 
 
 class mcmc():
@@ -55,7 +56,7 @@ class mcmc():
         Acceptance fraction at each step.
         
     """
-    # @debug(logger)
+    # @debugger
     def __init__(self, start, likelihood, prior, nwalkers=50):
 
         self.start = start
@@ -124,7 +125,7 @@ class mcmc():
         converged = np.all(tau * nfactor < self.sampler.iteration)
         return converged
 
-    @debug(logger)
+    @debugger
     def __call__(self, max_iter=20000, spread=1e-4, start_samples=[]):
         """ Initialize and run the EMCEE afine invariant sampler
 
@@ -207,7 +208,7 @@ class mcmc():
         
         return self.flatchain
 
-    # @debug(logger)
+    # @debugger
     def fold(self, pos, accept_lim = 0.2, spread=0.1):
         """ Fold low acceptance walkers into main distribution
 
@@ -273,7 +274,7 @@ class nested(cpnest.model.Model):
         Function that will return the log prior when called as prior(params)
 
     """
-    # @debug(logger)
+    # @debugger
     def __init__(self, names, bounds, likelihood, prior, path):
         self.names=names
         self.bounds=bounds
@@ -296,7 +297,7 @@ class nested(cpnest.model.Model):
         if not self.in_bounds(p): return -np.inf
         return self.prior(p.values)
 
-    @debug(logger)
+    @debugger
     def __call__(self, nlive=100, nthreads=1, maxmcmc=100, poolsize=100):
         """
         Runs the nested sampling

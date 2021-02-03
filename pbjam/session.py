@@ -55,6 +55,7 @@ from datetime import datetime
 from .jar import references, debug, file_logger
 
 logger = logging.getLogger(__name__)
+debugger = debug(logger)
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -628,7 +629,7 @@ class session(file_logger):
         return f'<pbjam.session ID={self.session_ID}>'
    
     @file_logger.listen
-    @debug(logger)
+    @debugger
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
