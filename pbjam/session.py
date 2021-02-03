@@ -303,6 +303,7 @@ def _format_col(vardf, col, key):
                              np.array([_arr_to_lk(x, y, vardf.loc[i, 'ID'], key)]))
         vardf[key] = temp
     else:
+        # TODO: handle this exception
         logger.critical('Unhandled exception.')
 
 @debugger

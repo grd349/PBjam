@@ -182,7 +182,8 @@ class mcmc():
         elif self.sampler.iteration == max_iter:
             logger.warning(f'Sampler stopped at {max_iter} (maximum). Chains did not necessarily reach a stationary state.')
         else:
-            logger.error('Unhandled exception')
+            # TODO: handle this exception
+            logger.critical('Unhandled exception')
 
         # Fold in low AR chains and run a little bit to update emcee
         self.fold(pos, spread=spread)
