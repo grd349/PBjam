@@ -525,11 +525,12 @@ class session(file_logger):
         the `log_file` for the session. Give this a unique name when running
         multiple sessions with the same `path`, otherwise logs will be appended
         to the same file.
-    level : str, optional
-        Level at which logs will be recorded to a log file called 'star.log' at
-        `path`. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 'INFO', 
-        'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including and
-        following `logging_level` will be recorded to the file.
+    logging_level : str, optional
+        Level at which logs will be recorded to a log file called 
+        f'{session_ID}.log' at `path`. Default is 'DEBUG' (recommended). Choose
+        from 'DEBUG', 'INFO', 'WARNING', 'ERROR' and 'CRITICAL'. All logs at
+        levels including and following `logging_level` will be recorded to the
+        file.
       
     Attributes
     ----------
@@ -545,11 +546,11 @@ class session(file_logger):
                  timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
                  cadence=None, campaign=None, sector=None, month=None, 
                  quarter=None, mission=None, path=None, download_dir=None, 
-                 session_ID=None, level='DEBUG'):
+                 session_ID=None, logging_level='DEBUG'):
         
         self.session_ID = session_ID or 'session'
         logfilename = os.path.join(path or os.getcwd(), f'{self.session_ID}.log')
-        super(session, self).__init__(filename=logfilename, level=level, loggername='pbjam.session')
+        super(session, self).__init__(filename=logfilename, level=logging_level, loggername='pbjam.session')
         
         with self.log_file:
             # Records everything in context to the log file

@@ -74,11 +74,11 @@ class star(plotting, file_logger):
     prior_file : str, optional
         Path to the csv file containing the prior data. Default is
         pbjam/data/prior_data.csv
-    level : str, optional
-        Level at which logs will be recorded to a log file called 'star.log' at
-        `path`. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 'INFO', 
-        'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including and
-        following `logging_level` will be recorded to the file.
+    logging_level : str, optional
+        Level at which logs will be recorded to a log file called f'{ID}.log' 
+        at `path`. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 
+        'INFO', 'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including
+        and following `logging_level` will be recorded to the file.
 
     Attributes
     ----------
@@ -90,12 +90,12 @@ class star(plotting, file_logger):
     """
 
     def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
-                 path=None, prior_file=None, level='DEBUG'):
+                 path=None, prior_file=None, logging_level='DEBUG'):
         
         self.ID = ID
         self._set_outpath(path)
         logfilename = os.path.join(self.path, f'{self.ID}.log')
-        super(star, self).__init__(filename=logfilename, level=level)
+        super(star, self).__init__(filename=logfilename, level=logging_level)
 
         with self.log_file:
             logger.info(f"Initializing star with ID {repr(self.ID)}.")
