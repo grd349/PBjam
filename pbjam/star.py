@@ -75,10 +75,10 @@ class star(plotting, file_logger):
         Path to the csv file containing the prior data. Default is
         pbjam/data/prior_data.csv
     logging_level : str, optional
-        Level at which logs will be recorded to a log file called f'{ID}.log' 
-        at `path`. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 
+        Level at which logs will be recorded to a log file called '{ID}.log' 
+        at ``path``. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 
         'INFO', 'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including
-        and following `logging_level` will be recorded to the file.
+        and following ``logging_level`` will be recorded to the file.
 
     Attributes
     ----------

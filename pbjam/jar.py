@@ -14,7 +14,7 @@ import functools, logging, inspect, sys, warnings
 from .printer import pretty_printer
 
 HANDLER_FMT = "%(asctime)-23s :: %(levelname)-8s :: %(name)-17s :: %(message)s"
-INDENT = 60  # Set to length of logger info before `message` or just indent by 2?
+INDENT = 60  # Set to length of logger info before message or just indent by 2?
 logger = logging.getLogger(__name__)
 
 _pp_kwargs = {'width': 120}
@@ -34,7 +34,7 @@ class _function_logger:
         self.logger = logger
 
     def _log_bound_args(self, args, kwargs):
-        """ Logs bound arguments - `args` and `kwargs` passed to func. """
+        """ Logs bound arguments - ``args`` and ``kwargs`` passed to func. """
         bargs = self.signature.bind(*args, **kwargs)
         bargs_dict = dict(bargs.arguments)
         self.logger.debug(f"Bound arguments:\n{pprinter.pformat(bargs_dict)}")
@@ -57,7 +57,7 @@ class _function_logger:
 def debug(logger):
     """
     Function logging decorator. Logs function metadata upon entering and 
-    sexiting.
+    exiting.
     
     Parameters
     ----------
@@ -67,79 +67,79 @@ def debug(logger):
 
     Examples
     --------
-    Logging a function called `my_func` defined in a module with name `__name__`,
+    Logging a function called ``my_func`` defined in a module with name ``__name__``,
 
-    ```python
-    import logging
-    from pbjam.jar import debug
+    .. code-block:: python
 
-    logger = logging.getLogger(__name__)
-    debugger = debug(logger)
+        import logging
+        from pbjam.jar import debug
 
-    @debugger
-    def my_func(a, b):
-        logger.debug('Function in progress.')
-        return a + b
-
-    if __name__ == "__main__":
-        logging.basicConfig()
-        logger.setLevel('DEBUG')
-        
-        result = my_func(1, 2)
-        logger.debug(f'result = {result}')
-    ```
-
-    Outputs,
-
-    ```python
-    DEBUG:__main__:Entering my_func
-    DEBUG:__main__:Function in progress.
-    DEBUG:__main__:Exiting  my_func
-    DEBUG:__main__:result = 3
-    ```
-
-    For use within classes,
-
-    ```python
-    import logging
-    from pbjam.jar import debug
-
-    logger = logging.getLogger(__name__)
-    debugger = debug(logger)
-
-
-    class myClass:
-
-        def __init__(self):
-            logger.debug('Initializing class.')
-            self.a = 1
-            self.b = 2
+        logger = logging.getLogger(__name__)
+        debugger = debug(logger)
 
         @debugger
-        def my_mthd(self):
-            logger.debug('Method in progress.')
-            return self.a + self.b
+        def my_func(a, b):
+            logger.debug('Function in progress.')
+            return a + b
 
-    if __name__ == "__main__":
-        logging.basicConfig()
-        logger.setLevel('DEBUG')
-        
-        obj = myClass()
-        result = obj.my_mthd()
-        logger.debug(f'result = {result}')
-    ```
-
+        if __name__ == "__main__":
+            logging.basicConfig()
+            logger.setLevel('DEBUG')
+            
+            result = my_func(1, 2)
+            logger.debug(f'result = {result}')
+    
     Outputs,
 
-    ```python
-    DEBUG:__main__:Entering myClass.__init__.
-    DEBUG:__main__:Initializing class.
-    DEBUG:__main__:Exiting  myClass.__init__.
-    DEBUG:__main__:Entering myClass.my_mthd.
-    DEBUG:__main__:Method in progress.
-    DEBUG:__main__:Exiting  myClass.my_mthd.
-    DEBUG:__main__:result = 3
-    ```
+    .. code-block:: text
+
+        DEBUG:__main__:Entering my_func
+        DEBUG:__main__:Function in progress.
+        DEBUG:__main__:Exiting  my_func
+        DEBUG:__main__:result = 3
+    
+    For use within classes,
+
+    .. code-block:: python
+
+        import logging
+        from pbjam.jar import debug
+
+        logger = logging.getLogger(__name__)
+        debugger = debug(logger)
+
+
+        class myClass:
+
+            def __init__(self):
+                logger.debug('Initializing class.')
+                self.a = 1
+                self.b = 2
+
+            @debugger
+            def my_mthd(self):
+                logger.debug('Method in progress.')
+                return self.a + self.b
+
+        if __name__ == "__main__":
+            logging.basicConfig()
+            logger.setLevel('DEBUG')
+            
+            obj = myClass()
+            result = obj.my_mthd()
+            logger.debug(f'result = {result}')
+    
+    Outputs,
+
+    .. code-block:: text
+
+        DEBUG:__main__:Entering myClass.__init__.
+        DEBUG:__main__:Initializing class.
+        DEBUG:__main__:Exiting  myClass.__init__.
+        DEBUG:__main__:Entering myClass.my_mthd.
+        DEBUG:__main__:Method in progress.
+        DEBUG:__main__:Exiting  myClass.my_mthd.
+        DEBUG:__main__:result = 3
 
     """
     def _log(func):
@@ -186,8 +186,8 @@ class _file_handler(_handler, logging.FileHandler):
   
 class log_file:
     """
-    Context manager for file logging. It logs everything under the `loggername` 
-    logger, by default this is the `'pbjam'` logger (i.e. logs everything from 
+    Context manager for file logging. It logs everything under the ``loggername`` 
+    logger, by default this is the ``'pbjam'`` logger (i.e. logs everything from 
     the pbjam package).
 
     Parameters
@@ -197,35 +197,29 @@ class log_file:
     level : str, optional
         Logging level. Default is 'DEBUG'.
     loggername : str, optional
-        Name of logger which will send logs to `filename`. Default is `'pbjam'`.
+        Name of logger which will send logs to ``filename``. Default is ``'pbjam'``.
 
     Attributes
     ----------
     handler : pbjam.jar._file_handler
         File handler object.
 
-    Methods
-    -------
-    open() : 
-        Activates file logging process
-    close() :
-        Safely closes file logging process
-
     Examples
     --------
-    ```python
-    from pbjam.jar import log_file
+    .. code-block:: python
 
-    with log_file('example.log') as flog:
-        # Do some pbjam stuff here and it will be logged to 'example.log'
-        ...
+        from pbjam.jar import log_file
 
-    # Do some stuff here and it won't be logged to 'example.log'
+        with log_file('example.log') as flog:
+            # Do some pbjam stuff here and it will be logged to 'example.log'
+            ...
 
-    with flog:
-        # Do some stuff here and it will be logged to 'example.log'
-        ... 
-    ```
+        # Do some stuff here and it won't be logged to 'example.log'
+
+        with flog:
+            # Do some stuff here and it will be logged to 'example.log'
+            ... 
+    
     """
     def __init__(self, filename, level='DEBUG', loggername='pbjam'):
         self._filename = filename
@@ -253,7 +247,8 @@ class log_file:
         return self._level
 
     def set_level(self, level):
-        """ Set the level of the file handler.
+        """ 
+        Set the level of the file handler.
         
         Parameters
         ----------
@@ -275,13 +270,13 @@ class log_file:
 
 class file_logger:
     """
-    Creates a `log_file` at `filename` to which logs under `loggername` at
-    a given `level` are recorded when the file logger is listening. This
+    Creates a ``log_file`` at ``filename`` to which logs under ``loggername`` at
+    a given ``level`` are recorded when the file logger is listening. This
     class is indended to be sub-classed (see Examples). 
 
-    To listen to a method in a sub-class of `file_logger` (i.e. record all logs 
+    To listen to a method in a sub-class of ``file_logger`` (i.e. record all logs 
     which occur during the method execution) decorate the class method with
-    `@file_logger.listen`.
+    ``@file_logger.listen``.
     
     Parameters
     ----------
@@ -290,38 +285,33 @@ class file_logger:
     level : str, optional
         Logging level. Default is 'DEBUG'.
     loggername : str, optional
-        Name of logger which will send logs to `filename`. Default is `'pbjam'`.
+        Name of logger which will send logs to ``filename``. Default is ``'pbjam'``.
 
     Attributes
     ----------
     log_file : pbjam.jar.log_file
 
-    Methods
-    -------
-    listen :
-        Decorator for recording logs in a sub-class method to `log_file`.
-
     Examples
     --------
-    
-    ```python
-    # pbjam/example.py
-    from .jar import file_logger
+    .. code-block:: python
 
-    class example_class(file_logger):
-        def __init__(self):
-            super(example_class, self).__init__('example.log', level='INFO')
+        # pbjam/example.py
+        from .jar import file_logger
+
+        class example_class(file_logger):
+            def __init__(self):
+                super(example_class, self).__init__('example.log', level='INFO')
+                
+                with self.log_file:
+                    # Records content in context to log_file
+                    logger.info('Initializing class.')
+                    ...
             
-            with self.log_file:
-                # Records content in context to `log_file`
-                logger.info('Initializing class.')
+            @file_logger.listen  # records content of example_method to log_file
+            def example_method(self):
+                logger.info('Performing function tasks.')
                 ...
-        
-        @file_logger.listen  # records content of `example_method` to `log_file`
-        def example_method(self):
-            logger.info('Performing function tasks.')
-            ...
-    ```
+    
     """
 
     def __init__(self, *args, **kwargs):
@@ -330,7 +320,7 @@ class file_logger:
     @staticmethod
     def listen(func):
         """
-        Decorator for recording logs to `log_file` during function operation, 
+        Decorator for recording logs to ``log_file`` during function operation, 
         closing the log file upon completion.
         """
         @functools.wraps(func)
@@ -343,7 +333,8 @@ class file_logger:
 
 
 class references():
-    """ A class for managing references used when running PBjam.
+    """ 
+    A class for managing references used when running PBjam.
 
     This is inherited by session and star. 
     
@@ -504,7 +495,8 @@ def get_priorpath():
 
 
 def get_percentiles(X, nsigma = 2, **kwargs):
-    """ Get percentiles of an distribution
+    """ 
+    Get percentiles of an distribution
     
     Compute the percentiles corresponding to sigma=1,2,3.. including the 
     median (50th), of an array.
@@ -534,7 +526,8 @@ def get_percentiles(X, nsigma = 2, **kwargs):
 
 
 def to_log10(x, xerr):
-    """ Transform to value to log10
+    """ 
+    Transform to value to log10
     
     Takes a value and related uncertainty and converts them to logscale.
     Approximate.
@@ -558,7 +551,8 @@ def to_log10(x, xerr):
     return [x, xerr]
 
 def normal(x, mu, sigma):
-    """ Evaluate logarithm of normal distribution (not normalized!!)
+    """ 
+    Evaluate logarithm of normal distribution (not normalized!!)
 
     Evaluates the logarithm of a normal distribution at x. 
 

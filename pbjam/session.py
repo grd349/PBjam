@@ -525,15 +525,15 @@ class session(file_logger):
         Directory to cache lightkurve downloads. Lightkurve will place the fits
         files in the default lightkurve cache path in your home directory.     
     session_ID : str, optional
-        Session identifier. Default is `'session'`. This is the name given to
-        the `log_file` for the session. Give this a unique name when running
-        multiple sessions with the same `path`, otherwise logs will be appended
+        Session identifier. Default is ``'session'``. This is the name given to
+        the ``log_file`` for the session. Give this a unique name when running
+        multiple sessions with the same ``path``, otherwise logs will be appended
         to the same file.
     logging_level : str, optional
         Level at which logs will be recorded to a log file called 
-        f'{session_ID}.log' at `path`. Default is 'DEBUG' (recommended). Choose
+        '{session_ID}.log' at ``path``. Default is 'DEBUG' (recommended). Choose
         from 'DEBUG', 'INFO', 'WARNING', 'ERROR' and 'CRITICAL'. All logs at
-        levels including and following `logging_level` will be recorded to the
+        levels including and following ``logging_level`` will be recorded to the
         file.
       
     Attributes
@@ -630,7 +630,7 @@ class session(file_logger):
                     logger.critical("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
     def __repr__(self):
-        """ Repr for the `session` class. """
+        """ Repr for the ``session`` class. """
         return f'<pbjam.session ID={self.session_ID}>'
    
     @file_logger.listen

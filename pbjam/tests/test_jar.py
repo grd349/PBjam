@@ -83,7 +83,7 @@ def test_get_percentiles():
     assert_array_equal(func(*inp), [0., 0., 1.])
 
 def test_file_logger():
-    """Tests subclassing `jam` to use the log file record decorator"""
+    """Tests subclassing ``jam`` to use the log file record decorator"""
     test_message = 'This should be logged in file.'
 
     class file_logger_test(file_logger):
@@ -110,7 +110,7 @@ def test_file_logger():
     os.remove(filename)
 
 def test_log_file():
-    """Test `file_logger` context manager."""
+    """Test ``file_logger`` context manager."""
     filename = 'test_file_logger.log'
     test_level = 'DEBUG'
     flog = log_file(filename, level=test_level)
@@ -134,7 +134,7 @@ def test_log_file():
     os.remove(filename)
 
 def test_debug_logger():
-    """Tests `log` decorator debug messages"""
+    """Tests ``log`` decorator debug messages"""
     test_message = 'Function in progress.'
     
     @debug(logger)
@@ -160,7 +160,7 @@ def test_debug_logger():
     os.remove(filename)
 
 def test_debug_info():
-    """Tests `debug` decorator with INFO level."""
+    """Tests ``debug`` decorator with INFO level."""
 
     test_message = 'Function in progress.'
     
