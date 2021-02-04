@@ -12,9 +12,13 @@ import pbjam as pb
 import pandas as pd
 import scipy.stats as scist
 from .plotting import plotting
-from .jar import normal
+from .jar import normal, debug
 from collections import OrderedDict
-import warnings
+import warnings, logging
+
+logger = logging.getLogger(__name__)
+debugger = debug(logger)
+
 
 class asymp_spec_model():
     """Class for spectrum model using asymptotic relation.
@@ -35,7 +39,7 @@ class asymp_spec_model():
         Number of radial order to fit.
          
     """
-
+    # @debugger
     def __init__(self, f, norders):
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
@@ -326,7 +330,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         science results!
 
     """
-
+    # @debugger
     def __init__(self, st, norders=None):
         
         self.pg = st.pg
@@ -354,7 +358,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.path = st.path
         
         st.asy_fit = self
-       
+
+    def __repr__(self):
+        return f'<pbjam.asymptotic_fit norders={self.norders}>'
+
+    @debugger 
     def __call__(self, method, developer_mode):
         """ Setup, run and parse the asymptotic relation fit.
 
@@ -380,7 +388,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.developer_mode = developer_mode
         
         if method not in ['emcee', 'cpnest']:
-            warnings.warn(f'Method {method} not found: Using method emcee')
+            logger.warning(f'Method {method} not found: Using default method emcee')
             method = 'emcee'
 
         if method == 'emcee':
@@ -399,7 +407,6 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self.acceptance = self.fit.acceptance
 
         return {'modeID': self.modeID, 'summary': self.summary}
-
 
     def prior(self, p):
         """ Calculates the log prior 
@@ -514,7 +521,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         return summary
        
-
+    @debugger
     def get_modeIDs(self, fit, norders):
         """ Set mode ID in a dataframe
 

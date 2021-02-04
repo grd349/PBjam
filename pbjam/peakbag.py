@@ -7,8 +7,14 @@ the outputs from asy_peakbag as priors.
 
 import numpy as np
 import pymc3 as pm
-import warnings
+import arviz as az
+import warnings, logging, inspect
 from .plotting import plotting
+from .jar import debug
+
+logger = logging.getLogger(__name__)
+debugger = debug(logger)
+
 
 class peakbag(plotting):
     """ Class for the final peakbagging.
@@ -62,7 +68,7 @@ class peakbag(plotting):
         See asy_peakbag asymptotic_fit for more details.
 
     """
-
+    # @debugger
     def __init__(self, starinst, init=True, path=None,  verbose=False):
 
         self.pg = starinst.pg
@@ -79,7 +85,10 @@ class peakbag(plotting):
         
         starinst.peakbag = self
 
+    def __repr__(self):
+        return '<pbjam.peakbag norders={self.norders}>'
 
+    @debugger
     def make_start(self):
         """ Set the starting model for peakbag
         
@@ -111,6 +120,7 @@ class peakbag(plotting):
 
         self.n = np.linspace(0.0, 1.0, len(self.start['l0']))[:, None]
 
+    @debugger
     def remove_outsiders(self, l0, l2):
         """ Drop outliers
 
@@ -130,6 +140,7 @@ class peakbag(plotting):
         sel = np.where(np.logical_and(l0 < self.f.max(), l0 > self.f.min()))
         return l0[sel], l2[sel]
 
+    @debugger
     def trim_ladder(self, lw_fac=10, extra=0.01, verbose=False):
         """ Turns mode frequencies into list of pairs
         
@@ -156,18 +167,23 @@ class peakbag(plotting):
         w = d02_lw + (extra * 10**self.asy_fit.summary.loc['dnu', 'mean'])
         bw = self.f[1] - self.f[0]
         w /= bw
-        if verbose:
-            print(f'w = {int(w)}')
-            print(f'bw = {bw}')
+        # if verbose:
+            # print(f'w = {int(w)}')
+            # print(f'bw = {bw}')
+        logger.debug(f'w = {int(w)}')
+        logger.debug(f'bw = {bw}')
+
         ladder_trim_f = np.zeros([len(self.start['l0']), int(w)])
         ladder_trim_s = np.zeros([len(self.start['l0']), int(w)])
         for idx, freq in enumerate(self.start['l0']):
             loc_mid_02 = np.argmin(np.abs(self.f - (freq - d02/2.0)))
             if loc_mid_02 == 0:
-                warnings.warn('Did not find optimal pair location')
-            if verbose:
-                print(f'loc_mid_02 = {loc_mid_02}')
-                print(f'w/2 = {int(w/2)}')
+                logger.warning('Did not find optimal pair location')
+            # if verbose:
+                # print(f'loc_mid_02 = {loc_mid_02}')
+                # print(f'w/2 = {int(w/2)}')
+                logger.debug(f'loc_mid_02 = {loc_mid_02}')
+                logger.debug(f'w/2 = {int(w/2)}')
             ladder_trim_f[idx, :] = \
                 self.f[loc_mid_02 - int(w/2): loc_mid_02 - int(w/2) + int(w)]
             ladder_trim_s[idx, :] = \
@@ -236,6 +252,7 @@ class peakbag(plotting):
         mod += self.lor(l2, width2, height2)
         return mod.T
 
+    @debugger
     def init_model(self, model_type):
         """ Initialize the pymc3 model for peakbag
         
@@ -267,7 +284,7 @@ class peakbag(plotting):
 
             if model_type != 'model_gp':
                 if model_type != 'simple': # defaults to simple if bad input
-                    warnings.warn('Model not defined - using simple model')
+                    logger.warning('Model not defined - using simple model')
                 width0 = pm.Lognormal('width0', mu=np.log(self.start['width0']),
                                   sigma=width_fac, shape=N)
                 width2 = pm.Lognormal('width2', mu=np.log(self.start['width2']),
@@ -277,7 +294,7 @@ class peakbag(plotting):
                 self.target_accept = 0.9
 
             elif model_type == 'model_gp':
-                warnings.warn('This model is developmental - use carefully')
+                logger.warning('This model is developmental - use carefully')
                 # Place a GP over the l=0 mode widths ...
                 m0 = pm.Normal('gradient0', 0, 10)
                 c0 = pm.Normal('intercept0', 0, 10)
@@ -339,7 +356,7 @@ class peakbag(plotting):
         
         self.summary.at[idx, 'log_ppr'] = log_ppr[idx]
 
-
+    @debugger
     def __call__(self, model_type='simple', tune=1500, nthreads=1, maxiter=4,
                      advi=False):
         """ Perform all the steps in peakbag.
@@ -370,9 +387,8 @@ class peakbag(plotting):
         # REMOVE THIS WHEN pymc3 v3.8 is a bit older. 
         try:
             rhatfunc = pm.diagnostics.gelman_rubin
-            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning)
         except:
-            rhatfunc = pm.stats.rhat
+            rhatfunc = az.rhat
         
 
         if advi:
@@ -388,24 +404,36 @@ class peakbag(plotting):
         else:
             Rhat_max = 10
             niter = 1
+
+            sample_kwargs = dict(tune=tune * niter, cores=nthreads,
+                                start=self.start,
+                                init=self.init_sampler,
+                                target_accept=self.target_accept,
+                                progressbar=False)
+
+            # To surpress future warning - check back in future
+            if 'return_inferencedata' in inspect.getfullargspec(pm.sample).kwonlyargs:
+                sample_kwargs['return_inferencedata'] = False
+
             while Rhat_max > 1.05:
                 if niter > maxiter:
-                    warnings.warn('Did not converge!')
+                    logger.warning('Did not converge!')
                     break
+                
+                sample_kwargs['tune'] = tune * niter
+                    
                 with self.pm_model:
-                    self.traces = pm.sample(tune=tune * niter, cores=nthreads,
-                                             start=self.start,
-                                             init=self.init_sampler,
-                                             target_accept=self.target_accept,
-                                             progressbar=False)
-                Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
-                niter += 1
+                    self.traces = pm.sample(**sample_kwargs)
+                    
+                    Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
+                    niter += 1
         
-        # REMOVE THIS WHEN pymc3 v3.8 is a bit older
-        try:
-            self.summary = pm.summary(self.traces)
-        except:
-            self.summary = pm.stats.summary(self.traces)
+        with self.pm_model:
+            # REMOVE THIS WHEN pymc3 v3.8 is a bit older
+            try:
+                self.summary = pm.summary(self.traces)
+            except:
+                self.summary = az.summary(self.traces)
         
         self.par_names = self.summary.index
         

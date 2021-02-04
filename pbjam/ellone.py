@@ -31,10 +31,15 @@ from scipy.special import gammaincc
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.utils import shuffle as skshuffle
 import hdbscan as Hdbscan
-import warnings
+import warnings, logging
 from .plotting import plotting
 import astropy.units as units
 import lightkurve as lk
+from .jar import debug
+
+logger = logging.getLogger(__name__)
+debugger = debug(logger)
+
 
 class ellone(plotting):
     """ Basic l=1 detection 
@@ -71,7 +76,7 @@ class ellone(plotting):
     instead, in which case the l=2,0 modes may be picked up instead of the l=1.
     
     """
-    
+
     def __init__(self, pbinst=None, f=None, s=None):
         
         if pbinst:
@@ -101,7 +106,8 @@ class ellone(plotting):
         self.hdblabels = None
         self.hdbX = None
         self.hdb_clusterN = None
-        
+    
+    @debugger
     def residual(self,):
         """ Compute the residual after dividing out l=2,0
         
@@ -129,7 +135,7 @@ class ellone(plotting):
             idx = (flad[0] <= self.f) & (self.f <= flad[-1])
             res[idx] /= mod[i,:]
         return res
-     
+    
     def binning(self, nbin):
         """ Simply mean-binning
         
@@ -177,7 +183,7 @@ class ellone(plotting):
         idx = k < reject
         return idx, k
     
-    
+    @debugger
     def H0_inconsistent(self, dnu, Nmax, rejection_level):
         """ Find bins inconsistent with noise
         
@@ -220,6 +226,7 @@ class ellone(plotting):
             
         return nu, N, pH0s
     
+    @debugger
     def clustering_preprocess(self, nu, N, limits = (0, 100000)):
         """ Preprocess the samples before clustering
         
@@ -268,6 +275,7 @@ class ellone(plotting):
         
         return max(x)-min(x)
     
+    @debugger
     def clustering(self, nu, N, Nmax, outlier_limit=0.5, cluster_prob=0.9):
         """ Perform HDBscan clustering
         
@@ -326,8 +334,7 @@ class ellone(plotting):
         
         return nus[1:], nstds[1:]
     
-
-    
+    @debugger
     def get_ell1(self, dnu):
         """ Estimate frequency of l=1 modes (p-modes)
         
@@ -376,10 +383,11 @@ class ellone(plotting):
             nul1s_std[i] = self.cluster_stds[nuidx][maxidx]
             
             if (nul0s[i] - nul1s[i])/d01 > 0.2:
-                warnings.warn('Cluster nu_l1 exceeds UP estimate by more than 20%')
+                logger.warning('Cluster nu_l1 exceeds UP estimate by more than 20%')
                 
         return nul1s, nul1s_std
 
+    @debugger
     def __call__(self, dnu, Nmax = 30, rejection_level = 0.1):
         """ Perform all the steps to estimate l=1 frequencies
         

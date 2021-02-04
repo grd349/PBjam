@@ -49,12 +49,15 @@ import lightkurve as lk
 import numpy as np
 import astropy.units as units
 import pandas as pd
-import os, pickle, warnings
+import os, pickle, warnings, logging
 from .star import star, _format_name
 from datetime import datetime
-from .jar import references
+from .jar import references, debug, file_logger
 
+logger = logging.getLogger(__name__)
+debugger = debug(logger)
 
+@debugger
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
 
@@ -90,7 +93,7 @@ def _organize_sess_dataframe(vardf):
     if 'spectrum' not in vardf.keys():
         _format_col(vardf, None, 'spectrum')
 
-
+@debugger
 def _organize_sess_input(**vardct):
     """ Takes input and organizes them in a dataframe.
 
@@ -131,6 +134,7 @@ def _organize_sess_input(**vardct):
             vardf[key+'_err'] = np.array(vardct[key]).reshape((-1, 2))[:, 1].flatten()
     return vardf
 
+@debugger
 def _sort_lc(lc):
     """ Sort a lightcurve in Lightkurve object.
 
@@ -154,6 +158,7 @@ def _sort_lc(lc):
     return lc
 
 
+@debugger
 def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     """ Get time series using LightKurve
     
@@ -197,7 +202,7 @@ def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     
     return lc
     
-
+@debugger
 def _arr_to_lk(x, y, name, typ):
     """ LightKurve object from input.
 
@@ -231,7 +236,7 @@ def _arr_to_lk(x, y, name, typ):
     else:
         raise KeyError("Don't modify anything but spectrum and timeseries cols")
 
-
+@debugger
 def _format_col(vardf, col, key):
     """ Add timeseries or spectrum column to dataframe based on input
 
@@ -298,8 +303,10 @@ def _format_col(vardf, col, key):
                              np.array([_arr_to_lk(x, y, vardf.loc[i, 'ID'], key)]))
         vardf[key] = temp
     else:
-        print('Unhandled exception')
+        # TODO: handle this exception
+        logger.critical('Unhandled exception.')
 
+@debugger
 def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
     """ Convert time series column in dataframe to lk.LightCurve object
 
@@ -358,7 +365,7 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
 
     return tsOut
 
-
+@debugger
 def _lk_to_pg(ID, tsIn, specIn):
     """ Convert spectrum column in dataframe to Lightkurve.periodgram objects
 
@@ -404,8 +411,7 @@ def _lk_to_pg(ID, tsIn, specIn):
     return specOut
 
 
-
-class session():
+class session(file_logger):
     """ Main class used to initiate peakbagging.
 
     Use this class to initialize a star class instance for one or more targets.
@@ -518,7 +524,18 @@ class session():
     download_dir : str, optional
         Directory to cache lightkurve downloads. Lightkurve will place the fits
         files in the default lightkurve cache path in your home directory.     
-           
+    session_ID : str, optional
+        Session identifier. Default is ``'session'``. This is the name given to
+        the ``log_file`` for the session. Give this a unique name when running
+        multiple sessions with the same ``path``, otherwise logs will be appended
+        to the same file.
+    logging_level : str, optional
+        Level at which logs will be recorded to a log file called 
+        '{session_ID}.log' at ``path``. Default is 'DEBUG' (recommended). Choose
+        from 'DEBUG', 'INFO', 'WARNING', 'ERROR' and 'CRITICAL'. All logs at
+        levels including and following ``logging_level`` will be recorded to the
+        file.
+      
     Attributes
     ----------
     stars : list
@@ -532,68 +549,92 @@ class session():
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
                  cadence=None, campaign=None, sector=None, month=None, 
-                 quarter=None, mission=None, path=None, download_dir=None):
-
-        self.stars = []
-        self.references = references()
-        self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
-                                 'lightkurve'])
+                 quarter=None, mission=None, path=None, download_dir=None, 
+                 session_ID=None, logging_level='DEBUG'):
         
-        if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
-            if isinstance(dictlike, str):
-                vardf = pd.read_csv(dictlike)
+        self.session_ID = session_ID or 'session'
+        logfilename = os.path.join(path or os.getcwd(), f'{self.session_ID}.log')
+        super(session, self).__init__(filename=logfilename, level=logging_level, loggername='pbjam.session')
+        
+        with self.log_file:
+            # Records everything in context to the log file
+            logger.info('Starting session.')
+            self.stars = []
+            self.references = references()
+            self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
+                                    'lightkurve'])
+
+            if isinstance(dictlike, (dict, np.recarray, pd.DataFrame, str)):
+                if isinstance(dictlike, str):
+                    vardf = pd.read_csv(dictlike)
+                else:
+                    try:
+                        vardf = pd.DataFrame.from_records(dictlike)
+                    except TypeError:
+                        # TODO: Shouldn't this raise an exception?
+                        logger.critical('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+                        
+
+                if any([ID, numax, dnu, teff, bp_rp]):
+                    logger.warning('Dictlike provided as input, ignoring other input fit parameters.')
+
+                _organize_sess_dataframe(vardf)
+
+            elif ID:
+                vardf = _organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
+                                            bp_rp=bp_rp, cadence=cadence,
+                                            campaign=campaign, sector=sector,
+                                            month=month, quarter=quarter, 
+                                            mission=mission)
+                
+                _format_col(vardf, timeseries, 'timeseries')
+                _format_col(vardf, spectrum, 'spectrum')
             else:
-                try:
-                    vardf = pd.DataFrame.from_records(dictlike)
-                except TypeError:
-                    print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
+                raise TypeError('session.__init__ requires either ID or dictlike')
 
-            if any([ID, numax, dnu, teff, bp_rp]):
-                warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
+            with pd.option_context(
+                'display.max_rows', None, 'display.max_columns', None, 
+                'expand_frame_repr', False, 'max_colwidth', 15
+            ):   
+                logger.debug('Input DataFrame:\n' + str(vardf))
 
-            _organize_sess_dataframe(vardf)
+            for i in vardf.index:
+                
+                lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
+                                                        'sector', 'campaign',
+                                                        'quarter', 'mission']}
+        
+                vardf.at[i, 'timeseries'] = _lc_to_lk(vardf.loc[i, 'ID'], 
+                                                    vardf.loc[i, 'timeseries'], 
+                                                    vardf.loc[i, 'spectrum'],
+                                                    download_dir, 
+                                                    use_cached,
+                                                    lkwargs)
+                
+                vardf.at[i,'spectrum'] = _lk_to_pg(vardf.loc[i,'ID'], 
+                                                vardf.loc[i, 'timeseries'], 
+                                                vardf.loc[i, 'spectrum'])
+                
+                logger.debug(f'Adding star with ID {repr(vardf.loc[i, "ID"])}')
+                self.stars.append(star(ID=vardf.loc[i, 'ID'],
+                                    pg=vardf.loc[i, 'spectrum'],
+                                    numax=vardf.loc[i, ['numax', 'numax_err']].values,
+                                    dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
+                                    teff=vardf.loc[i, ['teff', 'teff_err']].values,
+                                    bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
+                                    path=path))
+                
+            for i, st in enumerate(self.stars):
+                if st.numax[0] > st.f[-1]:
+                    # TODO: should this raise an exception? We know this will break later on.
+                    logger.critical("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
 
-        elif ID:
-            vardf = _organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                         bp_rp=bp_rp, cadence=cadence,
-                                         campaign=campaign, sector=sector,
-                                         month=month, quarter=quarter, 
-                                         mission=mission)
-            
-            _format_col(vardf, timeseries, 'timeseries')
-            _format_col(vardf, spectrum, 'spectrum')
-        else:
-            raise TypeError('session.__init__ requires either ID or dictlike')
-
-        for i in vardf.index:
-            
-            lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
-                                                    'sector', 'campaign',
-                                                    'quarter', 'mission']}
-    
-            vardf.at[i, 'timeseries'] = _lc_to_lk(vardf.loc[i, 'ID'], 
-                                                  vardf.loc[i, 'timeseries'], 
-                                                  vardf.loc[i, 'spectrum'],
-                                                  download_dir, 
-                                                  use_cached,
-                                                  lkwargs)
-            
-            vardf.at[i,'spectrum'] = _lk_to_pg(vardf.loc[i,'ID'], 
-                                               vardf.loc[i, 'timeseries'], 
-                                               vardf.loc[i, 'spectrum'])
-            
-            self.stars.append(star(ID=vardf.loc[i, 'ID'],
-                                   pg=vardf.loc[i, 'spectrum'],
-                                   numax=vardf.loc[i, ['numax', 'numax_err']].values,
-                                   dnu=vardf.loc[i, ['dnu', 'dnu_err']].values,
-                                   teff=vardf.loc[i, ['teff', 'teff_err']].values,
-                                   bp_rp=vardf.loc[i, ['bp_rp', 'bp_rp_err']].values,
-                                   path=path))
-            
-        for i, st in enumerate(self.stars):
-            if st.numax[0] > st.f[-1]:
-                warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
-
+    def __repr__(self):
+        """ Repr for the ``session`` class. """
+        return f'<pbjam.session ID={self.session_ID}>'
+   
+    @file_logger.listen
+    @debugger
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
@@ -633,15 +674,14 @@ class session():
             the prior sample. Important: This is not good practice for getting 
             science results!               
         """
-        
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
             try:
                 st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                   model_type=self.pb_model_type, make_plots=make_plots, 
-                   store_chains=store_chains, nthreads=nthreads, 
-                   asy_sampling=asy_sampling, developer_mode=developer_mode)
+                model_type=self.pb_model_type, make_plots=make_plots, 
+                store_chains=store_chains, nthreads=nthreads, 
+                asy_sampling=asy_sampling, developer_mode=developer_mode)
                 
                 self.references._reflist += st.references._reflist
                 
@@ -649,10 +689,14 @@ class session():
             
             # Crude way to send error messages that occur in star up to Session 
             # without ending the session. Is there a better way?
+            # Yes: logging using `logger.exception` - logs full traceback!
             except Exception as ex:
-                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                 print(message)
-            
+                # message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+                # print(message)
+                logger.exception(f"{st} failed due to the following exception, continuing to the next star.")
+
+        
+@debugger           
 def _load_fits(files, mission):
     """ Read fitsfiles into a Lightkurve object
     
@@ -680,6 +724,7 @@ def _load_fits(files, mission):
         lc = lccol.PDCSAP_FLUX.stitch()
     return lc
 
+@debugger
 def _set_mission(ID, lkwargs):
     """ Set mission keyword in lkwargs.
     
@@ -705,7 +750,8 @@ def _set_mission(ID, lkwargs):
             lkwargs['mission'] = 'TESS'
         else:
             lkwargs['mission'] = ('Kepler', 'K2', 'TESS')
-            
+
+@debugger         
 def _search_and_dump(ID, lkwargs, search_cache):
     """ Get lightkurve search result online.
     
@@ -745,6 +791,7 @@ def _search_and_dump(ID, lkwargs, search_cache):
     
     return resultDict   
 
+@debugger
 def _getMASTidentifier(ID, lkwargs):
     """ return KIC/TIC/EPIC for given ID.
     
@@ -789,6 +836,7 @@ def _getMASTidentifier(ID, lkwargs):
         ID = ID.replace(' ', '')
     return ID
 
+@debugger
 def _perform_search(ID, lkwargs, use_cached=True, download_dir=None, 
                     cache_expire=30):
     """ Find filenames related to target
@@ -844,6 +892,7 @@ def _perform_search(ID, lkwargs, use_cached=True, download_dir=None,
         
     return resultDict['result']
 
+@debugger
 def _check_lc_cache(search, mission, download_dir=None):
     """ Query cache directory or download fits files.
     
@@ -886,6 +935,7 @@ def _check_lc_cache(search, mission, download_dir=None):
 
     return files_in_cache
 
+@debugger
 def _clean_lc(lc):
     """ Perform Lightkurve operations on object.
 

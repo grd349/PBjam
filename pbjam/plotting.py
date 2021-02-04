@@ -13,7 +13,13 @@ import numpy as np
 import astropy.units as u
 import pandas as pd
 
-class plotting():
+from .jar import debug
+
+logger = logging.getLogger(__name__)  # For module-level logging
+debugger = debug(logger)
+
+
+class plotting:
     """ Class inherited by PBjam modules to plot results
     
     This is used to standardize the plots produced at various steps of the 
@@ -24,9 +30,9 @@ class plotting():
     called from. 
     
     """
-    
-    def __init__(self):
-        pass
+
+    def __init__(self, *args, **kwargs):
+        super(plotting, self).__init__(*args, **kwargs)
 
     def _save_my_fig(self, fig, figtype, path, ID):
         """ Save the figure object
@@ -52,7 +58,8 @@ class plotting():
         if path and ID:
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
-
+    
+    @debugger
     def plot_echelle(self, pg=None, path=None, ID=None, savefig=False):
         """ Make echelle plot
 
@@ -153,6 +160,7 @@ class plotting():
             
         return fig
 
+    @debugger
     def plot_corner(self, path=None, ID=None, savefig=False):
         """ Make corner plot of result.
         
@@ -176,7 +184,7 @@ class plotting():
         """
 
         if not hasattr(self, 'samples'):
-            warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
+            logger.error(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
             return None
 
         fig = corner.corner(self.samples, labels=self.par_names,
@@ -188,6 +196,7 @@ class plotting():
 
         return fig
 
+    @debugger
     def plot_spectrum(self, pg=None, path=None, ID=None, savefig=False):
         """ Plot the power spectrum
 
@@ -421,8 +430,7 @@ class plotting():
     
         return crnr,  crnr.get_axes()
         
-
-
+    @debugger
     def plot_prior(self, path=None, ID=None, savefig=False):
         """ Corner of result in relation to prior sample.
         
@@ -474,6 +482,7 @@ class plotting():
 
         return crnr
     
+    @debugger
     def plot_start(self):
         """ Plot starting point for peakbag
         

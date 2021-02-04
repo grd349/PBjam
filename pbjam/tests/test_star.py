@@ -41,6 +41,7 @@ def test_star_init():
     pbt.assert_hasattributes(st, atts)
 
     # cleanup
+    os.remove(st.log_file._filename)  # Remove log file
     os.rmdir(st.path)
     
 def test_outpath():
@@ -68,6 +69,7 @@ def test_outpath():
     assert(os.path.isdir(os.path.dirname(func(*inp))))
     
     # cleanup
+    os.remove(st.log_file._filename)
     os.rmdir(st.path)    
     
 def test_set_outpath():
@@ -88,6 +90,7 @@ def test_set_outpath():
     
     # Input tests and clean up
     assert(os.path.isdir(st.path))
+    os.remove(st.log_file._filename)
     os.rmdir(st.path)
     
     inp = [pth]
@@ -118,6 +121,7 @@ def test_run_kde():
     pbt.does_it_run(func, None)
     
     # cleanup
+    os.remove(st.log_file._filename)
     os.rmdir(st.path)
 
 def test_format_name():

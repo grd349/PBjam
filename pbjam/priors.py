@@ -12,7 +12,12 @@ from .mcmc import mcmc
 import warnings
 from .plotting import plotting
 import statsmodels.api as sm
-from .jar import get_priorpath, to_log10, normal
+from .jar import get_priorpath, to_log10, normal, debug
+import logging
+
+logger = logging.getLogger(__name__)
+debugger = debug(logger)
+
 
 class kde(plotting):
     """ A class to produce prior for asy_peakbag and initial starting location.
@@ -52,7 +57,7 @@ class kde(plotting):
         to compute the KDE. Default is to use pbjam/data/prior_data.csv 
 
     """
-
+    # @debugger
     def __init__(self, starinst=None, prior_file=None):
 
         if starinst:
@@ -74,6 +79,10 @@ class kde(plotting):
 
         self.verbose = False
 
+    def __repr__(self):
+        return f'<pbjam.kde prior_file={self.prior_file}>'
+
+    @debugger
     def select_prior_data(self, numax=None, KDEsize = 100):
         """ Selects useful prior data based on proximity to estimated numax.
 
@@ -149,9 +158,9 @@ class kde(plotting):
             idx = np.abs(pdata.numax.values - numax[0]) < nsigma * numax[1]
 
             if not flag_warn:
-                warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
-                f'Trying to expand the range to include ~{KDEsize} stars.')
-                flag_warn = True
+                logger.warning(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
+                               f'Trying to expand the range to include ~{KDEsize} stars.')
+                flag_warn = True  # So this message only appears once
 
             if nsigma >= KDEsize:
                 break
@@ -161,16 +170,18 @@ class kde(plotting):
         ntgts = len(idx[idx==1])
         
         if ntgts == 0:
-            raise ValueError('No prior targets found within range of target. This might mean no prior samples exist for stars like this, consider increasing the uncertainty on your numax input.')
+            raise ValueError('No prior targets found within range of target. This might mean no prior samples exist' + \
+                             ' for stars like this, consider increasing the uncertainty on your numax input.')
 
         elif ntgts < KDEsize:
-            warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
+            msg = f'Sample size for estimating prior KDE is {ntgts}, less than the desired {KDEsize} - ' + \
+                   'the prior may not comprise similar stars. If your uncertainty on numax is < 1 per cent, it may be too small.'
+            logger.warning(msg)
             KDEsize = ntgts
         
         return pdata.sample(KDEsize, weights=idx, replace=False)
 
-
-
+    @debugger
     def make_kde(self, bw_fac=1.0):
         """ Takes the prior data and constructs a KDE function
 
@@ -203,25 +214,28 @@ class kde(plotting):
 
         self.select_prior_data(self._log_obs['numax'])
 
-        if self.verbose:
-                print(f'Selected data set length {len(self.prior_data)}')
+        # if self.verbose:
+                # print(f'Selected data set length {len(self.prior_data)}')
+        logger.debug(f'Selected prior dataset length: {len(self.prior_data)}')
 
         if bw_fac != 1:
+            logger.info('Selecting stars for KDE with user-specified bandwidth.')
             from statsmodels.nonparametric.bandwidths import select_bandwidth
             bw = select_bandwidth(self.prior_data[self.par_names].values,
                                   bw = 'scott', kernel=None) 
             bw *= bw_fac
             
         else:
-            if self.verbose:
-                print('Selecting sensible stars for kde')
-                print(f'Full data set length {len(self.prior_data)}')
+            # if self.verbose:
+                # print('Selecting sensible stars for kde')
+                # print(f'Full data set length {len(self.prior_data)}')
+            
+            logger.info('Automatically selecting stars for KDE')
             bw = 'cv_ml'
 
         self.kde = sm.nonparametric.KDEMultivariate(
                             data=self.prior_data[self.par_names].values,
                             var_type='c'*len(self.par_names), bw=bw)
-
 
 
     def prior(self, p):
@@ -282,6 +296,7 @@ class kde(plotting):
 
         return lnlike
 
+    @debugger
     def kde_predict(self, n):
         """ Predict the l=0 mode frequencies from the KDE samples.
 
@@ -314,7 +329,7 @@ class kde(plotting):
         
         return freq.mean(axis=1), freq.std(axis=1)
 
-
+    @debugger
     def kde_sampler(self, nwalkers=50):
         """ Samples the posterior distribution with the KDE prior
 
@@ -340,8 +355,9 @@ class kde(plotting):
 
         """
 
-        if self.verbose:
-            print('Running KDE sampler')
+        # if self.verbose:
+            # print('Running KDE sampler')
+        logger.info('Running KDE sampler')
 
         x0 = [self._log_obs['dnu'][0],  # log10 dnu
               self._log_obs['numax'][0],  # log10 numax

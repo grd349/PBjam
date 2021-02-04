@@ -27,8 +27,14 @@ from astroquery.mast import Catalogs
 from astroquery.simbad import Simbad
 import astropy.units as units
 
+import logging
+from .jar import debug, file_logger
 
-class star(plotting):
+logger = logging.getLogger(__name__)  # For module-level logging
+debugger = debug(logger)
+
+
+class star(plotting, file_logger):
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
@@ -68,6 +74,11 @@ class star(plotting):
     prior_file : str, optional
         Path to the csv file containing the prior data. Default is
         pbjam/data/prior_data.csv
+    logging_level : str, optional
+        Level at which logs will be recorded to a log file called '{ID}.log' 
+        at ``path``. Default is 'DEBUG' (recommended). Choose from 'DEBUG', 
+        'INFO', 'WARNING', 'ERROR' and 'CRITICAL'. All logs at levels including
+        and following ``logging_level`` will be recorded to the file.
 
     Attributes
     ----------
@@ -79,37 +90,43 @@ class star(plotting):
     """
 
     def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
-                 path=None, prior_file=None):
-
-        self.ID = ID
-
-        if numax[0] < 25:
-            warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
-        self.numax = numax
-        self.dnu = dnu
-
-        self.references = references()
-        self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
+                 path=None, prior_file=None, logging_level='DEBUG'):
         
-        teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
-        self.teff = teff
-        self.bp_rp = bp_rp
-
-        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
-        self.f = self.pg.frequency.value
-        self.s = self.pg.power.value
-
-        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
-                     'bp_rp': self.bp_rp}
-        self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
-
+        self.ID = ID
         self._set_outpath(path)
+        logfilename = os.path.join(self.path, f'{self.ID}.log')
+        super(star, self).__init__(filename=logfilename, level=logging_level)
 
-        if prior_file is None:
-            self.prior_file = get_priorpath()
-        else:
-            self.prior_file = prior_file
+        with self.log_file:
+            logger.info(f"Initializing star with ID {repr(self.ID)}.")
+
+            if numax[0] < 25:
+                logger.warning('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
+            self.numax = numax
+            self.dnu = dnu
+
+            self.references = references()
+            self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
             
+            teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
+            self.teff = teff
+            self.bp_rp = bp_rp
+
+            self.pg = pg.flatten()  # in case user supplies unormalized spectrum
+            self.f = self.pg.frequency.value
+            self.s = self.pg.power.value
+
+            self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
+                        'bp_rp': self.bp_rp}
+            self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
+
+            if prior_file is None:
+                self.prior_file = get_priorpath()
+            else:
+                self.prior_file = prior_file
+
+    def __repr__(self):
+        return f'<pbjam.star ID={repr(self.ID)}>'
 
     def _checkTeffBpRp(self, teff, bp_rp):
         """ Set the Teff and/or bp_rp values
@@ -218,11 +235,11 @@ class star(plotting):
             try:
                 os.makedirs(self.path)
             except Exception as ex:
-                message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
-                print(message)
+                # message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+                logger.exception(f"Could not create directory for star {self.ID}.")
 
-
-
+    @file_logger.listen
+    @debugger
     def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
         """ Run all steps involving KDE.
 
@@ -242,7 +259,7 @@ class star(plotting):
 
         """
 
-        print('Starting KDE estimation')
+        logger.info('Starting KDE estimation')
         
         # Init
         kde(self)
@@ -265,8 +282,9 @@ class star(plotting):
         if store_chains:
             kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
             kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
-            
 
+    @file_logger.listen
+    @debugger
     def run_asy_peakbag(self, norders, make_plots=False,
                         store_chains=False, method='emcee', 
                         developer_mode=False):
@@ -295,7 +313,7 @@ class star(plotting):
             
         """
 
-        print('Starting asymptotic peakbagging')
+        logger.info('Starting asymptotic peakbagging')
         # Init
         asymptotic_fit(self, norders=norders)
 
@@ -320,8 +338,9 @@ class star(plotting):
         if store_chains:
             asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
             asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
-
     
+    @file_logger.listen
+    @debugger
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
@@ -345,7 +364,7 @@ class star(plotting):
 
         """
 
-        print('Starting peakbagging')
+        logger.info('Starting peakbagging')
         # Init
         peakbag(self, self.asy_fit)
 
@@ -366,8 +385,8 @@ class star(plotting):
         if store_chains:
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
             peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
-            
 
+    @file_logger.listen
     def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
                  asy_sampling='emcee', developer_mode=False):
@@ -404,18 +423,19 @@ class star(plotting):
             the prior sample. Important: This is not good practice for getting 
             science results!    
         """
-
         self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
 
         self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains, method=asy_sampling,
-                             developer_mode=developer_mode)
+                            store_chains=store_chains, method=asy_sampling,
+                            developer_mode=developer_mode)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
-                         make_plots=make_plots, store_chains=store_chains)
+                        make_plots=make_plots, store_chains=store_chains)
 
         self.references._addRef('pandas')
 
+
+@debugger
 def _querySimbad(ID):
     """ Query any ID at Simbad for Gaia DR2 source ID.
     
@@ -442,12 +462,12 @@ def _querySimbad(ID):
         Gaia DR2 source ID. Returns None if no Gaia ID is found.   
     """
     
-    print('Querying Simbad for Gaia ID')
+    logger.debug('Querying Simbad for Gaia ID.')
 
     try:
         job = Simbad.query_objectids(ID)
     except:
-        print(f'Unable to resolve {ID} with Simbad')
+        logger.debug(f'Unable to resolve {ID} with Simbad.')
         return None
     
     for line in job['ID']:
@@ -455,6 +475,7 @@ def _querySimbad(ID):
             return line.replace('Gaia DR2 ', '')
     return None
 
+@debugger
 def _queryTIC(ID, radius = 20):
     """ Query TIC for bp-rp value
     
@@ -481,7 +502,7 @@ def _queryTIC(ID, radius = 20):
         Gaia bp-rp value from the TIC.   
     """
     
-    print('Querying TIC for Gaia bp-rp values.')
+    logger.debug('Querying TIC for Gaia bp-rp values.')
     job = Catalogs.query_object(objectname=ID, catalog='TIC', objType='STAR', 
                                 radius = radius*units.arcsec)
 
@@ -491,6 +512,7 @@ def _queryTIC(ID, radius = 20):
     else:
         return None
 
+@debugger
 def _queryMAST(ID):
     """ Query any ID at MAST
     
@@ -512,7 +534,7 @@ def _queryMAST(ID):
     
     """
 
-    print(f'Querying MAST for the {ID} coordinates.')
+    logger.debug(f'Querying MAST for the {ID} coordinates.')
     mastobs = AsqMastObsCl()
 
     try:            
@@ -520,6 +542,7 @@ def _queryMAST(ID):
     except:
         return None
 
+@debugger
 def _queryGaia(ID=None, coords=None, radius=2):
     """ Query Gaia archive for bp-rp
     
@@ -543,32 +566,35 @@ def _queryGaia(ID=None, coords=None, radius=2):
     -------
     bp_rp : float
         Gaia bp-rp value of the requested target from the Gaia archive.  
-    """
-    
+    """    
     from astroquery.gaia import Gaia
+    logger.debug('Querying Gaia archive for bp-rp values.')
 
     if ID is not None:
-        print('Querying Gaia archive for bp-rp values by target ID.')
+        logger.info('Querying Gaia archive for bp-rp values by target ID.')
         adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
         try:
             job = Gaia.launch_job(adql_query).get_results()
         except:
+            logger.debug(f'Unable to query Gaia archive using ID={ID}.')
             return None
         return float(job['bp_rp'][0])
     
     elif coords is not None:
-        print('Querying Gaia archive for bp-rp values by target coordinates.')
+        logger.info('Querying Gaia archive for bp-rp values by target coordinates.')
         ra = coords.ra.value
         dec = coords.dec.value
         adql_query = f"SELECT DISTANCE(POINT('ICRS', {ra}, {dec}), POINT('ICRS', ra, dec)) AS dist, * FROM gaiaedr3.gaia_source WHERE 1=CONTAINS(  POINT('ICRS', {ra}, {dec}),  CIRCLE('ICRS', ra, dec,{radius})) ORDER BY dist ASC"
         try:
             job = Gaia.launch_job(adql_query).get_results()
         except:
+            logger.debug('Unable to query Gaia archive using coords={coords}.')
             return None
         return float(job['bp_rp'][0])
     else:
         raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
 
+@debugger
 def _format_name(ID):
     """ Format input ID
     
@@ -613,6 +639,7 @@ def _format_name(ID):
                 return fname 
     return ID
 
+@debugger
 def get_bp_rp(ID):
     """ Search online for bp_rp values based on ID.
        
@@ -653,7 +680,9 @@ def get_bp_rp(ID):
             try:
                 coords = _queryMAST(ID)
                 bp_rp = _queryGaia(coords=coords)
-            except:
-                print(f'Unable to retrieve a bp_rp value for {ID}.')
+            except Exception as exc:
+                # Note that logger.exception gives the full Traceback or just set exc_info
+                logger.debug(f'Exception: {exc}.', exc_info=1)
+                logger.warning(f'Unable to retrieve a bp_rp value for {ID}.')
                 bp_rp = np.nan
     return bp_rp
