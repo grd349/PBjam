@@ -539,7 +539,7 @@ class session():
                  cadence=None):
         
         if cadence is not None:
-            raise ValueError('Cadence is no longer a valid argument for LightKurve, use exptime instead. Long cadence is 1800, and short is 60.')
+            raise ValueError('Cadence is no longer a valid argument for LightKurve, use exptime instead. Kepler long cadence is 1800, and short is 60.')
         
         self.stars = []
         self.references = references()
@@ -680,11 +680,11 @@ def _load_fits(files, mission):
     if mission in ['Kepler', 'K2']:
         lcs = [lk.lightcurvefile.KeplerLightCurveFile(file) for file in files]
         lcCol = lk.collections.LightCurveCollection(lcs)
-        lc = lcCol.PDCSAP_FLUX.stitch()
+        lc = lcCol.stitch()
     elif mission in ['TESS']:
         lcs = [lk.lightcurvefile.TessLightCurveFile(file) for file in files]
         lcCol = lk.collections.LightCurveCollection(lcs)
-        lc = lcCol.PDCSAP_FLUX.stitch()
+        lc = lcCol.stitch()
     return lc
 
 def _set_mission(ID, lkwargs):
