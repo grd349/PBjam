@@ -328,7 +328,7 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
 
     tinyoffset = 1  # to avoid cases LC median = 0 (lk doesn't like it) This may no longer be necessary.
     
-        
+
     if isinstance(tsIn, str):
         try:
             t, d = np.genfromtxt(tsIn, usecols=(0, 1), delimiter = ',').T 
@@ -342,8 +342,9 @@ def _lc_to_lk(ID, tsIn, specIn, download_dir, use_cached, lkwargs):
         
         tsOut = lk.LightCurve(time=t, flux=d, targetid=ID)
         
-    elif not tsIn:
+    elif tsIn is None:
         if specIn:
+            tsOut = None
             pass
         else:
             tsOut = _query_lightkurve(ID, download_dir, use_cached, lkwargs)
@@ -637,21 +638,21 @@ class session():
         self.pb_model_type = model_type
 
         for i, st in enumerate(self.stars):
-            try:
-                st(bw_fac=bw_fac, tune=tune, norders=norders, 
-                   model_type=self.pb_model_type, make_plots=make_plots, 
-                   store_chains=store_chains, nthreads=nthreads, 
-                   asy_sampling=asy_sampling, developer_mode=developer_mode)
-                
-                self.references._reflist += st.references._reflist
-                
-                self.stars[i] = None
+            #try:
+            st(bw_fac=bw_fac, tune=tune, norders=norders, 
+               model_type=self.pb_model_type, make_plots=make_plots, 
+               store_chains=store_chains, nthreads=nthreads, 
+               asy_sampling=asy_sampling, developer_mode=developer_mode)
+            
+            self.references._reflist += st.references._reflist
+            
+            self.stars[i] = None
             
             # Crude way to send error messages that occur in star up to Session 
             # without ending the session. Is there a better way?
-            except Exception as ex:
-                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
-                 print(message)
+#            except Exception as ex:
+#                 message = "Star {0} produced an exception of type {1} occurred. Arguments:\n{2!r}".format(st.ID, type(ex).__name__, ex.args)
+#                 print(message)
             
 def _load_fits(files, mission):
     """ Read fitsfiles into a Lightkurve object
