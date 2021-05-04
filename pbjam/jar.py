@@ -156,6 +156,24 @@ class references():
         if bibfile is not None:
             with open(bibfile, mode='w') as file_object: #robustify the filepath so it goes to the right place all the time.
                 print(out, file=file_object)
+
+def isvalid(number):
+    """ Checks if number is finite.
+    
+    Parameters
+    ----------
+    number : object
+    
+    Returns
+    -------
+    x : bool
+        Whether number a real float or not.
+    
+    """
+    if (number is None) or isinstance(number, str) or not np.isfinite(number):
+        return False
+    else:
+        return True
                             
 def get_priorpath():
     """ Get default prior path name
