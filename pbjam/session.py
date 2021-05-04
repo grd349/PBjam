@@ -535,8 +535,12 @@ class session():
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
                  exptime=None, campaign=None, sector=None, month=None, 
-                 quarter=None, mission=None, path=None, download_dir=None):
-
+                 quarter=None, mission=None, path=None, download_dir=None,
+                 cadence=None):
+        
+        if cadence is not None:
+            raise ValueError('Cadence is no longer a valid argument for LightKurve, use exptime instead. Long cadence is 1800, and short is 60.')
+        
         self.stars = []
         self.references = references()
         self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
