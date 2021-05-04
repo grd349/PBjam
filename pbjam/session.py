@@ -46,6 +46,7 @@ the cadence to `short' for main-sequence targets.
 """
 
 import lightkurve as lk
+from lightkurve.periodogram import Periodogram
 import numpy as np
 import astropy.units as units
 import pandas as pd
@@ -73,7 +74,7 @@ def _organize_sess_dataframe(vardf):
         raise(KeyError, 'Some of the required keywords were missing.')
 
     N = len(vardf)
-    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter', 'mission']
+    singles = ['exptime', 'campaign', 'sector', 'month', 'quarter', 'mission']
     doubles = ['teff', 'bp_rp']
 
     for key in singles:
@@ -113,7 +114,7 @@ def _organize_sess_input(**vardct):
     vardf = pd.DataFrame({'ID': np.array(vardct['ID']).reshape((-1, 1)).flatten()})
 
     N = len(vardf)
-    singles = ['cadence', 'campaign', 'sector', 'month', 'quarter', 'mission']
+    singles = ['exptime', 'campaign', 'sector', 'month', 'quarter', 'mission']
     doubles = ['numax', 'dnu', 'teff', 'bp_rp']
 
     for key in singles:
@@ -187,10 +188,10 @@ def _query_lightkurve(ID, download_dir, use_cached, lkwargs):
     
     ID = _getMASTidentifier(ID, lkwargs)
     
-    search = _perform_search(ID, lkwargs)
+    search = _perform_search(ID, lkwargs, use_cached)
     
     fitsFiles = _check_lc_cache(search, lkwargs['mission'])
-
+    
     lc = _load_fits(fitsFiles, lkwargs['mission'])
     
     lc = _clean_lc(lc)
@@ -225,9 +226,9 @@ def _arr_to_lk(x, y, name, typ):
     if typ == 'timeseries':
         return lk.LightCurve(time=x, flux=y, targetid=name)
     elif typ == 'spectrum':
-        return lk.periodogram.Periodogram(x*units.microhertz,
-                                          units.Quantity(y, None),
-                                          targetid=name)
+        return Periodogram(x*units.microhertz,
+                           units.Quantity(y, None),
+                           targetid=name)
     else:
         raise KeyError("Don't modify anything but spectrum and timeseries cols")
 
@@ -452,7 +453,7 @@ class session():
 
     >>> jam_sess = pbjam.session(ID =  '4448777',  numax = [220.0, 3.0],
                                  dnu = [16.97, 0.01], teff = [4750, 100],
-                                 bp_rp = [1.34, 0.01], cadence = 'short')
+                                 bp_rp = [1.34, 0.01], exptime = 1800)
     >>> jam_sess()
 
     Peakbagging run for multiple targets:
@@ -494,10 +495,11 @@ class session():
     use_cached : bool, optional
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
-    cadence : string, optional
-        Argument for lightkurve to download correct data type. Can be 'short'
-        or 'long'. 'long' is default setting, so if you're looking at main
-        sequence stars, make sure to manually set 'short'.    
+    exptime : string, optional
+        Exposure time of the observations in seconds. Argument for lightkurve to
+        download correct data type. Can be 1800 or Kepler 'long' cadence. 1800 
+        is default setting, so if you're looking at main sequence stars, make 
+        sure to manually set 60.    
     campaign : int, optional
         Argument for lightkurve when requesting K2 data.
     sector : int, optional
@@ -532,7 +534,7 @@ class session():
 
     def __init__(self, ID=None, numax=None, dnu=None, teff=None, bp_rp=None,
                  timeseries=None, spectrum=None, dictlike=None, use_cached=False, 
-                 cadence=None, campaign=None, sector=None, month=None, 
+                 exptime=None, campaign=None, sector=None, month=None, 
                  quarter=None, mission=None, path=None, download_dir=None):
 
         self.stars = []
@@ -556,7 +558,7 @@ class session():
 
         elif ID:
             vardf = _organize_sess_input(ID=ID, numax=numax, dnu=dnu, teff=teff,
-                                         bp_rp=bp_rp, cadence=cadence,
+                                         bp_rp=bp_rp, exptime=exptime,
                                          campaign=campaign, sector=sector,
                                          month=month, quarter=quarter, 
                                          mission=mission)
@@ -568,7 +570,7 @@ class session():
 
         for i in vardf.index:
             
-            lkwargs = {x: vardf.loc[i, x] for x in ['cadence', 'month', 
+            lkwargs = {x: vardf.loc[i, x] for x in ['exptime', 'month', 
                                                     'sector', 'campaign',
                                                     'quarter', 'mission']}
     
@@ -673,12 +675,12 @@ def _load_fits(files, mission):
     """
     if mission in ['Kepler', 'K2']:
         lcs = [lk.lightcurvefile.KeplerLightCurveFile(file) for file in files]
-        lccol = lk.collections.LightCurveFileCollection(lcs)
-        lc = lccol.PDCSAP_FLUX.stitch()
+        lcCol = lk.collections.LightCurveCollection(lcs)
+        lc = lcCol.PDCSAP_FLUX.stitch()
     elif mission in ['TESS']:
         lcs = [lk.lightcurvefile.TessLightCurveFile(file) for file in files]
-        lccol = lk.collections.LightCurveFileCollection(lcs)
-        lc = lccol.PDCSAP_FLUX.stitch()
+        lcCol = lk.collections.LightCurveCollection(lcs)
+        lc = lcCol.PDCSAP_FLUX.stitch()
     return lc
 
 def _set_mission(ID, lkwargs):
@@ -734,13 +736,13 @@ def _search_and_dump(ID, lkwargs, search_cache):
     current_date = datetime.now().isoformat()
     store_date = current_date[:current_date.index('T')].replace('-','')
        
-    search = lk.search_lightcurvefile(ID, cadence=lkwargs['cadence'], 
-                                      mission=lkwargs['mission'])
+    search = lk.search_lightcurve(ID, exptime=lkwargs['exptime'], 
+                                  mission=lkwargs['mission'])
 
     resultDict = {'result': search,
                   'timestamp': store_date}
     
-    fname = os.path.join(*[search_cache, f"{ID}_{lkwargs['cadence']}.lksearchresult"])
+    fname = os.path.join(*[search_cache, f"{ID}_{lkwargs['exptime']}.lksearchresult"])
     
     pickle.dump(resultDict, open(fname, "wb"))
     
@@ -759,7 +761,7 @@ def _getMASTidentifier(ID, lkwargs):
         Target ID
     lkwargs : dict
         Dictionary with arguments to be passed to lightkurve. In this case
-        mission and cadence.
+        mission and exptime.
     
     Returns
     -------
@@ -769,7 +771,7 @@ def _getMASTidentifier(ID, lkwargs):
     
     if not any([x in ID for x in ['KIC', 'TIC', 'EPIC']]):
         
-        search = lk.search_lightcurvefile(ID, cadence=lkwargs['cadence'], mission=lkwargs['mission'])
+        search = lk.search_lightcurve(ID, exptime=lkwargs['exptime'], mission=lkwargs['mission'])
 
         if len(search) == 0:
             raise ValueError(f'No results for {ID} found on MAST')
@@ -790,7 +792,7 @@ def _getMASTidentifier(ID, lkwargs):
         ID = ID.replace(' ', '')
     return ID
 
-def _perform_search(ID, lkwargs, use_cached=True, download_dir=None, 
+def _perform_search(ID, lkwargs, use_cached, download_dir=None, 
                     cache_expire=30):
     """ Find filenames related to target
     
@@ -803,7 +805,7 @@ def _perform_search(ID, lkwargs, use_cached=True, download_dir=None,
         Target ID (must be KIC, TIC, or ktwo prefixed)
     lkwargs : dict
         Dictionary with arguments to be passed to lightkurve. In this case
-        mission and cadence.
+        mission and exptime.
     use_cached : bool, optional
         Whether or not to use the cached time series. Default is True.
     download_dir : str, optional.
@@ -828,7 +830,7 @@ def _perform_search(ID, lkwargs, use_cached=True, download_dir=None,
     if not os.path.isdir(cachepath):
         os.makedirs(cachepath)
 
-    filepath = os.path.join(*[cachepath, f"{ID}_{lkwargs['cadence']}.lksearchresult"])
+    filepath = os.path.join(*[cachepath, f"{ID}_{lkwargs['exptime']}.lksearchresult"])
     
     if os.path.exists(filepath) and use_cached:  
         
