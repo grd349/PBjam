@@ -54,6 +54,7 @@ import os, pickle, warnings
 from .star import star, _format_name
 from datetime import datetime
 from .jar import references
+import warnings
 
 
 def _organize_sess_dataframe(vardf):
@@ -495,6 +496,9 @@ class session():
     use_cached : bool, optional
         Flag for using cached data. If fitting the same targets multiple times,
         use to this to not download the data every time.
+    cadence : string, deprecated
+        This was used to specify the observation cadence for downloading via
+        LightKurve. This was changed to exptime in Lightkurve v. 2
     exptime : string, optional
         Exposure time of the observations in seconds. Argument for lightkurve to
         download correct data type. Can be 1800 or Kepler 'long' cadence. 1800 
@@ -541,6 +545,9 @@ class session():
         if cadence is not None:
             raise ValueError('Cadence is no longer a valid argument for LightKurve, use exptime instead. Kepler long cadence is 1800, and short is 60.')
         
+        if (exptime is None) and (timeseries is None) and (spectrum is None):
+            warnings.warn('If the target may have been observed at more than one cadence, it is recommended that you set exptime')
+            
         self.stars = []
         self.references = references()
         self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
