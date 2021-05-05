@@ -348,7 +348,7 @@ class star(plotting):
 
         print('Starting peakbagging')
         # Init
-        peakbag(self, self.asy_fit)
+        peakbag(self)
 
         # Call
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
