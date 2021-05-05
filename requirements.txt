@@ -8,7 +8,6 @@ lightkurve>=2.0.0
 astropy>=3.2.1
 corner
 pymc3
-hdbscan
 scikit-learn
 nbsphinx
 cpnest>=0.9.9
