@@ -54,8 +54,6 @@ import os, pickle, warnings
 from .star import star, _format_name
 from datetime import datetime
 from .jar import references
-import warnings
-
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -544,10 +542,7 @@ class session():
         
         if cadence is not None:
             raise ValueError('Cadence is no longer a valid argument for LightKurve, use exptime instead. Kepler long cadence is 1800, and short is 60.')
-        
-        if (exptime is None) and (timeseries is None) and (spectrum is None):
-            warnings.warn('If the target may have been observed at more than one cadence, it is recommended that you set exptime')
-            
+                   
         self.stars = []
         self.references = references()
         self.references._addRef(['python', 'pandas', 'numpy', 'astropy', 
@@ -579,6 +574,9 @@ class session():
         else:
             raise TypeError('session.__init__ requires either ID or dictlike')
 
+        if any(np.isnan(vardf['exptime'])) and any((vardf['timeseries'])) and any(vardf['spectrum']):
+            warnings.warn('If the target may have been observed at more than one cadence, it is recommended that you set exptime')
+ 
         for i in vardf.index:
             
             lkwargs = {x: vardf.loc[i, x] for x in ['exptime', 'month', 
@@ -723,7 +721,7 @@ def _set_mission(ID, lkwargs):
 def _search_and_dump(ID, lkwargs, search_cache):
     """ Get lightkurve search result online.
     
-    Uses the lightkurve search_lightcurvefile to find the list of available
+    Uses the lightkurve search_lightcurve to find the list of available
     data for a target ID. 
     
     Stores the result in the ~/.lightkurve-cache/searchResult directory as a 
