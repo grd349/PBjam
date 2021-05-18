@@ -103,17 +103,6 @@ class plotting():
                 freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
             dnu = np.median(np.diff(freqs['l0']['nu']))
 
-        elif isinstance(self, pbjam.ellone): #type(self) == pbjam.ellone:
-            numax = 10**self.pbinst.asy_fit.summary.loc['numax', '50th']
-            for l in [0, 2]:
-                ell = 'l'+str(l)
-                freqs[ell]['nu'] = self.pbinst.summary.filter(like=ell, axis=0).loc[:, 'mean']
-                freqs[ell]['err'] = self.pbinst.summary.filter(like=ell, axis=0).loc[:, 'sd']
-            freqs['l1']['nu'] = self.nu_l1
-            freqs['l1']['err'] = self.nu_l1_std
-
-            dnu = np.median(np.diff(freqs['l0']['nu']))
-
         else:
             raise ValueError('Unrecognized class type')
 
@@ -285,28 +274,6 @@ class plotting():
             dnu = 10**self.asy_fit.summary.loc['dnu', '50th']
             xlim = [min(f[self.asy_fit.sel])-dnu,
                     max(f[self.asy_fit.sel])+dnu]
-
-        elif isinstance(self, pbjam.ellone): #type(self) == pbjam.ellone:
-            n = self.pbinst.ladder_s.shape[0]
-            par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
-                         'back']
-            for i in range(n):
-                for j in range(-50, 0):
-                    if (i == 0) and (j==-1):
-                        mlabel='Model'
-                        l1label = r'$\nu_{l=1}$'
-                    else:
-                        mlabel=None
-                    mod = self.pbinst.model(*[self.pbinst.samples[x][j] for x in par_names])
-                    ax.plot(self.pbinst.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
-                            label=mlabel)
-
-                ax.axvline(self.nu_l1, color = 'k', alpha = 0.5, label = l1label)
-
-            dnu = 10**self.pbinst.asy_fit.summary.loc['dnu', '50th']
-
-            xlim = [min(f[self.pbinst.asy_fit.sel])-dnu,
-                    max(f[self.pbinst.asy_fit.sel])+dnu]
 
         else:
             raise ValueError('Unrecognized class type')

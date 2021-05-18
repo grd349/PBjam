@@ -14,11 +14,11 @@ only use the `star' class for more granular control of the peakbagging process.
 
 """
 
-import os, warnings, re, time, numbers
+import os, warnings, re, time
 from .asy_peakbag import asymptotic_fit
 from .priors import kde
 from .peakbag import peakbag
-from .jar import get_priorpath, to_log10, references
+from .jar import get_priorpath, to_log10, references, isvalid
 from .plotting import plotting
 import pandas as pd
 import numpy as np
@@ -140,17 +140,18 @@ class star(plotting):
             The checked bp_rp value. List of the form [bp_rp, bp_rp_error]. 
         """
         
-        if not isinstance(bp_rp[0], numbers.Real):
-            bp_rp = [get_bp_rp(self.ID), 0.1]
-          
-        teff_good = isinstance(teff[0], numbers.Real)
-        bprp_good = isinstance(bp_rp[0], numbers.Real)
-        
-        if not teff_good and not bprp_good:
+        if isvalid(bp_rp[0]) is False:
+            try:
+                bp_rp = [get_bp_rp(self.ID), 0.1]
+            except:
+                bp_rp = [np.nan, np.nan]
+            
+            
+        if not isvalid(teff[0]) and not isvalid(bp_rp[0]):
             raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
-        elif not teff_good:
+        elif not isvalid(teff[0]):
             teff = [4889, 1500] # these are rough esimates from the prior
-        elif not bprp_good:
+        elif not np.isfinite(bp_rp[0]):
             bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
             
         self.references._addRef(['Evans2018'])
@@ -347,7 +348,7 @@ class star(plotting):
 
         print('Starting peakbagging')
         # Init
-        peakbag(self, self.asy_fit)
+        peakbag(self)
 
         # Call
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
