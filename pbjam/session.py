@@ -286,7 +286,8 @@ def _format_col(vardf, col, key):
     elif col.ndim == 2:
         x = np.array(col[0, :], dtype=float)
         y = np.array(col[1, :], dtype=float)
-        vardf[key] = [_arr_to_lk(x, y, vardf['ID'][0], key)]
+        vardf[key] = object()
+        vardf.at[0, key] = _arr_to_lk(x, y, vardf['ID'][0], key)
 
     # If dim = 3, it's a list of arrays or tuples
     elif col.ndim == 3:
