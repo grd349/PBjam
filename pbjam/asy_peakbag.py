@@ -550,11 +550,11 @@ class asymptotic_fit(plotting, asymp_spec_model):
 
         modeID = pd.DataFrame({'ell': ells, 'nu_med': np.zeros(len(ells)), 'nu_mad': np.zeros(len(ells))})
 
-        modeID.at[::2, 'nu_med'] = nus_med[1, :]
-        modeID.at[1::2, 'nu_med'] = nus_med[0, :]
+        modeID.nu_med.values[::2] = nus_med[1, :]
+        modeID.nu_med.values[1::2] = nus_med[0, :]
         
-        modeID.at[::2, 'nu_mad'] = nus_mad[1, :]
-        modeID.at[1::2, 'nu_mad'] = nus_mad[0, :]
+        modeID.nu_mad.values[::2] = nus_mad[1, :]
+        modeID.nu_mad.values[1::2] = nus_mad[0, :]
 
         return modeID
 
