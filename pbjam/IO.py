@@ -1,3 +1,4 @@
+from . import PACKAGEDIR
 from lightkurve.periodogram import Periodogram
 import jax.numpy as jnp
 import numpy as np
@@ -802,7 +803,82 @@ class timeSeries():
 
         return lcCol
 
+
+def _get_outpath(self, fname):
+        """  Get basepath or make full file path name.
+        
+        Convenience function for either setting the base path name for the star,
+        or if given fname as input, will append this to the basepath name to 
+        create a full path to the file in question. 
+
+        Parameters
+        ----------
+        fname : str, optional
+            If not None, will append this to the pathname of the star. Use this
+            to store files such as plots or tables.
+        
+        Returns
+        -------
+        path : str
+            If fname is None, path is the path name of the star. Otherwise it is
+            the full file path name for the file in question.
+        """
     
+        if fname is None:
+            return self.path
+        elif isinstance(fname, str):
+            path = os.path.join(*[self.path, fname])
+        else:
+            raise ValueError(f'Unrecognized input {fname}.')
+        
+        if not os.path.isdir(self.path):
+            raise IOError(f'You are trying to access {self.path} which is a directory that does not exist.')
+        else:
+            return path
+
+def _set_outpath(self, path):
+    """ Sets the path attribute for star
+
+    If path is a string it is assumed to be a path name, if not the
+    current working directory will be used.
+
+    Attempts to create an output directory for all the results that PBjam
+    produces. A directory is created when a star class instance is
+    initialized, so a session might create multiple directories.
+
+    Parameters
+    ----------
+    path : str
+        Directory to place the star subdirectory.
+
+    """
+
+    if isinstance(path, str):
+        # If path is str, presume user wants to put stuff somewhere specific.
+        self.path = os.path.join(*[path, f'{self.ID}'])
+    else:
+        # Otherwise just create a subdir in cwd.
+        self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
+
+    # Check if self.path exists, if not try to create it
+    if not os.path.isdir(self.path):
+        try:
+            os.makedirs(self.path)
+        except Exception as ex:
+            message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+            print(message)
+
+def get_priorpath():
+    """ Get default prior path name
+    
+    Returns
+    -------
+    prior_file : str
+        Default path to the prior in the package directory structure.
+    """
+    
+    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+
 
 def clean_lc(lc):
     """ Perform Lightkurve operations on object.
