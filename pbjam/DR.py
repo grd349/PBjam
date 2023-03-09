@@ -88,17 +88,14 @@ class PCA():
             KDEsize, but may be less if the prior is sparse around the target.
         """
 
-        pdata = pd.read_csv(fname)
+        pdata = pd.read_csv(fname, usecols=self.pcalabels)
 
         pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
-
-        # TODO: replace this to just dropna in the columns that are relevant.
-        # Must include at least some of numax Teff and bp_rp.
+ 
         pdata.dropna(axis=0, how="any", inplace=True)
 
         pdata.reset_index(inplace=True)
 
-        #pdata = self.getPriorSample(pdata, nsamples)
         pdata = self.findNearest(pdata, nsamples)
 
         ndim = len(self.pcalabels)
@@ -135,7 +132,11 @@ class PCA():
         else:
             keys = self.obs.keys()
  
-        deltas = np.array([pdata[key].values - self.obs[key][0] for key in keys])
+        mu = np.mean(pdata[keys].values, axis=0)
+    
+        std = np.std(pdata[keys].values, axis=0)
+        
+        deltas = np.array([(pdata[key].values - mu[i])/std[i] - (self.obs[key][0]-mu[i])/std[i] for i, key in enumerate(keys)])
 
         sortidx = np.argsort( np.sqrt(np.sum(deltas**2, axis=0)))
          
