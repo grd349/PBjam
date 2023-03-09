@@ -4,7 +4,7 @@ import numpy as np
 from astropy.timeseries import LombScargle
 from astropy import units
 from scipy.integrate import simps
-from jar import scalingRelations
+from pbjam.jar import scalingRelations
 import os, pickle, re
 import lightkurve as lk
 from datetime import datetime
@@ -12,7 +12,7 @@ from datetime import datetime
 class psd(scalingRelations):
     
     def __init__(self, ID, lk_kwargs={}, time=None, flux=None, flux_err=None, 
-                 downloadDir='./', fit_mean=False, timeConversion=86400,):
+                 downloadDir=None, fit_mean=False, timeConversion=86400,):
     
         """ Asteroseismology wrapper for Astropy Lomb-Scargle
 
@@ -87,7 +87,7 @@ class psd(scalingRelations):
 
         self.downloadDir = downloadDir
 
-        self.TS = timeSeries(ID, lk_kwargs)
+        self.TS = timeSeries(ID, self.downloadDir, lk_kwargs)
 
         if (time is None) and (flux is None):
             
@@ -372,7 +372,7 @@ class psd(scalingRelations):
 
 class timeSeries():
 
-    def __init__(self, ID, lk_kwargs={}):
+    def __init__(self, ID, downloadDir=None, lk_kwargs={}):
         
 
         self.constants = {'kplr_lc_exptime': 1800, 
@@ -389,15 +389,17 @@ class timeSeries():
 
         self.ID = self._set_ID(ID)
 
+        self.downloadDir = downloadDir
+
         self.lk_kwargs = lk_kwargs
 
-        self._set_mission(lk_kwargs)
+        self._set_mission()
 
-        self._set_author(lk_kwargs)
+        self._set_author()
 
         self._set_exptime(lk_kwargs)
  
-    def _set_mission(self, lk_kwargs):
+    def _set_mission(self, ):
         """ Set mission keyword.
         
         If no mission is selected will attempt to figure it out based on any
@@ -413,26 +415,26 @@ class timeSeries():
             
         """
 
-        if 'mission' in lk_kwargs:
+        if not 'mission' in self.lk_kwargs:
             if ('kic' in self.ID.lower()):
-                lk_kwargs['mission'] = 'Kepler'
+                self.lk_kwargs['mission'] = 'Kepler'
             elif ('epic' in self.ID.lower()) :
-                lk_kwargs['mission'] = 'K2'
+                self.lk_kwargs['mission'] = 'K2'
             elif ('tic' in self.ID.lower()):
-                lk_kwargs['mission'] = 'TESS'
+                self.lk_kwargs['mission'] = 'TESS'
             else:
-                lk_kwargs['mission'] = ('Kepler', 'K2', 'TESS')
+                self.lk_kwargs['mission'] = ('Kepler', 'K2', 'TESS')
 
-    def _set_author(self, lk_kwargs):
-        if 'author' in lk_kwargs.keys():
-            if 'KIC' in self.ID:
-                lk_kwargs['author'] = 'Kepler'
-            if 'TIC' in self.ID:
-                lk_kwargs['author'] = 'SPOC'
+    def _set_author(self,):
+        if not 'author' in self.lk_kwargs.keys():
+            if ('KIC' in self.ID) or (self.lk_kwargs['mission']=='Kepler'):
+                self.lk_kwargs['author'] = 'Kepler'
+            if ('TIC' in self.ID) or (self.lk_kwargs['mission']=='TESS'):
+                self.lk_kwargs['author'] = 'SPOC'
 
     def _set_exptime(self, lk_kwargs):
 
-        if 'exptime' in lk_kwargs.keys():
+        if not 'exptime' in lk_kwargs.keys():
             if ('KIC' in self.ID) and (lk_kwargs['exptime'] < 1500):
                 lk_kwargs['exptime'] = self.constants['kplr_sc_exptime']
                 
@@ -491,7 +493,7 @@ class timeSeries():
                     return fname 
         return ID
  
-    def _getTS(self,):
+    def _getTS(self, use_cached=True):
         """Get time series with lightkurve
 
         Parameters
@@ -508,20 +510,20 @@ class timeSeries():
         """
  
         # TODO this should be set depending on numax.
-        wlen = int(1.5e6/self.lk_kwargs['exptime'])-1
+        wlen = int(4e6/self.lk_kwargs['exptime'])-1
         if wlen % 2 == 0:
             wlen += 1
         
         try:
-            LCcol = self.search_lightcurve(self.ID, self.downloadDir, use_cached=True, cache_expire=10*365)  
+            LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=10*365)  
         except:
-            LCcol = self.search_lightcurve(self.ID, self.downloadDir, use_cached=True, cache_expire=0)
+            LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=0)
               
         lc = LCcol.stitch().normalize().remove_nans().remove_outliers().flatten(window_length=wlen)
 
-        t, flux = jnp.array(lc.time.value), jnp.array(lc.flux.value)
+        self.time, self.flux = jnp.array(lc.time.value), jnp.array(lc.flux.value)
  
-        return t, flux
+        return self.time, self.flux
 
     def load_fits(self, files):
         """ Read fitsfiles into a Lightkurve object
@@ -558,7 +560,7 @@ class timeSeries():
         Uses the lightkurve search_lightcurve to find the list of available data 
         for a target ID. 
         
-        Stores the result in the ~/.lightkurve-cache/searchResult directory as a 
+        Stores the result in the ~/.lightkurve/cache/searchResult directory as a 
         dictionary with the search result object and a timestamp.
         
         Parameters
@@ -616,13 +618,21 @@ class timeSeries():
         
         if not any([x in self.ID for x in ['KIC', 'TIC', 'EPIC']]):
             
-            search = lk.search_lightcurvefile(ID, 
-                                              exptime=self.lk_kwargs['exptime'], 
-                                              mission=self.lk_kwargs['mission'], 
-                                              author=self.lk_kwargs['author'])
+            search = lk.search_lightcurve(self.ID)
+
+            match = (self.lk_kwargs['exptime'] in search.exptime.value) & \
+                    (self.lk_kwargs['author'] in search.author) & \
+                    any([self.lk_kwargs['mission'] in x for x in search.mission])
 
             if len(search) == 0:
-                raise ValueError(f'No results for {ID} found on MAST')
+                raise ValueError(f'No results for {self.ID} found on MAST')
+            elif not match:
+                print(search)
+                print()
+                raise ValueError(f'Unable to find anything for {self.ID} matching criteria in lk_kwargs.')
+            #elif not (self.lk_kwargs['exptime'] in search.exptime.value):
+
+
 
             maxFreqName = max(set(list(search.table['target_name'])), key = list(search.table['target_name']).count)
 
@@ -635,18 +645,17 @@ class timeSeries():
 
             temp_id = prefix + maxFreqName
 
-            ID = self.format_name(temp_id).replace(' ', '')
+            ID = self._set_ID(temp_id).replace(' ', '')
 
             self.lk_kwargs['mission'] = maxFreqObsCol
 
         else:
 
-            ID = ID.replace(' ', '')
+            ID = self.ID.replace(' ', '')
 
         return ID
 
-    def check_sr_cache(self, ID, use_cached=True, download_dir=None, 
-                       cache_expire=30):
+    def check_sr_cache(self, ID, use_cached, cache_expire=30):
         """ check search results cache
         
         Preferentially accesses cached search results, otherwise searches the 
@@ -658,7 +667,7 @@ class timeSeries():
             Whether or not to use the cached time series. Default is True.
         download_dir : str, optional.
             Directory for fits file and search results caches. Default is 
-            ~/.lightkurve-cache. 
+            ~/.lightkurve/cache. 
         cache_expire : int, optional.
             Expiration time for the search cache results. Files older than this 
             will be. The default is 30 days.
@@ -670,11 +679,13 @@ class timeSeries():
         """
         
         # Set default lightkurve cache directory if nothing else is given
-        if download_dir is None:
-            download_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve-cache'])
-        
+        if self.downloadDir is None:
+            downloadDir = os.path.join(*[os.path.expanduser('~'), '.lightkurve', 'cache'])
+        else:
+            downloadDir = self.downloadDir
+
         # Make the search cache dir if it doesn't exist
-        cachepath = os.path.join(*[download_dir, 'searchResults', self.lk_kwargs['mission']])
+        cachepath = os.path.join(*[downloadDir, 'searchResults', self.lk_kwargs['mission']])
         if not os.path.isdir(cachepath):
             os.makedirs(cachepath)
 
@@ -691,16 +702,16 @@ class timeSeries():
             # If file is saved more than cache_expire days ago, a new search is performed
             if ddate.days > cache_expire:   
                 print(f'Last search was performed more than {cache_expire} days ago, checking for new data.')
-                resultDict = self.search_and_dump(ID, self.lk_kwargs, cachepath)
+                resultDict = self.search_and_dump(ID, cachepath)
             else:
                 print('Using cached search result.')    
         else:
             print('No cached search results, searching MAST')
-            resultDict = self.search_and_dump(ID, self.lk_kwargs, cachepath)
+            resultDict = self.search_and_dump(ID, cachepath)
             
         return resultDict['result']
 
-    def check_fits_cache(self, search, download_dir=None):
+    def check_fits_cache(self, search):
         """ Query cache directory or download fits files.
         
         Searches the Lightkurve cache directory set by download_dir for fits files
@@ -718,7 +729,7 @@ class timeSeries():
             Which mission to download the data from.
         download_dir : str, optional.
             Top level of the Lightkurve cache directory. default is 
-            ~/.lightkurve-cache
+            ~/.lightkurve/cache
             
         Returns
         -------
@@ -726,8 +737,8 @@ class timeSeries():
             List of path names to the fits files in the cache directory
         """
             
-        if download_dir is None:
-            download_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve-cache'])
+        if self.downloadDir is None:
+            download_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve', 'cache'])
         
         files_in_cache = []
 
@@ -753,7 +764,7 @@ class timeSeries():
 
         return files_in_cache
 
-    def search_lightcurve(self, download_dir, use_cached, cache_expire=30):
+    def search_lightcurve(self, use_cached, cache_expire=30):
         """ Get time series using LightKurve
         
         Performs a search for available fits files on MAST and then downloads them
@@ -783,14 +794,15 @@ class timeSeries():
         
         ID = self.getMASTidentifier()
         
-        search = self.check_sr_cache(ID, self.lk_kwargs, use_cached, download_dir=download_dir, cache_expire=cache_expire)
+        search = self.check_sr_cache(ID, use_cached=use_cached, cache_expire=cache_expire)
         
-        fitsFiles = self.check_fits_cache(search, self.lk_kwargs['mission'], download_dir=download_dir)
+        fitsFiles = self.check_fits_cache(search)
 
-        lcCol = self.load_fits(fitsFiles, self.lk_kwargs['mission'])
+        lcCol = self.load_fits(fitsFiles)
 
         return lcCol
 
+    
 
 def clean_lc(lc):
     """ Perform Lightkurve operations on object.
