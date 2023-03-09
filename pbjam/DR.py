@@ -8,25 +8,26 @@ from functools import partial
 jax.config.update('jax_enable_x64', True)
 
 class PCA():
-    def __init__(self, obs, pcalabels, fname, N, weights=None, weight_args={}):
+    def __init__(self, obs, pcalabels, fname, nsamples, weights=None, 
+                 weight_args={}):
         """ Class for handling PCA-based dimensionality reduction
 
         Parameters
         ----------
         obs : list
-            List of observational parameters, e.g., numax, dnu, teff, bp_rp. To be
-            used to find local covariance. Must be in the same units as in the 
-            prior sample file.
+            List of observational parameters, e.g., numax, dnu, teff, bp_rp. To 
+            be used to find local covariance. Must be in the same units as in 
+            the prior sample file.
         pcalabels : list
             List of labels to be used for the PCA. Should probably correspond to
             columns in csv file or you won't get very far.
         fname : str
             Full pathname of the csv file containing the prior sample
-        N : int
+        nsamples : int
             Number of neightbors to use.
         weights : object, optional
-            Array corresponding to N or callable function to get a list of weights
-            to apply to the data sample, by default None
+            Array corresponding to N or callable function to get a list of 
+            weights to apply to the data sample, by default None
         weight_args : dict, optional
             Dictionary of arguments if weights is a callable function, empty by 
             default.
@@ -36,16 +37,18 @@ class PCA():
 
         self.obs = obs
 
-        if N > 5000:
+        if nsamples > 5000:
             warnings.warn('The requested PCA sample is very large, you may run in to memory issues.')
-            
-        self.data_F, self.dims_F, self.nsamples = self.getPCAsample(fname, N)
+
+        self.data_F, self.dims_F, self.nsamples = self.getPCAsample(fname, 
+                                                                    nsamples)
 
         self.setWeights(weights, weight_args)
 
         self.mu  = jnp.average(self.data_F, axis=0, weights=self.weights)
 
-        self.var = jnp.average((self.data_F-self.mu)**2, axis=0, weights=self.weights)
+        self.var = jnp.average((self.data_F-self.mu)**2, axis=0, 
+                               weights=self.weights)
 
         self.std = jnp.sqrt(self.var)
 
@@ -57,7 +60,8 @@ class PCA():
         ----------
         w : np.array
             Array of weights of length equal to number of samples.
-
+        kwargs : dict
+            Dictionary of kwargs for the weight function.
         """
          
         if w is None:
@@ -160,13 +164,13 @@ class PCA():
 
         Returns
         -------
-        scaled : jax.DeviceArray
+        scaledData : jax.DeviceArray
             The sample of data scaled.
         """
 
-        scaled = (data - self.mu) / self.std
+        scaledData = (data - self.mu) / self.std
 
-        return scaled
+        return scaledData
 
     @partial(jax.jit, static_argnums=(0,))
     def invert_scale(self, scaledData):
@@ -200,7 +204,7 @@ class PCA():
 
         Returns
         -------
-        jax device array
+        Y : jax device array
             The coordinates of the model space samples in the latent space.
         """
         _X = self.scale(X)
@@ -220,9 +224,10 @@ class PCA():
 
         Returns
         -------
-        jax device array
+        X : jax device array
             The coordinates of the latent space samples in the model space.
         """
+
         _X = jnp.dot(Y, self.eigvectors[:, self.sortidx].T)
 
         return self.invert_scale(_X).real
