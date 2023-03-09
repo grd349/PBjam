@@ -5,9 +5,176 @@ This module contains general purpose functions that are used throughout PBjam.
 """
 
 from . import PACKAGEDIR
-import os
+import os, jax
 import numpy as np
 from scipy.special import erf
+from functools import partial
+import scipy.special as sc
+import scipy.integrate as si
+
+def getCurvePercentiles(x, y, cdf = None, percentiles=None):
+    """ Compute percentiles of value along a curve
+
+    Computes the cumulative sum of y, normalized to unit maximum. The returned
+    percentiles values are where the cumulative sum exceeds the requested
+    percentiles.
+
+    Parameters
+    ----------
+    x : array
+        Support for y.
+    y : array
+        Array
+    percentiles: array
+
+    Returns
+    -------
+    percs : array
+        Values of y at the requested percentiles.
+    """
+    if percentiles is None:
+        percentiles = [0.5 - sc.erf(n/np.sqrt(2))/2 for n in range(-2, 3)][::-1]
+
+    y /= np.trapz(y, x)
+  
+    if cdf is None:
+        cdf = si.cumtrapz(y, x, initial=0)
+        cdf /= cdf.max()  
+         
+    percs = np.zeros(len(percentiles))
+     
+    for i, p in enumerate(percentiles):
+        
+        q = x[cdf >= p]
+          
+        percs[i] = q[0]
+
+    return np.sort(percs)
+
+class jaxInterp1D():
+ 
+    def __init__(self, xp, fp, left=None, right=None, period=None):
+        """ Replacement for scipy.interpolate.interp1d in jax
+    
+        Wraps the jax.numpy.interp in a callable class instance.
+
+        Parameters
+        ----------
+        xp : jax device array 
+            The x-coordinates of the data points, must be increasing if argument
+             period is not specified. Otherwise, xp is internally sorted after 
+             normalizing the periodic boundaries with xp = xp % period.
+
+        fp : jax device array 
+            The y-coordinates of the data points, same length as xp.
+
+        left : float 
+            Value to return for x < xp[0], default is fp[0].
+
+        right: float 
+            Value to return for x > xp[-1], default is fp[-1].
+
+        period : float 
+            A period for the x-coordinates. This parameter allows the proper 
+            interpolation of angular x-coordinates. Parameters left and right 
+            are ignored if period is specified.
+        """
+
+        self.xp = xp
+
+        self.fp = fp
+        
+        self.left = left
+        
+        self.right = right
+        
+        self.period = period
+
+
+
+class scalingRelations():
+    """ Container for scaling relations
+
+    This is a helper class which contains methods for the various scaling
+    relations.
+
+    """
+
+    def __init_(self):
+        pass
+
+    @partial(jax.jit, static_argnums=(0,))
+    def envWidth(self, numax):
+        """ Scaling relation for the envelope width
+
+        Computest he full width at half maximum of the p-mode envelope based
+        on numax and Teff (optional).
+
+        Parameters
+        ----------
+        numax : float
+            Frequency of maximum power of the p-mode envelope.
+        Teff : float, optional
+            Effective surface temperature of the star.
+        Teff0 : float, optional
+            Solar effective temperature in K. Default is 5777 K.
+
+        Returns
+        -------
+        width : float
+            Envelope width in muHz
+        """
+
+        width = 0.66*numax**0.88 # Mosser et al. 201??
+
+        return width
+
+    @partial(jax.jit, static_argnums=(0,))
+    def nuHarveyGran(self, numax):
+        """ Harvey frequency for granulation term
+
+        Scaling relation for the characteristic frequency of the granulation
+        noise. Based on Kallinger et al. (2014).
+
+        Parameters
+        ----------
+        numax : float
+            Frequency of maximum power of the p-mode envelope.
+
+        Returns
+        -------
+        nu : float
+            Characteristic frequency of Harvey law for granulation.
+
+        """
+
+        nu = 0.317 * numax**0.970
+
+        return nu
+
+    @partial(jax.jit, static_argnums=(0,))
+    def nuHarveyEnv(self, numax):
+        """ Harvey frequency for envelope term
+
+        Scaling relation for the characteristic frequency of the envelope
+        noise. Based on Kallinger et al. (2014).
+
+        Parameters
+        ----------
+        numax : float
+            Frequency of maximum power of the p-mode envelope.
+
+        Returns
+        -------
+        nu : float
+            Characteristic frequency of Harvey law for envelope.
+
+        """
+
+        nu = 0.948 * numax**0.992
+
+        return nu
+
 
 class references():
     """ A class for managing references used when running PBjam.

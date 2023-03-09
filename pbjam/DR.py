@@ -1,8 +1,8 @@
 import numpy as np
 import statsmodels.api as sm
 import pandas as pd
-import jax
-from msap import utils
+import jax, warnings
+import jar
 import jax.numpy as jnp
 from functools import partial
 jax.config.update('jax_enable_x64', True)
@@ -15,7 +15,8 @@ class PCA():
         ----------
         obs : list
             List of observational parameters, e.g., numax, dnu, teff, bp_rp. To be
-            used to find local covariance.
+            used to find local covariance. Must be in the same units as in the 
+            prior sample file.
         pcalabels : list
             List of labels to be used for the PCA. Should probably correspond to
             columns in csv file or you won't get very far.
@@ -35,6 +36,9 @@ class PCA():
 
         self.obs = obs
 
+        if N > 5000:
+            warnings.warn('The requested PCA sample is very large, you may run in to memory issues.')
+            
         self.data_F, self.dims_F, self.nsamples = self.getPCAsample(fname, N)
 
         self.setWeights(weights, weight_args)
@@ -66,28 +70,29 @@ class PCA():
             self.weights = w
 
     def getPCAsample(self, fname, nsamples):
-        """
-        Retrieve the prior samples from a provided csv file.
+        """_summary_
 
         Parameters
         ----------
         fname : str
             File name where prior samples are stored.
-        KDEsize : int
-            Number of samples from the prior to draw around the target in
-            terms of numax.
+        nsamples : int
+            Number of samples from the prior to draw around the target in terms 
+            of numax.
 
         Returns
         -------
-        data: jax.DeviceArray
-            Samples drawn from around the target numax.
-        ndim : int
-            Number of variables (dimensions) in the prior sample.
-        nsamples : int
-            Number of samples drawn from the prior. This is expected to be
-            KDEsize, but may be less if the prior is sparse around the target.
+        pdata : jax device array
+            The nsamples drawn from the nearest region around the required 
+            point in the prior sample file.
+        _ndim : int
+            Number of dimensions of the output. Should be the same length as
+            pcalabels.
+        _nsamples : int
+            Number of samples in the output. Might be less than the requested
+            if the prior sample file is small in comparison.
         """
-
+ 
         pdata = pd.read_csv(fname, usecols=self.pcalabels)
 
         pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
@@ -98,11 +103,9 @@ class PCA():
 
         pdata = self.findNearest(pdata, nsamples)
 
-        ndim = len(self.pcalabels)
+        _nsamples, _ndim = pdata.shape
 
-        nsamples = len(pdata)
-
-        return jnp.array(pdata.to_numpy()), ndim, nsamples
+        return jnp.array(pdata.to_numpy()), _ndim, _nsamples
 
     def findNearest(self, pdata, N, precision='high'):
         """ Find nearest neighbours.
@@ -316,14 +319,14 @@ class PCA():
             
             # The icdf from statsmodels is only evaluated on the input values,
             # not the complete support of the pdf which may be wider. 
-            Q = utils.getCurvePercentiles(kde.support, 
+            Q = jar.getCurvePercentiles(kde.support, 
                                           kde.evaluate(kde.support),
                                           percentiles=A)
 
-            ppfs.append(utils.jaxInterp1D(A, Q))
+            ppfs.append(jar.jaxInterp1D(A, Q))
             
-            pdfs.append(utils.jaxInterp1D(kde.support, kde.evaluate(kde.support)))
+            pdfs.append(jar.jaxInterp1D(kde.support, kde.evaluate(kde.support)))
 
-            logpdfs.append(utils.jaxInterp1D(kde.support, jnp.log(kde.evaluate(kde.support))))
+            logpdfs.append(jar.jaxInterp1D(kde.support, jnp.log(kde.evaluate(kde.support))))
 
         return ppfs, pdfs, logpdfs, cdfs
