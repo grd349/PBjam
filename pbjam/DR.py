@@ -2,7 +2,7 @@ import numpy as np
 import statsmodels.api as sm
 import pandas as pd
 import jax, warnings
-import jar
+from pbjam import jar
 import jax.numpy as jnp
 from functools import partial
 jax.config.update('jax_enable_x64', True)

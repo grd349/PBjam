@@ -6,13 +6,62 @@ This module contains general purpose functions that are used throughout PBjam.
 
 from . import PACKAGEDIR
 import os, jax
+import jax.numpy as jnp
 import numpy as np
 from scipy.special import erf
 from functools import partial
 import scipy.special as sc
 import scipy.integrate as si
 
-def getCurvePercentiles(x, y, cdf = None, percentiles=None):
+# Constant factor from cyclic to angular frequency
+nu_to_omega = 2 * jnp.pi / 1e6
+
+
+def attenuation(f, nyq):
+    """ The sampling attenuation
+
+    Determine the attenuation of the PSD due to the discrete sampling of the
+    variability.
+
+    Parameters
+    ----------
+    f : np.array
+        Frequency axis of the PSD.
+    nyq : float
+        The Nyquist frequency of the observations.
+
+    Returns
+    -------
+    eta : np.array
+        The attenuation at each frequency.
+    """
+
+    eta = jnp.sinc(0.5 * f/nyq)
+
+    return eta
+
+@jax.jit
+def lor(nu, nu0, h, w):
+    """ Lorentzian to describe an oscillation mode.
+
+    Parameters
+    ----------
+    nu0 : float
+        Frequency of lorentzian (muHz).
+    h : float
+        Height of the lorentizan (SNR).
+    w : float
+        Full width of the lorentzian (muHz).
+
+    Returns
+    -------
+    mode : ndarray
+        The SNR as a function frequency for a lorentzian.
+    """
+
+    return h / (1.0 + 4.0/w**2*(nu - nu0)**2)
+
+def getCurvePercentiles(x, y, cdf=None, percentiles=None):
     """ Compute percentiles of value along a curve
 
     Computes the cumulative sum of y, normalized to unit maximum. The returned
@@ -90,7 +139,22 @@ class jaxInterp1D():
         
         self.period = period
 
+    @partial(jax.jit, static_argnums=(0,))
+    def __call__(self, x):
+        """ Interpolate onto new axis
 
+        Parameters
+        ----------
+        x : jax device array 
+            The x-coordinates at which to evaluate the interpolated values.
+
+        Returns
+        -------
+        y : jax device array
+            The interpolated values, same shape as x.
+        """
+
+        return jnp.interp(x, self.xp, self.fp, self.left, self.right, self.period)
 
 class scalingRelations():
     """ Container for scaling relations
@@ -103,8 +167,9 @@ class scalingRelations():
     def __init_(self):
         pass
 
+    @staticmethod
     @partial(jax.jit, static_argnums=(0,))
-    def envWidth(self, numax):
+    def envWidth(numax):
         """ Scaling relation for the envelope width
 
         Computest he full width at half maximum of the p-mode envelope based
@@ -174,7 +239,6 @@ class scalingRelations():
         nu = 0.948 * numax**0.992
 
         return nu
-
 
 class references():
     """ A class for managing references used when running PBjam.
@@ -342,20 +406,7 @@ def isvalid(number):
     else:
         return True
                             
-def get_priorpath():
-    """ Get default prior path name
-    
-    Returns
-    -------
-    prior_file : str
-        Default path to the prior in the package directory structure.
-        
-    """
-    
-    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-
-
-def get_percentiles(X, nsigma = 2, **kwargs):
+def getDistPercentiles(X, nsigma=2, **kwargs):
     """ Get percentiles of an distribution
     
     Compute the percentiles corresponding to sigma=1,2,3.. including the 
@@ -384,11 +435,11 @@ def get_percentiles(X, nsigma = 2, **kwargs):
 
     return np.percentile(X, percs, **kwargs)
 
-
 def to_log10(x, xerr):
     """ Transform to value to log10
     
     Takes a value and related uncertainty and converts them to logscale.
+
     Approximate.
 
     Parameters
@@ -402,14 +453,13 @@ def to_log10(x, xerr):
     -------
     logval : list
         logscaled value and uncertainty
-
     """
     
     if xerr > 0:
         return [np.log10(x), xerr/x/np.log(10.0)]
     return [x, xerr]
 
-def normal(x, mu, sigma):
+def _normal(x, mu, sigma):
     """ Evaluate logarithm of normal distribution (not normalized!!)
 
     Evaluates the logarithm of a normal distribution at x. 
