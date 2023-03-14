@@ -6,6 +6,9 @@ from dynesty import utils as dyfunc
 import jax.numpy as jnp
 from functools import partial
 
+
+
+
 class bkgSampler():
     def __init__(self, f, s, numax, lower_limit=10.):
         """ Sample the background noise in the PSD
