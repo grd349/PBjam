@@ -7,3 +7,6 @@ lightkurve
 astropy
 corner
 nbsphinx
+dynesty
+jax
+jaxlib
