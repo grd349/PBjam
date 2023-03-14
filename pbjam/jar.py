@@ -459,6 +459,7 @@ def to_log10(x, xerr):
         return [np.log10(x), xerr/x/np.log(10.0)]
     return [x, xerr]
 
+@jax.jit
 def _normal(x, mu, sigma):
     """ Evaluate logarithm of normal distribution (not normalized!!)
 
@@ -479,6 +480,4 @@ def _normal(x, mu, sigma):
         Logarithm of the normal distribution at x
     """
 
-    if (sigma < 0):
-        return 0.0
     return -0.5 * (x - mu)**2 / sigma**2
