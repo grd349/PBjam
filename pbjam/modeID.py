@@ -1,0 +1,574 @@
+from functools import partial
+import jax, dynesty
+import jax.numpy as jnp
+from dynesty import utils as dyfunc
+from pbjam.mixedmodel import MixFreqModel
+from pbjam.pairmodel import AsyFreqModel
+import pbjam.distributions as dist
+from pbjam import IO
+from pbjam import jar
+from pbjam.DR import PCA
+
+class modeIDsampler():
+
+    def __init__(self, f, s, obs, N_p, freq_limits=[1, 5000], 
+                 vis={'V20': 0.7, 'V10': 1.7}, envelope_only=False, 
+                 Npca=50, PCAdims=8, priorpath=None):
+
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+
+        self.pcalabels = ['dnu', 
+                          'numax', 
+                          'eps_p', 
+                          'd02', 
+                          'alpha_p', 
+                          'env_height',
+                          'env_width', 
+                          'mode_width', 
+                          'teff', 
+                          'bp_rp',
+                          'H1_power', 
+                          'H1_nu', 
+                          'H1_exp',
+                          'H2_power', 
+                          'H2_nu', 
+                          'H2_exp',]
+        
+        self.addlabels = ['p_L0', 
+                          'p_D0', 
+                          'DPi0', 
+                          'eps_g', 
+                          'alpha_g', 
+                          'd01',
+                          'nurot_c', 
+                          'inc',
+                          'H3_power', 
+                          'H3_nu', 
+                          'H3_exp',
+                          'shot']
+        
+        self.logpars = ['dnu', 
+                        'd02', 
+                        'alpha_p', 
+                        'mode_width', 
+                        'teff', 
+                        'numax', 
+                        'env_height', 
+                        'env_width', 
+                        'H1_power', 
+                        'H1_nu', 
+                        'H2_power', 
+                        'H2_nu', 
+                        'H3_power', 
+                        'H3_nu', 
+                        'shot', 
+                        'nurot_c']
+
+        self.f = jnp.array(self.f)
+
+        self.s = jnp.array(self.s)
+      
+        self.Nyquist = self.f[-1]
+
+        self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
+
+        self.setupDR()
+
+        self.setPriors()
+
+        self.AsyFreqModel = AsyFreqModel(self.N_p)
+
+        self.MixFreqModel = MixFreqModel(self.N_p, self.obs, self.priors)
+
+        self.sel = self._setFreqRange(self.envelope_only)
+
+        self.labels = self.pcalabels + self.addlabels
+
+        self.setAddObs()
+ 
+        self.ndims = len(self.latent_labels+self.addlabels)
+
+ 
+    @partial(jax.jit, static_argnums=(0,))
+    def unpackParams(self, theta): 
+        """ Separate the model parameters into asy, bkg, reg and phi
+
+        This will need to be updated when bkg is rolled into DR.
+
+        Parameters
+        ----------
+        theta : array
+            Array of parameters drawn from the posterior distribution.
+
+        Returns
+        -------
+        theta_asy : array
+            The unpacked parameters of the p-mode asymptotic relation.
+        theta_obs : array
+            The unpacked parameters of the observational parameters.
+        theta_bkg : array
+            The unpacked parameters of the harvey background model.
+        theta_reg : array
+            The unpacked parameters of the reggae model.
+        phi : array
+            The model scaling parameter.  
+
+        self.labels = ['dnu', 'd02', 'alpha', 'mode_width', 'teff', 'bp_rp', 'eps',
+                       'numax', 'env_height', 'env_width', 
+                       'H1_power', 'H1_nu', 'H1_exp',
+                       'H2_power', 'H2_nu', 'H2_exp',
+                       'H3_power', 'H3_nu', 'H3_exp',
+                       'shot']
+
+        self.pcalabels = ['dnu', 'd02', 'alpha', 'mode_width', 'teff', 'bp_rp', 'eps',
+                              'numax', 'env_height', 'env_width',
+                              'H1_power', 'H1_nu', 'H1_exp',
+                              'H2_power', 'H2_nu', 'H2_exp',]
+
+        """
+         
+        theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
+
+        theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
+
+        theta_add = {key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)}
+
+        theta_u.update(theta_add)
+
+        theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
+
+        theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
+
+        for key in self.logpars:
+            theta_u[key] = 10**theta_u[key]
+ 
+        return theta_u
+    
+    def setPriors(self):
+        """ Set the prior distributions.
+
+        The prior distributions are constructed from the projection of the 
+        PCA sample onto the reduced dimensional space.
+
+        """
+
+        self.priors = {}
+
+        for i, key in enumerate(self.latent_labels):
+            self.priors[key] = dist.distribution(self.DR.ppf[i], 
+                                                 self.DR.pdf[i], 
+                                                 self.DR.logpdf[i], 
+                                                 self.DR.cdf[i])
+
+        self.priors['p_L0'] = dist.normal(loc=self.obs['p_L0'], scale= 0.1 * self.obs['p_L0'])
+        
+        self.priors['p_D0'] = dist.normal(loc=self.obs['p_D0'], scale= 0.1 * self.obs['p_D0'])
+
+        self.priors['DPi0'] = dist.normal(loc=self.obs['DPi0'], scale= 0.1 * self.obs['DPi0']) 
+                                            
+        self.priors['eps_g'] = dist.normal(loc=self.obs['eps_g'], scale= 0.01 * self.obs['eps_g']) 
+                               
+        self.priors['alpha_g'] = dist.normal(loc=self.obs['alpha_g'], scale= 0.1 * self.obs['alpha_g']) 
+                                               
+        self.priors['d01'] = dist.normal(loc=self.obs['dnu'][0]/2 - self.obs['d02'][0]/3,
+                                         scale= 0.01 * (self.obs['dnu'][0]/2 - self.obs['d02'][0]/3))
+ 
+        self.priors['nurot_c'] = dist.uniform(loc=-2.1, scale=1.1)
+        
+        self.priors['inc'] = dist.truncsine()
+
+        hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
+
+        shot_est = jnp.nanmean(self.s[hi_idx])
+        
+        mu = jnp.array([1, self.s[abs(self.f - self.f[0]) < 10].mean() - shot_est]).max()
+        
+        self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=2) # hsig
+
+        self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-3, scale=3.5) # replace H1_nu prior with a beta distribution
+        
+        self.priors['H3_exp'] = dist.beta(a=1.2, b=1.2, loc=1.5, scale=3.5) # hexp
+        
+        # White noise
+        self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
+
+    @partial(jax.jit, static_argnums=(0,))
+    def model(self, theta_u, nu):
+
+        
+        # Background
+        H1 = self.harvey(nu, theta_u['H1_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
+
+        H2 = self.harvey(nu, theta_u['H2_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
+
+        H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
+
+         
+ 
+        eta = jar.attenuation(nu, self.Nyquist)**2
+
+        # l=2,0
+        nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
+
+        Hs0 = self.envelope(nu0_p, **theta_u)
+        
+        modes = jnp.zeros_like(nu)
+
+        for n in range(self.N_p):
+            modes += self._pair(nu, nu0_p[n], Hs0[n], **theta_u)
+        
+         
+        # l=1
+        nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
+       
+        Hs1 = self.envelope(nu1s, **theta_u)
+        
+        modewidth1s = self._l1_modewidths(zeta, **theta_u)
+    
+        for i in range(len(nu1s)):
+            modes += jar.lor(nu, nu1s[i]                                   , Hs1[i]* self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+        
+            modes += jar.lor(nu, nu1s[i] - zeta[i] * 10**theta_u['nurot_c'], Hs1[i]* self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+        
+            modes += jar.lor(nu, nu1s[i] + zeta[i] * 10**theta_u['nurot_c'], Hs1[i]* self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+ 
+        return (1 + modes) * (H1 + H2 + H3) * eta  + theta_u['shot']
+
+    def setupDR(self):
+        """ Setup the latent parameters and projection functions
+
+        Parameters
+        ----------
+        prior_file : str
+            Full path name for the file containing the prior samples.
+ 
+        """
+
+        self.latent_labels = ['theta_%i' % (i) for i in range(self.PCAdims)]
+
+        log_obs = self.log_obs.copy()
+
+        for key in ['bp_rp', 'eps']:
+            if key in log_obs.keys():
+                log_obs[key] = self.obs[key]
+         
+        self.DR = PCA(log_obs, self.pcalabels, self.priorpath, self.Npca) 
+
+        self.DR.fit_weightedPCA(self.PCAdims)
+
+        _Y = self.DR.transform(self.DR.data_F)
+
+        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = self.DR.getQuantileFuncs(_Y)
+
+    def _setFreqRange(self, envelope_only=False):
+        """ Get frequency range around numax for model 
+
+        Returns
+        -------
+        idx : jax device array
+            Array of boolean values defining the interval of the frequency axis
+            where the oscillation modes present.
+        """
+
+        if envelope_only:
+            dnu =  self.obs['dnu'][0] if 'dnu' in self.obs.keys() else jnp.median(self.DR.data_F[:, 0])
+    
+            numax =  self.obs['numax'][0] if 'numax' in self.obs.keys() else jnp.median(self.DR.data_F[:, 1])
+    
+            eps_p =  self.obs['eps_p'][0] if 'eps_p' in self.obs.keys() else jnp.median(self.DR.data_F[:, 2])
+        
+            n_p_max = self.AsyFreqModel._get_n_p_max(dnu, numax, eps_p)
+
+            n_p = self.AsyFreqModel._get_n_p(n_p_max)
+            
+            # The range is set +/- 25% of the upper and lower mode frequency 
+            # estimate
+            lfreq = (min(n_p) - 1.25 + eps_p) * dnu
+            
+            ufreq = (max(n_p) + 1.25 + eps_p) * dnu
+
+        else:
+            lfreq = self.freq_limits[0]
+            
+            ufreq = self.freq_limits[1]
+
+        return (lfreq < self.f) & (self.f < ufreq)  
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def envelope(self, nu, env_height, numax, env_width, **kwargs):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+    
+        return env_height * jnp.exp(-0.5 * (nu - numax)**2 / env_width**2)
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def _l1_modewidths(self, zeta, mode_width, **kwargs):
+        """ Compute linewidths for mixed l1 modes
+
+        Parameters
+        ----------
+        modewidth0 : jax device array
+            Mode widths of l=0 modes.
+        zeta : jax device array
+            The mixing degree
+
+        Returns
+        -------
+        modewidths : jax device array
+            Mode widths of l1 modes.
+        """
+         
+        return  mode_width * jnp.maximum(0, 1. - zeta) 
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def _pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
+        """Define a pair as the sum of two Lorentzians.
+
+        A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
+        assumed to be identical, and the height of the l=2 mode is scaled
+        relative to that of the l=0 mode. The frequency of the l=2 mode is the
+        l=0 frequency minus the small separation.
+
+        Parameters
+        ----------
+        nu : jax device array
+            Frequency range to compute the pair on.
+        nu0 : float
+            Frequency of the l=0 (muHz).
+        h0 : float
+            Height of the l=0 (SNR).
+        w0 : float
+            The mode width (identical for l=2 and l=0) (log10(muHz)).
+        d02 : float
+            The small separation (muHz).
+
+        Returns
+        -------
+        pair_model : array
+            The SNR as a function of frequency of a mode pair.
+            
+        """
+        
+        pair_model = jar.lor(nu, nu0, h0, mode_width) + jar.lor(nu, nu0 - d02, h0 * self.vis['V20'], mode_width)
+
+        return pair_model
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def harvey(self, nu, a, b, c):
+        """ Harvey-profile
+
+        Parameters
+        ----------
+        f : np.array
+            Frequency axis of the PSD.
+        a : float
+            The amplitude (divided by 2 pi) of the Harvey-like profile.
+        b : float
+            The characeteristic frequency of the Harvey-like profile.
+        c : float
+            The exponent parameter of the Harvey-like profile.
+
+        Returns
+        -------
+        H : np.array
+            The Harvey-like profile given the relevant parameters.
+        """
+         
+        H = a / b * 1 / (1 + (nu / b)**c)
+
+        return H
+
+    def setAddObs(self):
+        """ Set attribute containing additional observational data
+
+        Additional observational data other than the power spectrum goes here. 
+
+        Can be Teff or bp_rp color, but may also be additional constraints on
+        e.g., numax, dnu. 
+
+        """
+        
+        self.addObs = {}
+
+        self.addObs['teff'] = dist.normal(loc=self.obs['teff'][0], 
+                                          scale=self.obs['teff'][1])
+
+        # bp_rp is not logged in the prior file so should not be logged here.
+        self.addObs['bp_rp'] = dist.normal(loc=self.obs['bp_rp'][0], 
+                                           scale=self.obs['bp_rp'][1])
+        
+    @partial(jax.jit, static_argnums=(0,))
+    def addAddObsLike(self, theta_u):
+        """ Add the additional probabilities to likelihood
+        
+        Adds the additional observational data likelihoods to the PSD likelihood.
+
+        Parameters
+        ----------
+        p : list
+            Sampling parameters.
+
+        Returns
+        -------
+        lnp : float
+            The likelihood of a sample given the parameter PDFs.
+        """
+               
+        lnp = self.addObs['teff'].logpdf(theta_u['teff']) 
+
+        lnp += self.addObs['bp_rp'].logpdf(theta_u['bp_rp']) 
+
+        return lnp
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def _chi_sqr(self, mod):
+        """ Chi^2 2 dof likelihood
+
+        Evaulates the likelihood of observing the data given the model.
+
+        Parameters
+        ----------
+        mod : jax device array
+            Spectrum model.
+
+        Returns
+        -------
+        L : float
+            Likelihood of the data given the model
+        """
+
+        L = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
+        return L      
+         
+    @partial(jax.jit, static_argnums=(0,))
+    def ptform(self, u):
+        """ The prior transform function for the nested sampling
+        
+        Evaluates the ppf for a list of values drawn from the unit cube.
+        
+        Parameters
+        ----------
+        u : list
+            List of floats between 0 and 1 with length equivalent to ndim. 
+            
+        Returns
+        -------
+        x : list
+            List of floats of the prior pdfs evaluated at each point in u.
+        """
+
+        theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
+
+        return theta
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def lnlikelihood(self, theta, nu):
+        """ Likelihood function for set of model parameters
+
+        Evaluates the likelihood function for a set of model parameters given
+        the data. This includes the constraint from the observed variables.
+
+        The samples l are drawn from the latent parameter priors and are first
+        projected into the model space before the model is constructed and the
+        likelihood is constructed.
+
+        Parameters
+        ----------
+        l : list
+            Array of latent parameters
+
+        Returns
+        -------
+        lnlike : float
+            The log likelihood evaluated at the model parameters p.
+        """
+
+        theta_u = self.unpackParams(theta)
+ 
+        # Constraint from input obs
+        lnlike = self.addAddObsLike(theta_u)
+        
+        # Constraint from the periodogram 
+        mod = self.model(theta_u, nu)
+
+        lnlike += self._chi_sqr(mod)
+ 
+        return lnlike 
+    
+    def __call__(self, dynamic=False, progress=True, nlive=100):
+        """ Start nested sampling
+
+        Initializes and runs the nested sampling with Dynesty. We use the 
+        default settings for stopping criteria as per the Dynesty documentation.
+
+        Parameters
+        ----------
+        dynamic : bool, optional
+            Use dynamic sampling as opposed to static. Dynamic sampling achieves
+            minutely higher likelihood levels compared to the static sampler. 
+            From experience this is not usually worth the extra runtime. By 
+            default False.
+        progress : bool, optional
+            Display the progress bar, turn off for commandline runs, by default 
+            True
+        nlive : int, optional
+            Number of live points to use in the sampling. Conceptually similar 
+            to MCMC walkers, by default 100.
+
+        Returns
+        -------
+        sampler : Dynesty sampler object
+            The sampler from the nested sampling run. Contains some diagnostics.
+        samples : jax device array
+            Array of samples from the nested sampling with shape (Nsamples, Ndim)
+        """
+
+        if dynamic:
+            sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
+                                                   self.ptform, 
+                                                   self.ndims, 
+                                                   nlive=nlive, 
+                                                   sample='rwalk',
+                                                   logl_args=[self.f[self.sel]])
+            
+            sampler.run_nested(print_progress=progress, 
+                               wt_kwargs={'pfrac': 1.0}, 
+                               dlogz_init=1e-3 * (nlive - 1) + 0.01, 
+                               nlive_init=nlive)  
+            
+        else:           
+            sampler = dynesty.NestedSampler(self.lnlikelihood, 
+                                            self.ptform, 
+                                            self.ndims, 
+                                            nlive=nlive, 
+                                            sample='rwalk',
+                                            logl_args=[self.f[self.sel]])
+            
+            sampler.run_nested(print_progress=progress)
+ 
+        result = sampler.results
+
+        unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
+
+        samples = dyfunc.resample_equal(unweighted_samples, weights)
+
+        return sampler, samples
