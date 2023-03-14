@@ -1,1 +1,1 @@
-PBjam should be the awesomest peakbagging tool there is
+PBjam should be the awesomest peakbagging tool there is.
