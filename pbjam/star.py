@@ -14,11 +14,9 @@ only use the `star' class for more granular control of the peakbagging process.
 
 """
 
-import os, warnings, re, time
-from .asy_peakbag import asymptotic_fit
-from .priors import kde
+import re, time
 from .peakbag import peakbag
-from .jar import get_priorpath, to_log10, references, isvalid
+from .jar import to_log10, references
 from .plotting import plotting
 import pandas as pd
 import numpy as np
@@ -26,6 +24,8 @@ from astroquery.mast import ObservationsClass as AsqMastObsCl
 from astroquery.mast import Catalogs
 from astroquery.simbad import Simbad
 import astropy.units as units
+from pbjam import IO
+from pbjam.modeID import modeIDsampler
 
 
 class star(plotting):
@@ -78,251 +78,31 @@ class star(plotting):
 
     """
 
-    def __init__(self, ID, pg, numax, dnu, teff=[None,None], bp_rp=[None,None], 
-                 path=None, prior_file=None):
+    def __init__(self, ID, pg, obs, outpath=None, priorpath=None):
 
         self.ID = ID
 
-        if numax[0] < 25:
-            warnings.warn('The input numax is less than 25. The prior is not well defined here, so be careful with the result.')
-        self.numax = numax
-        self.dnu = dnu
-
+        self.obs = obs
+ 
         self.references = references()
-        self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
-        
-        teff, bp_rp = self._checkTeffBpRp(teff, bp_rp)
-        self.teff = teff
-        self.bp_rp = bp_rp
 
-        self.pg = pg.flatten()  # in case user supplies unormalized spectrum
+        self.references._addRef(['numpy', 'python', 'lightkurve', 'astropy'])
+               
+        self.pg = pg  
+        
         self.f = self.pg.frequency.value
+        
         self.s = self.pg.power.value
 
-        self._obs = {'dnu': self.dnu, 'numax': self.numax, 'teff': self.teff,
-                     'bp_rp': self.bp_rp}
-        self._log_obs = {x: to_log10(*self._obs[x]) for x in self._obs.keys() if x != 'bp_rp'}
+        self.log_obs = {x: to_log10(*self.obs[x]) for x in self.obs.keys() if x  not in ['bp_rp', 'eps']}
 
-        self._set_outpath(path)
+        IO._set_outpath(self, outpath)
 
-        if prior_file is None:
-            self.prior_file = get_priorpath()
+        if priorpath is None:
+            self.priorpath = IO.get_priorpath()
         else:
-            self.prior_file = prior_file
-            
-
-    def _checkTeffBpRp(self, teff, bp_rp):
-        """ Set the Teff and/or bp_rp values
-        
-        Checks the input Teff and Gbp-Grp values to see if any are missing.
-        
-        If Gbp-Grp is missing it will be looked up online either from the TIC or 
-        the Gaia archive.
-        
-        Teff and Gbp-Grp provide a lot of the same information, so only one of
-        them need to be provided to start with. If one is not provided, PBjam
-        will assume a wide prior on it.
-        
-        Parameters
-        ----------
-        teff : list
-            List of the form [teff, teff_error]. For multiple targets, use a list
-            of lists.
-        bp_rp : list
-            List of the form [bp_rp, bp_rp_error]. For multiple targets, use a list
-            of lists.
-        
-        Returns
-        -------
-        teff : list
-            The checked teff value. List of the form [teff, teff_error]. 
-        bp_rp : list
-            The checked bp_rp value. List of the form [bp_rp, bp_rp_error]. 
-        """
-        
-        if isvalid(bp_rp[0]) is False:
-            try:
-                bp_rp = [get_bp_rp(self.ID), 0.1]
-            except:
-                bp_rp = [np.nan, np.nan]
-            
-            
-        if not isvalid(teff[0]) and not isvalid(bp_rp[0]):
-            raise ValueError('Must provide either teff or bp_rp arguments when initializing the star class.')
-        elif not isvalid(teff[0]):
-            teff = [4889, 1500] # these are rough esimates from the prior
-        elif not np.isfinite(bp_rp[0]):
-            bp_rp = [1.2927, 0.5] # these are rough esimates from the prior
-            
-        self.references._addRef(['Evans2018'])
-        
-        return teff, bp_rp
-
-    def _get_outpath(self, fname):
-        """  Get basepath or make full file path name.
-        
-        Convenience function for either setting the base path name for the star,
-        or if given fname as input, will append this to the basepath name to 
-        create a full path to the file in question. 
-
-        Parameters
-        ----------
-        fname : str, optional
-            If not None, will append this to the pathname of the star. Use this
-            to store files such as plots or tables.
-        
-        Returns
-        -------
-        path : str
-            If fname is None, path is the path name of the star. Otherwise it is
-            the full file path name for the file in question.
-        """
-    
-        if fname is None:
-            return self.path
-        elif isinstance(fname, str):
-            path = os.path.join(*[self.path, fname])
-        else:
-            raise ValueError(f'Unrecognized input {fname}.')
-        
-        if not os.path.isdir(self.path):
-            raise IOError(f'You are trying to access {self.path} which is a directory that does not exist.')
-        else:
-            return path
-
-    def _set_outpath(self, path):
-        """ Sets the path attribute for star
-
-        If path is a string it is assumed to be a path name, if not the
-        current working directory will be used.
-
-        Attempts to create an output directory for all the results that PBjam
-        produces. A directory is created when a star class instance is
-        initialized, so a session might create multiple directories.
-
-        Parameters
-        ----------
-        path : str
-            Directory to place the star subdirectory.
-
-        """
-
-        if isinstance(path, str):
-            # If path is str, presume user wants to put stuff somewhere specific.
-            self.path = os.path.join(*[path, f'{self.ID}'])
-        else:
-            # Otherwise just create a subdir in cwd.
-            self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
-
-        # Check if self.path exists, if not try to create it
-        if not os.path.isdir(self.path):
-            try:
-                os.makedirs(self.path)
-            except Exception as ex:
-                message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
-                print(message)
-
-
-
-    def run_kde(self, bw_fac=1.0, make_plots=False, store_chains=False):
-        """ Run all steps involving KDE.
-
-        Starts by creating a KDE based on the prior data sample. Then samples
-        this KDE for initial starting positions for asy_peakbag.
-
-        Parameters
-        ----------
-        bw_fac : float
-            Scaling factor for the KDE bandwidth. By default the bandwidth is
-            automatically set, but may be scaled to adjust for sparsity of the
-            prior sample.
-        make_plots : bool, optional
-            Whether or not to produce plots of the results. Default is False.
-        store_chains : bool, optional
-            Whether or not to store posterior samples on disk. Default is False.
-
-        """
-
-        print('Starting KDE estimation')
-        
-        # Init
-        kde(self)
-
-        # Call
-        self.kde(dnu=self.dnu, numax=self.numax, teff=self.teff,
-                 bp_rp=self.bp_rp, bw_fac=bw_fac)
-
-        # Store          
-        if make_plots:
-            self.kde.plot_corner(path=self.path, ID=self.ID,
-                                 savefig=make_plots)
-            self.kde.plot_spectrum(pg=self.pg, path=self.path, ID=self.ID,
-                                   savefig=make_plots)
-            self.kde.plot_echelle(path=self.path, ID=self.ID,
-                                  savefig=make_plots)
-            
-            self.references._addRef('matplotlib')
-
-        if store_chains:
-            kde_samps = pd.DataFrame(self.kde.samples, columns=self.kde.par_names)
-            kde_samps.to_csv(self._get_outpath(f'kde_chains_{self.ID}.csv'), index=False)
-            
-
-    def run_asy_peakbag(self, norders, make_plots=False,
-                        store_chains=False, method='emcee', 
-                        developer_mode=False):
-        """ Run all steps involving asy_peakbag.
-
-        Performs a fit of the asymptotic relation to the spectrum (l=2,0 only),
-        using initial guesses and prior for the fit parameters from KDE.
-
-        Parameters
-        ----------
-        norders : int
-            Number of orders to include in the fits.
-        make_plots : bool, optional
-            Whether or not to produce plots of the results. Default is False.
-        store_chains : bool, optional
-            Whether or not to store posterior samples on disk. Default is False.
-        method : string
-            Method to be used for sampling the posterior. Options are 'emcee' or
-            'cpnest. Default method is 'emcee' that will call emcee, alternative
-            is 'cpnest' to call nested sampling with CPnest.
-        developer_mode : bool
-            Run asy_peakbag in developer mode. Currently just retains the input 
-            value of dnu and numax as priors, for the purposes of expanding
-            the prior sample. Important: This is not good practice for getting 
-            science results!
-            
-        """
-
-        print('Starting asymptotic peakbagging')
-        # Init
-        asymptotic_fit(self, norders=norders)
-
-        # Call
-        self.asy_fit(method, developer_mode)
-        self.references._addRef(method)
-
-        # Store
-        self.asy_fit.summary.to_csv(self._get_outpath(f'asymptotic_fit_summary_{self.ID}.csv'),
-                                    index=True, index_label='name')
-        self.asy_fit.modeID.to_csv(self._get_outpath(f'asymptotic_fit_modeID_{self.ID}.csv'),
-                                   index=False)
-        if make_plots:
-            self.asy_fit.plot_spectrum(path=self.path, ID=self.ID,
-                                       savefig=make_plots)
-            self.asy_fit.plot_corner(path=self.path, ID=self.ID,
-                                     savefig=make_plots)
-            self.asy_fit.plot_echelle(path=self.path, ID=self.ID,
-                                      savefig=make_plots)
-            self.references._addRef('matplotlib')
-
-        if store_chains:
-            asy_samps = pd.DataFrame(self.asy_fit.samples, columns=self.asy_fit.par_names)
-            asy_samps.to_csv(self._get_outpath(f'asymptotic_fit_chains_{self.ID}.csv'), index=False)
-
-    
+            self.priorpath = priorpath
+                
     def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
                     make_plots=False, store_chains=False):
         """  Run all steps involving peakbag.
@@ -354,7 +134,7 @@ class star(plotting):
         self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
 
         # Store
-        self.peakbag.summary.to_csv(self._get_outpath(f'peakbag_summary_{self.ID}.csv'),
+        self.peakbag.summary.to_csv(IO._get_outpath(self, f'peakbag_summary_{self.ID}.csv'),
                                     index_label='name')
             
         if make_plots:
@@ -366,12 +146,18 @@ class star(plotting):
 
         if store_chains:
             peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
-            peakbag_samps.to_csv(self._get_outpath(f'peakbag_chains_{self.ID}.csv'), index=False)
+            peakbag_samps.to_csv(IO._get_outpath(self, f'peakbag_chains_{self.ID}.csv'), index=False)
             
+    def run_modeID(self, norders, Npca):
+        M = modeIDsampler(self.f, self.s, self.obs, norders, priorpath=self.priorpath, Npca=Npca, freq_limits=[10,2750])
 
-    def __call__(self, bw_fac=1.0, norders=8, model_type='simple', tune=1500,
+        sampler, samples = M()
+
+        return samples
+
+    def __call__(self, norders=8, model_type='simple', tune=1500,
                  nthreads=1, make_plots=True, store_chains=False, 
-                 asy_sampling='emcee', developer_mode=False):
+                 developer_mode=False):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -405,12 +191,9 @@ class star(plotting):
             the prior sample. Important: This is not good practice for getting 
             science results!    
         """
+ 
 
-        self.run_kde(bw_fac=bw_fac, make_plots=make_plots, store_chains=store_chains)
-
-        self.run_asy_peakbag(norders=norders, make_plots=make_plots,
-                             store_chains=store_chains, method=asy_sampling,
-                             developer_mode=developer_mode)
+        self.run_modeID(norders)
 
         self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
                          make_plots=make_plots, store_chains=store_chains)
