@@ -12,7 +12,7 @@ from .mcmc import mcmc
 import warnings
 from .plotting import plotting
 import statsmodels.api as sm
-from .jar import get_priorpath, to_log10, normal
+from .jar import to_log10, _normal
 
 class kde(plotting):
     """ A class to produce prior for asy_peakbag and initial starting location.
