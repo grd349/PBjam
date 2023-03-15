@@ -183,7 +183,7 @@ class psd(scalingRelations):
 
         pg = Periodogram(self.freq * units.uHz, units.Quantity(self.powerdensity))
  
-        self.snr = pg.power.value
+        self.pg = pg
  
     def _getBadIndex(self, time, flux):
         """ Identify indices with nan/inf values
