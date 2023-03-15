@@ -12,63 +12,20 @@ from pbjam.DR import PCA
 class modeIDsampler():
 
     def __init__(self, f, s, obs, N_p, freq_limits=[1, 5000], 
-                 vis={'V20': 0.7, 'V10': 1.7}, envelope_only=False, 
-                 Npca=50, PCAdims=8, priorpath=None):
+                 vis={'V20': 0.71, 'V10': 1.22}, envelope_only=False, 
+                 Npca=50, PCAdims=8, priorpath=None, priors={}):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
-        self.pcalabels = ['dnu', 
-                          'numax', 
-                          'eps_p', 
-                          'd02', 
-                          'alpha_p', 
-                          'env_height',
-                          'env_width', 
-                          'mode_width', 
-                          'teff', 
-                          'bp_rp',
-                          'H1_power', 
-                          'H1_nu', 
-                          'H1_exp',
-                          'H2_power', 
-                          'H2_nu', 
-                          'H2_exp',]
         
-        self.addlabels = ['p_L0', 
-                          'p_D0', 
-                          'DPi0', 
-                          'eps_g', 
-                          'alpha_g', 
-                          'd01',
-                          'nurot_c', 
-                          'inc',
-                          'H3_power', 
-                          'H3_nu', 
-                          'H3_exp',
-                          'shot']
-        
-        self.logpars = ['dnu', 
-                        'd02', 
-                        'alpha_p', 
-                        'mode_width', 
-                        'teff', 
-                        'numax', 
-                        'env_height', 
-                        'env_width', 
-                        'H1_power', 
-                        'H1_nu', 
-                        'H2_power', 
-                        'H2_nu', 
-                        'H3_power', 
-                        'H3_nu', 
-                        'shot', 
-                        'nurot_c']
 
         self.f = jnp.array(self.f)
 
         self.s = jnp.array(self.s)
       
         self.Nyquist = self.f[-1]
+
+        self.set_labels(priors)
 
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
@@ -88,7 +45,39 @@ class modeIDsampler():
  
         self.ndims = len(self.latent_labels+self.addlabels)
 
+    def set_labels(self, priors):
+
+        # Default PCA parameters
+        self.pcalabels = ['dnu', 
+                          'numax', 
+                          'eps_p', 
+                          'd02', 
+                          'alpha_p', 
+                          'env_width',
+                          'env_height', 
+                          'mode_width', 
+                          'teff', 
+                          'bp_rp',
+                          'H1_power', 
+                          'H1_nu', 
+                          'H1_exp',
+                          'H2_power', 
+                          'H2_nu', 
+                          'H2_exp',]
+        
+        # Default additional parameters
+        self.addlabels = [key for key in self.variables.keys() if key not in self.pcalabels]
  
+        # If key appears in priors dict, override default and move it to add.
+        for key in priors.keys():
+            self.pcalabels.remove(key)
+
+            self.addlabels.append(key)
+
+        # Parameters that are in log10
+        self.logpars = [key for key in self.variables.keys() if self.variables[key]['log10']]
+
+
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Separate the model parameters into asy, bkg, reg and phi
@@ -131,9 +120,7 @@ class modeIDsampler():
 
         theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
 
-        theta_add = {key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)}
-
-        theta_u.update(theta_add)
+        theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
 
         theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
 
@@ -171,21 +158,23 @@ class modeIDsampler():
         self.priors['alpha_g'] = dist.normal(loc=self.obs['alpha_g'], scale= 0.1 * self.obs['alpha_g']) 
                                                
         self.priors['d01'] = dist.normal(loc=self.obs['dnu'][0]/2 - self.obs['d02'][0]/3,
-                                         scale= 0.01 * (self.obs['dnu'][0]/2 - self.obs['d02'][0]/3))
+                                         scale= 0.1 * (self.obs['dnu'][0]/2 - self.obs['d02'][0]/3))
  
         self.priors['nurot_c'] = dist.uniform(loc=-2.1, scale=1.1)
         
         self.priors['inc'] = dist.truncsine()
 
         hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
+        lo_idx = abs(self.f - self.f[0]) < 10
 
         shot_est = jnp.nanmean(self.s[hi_idx])
+        inst_est = jnp.nanmean(self.s[lo_idx])
         
-        mu = jnp.array([1, self.s[abs(self.f - self.f[0]) < 10].mean() - shot_est]).max()
+        mu = jnp.array([1, inst_est - shot_est]).max()
         
         self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=2) # hsig
 
-        self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-3, scale=3.5) # replace H1_nu prior with a beta distribution
+        self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-1, scale=2) # replace H1_nu prior with a beta distribution
         
         self.priors['H3_exp'] = dist.beta(a=1.2, b=1.2, loc=1.5, scale=3.5) # hexp
         
@@ -226,11 +215,11 @@ class modeIDsampler():
         modewidth1s = self._l1_modewidths(zeta, **theta_u)
     
         for i in range(len(nu1s)):
-            modes += jar.lor(nu, nu1s[i]                                   , Hs1[i]* self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+            modes += jar.lor(nu, nu1s[i]                                   , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
-            modes += jar.lor(nu, nu1s[i] - zeta[i] * 10**theta_u['nurot_c'], Hs1[i]* self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(nu, nu1s[i] - zeta[i] * 10**theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
-            modes += jar.lor(nu, nu1s[i] + zeta[i] * 10**theta_u['nurot_c'], Hs1[i]* self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(nu, nu1s[i] + zeta[i] * 10**theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
  
         return (1 + modes) * (H1 + H2 + H3) * eta  + theta_u['shot']
 
@@ -318,7 +307,7 @@ class modeIDsampler():
             Power at frequency nu (in SNR)   
         """
     
-        return env_height * jnp.exp(-0.5 * (nu - numax)**2 / env_width**2)
+        return 2*env_height * jnp.exp(-0.5 * (nu - numax)**2 / env_width**2)
     
     @partial(jax.jit, static_argnums=(0,))
     def _l1_modewidths(self, zeta, mode_width, **kwargs):
@@ -512,7 +501,13 @@ class modeIDsampler():
 
         lnlike += self._chi_sqr(mod)
  
-        return lnlike 
+        T = (theta_u['H3_nu'] < theta_u['H2_nu']) & \
+            (theta_u['H2_nu'] < theta_u['numax']) & \
+            (theta_u['H2_nu'] < theta_u['H1_nu'])
+
+        lnlike += jax.lax.cond(T, lambda : 0., lambda : -jnp.inf)
+        
+        return lnlike
     
     def __call__(self, dynamic=False, progress=True, nlive=100):
         """ Start nested sampling
@@ -572,3 +567,34 @@ class modeIDsampler():
         samples = dyfunc.resample_equal(unweighted_samples, weights)
 
         return sampler, samples
+    
+    
+    variables = {'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True}, 
+                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True}, 
+                 'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True}, 
+                 'd02'       : {'info': 'l=0,2 mean frequency difference'          , 'log10': True , 'pca': True}, 
+                 'alpha_p'   : {'info': 'curvature of the p-modes'                 , 'log10': True , 'pca': True}, 
+                 'env_width' : {'info': 'envelope width'                           , 'log10': True , 'pca': True},
+                 'env_height': {'info': 'envelope height'                          , 'log10': True , 'pca': True}, 
+                 'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True}, 
+                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True}, 
+                 'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True},
+                 'H1_power'  : {'info': 'Power of the highest frequency Harvey'    , 'log10': True , 'pca': True}, 
+                 'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True}, 
+                 'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
+                 'H2_power'  : {'info': 'Power of the mid-frequency Harvey'        , 'log10': True , 'pca': True}, 
+                 'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
+                 'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
+                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': False},  
+                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': False}, 
+                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': False}, 
+                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': False}, 
+                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': False, 'pca': False}, 
+                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': False},
+                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
+                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},
+                 'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False}, 
+                 'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False},
+                 'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False},
+                 'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False}}
+ 
