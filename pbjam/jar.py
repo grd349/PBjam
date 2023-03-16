@@ -283,6 +283,54 @@ class scalingRelations():
         """
 
         return 10**(jnp.polyval(p, jnp.log10(nu), unroll=128) + gamma)
+    
+    @staticmethod
+    @jax.jit
+    def env_beta(numax, Teff, L=None, a=0.11, b=-0.47, c=-0.093):
+        """ Compute beta correction
+
+        Computes the beta correction factor for Amax. This has the effect of
+        reducing the amplitude for hotter solar-like stars that are close to
+        the red edge of the delta-scuti instability strip, according to the
+        observed reduction in the amplitude.
+
+        This method was originally applied by Chaplin et al. 2011, who used a
+        Delta_Teff = 1250K, this was later updated (private communcation) to
+        Delta_Teff = 1550K.
+
+        Parameters
+        ----------
+        numax : float
+            Value of numax in muHz to compute the beta correction at.
+        Teff0 : float, optional
+            Solar effective temperature in K. Default is 5777K.
+        TeffRed0 : float, optional
+            Red edge temperature in K for a 1 solar luminosity star. Default is
+            8907K.
+        numax0: float, optional
+            Solar numax. Default is 3050 muHz.
+        Delta_Teff : float, optional
+            The fall-off rate of the beta correction factor. Default is 1550K
+
+        Returns
+        -------
+        beta : float
+            The correction factor for Amax.
+        """
+        
+        numax = jnp.asarray(numax)
+        
+        if L is None:
+            TeffRed = constants.TeffRed0 * (numax/constants.numax0)**a * (Teff/constants.Teff0)**b
+
+        else:
+            TeffRed = constants.TeffRed0 * L**c
+            
+        _beta = 1.0 - jnp.exp(-(TeffRed-Teff)/constants.Delta_Teff)
+         
+        beta = jnp.where(_beta <= 0, jnp.exp(-1250), _beta)
+        
+        return beta
 
 class references():
     """ A class for managing references used when running PBjam.

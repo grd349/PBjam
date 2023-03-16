@@ -6,7 +6,7 @@ import multiprocessing as mp
 import scipy.stats as st
 from pbjam import jar
 from pbjam.jar import constants as c
-
+from pbjam.jar import scalingRelations as sr
 
 
 
@@ -82,49 +82,50 @@ class scalingRelations:
                                 
         return envelope
 
-    def env_beta(self, numax):
-        """ Compute beta correction
+    # def env_beta(self, numax, Teff):
+    #     """ Compute beta correction
 
-        Computes the beta correction factor for Amax. This has the effect of
-        reducing the amplitude for hotter solar-like stars that are close to
-        the red edge of the delta-scuti instability strip, according to the
-        observed reduction in the amplitude.
+    #     Computes the beta correction factor for Amax. This has the effect of
+    #     reducing the amplitude for hotter solar-like stars that are close to
+    #     the red edge of the delta-scuti instability strip, according to the
+    #     observed reduction in the amplitude.
 
-        This method was originally applied by Chaplin et al. 2011, who used a
-        Delta_Teff = 1250K, this was later updated (private communcation) to
-        Delta_Teff = 1550K.
+    #     This method was originally applied by Chaplin et al. 2011, who used a
+    #     Delta_Teff = 1250K, this was later updated (private communcation) to
+    #     Delta_Teff = 1550K.
 
-        Parameters
-        ----------
-        numax : float
-            Value of numax in muHz to compute the beta correction at.
-        Teff0 : float, optional
-            Solar effective temperature in K. Default is 5777K.
-        TeffRed0 : float, optional
-            Red edge temperature in K for a 1 solar luminosity star. Default is
-            8907K.
-        numax0: float, optional
-            Solar numax. Default is 3050 muHz.
-        Delta_Teff : float, optional
-            The fall-off rate of the beta correction factor. Default is 1550K
+    #     Parameters
+    #     ----------
+    #     numax : float
+    #         Value of numax in muHz to compute the beta correction at.
+    #     Teff0 : float, optional
+    #         Solar effective temperature in K. Default is 5777K.
+    #     TeffRed0 : float, optional
+    #         Red edge temperature in K for a 1 solar luminosity star. Default is
+    #         8907K.
+    #     numax0: float, optional
+    #         Solar numax. Default is 3050 muHz.
+    #     Delta_Teff : float, optional
+    #         The fall-off rate of the beta correction factor. Default is 1550K
 
-        Returns
-        -------
-        beta : float
-            The correction factor for Amax.
-        """
+    #     Returns
+    #     -------
+    #     beta : float
+    #         The correction factor for Amax.
+    #     """
 
-        self.TeffRed = c.TeffRed0 * (numax/c.numax0)**0.11 * (self.Teff/c.Teff0)**-0.47
+    #     TeffRed = c.TeffRed0 * (numax/c.numax0)**0.11 * (Teff/c.Teff0)**-0.47
 
-        beta = 1.0 - np.exp(-(self.TeffRed-self.Teff)/c.Delta_Teff)
+    #     beta = 1.0 - np.exp(-(TeffRed-Teff)/c.Delta_Teff)
 
-        if isinstance(beta, (list, np.ndarray)):
-            beta[beta<=0] = np.exp(-1250)
+    #     if isinstance(beta, (list, np.ndarray)):
+    #         beta[beta<=0] = np.exp(-1250)
 
-        elif beta <=0:
-            beta = np.exp(-1250)
+    #     elif beta <=0:
+    #         beta = np.exp(-1250)
 
-        return beta
+    #     return beta
+
 
     def env_Amax(self, numax):
         """ Compute Amax
@@ -155,7 +156,7 @@ class scalingRelations:
         else:
             V = 0.95
 
-        beta = self.env_beta(numax)
+        beta = sr.env_beta(numax, self.Teff)
 
         Amax = V * beta * (numax/c.numax0)**-1 * (self.Teff/c.Teff0)**1.5
 
