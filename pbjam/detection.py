@@ -348,20 +348,20 @@ class PEDetection(scalingRelations):
                  sigmaAmax=0.1, Nint=20, mission='Kepler'):
 
         # Spectrum
-        self.freq = freq
-        self.power = power
-        self.Nyquist = self.freq.max()
+        self.f = freq
+        self.p = power
+        self.Nyquist = self.f.max()
 
         ## Background estimation
         self.background = self.get_bkg()
 
         # Masking artefact peaks
-        self.power = self.applyMask(maskPoints)
+        self.p = self.applyMask(maskPoints)
 
         # Sort out any potential bins with nan values
-        idxBad = np.isnan(self.power/self.background) | np.isinf(self.power/self.background)
-        self.freq = self.freq[~idxBad]
-        self.power = self.power[~idxBad]
+        idxBad = np.isnan(self.p/self.background) | np.isinf(self.p/self.background)
+        self.f = self.f[~idxBad]
+        self.p = self.p[~idxBad]
         self.background = self.background[~idxBad]
 
         self.falseAlarm = falseAlarm
@@ -381,11 +381,11 @@ class PEDetection(scalingRelations):
         self.dilution = dilution
 
         # Binning
-        self.df = self.freq[1]-self.freq[0]
+        self.df = self.f[1]-self.f[0]
         self.Bin_width = max([Bin_width, self.df])
         self.Nbin = int(self.Bin_width / self.df)
-        self.fb = self.bin(self.freq)
-        self.pb = self.bin(self.power)
+        self.fb = self.bin(self.f)
+        self.pb = self.bin(self.p)
         self.bb = self.bin(self.background)
         self.dfb = self.fb[1] - self.fb[0]
 
@@ -416,6 +416,31 @@ class PEDetection(scalingRelations):
 
         self.merit = self.PH1marg
 
+    def get_bkg(self, a=0.66, b=0.88, skips=100):
+        """ Estimate the background
+
+        Takes an average of the power at linearly spaced points along the
+        log(frequency) axis, where the width of the averaging window increases
+        as a power law.
+
+        The mean power values are interpolated back onto the full linear
+        frequency axis to estimate the background noise level at all
+        frequencies.
+
+        Returns
+        -------
+        b : array
+            Array of psd values approximating the background.
+        """
+
+        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+        m = [np.median(self.p[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips]
+
+        m = interpolate.interp1d(freq_skips, m, bounds_error=False)
+
+        return m(self.f)/np.log(2)
+
     def applyMask(self, maskPoints):
         """ Apply mask to remove artefacts
 
@@ -438,7 +463,7 @@ class PEDetection(scalingRelations):
             Array of power with masked frequencies replaced with random values.
         """
 
-        pp = self.power.copy()
+        pp = self.p.copy()
 
         for i in range(len(maskPoints)):
 
@@ -550,7 +575,7 @@ class PEDetection(scalingRelations):
             # predicted envelope amplitude (no marginalization), so we compute
             # these first to get them out of the way. Note the scaling of the
             # width to 1.5*sigma
-            width = 1.5 * self.env_width(nu) / (2*np.sqrt(2*np.log(2)))
+            width = 1.5 * jar.scalingRelations.envWidth(nu) / (2*np.sqrt(2*np.log(2)))
 
             # Set the range of the envelope in terms of frequency array indices.
             envRange = abs(self.fb-nu) < (width+self.dfb)
@@ -595,7 +620,7 @@ class PEDetection(scalingRelations):
             # Compute the predicted p-mode envelope. Now, one for each value of
             # Amax that we want to integrate over. Note that pmode_env takes
             # linear values of Amax. The Amax array above is in log-amplitude.
-            env = np.array([self.pmode_env(self.fb, nu, 10**a) for a in self.Amax[i,:]])
+            env = np.array([self.pmode_env(self.fb, nu, 10**a, self.Teff) for a in self.Amax[i,:]])
 
             # Compute the total power under the predicted envelope
             PtotPred = np.sum(env[:, envRange], axis = 1)
