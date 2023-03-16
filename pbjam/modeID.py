@@ -47,23 +47,8 @@ class modeIDsampler():
 
     def set_labels(self, priors):
 
-        # Default PCA parameters
-        self.pcalabels = ['dnu', 
-                          'numax', 
-                          'eps_p', 
-                          'd02', 
-                          'alpha_p', 
-                          'env_width',
-                          'env_height', 
-                          'mode_width', 
-                          'teff', 
-                          'bp_rp',
-                          'H1_power', 
-                          'H1_nu', 
-                          'H1_exp',
-                          'H2_power', 
-                          'H2_nu', 
-                          'H2_exp',]
+        # Default PCA parameters       
+        self.pcalabels = [key for key in self.variables.keys() if self.variables[key]['pca']]
         
         # Default additional parameters
         self.addlabels = [key for key in self.variables.keys() if key not in self.pcalabels]
@@ -186,9 +171,9 @@ class modeIDsampler():
 
         
         # Background
-        H1 = self.harvey(nu, theta_u['H1_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
+        H1 = self.harvey(nu, theta_u['H2_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
 
-        H2 = self.harvey(nu, theta_u['H2_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
+        H2 = self.harvey(nu, theta_u['H2_power'], theta_u['H2_nu'], theta_u['H1_exp'],)
 
         H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
 
@@ -221,7 +206,7 @@ class modeIDsampler():
         
             modes += jar.lor(nu, nu1s[i] + zeta[i] * 10**theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
  
-        return (1 + modes) * (H1 + H2 + H3) * eta  + theta_u['shot']
+        return (1 + modes) * (H1 + H2) * eta + H3  + theta_u['shot']
 
     def setupDR(self):
         """ Setup the latent parameters and projection functions
@@ -307,7 +292,7 @@ class modeIDsampler():
             Power at frequency nu (in SNR)   
         """
     
-        return 2*env_height * jnp.exp(-0.5 * (nu - numax)**2 / env_width**2)
+        return 2*jar.gaussian(nu, env_height, numax, env_width) # env_height* jnp.exp(-0.5 * (nu - numax)**2 / env_width**2)
     
     @partial(jax.jit, static_argnums=(0,))
     def _l1_modewidths(self, zeta, mode_width, **kwargs):
@@ -584,7 +569,7 @@ class modeIDsampler():
                  'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
                  'H2_power'  : {'info': 'Power of the mid-frequency Harvey'        , 'log10': True , 'pca': True}, 
                  'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
-                 'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
+                 #'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
                  'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': False},  
                  'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': False}, 
                  'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': False}, 
