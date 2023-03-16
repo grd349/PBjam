@@ -175,7 +175,7 @@ class scalingRelations():
         pass
 
     @staticmethod
-    @partial(jax.jit, static_argnums=(0,))
+    @jax.jit
     def envWidth(numax, Teff=0, Tefflim=5600):
         """ Scaling relation for the envelope height
 
