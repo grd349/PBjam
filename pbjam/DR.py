@@ -143,7 +143,7 @@ class PCA():
     
         std = np.std(pdata[keys].values, axis=0)
         
-        deltas = np.array([pdata[key].values - self.obs[key][0] for i, key in enumerate(keys)])
+        deltas = np.array([(pdata[key].values-mu[i])/std[i] - (self.obs[key][0]-mu[i])/std[i] for i, key in enumerate(keys)])
 
         sortidx = np.argsort( np.sqrt(np.sum(deltas**2, axis=0)))
          
