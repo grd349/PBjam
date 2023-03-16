@@ -2,6 +2,7 @@ import jax.numpy as jnp
 import jax, warnings
 from pbjam import jar
 from functools import partial
+from pbjam.jar import constants as c
 jax.config.update('jax_enable_x64', True)
  
 class MixFreqModel():
@@ -140,7 +141,7 @@ class MixFreqModel():
             Frequencies of the notionally pure g-modes of degree l.
         """
  
-        P0 = 1 / (jnp.sqrt(max_N2) / jar.nu_to_omega)
+        P0 = 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
 
         DPi1 = DPi0 / jnp.sqrt(2)  
 
@@ -339,12 +340,12 @@ class MixFreqModel():
             Matrix of overlap integrals.
         """
  
-        L_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_L) * (nu_g * jar.nu_to_omega)**2
+        L_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_L) * (nu_g * c.nu_to_omega)**2
 
         D_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_D) * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
 
-        L = jnp.hstack((jnp.vstack((jnp.diag(-(nu_p * jar.nu_to_omega)**2), L_cross.T)),
-                        jnp.vstack((L_cross, jnp.diag( -(nu_g * jar.nu_to_omega)**2 )))))
+        L = jnp.hstack((jnp.vstack((jnp.diag(-(nu_p * c.nu_to_omega)**2), L_cross.T)),
+                        jnp.vstack((L_cross, jnp.diag( -(nu_g * c.nu_to_omega)**2 )))))
 
         D = jnp.hstack((jnp.vstack((jnp.eye(self.N_p), D_cross.T)),
                         jnp.vstack((D_cross, jnp.eye(self.N_g)))))
@@ -391,7 +392,7 @@ class MixFreqModel():
 
         sidx = jnp.argsort(new_omega2)
 
-        return jnp.sqrt(new_omega2)[sidx] / jar.nu_to_omega, zeta[sidx]  
+        return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
 
     @partial(jax.jit, static_argnums=(0,))
     def symmetrize(self, x):
