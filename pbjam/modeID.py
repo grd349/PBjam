@@ -5,9 +5,9 @@ from dynesty import utils as dyfunc
 from pbjam.mixedmodel import MixFreqModel
 from pbjam.pairmodel import AsyFreqModel
 import pbjam.distributions as dist
-from pbjam import IO
 from pbjam import jar
 from pbjam.DR import PCA
+import numpy as np
 
 class modeIDsampler():
 
@@ -16,8 +16,6 @@ class modeIDsampler():
                  Npca=50, PCAdims=8, priorpath=None, priors={}):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
-
-        
 
         self.f = jnp.array(self.f)
 
@@ -553,6 +551,19 @@ class modeIDsampler():
 
         return sampler, samples
     
+    def unpackSamples(self, samples):
+    
+        S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        
+        for i, theta in enumerate(samples):
+        
+            theta_u = self.unpackParams(theta)
+            
+            for key in self.labels:
+                
+                S[key][i] = theta_u[key]
+            
+        return S
     
     variables = {'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True}, 
                  'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True}, 
@@ -564,7 +575,7 @@ class modeIDsampler():
                  'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True}, 
                  'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True}, 
                  'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True},
-                 'H1_power'  : {'info': 'Power of the highest frequency Harvey'    , 'log10': True , 'pca': True}, 
+                 #'H1_power'  : {'info': 'Power of the highest frequency Harvey'    , 'log10': True , 'pca': True}, 
                  'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True}, 
                  'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
                  'H2_power'  : {'info': 'Power of the mid-frequency Harvey'        , 'log10': True , 'pca': True}, 
