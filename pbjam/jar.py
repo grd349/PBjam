@@ -12,10 +12,17 @@ from scipy.special import erf
 from functools import partial
 import scipy.special as sc
 import scipy.integrate as si
+from dataclasses import dataclass
 
-# Constant factor from cyclic to angular frequency
-nu_to_omega = 2 * jnp.pi / 1e6
-
+@dataclass
+class constants:
+    
+    Teff0: float = 5777
+    TeffRed0: float = 8907
+    numax0: float = 3090
+    Delta_Teff: float = 1550
+    Henv0: float = 0.1
+    nu_to_omega: float = 2 * jnp.pi / 1e6
 
 def attenuation(f, nyq):
     """ The sampling attenuation
@@ -169,18 +176,18 @@ class scalingRelations():
 
     @staticmethod
     @partial(jax.jit, static_argnums=(0,))
-    def envWidth(numax):
-        """ Scaling relation for the envelope width
+    def envWidth(numax, Teff=0, Tefflim=5600):
+        """ Scaling relation for the envelope height
 
-        Computest he full width at half maximum of the p-mode envelope based
-        on numax and Teff (optional).
+        Currently just a crude estimate. This can probably
+        be improved.
+
+        Full width at half maximum.
 
         Parameters
         ----------
         numax : float
             Frequency of maximum power of the p-mode envelope.
-        Teff : float, optional
-            Effective surface temperature of the star.
         Teff0 : float, optional
             Solar effective temperature in K. Default is 5777 K.
 
@@ -188,10 +195,14 @@ class scalingRelations():
         -------
         width : float
             Envelope width in muHz
+
         """
-
-        width = 0.66*numax**0.88 # Mosser et al. 201??
-
+        
+        T = jax.lax.lt(Teff, Tefflim)
+        
+        width = jax.lax.cond(T, lambda numax, teff : 0.66 * numax**0.88,
+                                lambda numax, teff : 0.66 * numax**0.88 * (1 + (teff - constants.Teff0) * 6e-4), numax, Teff)
+            
         return width
 
     @partial(jax.jit, static_argnums=(0,))
@@ -239,6 +250,39 @@ class scalingRelations():
         nu = 0.948 * numax**0.992
 
         return nu
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def dnuScale(self, nu, gamma=0.0, p=[0.79101684, -0.63285292]):
+        """ Compute dnu from numax
+
+        Computes an estimate of the large separation from a given value of numax,
+        assuming the two parameters scale as a polynomial in log(dnu) and
+        log(numax).
+
+        The default is a linear function in log(dnu) and log(numax), estimated
+        based on a polynomial fit performed on a set of main-sequence and sub-
+        giant stars in the literature.
+
+        The output may be scaled by a factor gamma, e.g., for setting credible
+        intervals.
+
+        Parameters
+        ----------
+        nu : float, array
+            Value(s) at which to compute dnu, assuming nu corresponds to numax.
+        gamma : float
+            Scaling factor to apply.
+        p : array-like, optional
+            Polynomial coefficients to use for log(dnu), log(numax), starting with
+            the coefficient of the Nth order term and ending at the bias term.
+
+        Returns
+        -------
+        dnu : float, array
+            Estimate of the large separation dnu
+        """
+
+        return 10**(jnp.polyval(p, jnp.log10(nu), unroll=128) + gamma)
 
 class references():
     """ A class for managing references used when running PBjam.
@@ -460,7 +504,7 @@ def to_log10(x, xerr):
     return [x, xerr]
 
 @jax.jit
-def _normal(x, mu, sigma):
+def normal(x, mu, sigma):
     """ Evaluate logarithm of normal distribution (not normalized!!)
 
     Evaluates the logarithm of a normal distribution at x. 
@@ -480,4 +524,8 @@ def _normal(x, mu, sigma):
         Logarithm of the normal distribution at x
     """
 
-    return -0.5 * (x - mu)**2 / sigma**2
+    return gaussian(x, 1/jnp.sqrt(2*jnp.pi*sigma**2), mu, sigma)
+
+@jax.jit
+def gaussian(x, A, mu, sigma):
+    return A*jnp.exp(-(x-mu)**2/(2*sigma**2))
