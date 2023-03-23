@@ -2,406 +2,52 @@ import scipy.interpolate as interpolate
 import numpy as np
 from scipy.stats import chi2
 import scipy.special as sc
+import jax.scipy.special as jsc
 import multiprocessing as mp
 import scipy.stats as st
 from pbjam import jar
 from pbjam.jar import constants as c
 from pbjam.jar import scalingRelations as sr
-
+import jax
+import jax.numpy as jnp
+from functools import partial
+import warnings
+jax.config.update('jax_enable_x64', True)
 
 
 class detect():
 
-    def __init__(self, f, s):
-
-        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
-        pass
-
-    def get_bkg(self, a=0.66, b=0.88, skips=100):
-        """ Estimate the background
-
-        Takes an average of the power at linearly spaced points along the
-        log(frequency) axis, where the width of the averaging window increases
-        as a power law.
-
-        The mean power values are interpolated back onto the full linear
-        frequency axis to estimate the background noise level at all
-        frequencies.
-
-        Returns
-        -------
-        b : array
-            Array of psd values approximating the background.
-        """
-
-        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
-
-        m = [np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips]
-
-        m = interpolate.interp1d(freq_skips, m, bounds_error=False)
-
-        return m(self.f)/np.log(2)
-
-
-
-
-
-
-
-
-
-
-class scalingRelations:
-    """ Helper functions related to asteroseismic scaling relations """
-
-    def pmode_env(self, f, numax, Amax, Teff):
-        """ p-mode envelope as a function of frequency.
-
-        The p-mode envelope is assumed to be a Guassian.
-
-        Parameters
-        ----------
-        f : array
-            Frequency bins in the spectrum, in muHz.
-        numax : float
-            Frequency to place the p-mode envelope at, in muHz.
-        Amax : float
-            Amplitude of the p-mode envelope at numax, in ppm.
-
-        Returns
-        -------
-        envelope : array
-            Predicted Guassian p-mode envelope, in ppm^2/muHz.
-        """
-
-        Henv = self.env_height(numax, Amax)
-
-        stdenv = jar.scalingRelations.envWidth(numax, Teff) / 2 / np.sqrt(2*np.log(2))
-
-        envelope = jar.gaussian(f, Henv, numax, stdenv)
-                                
-        return envelope
-
-    # def env_beta(self, numax, Teff):
-    #     """ Compute beta correction
-
-    #     Computes the beta correction factor for Amax. This has the effect of
-    #     reducing the amplitude for hotter solar-like stars that are close to
-    #     the red edge of the delta-scuti instability strip, according to the
-    #     observed reduction in the amplitude.
-
-    #     This method was originally applied by Chaplin et al. 2011, who used a
-    #     Delta_Teff = 1250K, this was later updated (private communcation) to
-    #     Delta_Teff = 1550K.
-
-    #     Parameters
-    #     ----------
-    #     numax : float
-    #         Value of numax in muHz to compute the beta correction at.
-    #     Teff0 : float, optional
-    #         Solar effective temperature in K. Default is 5777K.
-    #     TeffRed0 : float, optional
-    #         Red edge temperature in K for a 1 solar luminosity star. Default is
-    #         8907K.
-    #     numax0: float, optional
-    #         Solar numax. Default is 3050 muHz.
-    #     Delta_Teff : float, optional
-    #         The fall-off rate of the beta correction factor. Default is 1550K
-
-    #     Returns
-    #     -------
-    #     beta : float
-    #         The correction factor for Amax.
-    #     """
-
-    #     TeffRed = c.TeffRed0 * (numax/c.numax0)**0.11 * (Teff/c.Teff0)**-0.47
-
-    #     beta = 1.0 - np.exp(-(TeffRed-Teff)/c.Delta_Teff)
-
-    #     if isinstance(beta, (list, np.ndarray)):
-    #         beta[beta<=0] = np.exp(-1250)
-
-    #     elif beta <=0:
-    #         beta = np.exp(-1250)
-
-    #     return beta
-
-
-    def env_Amax(self, numax):
-        """ Compute Amax
-
-        Computes the mode amplitude of a notional radial mode at nu_max, based
-        on scaling relations.
-
-        This includes the beta correction factor.
-
-        Parameters
-        ----------
-        numax : float
-            Value of numax in muHz to compute the beta correction at, in muHz.
-        numax0: float, optional
-            Solar numax. Default is 3050 muHz.
-        Teff0 : float, optional
-            Solar effective temperature. . Default is 5777K
-
-
-        Returns
-        -------
-        Amax : float
-            Amplitude in ppm of a radial order if it were exactly at nu_max.
-        """
-
-        if self.mission == 'TESS':
-            V = 0.85
-        else:
-            V = 0.95
-
-        beta = sr.env_beta(numax, self.Teff)
-
-        Amax = V * beta * (numax/c.numax0)**-1 * (self.Teff/c.Teff0)**1.5
-
-        return Amax # solar units
-
-    def env_height(self, numax, Amax, alpha=0.791):
-        """ Scaling relation for the envelope height
-
-        Parameters
-        ----------
-        numax : float
-            Frequency of maximum power of the p-mode envelope.
-        Amax : float
-            Envelope amplitude in ppm^2.
-        numax0: float, optional
-            Solar numax in muHz. Default is 3090 muHz.
-        Teff0 : float, optional
-            Solar effective temperature in K. Default is 5777 K.
-        alpha : float
-            Exponent of the dnu/numax scaling relation. Default is 0.804
-
-        Returns
-        -------
-        Henv : float
-            Height of the p-mode envelope
-        """
-        
-
-        eta = np.sinc(0.5 * (numax/self.Nyquist))
-
-        Henv = c.Henv0 * eta**2 * self.dilution**2 * (numax/jar.constants.numax0)**-alpha * Amax**2
-
-        return Henv
-
-    # def env_width(self, numax, Teff0=5777):
-    #     """ Scaling relation for the envelope height
-
-    #     Currently just a crude estimate. This can probably
-    #     be improved.
-
-    #     Full width at half maximum.
-
-    #     Parameters
-    #     ----------
-    #     numax : float
-    #         Frequency of maximum power of the p-mode envelope.
-    #     Teff0 : float, optional
-    #         Solar effective temperature in K. Default is 5777 K.
-
-    #     Returns
-    #     -------
-    #     width : float
-    #         Envelope width in muHz
-
-    #     """
-    #     if self.Teff <= 5600:
-    #         width = 0.66*numax**0.88
-
-    #     else:
-    #         width = 0.66*numax**0.88*(1+(self.Teff-Teff0)*6e-4)
-
-    #     return width
-
-    # def dnuScale(self, nu, gamma=0.0, p=[0.79101684, -0.63285292]):
-    #     """ Compute dnu from numax
-
-    #     Computes an estimate of the large separation from a given value of numax,
-    #     assuming the two parameters scale as a polynomial in log(dnu) and
-    #     log(numax).
-
-    #     The default is a linear function in log(dnu) and log(numax), estimated
-    #     based on a polynomial fit performed on a set of main-sequence and sub-
-    #     giant stars in the literature.
-
-    #     The output may be scaled by a factor gamma, e.g., for setting credible
-    #     intervals.
-
-    #     Parameters
-    #     ----------
-    #     nu : float, array
-    #         Value(s) at which to compute dnu, assuming nu corresponds to numax.
-    #     gamma : float
-    #         Scaling factor to apply.
-    #     p : array-like, optional
-    #         Polynomial coefficients to use for log(dnu), log(numax), starting with
-    #         the coefficient of the Nth order term and ending at the bias term.
-
-    #     Returns
-    #     -------
-    #     dnu : float, array
-    #         Estimate of the large separation dnu
-    #     """
-
-    #     return 10**(np.polyval(p, np.log10(nu))+gamma)
-
-
-class PEDetection(scalingRelations):
-    """ Power excess detection
-
-    The PEDetection class is used to estimate the probability that a frequency
-    bin in the AARPS exibits power that is inconsistent with the background
-    while being consistent with the power expected from the scaling relations.
-
-    The variable list includes Parameters which are input parameters and
-    Attributes, which are class attributes set when the class instance is
-    either initalized or called.
-
-    Parameters
-    ----------
-    freq : array
-        Frequency array of the AARPS.
-    power : array
-        Power array of the AARPS.
-    Teff : float
-        Effective temperature of the star.
-    Radius : float
-        Radius of the star.
-    Bin_width : float
-        Value in muHz to bin the spectrum by.
-    maskPoints : list
-        List of tuples of the form (peak frequency, peak width) for each peak
-        in the spectrum of a requested target.
-    dilution : float
-        Dilution parameter to scale the envelope height. This is <1 for targets
-        with significant flux from other sources in the aperture. Default is 1.
-    falseAlarm : float
-        False alarm probability to use the the threshold prior.
-    sigmaNumax : float
-        Width of the log-normal function to use as a prior on numax.
-    sigmaAmax : float
-        Width of the normal distribution in log-Amax to use for the amplitude
-        marginalization.
-    Nint : int
-        Number of bins to use to approximate the log-Amax normal distribution.
-    mission : 'str'
-        Set which mission the data is from. This is used to set the visibility
-        of the modes. Currently undetermined for plato? Default is Kepler.
-
-    Attributes
-    ----------
-    background :array
-        Array of psd values approximating the background
-    df :
-        Frequency resolution of the unbinned spectrum.
-    Nyquist :
-        Nyquest frequency of the unbbined spectrum.
-    Nbin :
-        Number of bins to bin the spectrum by.
-    fb : array
-        Frequencies of the binned spectrum.
-    pb : array
-        Power of the binned spectrum.
-    bb : array
-        Background noise of the binned spectrum.
-    dfb : float
-        Frequency of the binned spectrum.
-    Amax : array
-        2D array of values for Amax, including the uncertainty at each test
-        frequency.
-    SNR : array
-        Observed signal-to-noise ratio of the spectrum.
-    SNRPred : array
-        Predictd signal-to-noise ratio of the spectrum.
-    dof : array
-        The number of degrees of freedom at each test frequency.
-    logProbabilities : dict
-        Dictionary of arrays of log-probabilities pertaining to the calculation
-        of the posterior on H1.
-    TeffRed : float
-        Red-edge temperature of the delta-scuti instability strip. Used to
-        compute the beta correction factor.
-    PH1 : array
-        The posterior probability of H1
-    PH1marg : array
-        The posterior probability of H1 marginalized over the estimated Amax
-        uncertainty.
-    merit : array
-        Value of the merit function at each test frequency. Used to assert a
-        detection. Default is that this is identical to PH1marg
-    numax_guess : float
-        Very rough guess for where numax should be based on estimates of Teff
-        and Radius. Using in computing the numax prior.
-    numaxpdf : array
-        Probability density function for numax.
-    """
-
-
-    def __init__(self, freq, power, Teff=None, Radius=None, Bin_width=1,
+    def __init__(self, f, s, Teff=None, Radius=None, Bin_width=1,
                  maskPoints=[], dilution=1, falseAlarm=0.01, sigmaNumax=0.5,
                  sigmaAmax=0.1, Nint=20, mission='Kepler'):
 
-        # Spectrum
-        self.f = freq
-        self.p = power
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+        
         self.Nyquist = self.f.max()
 
-        ## Background estimation
         self.background = self.get_bkg()
 
-        # Masking artefact peaks
-        self.p = self.applyMask(maskPoints)
+        self.s = self.applyMask()
 
-        # Sort out any potential bins with nan values
-        idxBad = np.isnan(self.p/self.background) | np.isinf(self.p/self.background)
-        self.f = self.f[~idxBad]
-        self.p = self.p[~idxBad]
+        idxBad = np.isnan(self.s/self.background) | np.isinf(self.s/self.background)
+        self.f, self.s = self.f[~idxBad], self.s[~idxBad]
         self.background = self.background[~idxBad]
 
-        self.falseAlarm = falseAlarm
+        self.numaxGuess = sr.numaxScale(self.Teff, self.Radius)
 
-        self.sigmaNumax = sigmaNumax
-
-        self.Teff = Teff
-
-        self.Radius = Radius
-
-        self.numax_guess = self.getNumax(self.Teff, self.Radius)
-
-        self.sigmaAmax = sigmaAmax
-
-        self.mission = mission
-
-        self.dilution = dilution
+        if self.mission == 'TESS':
+            self.V = 0.85
+        else:
+            self.V = 0.95
 
         # Binning
-        self.df = self.f[1]-self.f[0]
-        self.Bin_width = max([Bin_width, self.df])
-        self.Nbin = int(self.Bin_width / self.df)
-        self.fb = self.bin(self.f)
-        self.pb = self.bin(self.p)
-        self.bb = self.bin(self.background)
-        self.dfb = self.fb[1] - self.fb[0]
+
+        self.makeBinSpecs()
 
         # Marginalization integration points must be uneven
-        self.Nint = Nint
-        if self.Nint % 2 == 0:
-            self.Nint += 1
+        self.Nint = jar.makeUneven(self.Nint)
 
-        # Empties
-        self.Amax = np.zeros((len(self.fb), self.Nint))
-        self.SNR = np.zeros((len(self.fb), self.Nint))
-        self.SNRPred = np.zeros((len(self.fb), self.Nint))
-        self.dof = np.zeros(len(self.fb))
-        self.logProbabilities = {key: np.zeros((len(self.fb), self.Nint)) for key in ['H0', 'H1', 'falseAlarm', 'numaxObs', 'wA']}
-
+        self.setFAThresholds()
 
     def __call__(self):
         """ Call to compute detection merit function
@@ -415,251 +61,7 @@ class PEDetection(scalingRelations):
 
         self.PH1, self.PH1marg = self.computePosterior(zeronan=True)
 
-        self.merit = self.PH1marg
-
-    def get_bkg(self, a=0.66, b=0.88, skips=100):
-        """ Estimate the background
-
-        Takes an average of the power at linearly spaced points along the
-        log(frequency) axis, where the width of the averaging window increases
-        as a power law.
-
-        The mean power values are interpolated back onto the full linear
-        frequency axis to estimate the background noise level at all
-        frequencies.
-
-        Returns
-        -------
-        b : array
-            Array of psd values approximating the background.
-        """
-
-        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
-
-        m = [np.median(self.p[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips]
-
-        m = interpolate.interp1d(freq_skips, m, bounds_error=False)
-
-        return m(self.f)/np.log(2)
-
-    def applyMask(self, maskPoints):
-        """ Apply mask to remove artefacts
-
-        Masks out frequencies with known artefact frequencies and replaces it
-        with random values drawn from an exponential distribution and scaled to
-        the background estimate.
-
-        This is only needed for testing on Kepler and TESS data.
-
-        Parameters
-        ----------
-        maskePoints : list
-            List of tuples, one for each peak to mask out. Each tuple consists
-            a central frequency and the full-width of the range around that
-            frequency to mask out.
-
-        Returns
-        -------
-        pp : array
-            Array of power with masked frequencies replaced with random values.
-        """
-
-        pp = self.p.copy()
-
-        for i in range(len(maskPoints)):
-
-            idx = abs(self.freq-maskPoints[i][0]) < maskPoints[i][1]/2
-
-            pp[idx] = np.random.exponential(size=len(self.freq[idx]))*self.background[idx]
-
-        return pp
-
-
-
-    def bin(self, x):
-        """ Bin x by a factor n
-
-        If len(x) is not equal to an integer number of n, the remaining
-        frequency bins are discarded. Half at low frequency and half at high
-        frequency.
-
-        Parameters
-        ----------
-        x : array
-            Array of values to bin.
-
-        Returns
-        -------
-        xbin : array
-            The binned version of the input array
-        """
-
-        # Number of frequency bins per requested bin width
-        n = int(self.Bin_width / self.df)
-
-        # The input array isn't always an integer number of the binning factor
-        # A bit of the input array is therefore trimmed a low and high end.
-        trim = (len(x)//n)*n
-
-        half_rest = (len(x)-trim)//2
-
-        x = x[half_rest:half_rest+trim] # Trim the input array
-
-        xbin = x.reshape((-1, n)).mean(axis = 1) # reshape and average
-
-        return xbin
-
-    def thresholdPrior(self, SNRPred, dof):
-        """ Computes the false alarm probability prior
-
-        Estimates where we can be reasonably sure that the predicted p-modes
-        will be visible, given the observed background. This is then used as a
-        prior.
-
-        Parameters
-        ----------
-        SNRPred : array
-            Array of predicted SNR values in the spectrum (Ptot_pred/Btot).
-        dof : int
-            Degress of freedom of the chi^2 distribution
-
-        Returns
-        -------
-        logp_thresh : array
-            The log of the threshold prior at each frequency.
-        """
-
-        # Find the value of x corresponding to a false alarm probability
-        x = chi2.isf(self.falseAlarm, df=dof, scale=1./dof)
-
-        # This is redundant given below, but for clarity
-        SNRThresh = x-1
-
-        # False alarm (threshold) prior
-        logp_thresh = chi2.logsf((1+SNRThresh)/(1+SNRPred), df=dof,
-                                 scale=1./dof)
-
-        return logp_thresh
-
-    def numaxLogProbability(self, Nsig=5):
-        """ Computed numax log probability along frequency axis
-
-        Computes the log-probabilities associated with estimating whether a
-        p-mode envelope is present in the spectrum.
-
-        These estimates are based on the scaling relations for the envelope
-        height and width. Where the power in a predicted envelope is compared
-        to the estimated noise level and the power predicted by the scaling
-        relations.
-
-        A range of envelope amplitudes are computed in order to marginalize over
-        the uncertainty in the scaling relations. The uncertainty can be
-        adjusted using the sigmaAmax argument when initializing the Detection
-        class.
-
-        A prior on numax from Gaia observations is applied and a prior based on
-        the prediction having a low false alarm probability.
-
-        Parameters
-        ----------
-        Nsig : int
-            The amplitude marginalization is computed to +/-Nsig around the
-            scaling relation. Nsig ~ 1 is probably insufficient as it might not
-            capture the spread in true Amax values. Default is 5.
-
-        """
-
-        # Loop over all test frequencies
-        for i, nu in enumerate(self.fb):
-
-            # The numax prior and the H0 probabilities are independent of the
-            # predicted envelope amplitude (no marginalization), so we compute
-            # these first to get them out of the way. Note the scaling of the
-            # width to 1.5*sigma
-            width = 1.5 * jar.scalingRelations.envWidth(nu) / (2*np.sqrt(2*np.log(2)))
-
-            # Set the range of the envelope in terms of frequency array indices.
-            envRange = abs(self.fb-nu) < (width+self.dfb)
-
-            # Total observed power in the range of the notial envelope
-            Ptot = np.sum(self.pb[envRange]-self.bb[envRange])
-
-            # Total background power in the range of the notial envelope
-            Btot = np.sum(self.bb[envRange])
-
-            # Degrees of freedom of the chi2 distribution
-            dof = 2 * len(self.pb[envRange])*self.Nbin
-            self.dof[i] = dof
-
-            # Compute observed SNR
-            self.SNR[i, :] = Ptot / Btot
-
-            # Compute the probability of numax given photometric constraints.
-            self.logProbabilities['numaxObs'][i, :] = self.obsNumaxPrior(nu)
-
-            # Compute the H0 probability. Can maybe use chi2.logsf instead?
-            self.logProbabilities['H0'][i, :] = chi2logpdf(1 + self.SNR[i,:], df=dof, scale=1./dof) # scalar -> array
-
-            # We assume that the envelope amplitude at numax, Amax, generally
-            # follows the scaling relation given by muAmax, but with some
-            # scatter around it given by sigmaAmax, and that the scatter in
-            # true values of Amax are symmetric around log(Amax) from the
-            # scaling relations, and roughly Gaussian.
-            muAmax = np.log10(self.env_Amax(nu))
-
-            # Define the range of amplitudes to try out (integrate over). This
-            # is centered on muAmax with a spread of 2*Nsig*sigmaAmax. Here Nsig
-            # determines the number of sigma the amplitude range should span.
-            self.Amax[i,:] = np.linspace(-Nsig * self.sigmaAmax, Nsig * self.sigmaAmax, self.Nint) + muAmax
-
-            # The weights are assumed to be Gaussian distributed around muAmax.
-            # The normalization can probably be computed outside the loop to
-            # speed things a bit? Also This could potentially be turned into log-wA
-            # to get rid of the exp call.
-            self.logProbabilities['wA'][i, :] = np.exp(-(self.Amax[i,:] - muAmax)**2 / (2*self.sigmaAmax**2)) / np.sqrt(2*np.pi*self.sigmaAmax**2)
-
-            # Compute the predicted p-mode envelope. Now, one for each value of
-            # Amax that we want to integrate over. Note that pmode_env takes
-            # linear values of Amax. The Amax array above is in log-amplitude.
-            env = np.array([self.pmode_env(self.fb, nu, 10**a, self.Teff) for a in self.Amax[i,:]])
-
-            # Compute the total power under the predicted envelope
-            PtotPred = np.sum(env[:, envRange], axis = 1)
-
-            # Compute the predicted SNR
-            self.SNRPred[i, :] = PtotPred / Btot
-
-            # Compute the H1 likelihood.
-            self.logProbabilities['H1'][i, :] = chi2logpdf((1 + self.SNR[i, :]) / (1 + self.SNRPred[i, :]), df=dof, scale=1./dof)
-
-            # Compute the false alarm (threshold) probability
-            self.logProbabilities['falseAlarm'][i, :] = self.thresholdPrior(self.SNRPred[i, :], dof)
-
-
-    def obsNumaxPrior(self, nu):
-        """ Prior on numax based on non-seismic observations
-
-        Evaluates the prior probability of observing a given value nu.
-
-        Parameters
-        ----------
-        nu : float
-            Frequency to evaluate the prior at
-        numax_guess : float
-            Prior distribution mean/center.
-        sigma : float
-            Prior distribution width
-
-        Returns
-        -------
-        logp : float
-            Logarithmic probability. Prior evaluated at nu.
-        """
-
-        logp = self.logNumaxPrior(nu, self.numax_guess, self.sigmaNumax)
-
-        return logp
-
+        self.PEmerit = jnp.nan_to_num(self.PH1marg, nan=0, posinf=0, neginf=0)
 
     def computePosterior(self, zeronan=False, Priors=[1,1]):
         """ Compute the posterior H1
@@ -695,50 +97,154 @@ class PEDetection(scalingRelations):
         #Adding in the 0.5 so that the priors tend to uninformative rather than
         # the opposite.
         if Priors == [1, 1]:
-            logpT = self.logProbabilities['falseAlarm'] + np.log(0.5)
+            logpT = self.logProbabilities['falseAlarm'] + jnp.log(0.5)
+
             logpN = self.logProbabilities['numaxObs']
+
         elif Priors == [1, 0]:
-            logpN = self.logProbabilities['numaxObs'] + np.log(0.5)
-            logpT = np.log(np.ones_like(self.logProbabilities['falseAlarm']))
+            logpN = self.logProbabilities['numaxObs'] + jnp.log(0.5)
+
+            logpT = jnp.log(jnp.ones_like(self.logProbabilities['falseAlarm']))
+
         elif Priors == [0, 0]:
-            logpN = np.log(np.ones_like(self.logProbabilities['numaxObs'])*0.5)
-            logpT = np.log(np.ones_like(self.logProbabilities['falseAlarm']))
+            logpN = jnp.log(jnp.ones_like(self.logProbabilities['numaxObs'])*0.5)
+
+            logpT = jnp.log(jnp.ones_like(self.logProbabilities['falseAlarm']))
+
         elif Priors == [0, 1]:
-            logpN = np.log(np.ones_like(self.logProbabilities['numaxObs'])*0.5)
+            logpN = jnp.log(jnp.ones_like(self.logProbabilities['numaxObs'])*0.5)
+
             logpT = self.logProbabilities['falseAlarm']
 
-        logpH0 = self.logProbabilities['H0']
-
-        logpH1 = self.logProbabilities['H1']
-
-        wA = self.logProbabilities['wA']
+        logpH0 = self.logProbabilities['H0'][:, None]
+        
+        logpH1 = self.logProbabilities['H1'].T
+        
+        wA = self.logProbabilities['wA'].T
+        
 
         X = -logpN - logpT + logpH0 - logpH1
+        
         Y = logpH0 - logpH1
-
-        PH1 = 1 / (1 + np.exp(X) - np.exp(Y))
-
+        
+        PH1 = 1 / (1 + jnp.exp(X) - jnp.exp(Y))
+        
         if zeronan:
             PH1 = np.nan_to_num(PH1, nan=0, posinf=0, neginf=0)
 
         # Marginalize over the probabilities weighted by wA
-        PH1marg = np.trapz(wA*PH1, self.Amax, axis=1)
+        PH1marg = jnp.trapz(wA*PH1, self.Amax, axis=1)
 
-        X = self.logProbabilities['H1'] - self.logProbabilities['H0'] + self.logProbabilities['falseAlarm'] + self.logProbabilities['numaxObs']
-
+        X = self.logProbabilities['H1'].T - self.logProbabilities['H0'][:, None] + self.logProbabilities['falseAlarm'] + self.logProbabilities['numaxObs']
+        
         logLnumax= X[:, self.Nint//2]
-
-        maxlogL = np.nanmax(logLnumax[~np.isinf(logLnumax)])
+        
+        maxlogL = jnp.nanmax(logLnumax[~jnp.isinf(logLnumax)])
 
         logLprime = logLnumax-maxlogL
+         
+        numaxpdf = jnp.exp(logLprime)/jnp.nansum(jnp.exp(logLprime))/self.dfb
 
-        numaxpdf = np.exp(logLprime)/np.nansum(np.exp(logLprime))/self.dfb
-
-        self.numaxpdf = np.nan_to_num(numaxpdf, nan=0, posinf=0, neginf=0)
+        self.numaxpdf = jnp.nan_to_num(numaxpdf, nan=0, posinf=0, neginf=0)
 
         return PH1, PH1marg
 
-    def logNumaxPrior(self, nu, numaxGuess, sigmaNumax):
+    @partial(jax.jit, static_argnums=(0,))
+    def _temp(self, nu, w):
+        
+        idx = abs(self.fb-nu) <= w
+
+        btot = jnp.trapz(self.bb*idx, dx=self.dfb)
+
+        ptot = jnp.trapz(self.sb*idx, dx=self.dfb) - btot
+
+        M, N = jnp.argmin(abs(self.fb-jnp.ceil(nu-w))), jnp.argmin(abs(self.fb-jnp.floor(nu+w)))
+
+        return M, N, 2 * self.Nbin * (jnp.sum(idx) + 1), ptot, btot
+
+    #@partial(jax.jit, static_argnums=(0,))
+    def numaxLogProbability(self, Nsig=5): 
+        
+        self.logProbabilities = {}
+
+        W = sr.envWidth(self.fb) / (2*jnp.sqrt(2*jnp.log(2)))
+
+        sumRange = 1.5 * W  + self.dfb
+        
+        muAmax = jnp.log10(sr.Amax(self.fb, self.Teff))
+
+        AmaxError = jnp.linspace(-Nsig * self.sigmaAmax, Nsig * self.sigmaAmax, self.Nint)
+
+        self.Amax =  muAmax[:, None] + AmaxError
+ 
+        #M, N, self.dof, Ptot, Btot = jnp.array([self.test(self.fb[i], sumRange[i]) for i in range(len(self.fb))]).T
+        M, N, self.dof, Ptot, Btot = jnp.array([self._temp(nu, sumRange[i]) for i, nu in enumerate(self.fb)]).T
+
+        self.dof = jnp.array(self.dof, dtype=int)
+
+        self.SNR = Ptot / Btot 
+        
+        eta = jar.attenuation(self.fb, self.Nyquist)
+
+        Henv = sr.envHeight(10**self.Amax.T, self.V, self.dilution, eta, numax=self.fb)
+
+        PtotPred = jnp.sqrt(jnp.pi/2) * Henv * W * (jax.lax.erf((self.fb - M)/(jnp.sqrt(2)*W)) - 
+                                                    jax.lax.erf((self.fb - N)/(jnp.sqrt(2)*W)))
+        
+        # Compute the predicted SNR
+        self.SNRPred = PtotPred.T / Btot[:, None]
+
+        self.logProbabilities['wA'] = jar.normal(self.Amax.T, muAmax, self.sigmaAmax) 
+            
+        # Compute the probability of numax given photometric constraints.
+        self.logProbabilities['numaxObs'] = self.logNumaxPrior(self.fb).repeat(self.Nint).reshape((len(self.fb), self.Nint))
+        
+        # Compute the H0 probability. Can maybe use chi2.logsf instead?
+        self.logProbabilities['H0'] = chi2logpdf(1 + self.SNR, df=self.dof, scale=1./self.dof).T  
+        
+        # Compute the H1 likelihood.
+        self.logProbabilities['H1'] = chi2logpdf((1 + self.SNR[:, None]) / (1 + self.SNRPred), df=self.dof[:, None], scale=1./self.dof[:, None]).T
+
+        # Compute the false alarm (threshold) probability
+        self.logProbabilities['falseAlarm'] = self.thresholdPrior(self.SNRPred)
+
+    #@partial(jax.jit, static_argnums=(0,))
+    def thresholdPrior(self, SNRPred):
+        """ Computes the false alarm probability prior
+
+        Estimates where we can be reasonably sure that the predicted p-modes
+        will be visible, given the observed background. This is then used as a
+        prior.
+
+        Parameters
+        ----------
+        SNRPred : array
+            Array of predicted SNR values in the spectrum (Ptot_pred/Btot).
+        dof : int
+            Degress of freedom of the chi^2 distribution
+
+        Returns
+        -------
+        logp_thresh : array
+            The log of the threshold prior at each frequency.
+        """
+
+        # Find the value of x corresponding to a false alarm probability
+         
+        SNRThresh = self.FA[self.dof-1]
+
+        logp_thresh = chi2logsf(SNRThresh[:, None]/(1 + SNRPred), df=self.dof[:, None], scale=1./self.dof[:, None])
+    
+        return logp_thresh
+
+    def setFAThresholds(self):
+        
+        _dofs = jnp.arange(1, 6 * sr.envWidth(self.fb[-1]) / (2*jnp.sqrt(2*jnp.log(2)))/self.dfb * self.Nbin)
+
+        self.FA = jnp.array(chi2.isf(self.falseAlarm, df=_dofs, scale=1./_dofs))
+
+    @partial(jax.jit, static_argnums=(0,))
+    def logNumaxPrior(self, nu):
          """ Prior on numax
 
          The log-normal function in frequency for the prior on numax.
@@ -758,45 +264,357 @@ class PEDetection(scalingRelations):
              Logarithmic probability. Prior evaluated at nu.
          """
 
-         p = np.exp(-(np.log(nu/numaxGuess))**2 / (2*sigmaNumax**2))
+         p = jar.gaussian(jnp.log(nu), 1, jnp.log(self.numaxGuess), self.sigmaNumax)  
 
-         return np.log(p)
+         return jnp.log(p)
 
-    def getNumax(self, teff, R, alpha=0.804, teff0=5777, numax0=3050):
-        """ Compute numax from scaling relations
+    def makeBinSpecs(self):
+        self.df = self.f[1]-self.f[0]
 
-        Computes an estimate of numax based on the 'massless' scaling relation.
+        self.Bin_width = max([self.Bin_width, self.df])
+
+        self.Nbin = int(self.Bin_width / self.df)
+
+        self.fb = self.bin(self.f)
+
+        self.sb = self.bin(self.s)
+
+        self.bb = self.bin(self.background)
+
+        self.dfb = self.fb[1] - self.fb[0]
+
+    def bin(self, x):
+        """ Bin x by a factor n
+
+        If len(x) is not equal to an integer number of n, the remaining
+        frequency bins are discarded. Half at low frequency and half at high
+        frequency.
 
         Parameters
         ----------
-        teff : float
-            Estimate of the target surface temperature in K.
-        R : float
-            Estimate of the target radius in solar radii.
-        alpha : float, optional
-            Exponent to use in the dnu \propto numax**n relation. Default is
-            0.804.
-        teff0 : float, optional
-            Surface temperature of the Sun. Default is 5777K.
-        numax0 : float, optional
-            numax of the Sun. Default is 3050 muHz.
+        x : array
+            Array of values to bin.
 
         Returns
         -------
-        numax : float
-            Scaling relation estimate of numax in muHz.
+        xbin : array
+            The binned version of the input array
         """
 
-        A = 0.5/(0.5 - alpha)
+        # Number of frequency bins per requested bin width
+        n = int(self.Bin_width / self.df)
 
-        B = -0.25/(0.5 - alpha)
+        # The input array isn't always an integer number of the binning factor
+        # A bit of the input array is therefore trimmed a low and high end.
+        trim = (len(x)//n)*n
 
-        numax = numax0*R**A*(teff/teff0)**B
+        half_rest = (len(x)-trim)//2
 
-        return numax
+        x = x[half_rest:half_rest+trim] # Trim the input array
 
+        xbin = x.reshape((-1, n)).mean(axis = 1) # reshape and average
 
-def chi2logpdf(x, df, scale, normed=True):
+        return jnp.array(xbin)
+
+    def get_bkg(self, a=0.66, b=0.88, skips=100):
+        """ Estimate the background
+
+        Takes an average of the power at linearly spaced points along the
+        log(frequency) axis, where the width of the averaging window increases
+        as a power law.
+
+        The mean power values are interpolated back onto the full linear
+        frequency axis to estimate the background noise level at all
+        frequencies.
+
+        Returns
+        -------
+        b : array
+            Array of psd values approximating the background.
+        """
+
+        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+        m = [np.nanmedian(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips]
+
+        m = interpolate.interp1d(freq_skips, m, bounds_error=False)
+
+        return m(self.f)/np.log(2)
+
+    def applyMask(self):
+            """ Apply mask to remove artefacts
+
+            Masks out frequencies with known artefact frequencies and replaces it
+            with random values drawn from an exponential distribution and scaled to
+            the background estimate.
+
+            This is only needed for testing on Kepler and TESS data.
+
+            Parameters
+            ----------
+            maskePoints : list
+                List of tuples, one for each peak to mask out. Each tuple consists
+                a central frequency and the full-width of the range around that
+                frequency to mask out.
+
+            Returns
+            -------
+            pp : array
+                Array of power with masked frequencies replaced with random values.
+            """
+
+            pp = self.s.copy()
+
+            for i in range(len(self.maskPoints)):
+
+                idx = abs(self.freq-self.maskPoints[i][0]) < self.maskPoints[i][1]/2
+
+                pp[idx] = np.random.exponential(size=len(self.freq[idx]))*self.background[idx]
+
+            return pp
+
+    def _pmode_env(self, f, numax, Teff):
+        """ DEPRECATED p-mode envelope as a function of frequency.
+
+        The p-mode envelope is assumed to be a Guassian.
+
+        Parameters
+        ----------
+        f : array
+            Frequency bins in the spectrum, in muHz.
+        numax : float
+            Frequency to place the p-mode envelope at, in muHz.
+        Amax : float
+            Amplitude of the p-mode envelope at numax, in ppm.
+
+        Returns
+        -------
+        envelope : array
+            Predicted Guassian p-mode envelope, in ppm^2/muHz.
+        """
+ 
+        eta = jar.attenuation(numax, self.Nyquist)
+
+        Amax = sr.Amax(numax, Teff)
+
+        Henv = sr.envHeight(Amax, self.V, self.dilution, eta, numax=numax)
+
+        stdenv = sr.envWidth(numax, Teff) / 2 / np.sqrt(2*np.log(2))
+
+        envelope = jar.gaussian(f, Henv, numax, stdenv)
+                                
+        return envelope
+    
+    def _thresholdPrior(self, SNRPred, dof):
+        """ DEPRECATED Computes the false alarm probability prior
+
+        Estimates where we can be reasonably sure that the predicted p-modes
+        will be visible, given the observed background. This is then used as a
+        prior.
+
+        Parameters
+        ----------
+        SNRPred : array
+            Array of predicted SNR values in the spectrum (Ptot_pred/Btot).
+        dof : int
+            Degress of freedom of the chi^2 distribution
+
+        Returns
+        -------
+        logp_thresh : array
+            The log of the threshold prior at each frequency.
+        """
+        warnings.warn("This method is deprecated and is only kept for testing purposes ", DeprecationWarning)
+
+        # Find the value of x corresponding to a false alarm probability
+        x = self.FA[int(dof)-1]
+
+        # This is redundant given below, but for clarity
+        SNRThresh = x-1
+
+        # False alarm (threshold) prior
+        logp_thresh = chi2logsf((1+SNRThresh)/(1+SNRPred), df=dof,
+                                 scale=1./dof)
+
+        return logp_thresh
+
+    def _numaxLogProbability(self, Nsig=5):
+        """ DEPRECATED Computed numax log probability along frequency axis
+
+        Computes the log-probabilities associated with estimating whether a
+        p-mode envelope is present in the spectrum.
+
+        These estimates are based on the scaling relations for the envelope
+        height and width. Where the power in a predicted envelope is compared
+        to the estimated noise level and the power predicted by the scaling
+        relations.
+
+        A range of envelope amplitudes are computed in order to marginalize over
+        the uncertainty in the scaling relations. The uncertainty can be
+        adjusted using the sigmaAmax argument when initializing the Detection
+        class.
+
+        A prior on numax from Gaia observations is applied and a prior based on
+        the prediction having a low false alarm probability.
+
+        Parameters
+        ----------
+        Nsig : int
+            The amplitude marginalization is computed to +/-Nsig around the
+            scaling relation. Nsig ~ 1 is probably insufficient as it might not
+            capture the spread in true Amax values. Default is 5.
+
+        """
+        warnings.warn("This method is deprecated and is only kept for testing purposes ", DeprecationWarning)
+
+        # Loop over all test frequencies
+        for i, nu in enumerate(self.fb):
+
+            # The numax prior and the H0 probabilities are independent of the
+            # predicted envelope amplitude (no marginalization), so we compute
+            # these first to get them out of the way. Note the scaling of the
+            # width to 1.5*sigma
+            width = 1.5 * sr.envWidth(nu) / (2*jnp.sqrt(2*jnp.log(2)))
+
+            # Set the range of the envelope in terms of frequency array indices.
+            envRange = abs(self.fb-nu) < (width + self.dfb)
+
+            # Total observed power in the range of the notial envelope
+            Ptot = jnp.sum(self.pb[envRange]-self.bb[envRange])
+
+            # Total background power in the range of the notial envelope
+            Btot = jnp.sum(self.bb[envRange])
+
+            # Degrees of freedom of the chi2 distribution
+            dof = 2 * len(self.pb[envRange])*self.Nbin
+            self.dof[i] = dof
+
+            # Compute observed SNR
+            self.SNR[i, :] = Ptot / Btot
+
+            # Compute the probability of numax given photometric constraints.
+            self.logProbabilities['numaxObs'][i, :] = self.logNumaxPrior(nu, self.numax_guess, self.sigmaNumax)
+
+            # Compute the H0 probability. Can maybe use chi2.logsf instead?
+            self.logProbabilities['H0'][i, :] = chi2logpdf(1 + self.SNR[i,:], df=dof, scale=1./dof) # scalar -> array
+
+            # We assume that the envelope amplitude at numax, Amax, generally
+            # follows the scaling relation given by muAmax, but with some
+            # scatter around it given by sigmaAmax, and that the scatter in
+            # true values of Amax are symmetric around log(Amax) from the
+            # scaling relations, and roughly Gaussian.
+            muAmax = jnp.log10(sr.Amax(nu, self.Teff))
+
+            # Define the range of amplitudes to try out (integrate over). This
+            # is centered on muAmax with a spread of 2*Nsig*sigmaAmax. Here Nsig
+            # determines the number of sigma the amplitude range should span.
+            Amax_error = jnp.linspace(-Nsig * self.sigmaAmax, Nsig * self.sigmaAmax, self.Nint)
+            self.Amax[i,:] =  muAmax + Amax_error
+
+            # The weights are assumed to be Gaussian distributed around muAmax.
+            # The normalization can probably be computed outside the loop to
+            # speed things a bit? Also This could potentially be turned into log-wA
+            # to get rid of the exp call.
+            self.logProbabilities['wA'][i, :] = jar.normal(self.Amax[i,:], muAmax, self.sigmaAmax) 
+
+            # Compute the predicted p-mode envelope. Now, one for each value of
+            # Amax that we want to integrate over. Note that pmode_env takes
+            # linear values of Amax. The Amax array above is in log-amplitude.
+            env = jnp.array([self.pmode_env(self.fb, nu, self.Teff)*10**(2*sigma) for sigma in Amax_error])
+
+            # Compute the total power under the predicted envelope
+            PtotPred = jnp.sum(env[:, envRange], axis = 1)
+
+            # Compute the predicted SNR
+            self.SNRPred[i, :] = PtotPred / Btot
+
+            # Compute the H1 likelihood.
+            self.logProbabilities['H1'][i, :] = chi2logpdf((1 + self.SNR[i, :]) / (1 + self.SNRPred[i, :]), df=dof, scale=1./dof)
+
+            # Compute the false alarm (threshold) probability
+            self.logProbabilities['falseAlarm'][i, :] = self.thresholdPrior(self.SNRPred[i, :], dof)
+
+    def _computePosterior(self, zeronan=False, Priors=[1,1]):
+        """ Deprecated: Compute the posterior H1
+
+        Assumes the posterior of H1 is given by
+        P_H1 = pT*pN*pH1 / (pT*pN*pH1 + (1-pTpN)*pH0)
+
+        When the probabilities are computed as log-probabilities, adding them up
+        requires a bit of care to maintain numerical precision. The above
+        equation may evaluate as 1 even when pH1 is very very small, so long as
+        pH0 is smaller.
+
+        Parameters
+        ----------
+        zeronan : bool
+            Switch for setting all nan values in the resulting posterior array
+            to 0.
+
+        Returns
+        -------
+        PH1 : array
+            The posterior probability (not log) of the H1 hypothesis for all the
+            Amax guesses. The result is a 2D (M, N) array where M is the length
+            of the power spectrum and N is the number of Amax values that are
+            tested.
+        PH1marg : array
+            The posterior probability (not log) of the H1 hypothesis where
+            the Amax uncertainty is marginalized. The result isa 1D array of
+            length equal to the power spectrum.
+
+        """
+        warnings.warn("This method is deprecated and is only kept for testing purposes ", DeprecationWarning)
+
+        #Adding in the 0.5 so that the priors tend to uninformative rather than
+        # the opposite.
+        if Priors == [1, 1]:
+            logpT = self.logProbabilities['falseAlarm'] + np.log(0.5)
+            logpN = self.logProbabilities['numaxObs']
+        elif Priors == [1, 0]:
+            logpN = self.logProbabilities['numaxObs'] + np.log(0.5)
+            logpT = np.log(np.ones_like(self.logProbabilities['falseAlarm']))
+        elif Priors == [0, 0]:
+            logpN = np.log(np.ones_like(self.logProbabilities['numaxObs'])*0.5)
+            logpT = np.log(np.ones_like(self.logProbabilities['falseAlarm']))
+        elif Priors == [0, 1]:
+            logpN = np.log(np.ones_like(self.logProbabilities['numaxObs'])*0.5)
+            logpT = self.logProbabilities['falseAlarm']
+
+        logpH0 = self.logProbabilities['H0']
+        
+        logpH1 = self.logProbabilities['H1'].T
+        
+        wA = self.logProbabilities['wA'].T
+    
+        X = -logpN - logpT + logpH0 - logpH1.T
+        
+        Y = logpH0 - logpH1.T
+        
+        PH1 = 1 / (1 + np.exp(X) - np.exp(Y))
+        
+        if zeronan:
+            PH1 = np.nan_to_num(PH1, nan=0, posinf=0, neginf=0)
+
+        # Marginalize over the probabilities weighted by wA
+        PH1marg = np.trapz(wA.T*PH1, self.Amax, axis=1)
+
+        X = self.logProbabilities['H1'] - self.logProbabilities['H0'] + self.logProbabilities['falseAlarm'] + self.logProbabilities['numaxObs']
+        
+        logLnumax= X[:, self.Nint//2]
+        
+        maxlogL = np.nanmax(logLnumax[~np.isinf(logLnumax)])
+
+        logLprime = logLnumax-maxlogL
+         
+        numaxpdf = np.exp(logLprime)/np.nansum(np.exp(logLprime))/self.dfb
+
+        self.numaxpdf = np.nan_to_num(numaxpdf, nan=0, posinf=0, neginf=0)
+
+        return PH1, PH1marg
+
+@jax.jit
+def chi2logpdf(x, df, scale):
     """ Compute log prob of chi2 dist.
 
     If normed=True this is equivalent to using the scipy.stats chi2 as
@@ -824,12 +642,15 @@ def chi2logpdf(x, df, scale, normed=True):
 
     x /=scale
 
-    if normed:
-        return -(df/2)*np.log(2) - sc.gammaln(df/2) - x/2 - np.log(scale) + np.log(x)*(df/2-1)
-    else:
-        return np.log(x)*(df/2-1) - x/2
-    
+    return -(df/2)*jnp.log(2) - jsc.gammaln(df/2) - x/2 - jnp.log(scale) + jnp.log(x)*(df/2-1)
 
+@jax.jit
+def chi2sf(x, df, scale):
+    return jsc.gammaincc(df/2, x/scale/2)
+
+@jax.jit
+def chi2logsf(x, df, scale):
+    return jnp.log(chi2sf(x, df, scale))   
 
 
 class RPDetection(scalingRelations):
@@ -1805,3 +1626,732 @@ def chi2logsf(x, df, scale):
     
 
  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class PEDetection():
+#     """ Power excess detection
+
+#     The PEDetection class is used to estimate the probability that a frequency
+#     bin in the AARPS exibits power that is inconsistent with the background
+#     while being consistent with the power expected from the scaling relations.
+
+#     The variable list includes Parameters which are input parameters and
+#     Attributes, which are class attributes set when the class instance is
+#     either initalized or called.
+
+#     Parameters
+#     ----------
+#     freq : array
+#         Frequency array of the AARPS.
+#     power : array
+#         Power array of the AARPS.
+#     Teff : float
+#         Effective temperature of the star.
+#     Radius : float
+#         Radius of the star.
+#     Bin_width : float
+#         Value in muHz to bin the spectrum by.
+#     maskPoints : list
+#         List of tuples of the form (peak frequency, peak width) for each peak
+#         in the spectrum of a requested target.
+#     dilution : float
+#         Dilution parameter to scale the envelope height. This is <1 for targets
+#         with significant flux from other sources in the aperture. Default is 1.
+#     falseAlarm : float
+#         False alarm probability to use the the threshold prior.
+#     sigmaNumax : float
+#         Width of the log-normal function to use as a prior on numax.
+#     sigmaAmax : float
+#         Width of the normal distribution in log-Amax to use for the amplitude
+#         marginalization.
+#     Nint : int
+#         Number of bins to use to approximate the log-Amax normal distribution.
+#     mission : 'str'
+#         Set which mission the data is from. This is used to set the visibility
+#         of the modes. Currently undetermined for plato? Default is Kepler.
+
+#     Attributes
+#     ----------
+#     background :array
+#         Array of psd values approximating the background
+#     df :
+#         Frequency resolution of the unbinned spectrum.
+#     Nyquist :
+#         Nyquest frequency of the unbbined spectrum.
+#     Nbin :
+#         Number of bins to bin the spectrum by.
+#     fb : array
+#         Frequencies of the binned spectrum.
+#     pb : array
+#         Power of the binned spectrum.
+#     bb : array
+#         Background noise of the binned spectrum.
+#     dfb : float
+#         Frequency of the binned spectrum.
+#     Amax : array
+#         2D array of values for Amax, including the uncertainty at each test
+#         frequency.
+#     SNR : array
+#         Observed signal-to-noise ratio of the spectrum.
+#     SNRPred : array
+#         Predictd signal-to-noise ratio of the spectrum.
+#     dof : array
+#         The number of degrees of freedom at each test frequency.
+#     logProbabilities : dict
+#         Dictionary of arrays of log-probabilities pertaining to the calculation
+#         of the posterior on H1.
+#     TeffRed : float
+#         Red-edge temperature of the delta-scuti instability strip. Used to
+#         compute the beta correction factor.
+#     PH1 : array
+#         The posterior probability of H1
+#     PH1marg : array
+#         The posterior probability of H1 marginalized over the estimated Amax
+#         uncertainty.
+#     merit : array
+#         Value of the merit function at each test frequency. Used to assert a
+#         detection. Default is that this is identical to PH1marg
+#     numax_guess : float
+#         Very rough guess for where numax should be based on estimates of Teff
+#         and Radius. Using in computing the numax prior.
+#     numaxpdf : array
+#         Probability density function for numax.
+#     """
+
+
+#     def __init__(self, freq, power, Teff=None, Radius=None, Bin_width=1,
+#                  maskPoints=[], dilution=1, falseAlarm=0.01, sigmaNumax=0.5,
+#                  sigmaAmax=0.1, Nint=20, mission='Kepler'):
+
+#         # Spectrum
+#         self.f = freq
+#         self.p = power
+#         self.Nyquist = self.f.max()
+
+#         ## Background estimation
+#         self.background = self.get_bkg()
+
+#         # Masking artefact peaks
+#         self.p = self.applyMask(maskPoints)
+
+#         # Sort out any potential bins with nan values
+#         idxBad = np.isnan(self.p/self.background) | np.isinf(self.p/self.background)
+#         self.f = self.f[~idxBad]
+#         self.p = self.p[~idxBad]
+#         self.background = self.background[~idxBad]
+
+#         self.falseAlarm = falseAlarm
+
+#         self.sigmaNumax = sigmaNumax
+
+#         self.Teff = Teff
+
+#         self.Radius = Radius
+
+#         self.numax_guess = sr.numaxScale(self.Teff, self.Radius)
+
+#         self.sigmaAmax = sigmaAmax
+
+#         self.mission = mission
+
+#         self.dilution = dilution
+
+#         if self.mission == 'TESS':
+#             self.V = 0.85
+#         else:
+#             self.V = 0.95
+
+
+#         # Binning
+#         self.df = self.f[1]-self.f[0]
+#         self.Bin_width = max([Bin_width, self.df])
+#         self.Nbin = int(self.Bin_width / self.df)
+#         self.fb = self.bin(self.f)
+#         self.pb = self.bin(self.p)
+#         self.bb = self.bin(self.background)
+#         self.dfb = self.fb[1] - self.fb[0]
+
+#         self.bb = jnp.array(self.bb)
+#         self.pb = jnp.array(self.pb)
+#         self.fb = jnp.array(self.fb)
+
+#         # Marginalization integration points must be uneven
+#         self.Nint = Nint
+#         if self.Nint % 2 == 0:
+#             self.Nint += 1
+
+#         _dofs = jnp.arange(1, 6 * sr.envWidth(self.fb[-1]) / (2*jnp.sqrt(2*jnp.log(2)))/self.dfb * self.Nbin)
+#         self.FA = jnp.array(chi2.isf(self.falseAlarm, df=_dofs, scale=1./_dofs))
+
+#         # Empties
+#         self.Amax = np.zeros((len(self.fb), self.Nint))
+#         self.SNR = np.zeros((len(self.fb), self.Nint))
+#         self.SNRPred = np.zeros((len(self.fb), self.Nint))
+#         self.dof = np.zeros(len(self.fb))
+#         self.logProbabilities = {key: np.zeros((len(self.fb), self.Nint)) for key in ['H0', 'H1', 'falseAlarm', 'numaxObs', 'wA']}
+
+        
+
+#     def __call__(self):
+#         """ Call to compute detection merit function
+
+#         Computes the posterior probability of the H1 hypothesis as well as
+#         the probability density of numax.
+
+#         """
+
+#         self.numaxLogProbability()
+
+#         self.PH1, self.PH1marg = self.computePosterior(zeronan=True)
+
+#         self.merit = self.PH1marg
+ 
+#     def get_bkg(self, a=0.66, b=0.88, skips=100):
+#         """ Estimate the background
+
+#         Takes an average of the power at linearly spaced points along the
+#         log(frequency) axis, where the width of the averaging window increases
+#         as a power law.
+
+#         The mean power values are interpolated back onto the full linear
+#         frequency axis to estimate the background noise level at all
+#         frequencies.
+
+#         Returns
+#         -------
+#         b : array
+#             Array of psd values approximating the background.
+#         """
+
+#         freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+#         m = [np.median(self.p[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips]
+
+#         m = interpolate.interp1d(freq_skips, m, bounds_error=False)
+
+#         return m(self.f)/np.log(2)
+
+#     def applyMask(self, maskPoints):
+#         """ Apply mask to remove artefacts
+
+#         Masks out frequencies with known artefact frequencies and replaces it
+#         with random values drawn from an exponential distribution and scaled to
+#         the background estimate.
+
+#         This is only needed for testing on Kepler and TESS data.
+
+#         Parameters
+#         ----------
+#         maskePoints : list
+#             List of tuples, one for each peak to mask out. Each tuple consists
+#             a central frequency and the full-width of the range around that
+#             frequency to mask out.
+
+#         Returns
+#         -------
+#         pp : array
+#             Array of power with masked frequencies replaced with random values.
+#         """
+
+#         pp = self.p.copy()
+
+#         for i in range(len(maskPoints)):
+
+#             idx = abs(self.freq-maskPoints[i][0]) < maskPoints[i][1]/2
+
+#             pp[idx] = np.random.exponential(size=len(self.freq[idx]))*self.background[idx]
+
+#         return pp
+
+#     def bin(self, x):
+#         """ Bin x by a factor n
+
+#         If len(x) is not equal to an integer number of n, the remaining
+#         frequency bins are discarded. Half at low frequency and half at high
+#         frequency.
+
+#         Parameters
+#         ----------
+#         x : array
+#             Array of values to bin.
+
+#         Returns
+#         -------
+#         xbin : array
+#             The binned version of the input array
+#         """
+
+#         # Number of frequency bins per requested bin width
+#         n = int(self.Bin_width / self.df)
+
+#         # The input array isn't always an integer number of the binning factor
+#         # A bit of the input array is therefore trimmed a low and high end.
+#         trim = (len(x)//n)*n
+
+#         half_rest = (len(x)-trim)//2
+
+#         x = x[half_rest:half_rest+trim] # Trim the input array
+
+#         xbin = x.reshape((-1, n)).mean(axis = 1) # reshape and average
+
+#         return xbin
+
+#     @partial(jax.jit, static_argnums=(0,))
+#     def _temp(self, nu, w):
+        
+#         idx = abs(self.fb-nu) <= w
+
+#         btot = jnp.trapz(self.bb*idx, dx=self.dfb)
+
+#         ptot = jnp.trapz(self.pb*idx, dx=self.dfb) - btot
+
+#         M, N = jnp.argmin(abs(self.fb-jnp.ceil(nu-w))), jnp.argmin(abs(self.fb-jnp.floor(nu+w)))
+
+#         return M, N, 2 * self.Nbin * (jnp.sum(idx) + 1), ptot, btot
+
+#     #@partial(jax.jit, static_argnums=(0,))
+#     def numaxLogProbability(self, Nsig=5): 
+        
+#         W = sr.envWidth(self.fb) / (2*jnp.sqrt(2*jnp.log(2)))
+
+#         sumRange = 1.5 * W  + self.dfb
+        
+#         muAmax = jnp.log10(sr.Amax(self.fb, self.Teff))
+
+#         Amax_error = jnp.linspace(-Nsig * self.sigmaAmax, Nsig * self.sigmaAmax, self.Nint)
+
+#         self.Amax =  muAmax[:, None] + Amax_error
+ 
+#         #M, N, self.dof, Ptot, Btot = jnp.array([self.test(self.fb[i], sumRange[i]) for i in range(len(self.fb))]).T
+#         M, N, self.dof, Ptot, Btot = jnp.array([self._temp(nu, sumRange[i]) for i, nu in enumerate(self.fb)]).T
+
+#         self.dof = jnp.array(self.dof, dtype=int)
+
+#         self.SNR = Ptot / Btot 
+        
+#         eta = jar.attenuation(self.fb, self.Nyquist)
+
+#         Henv = sr.envHeight(10**self.Amax.T, self.V, self.dilution, eta, numax=self.fb)
+
+#         PtotPred = jnp.sqrt(jnp.pi/2) * Henv * W * (jax.lax.erf((self.fb - M)/(jnp.sqrt(2)*W)) - 
+#                                                     jax.lax.erf((self.fb - N)/(jnp.sqrt(2)*W)))
+        
+#         # Compute the predicted SNR
+#         self.SNRPred = PtotPred.T / Btot[:, None]
+
+#         self.logProbabilities['wA'] = jar.normal(self.Amax.T, muAmax, self.sigmaAmax) 
+            
+#         # Compute the probability of numax given photometric constraints.
+#         self.logProbabilities['numaxObs'] = self.logNumaxPrior(self.fb, self.numax_guess, self.sigmaNumax).repeat(self.Nint).reshape((len(self.fb), self.Nint))
+        
+#         # Compute the H0 probability. Can maybe use chi2.logsf instead?
+#         self.logProbabilities['H0'] = chi2logpdf(1 + self.SNR, df=self.dof, scale=1./self.dof).T  
+        
+#         # Compute the H1 likelihood.
+#         self.logProbabilities['H1'] = chi2logpdf((1 + self.SNR[:, None]) / (1 + self.SNRPred), df=self.dof[:, None], scale=1./self.dof[:, None]).T
+
+#         # Compute the false alarm (threshold) probability
+#         self.logProbabilities['falseAlarm'] = self.thresholdPrior(self.SNRPred)
+
+#     #@partial(jax.jit, static_argnums=(0,))
+#     def thresholdPrior(self, SNRPred):
+#         """ Computes the false alarm probability prior
+
+#         Estimates where we can be reasonably sure that the predicted p-modes
+#         will be visible, given the observed background. This is then used as a
+#         prior.
+
+#         Parameters
+#         ----------
+#         SNRPred : array
+#             Array of predicted SNR values in the spectrum (Ptot_pred/Btot).
+#         dof : int
+#             Degress of freedom of the chi^2 distribution
+
+#         Returns
+#         -------
+#         logp_thresh : array
+#             The log of the threshold prior at each frequency.
+#         """
+
+#         # Find the value of x corresponding to a false alarm probability
+         
+#         SNRThresh = self.FA[self.dof-1]
+
+#         logp_thresh = chi2logsf(SNRThresh[:, None]/(1 + SNRPred), df=self.dof[:, None], scale=1./self.dof[:, None])
+    
+#         return logp_thresh
+
+#     def computePosterior(self, zeronan=False, Priors=[1,1]):
+#         """ Compute the posterior H1
+
+#         Assumes the posterior of H1 is given by
+#         P_H1 = pT*pN*pH1 / (pT*pN*pH1 + (1-pTpN)*pH0)
+
+#         When the probabilities are computed as log-probabilities, adding them up
+#         requires a bit of care to maintain numerical precision. The above
+#         equation may evaluate as 1 even when pH1 is very very small, so long as
+#         pH0 is smaller.
+
+#         Parameters
+#         ----------
+#         zeronan : bool
+#             Switch for setting all nan values in the resulting posterior array
+#             to 0.
+
+#         Returns
+#         -------
+#         PH1 : array
+#             The posterior probability (not log) of the H1 hypothesis for all the
+#             Amax guesses. The result is a 2D (M, N) array where M is the length
+#             of the power spectrum and N is the number of Amax values that are
+#             tested.
+#         PH1marg : array
+#             The posterior probability (not log) of the H1 hypothesis where
+#             the Amax uncertainty is marginalized. The result isa 1D array of
+#             length equal to the power spectrum.
+
+#         """
+
+#         #Adding in the 0.5 so that the priors tend to uninformative rather than
+#         # the opposite.
+#         if Priors == [1, 1]:
+#             logpT = self.logProbabilities['falseAlarm'] + jnp.log(0.5)
+#             logpN = self.logProbabilities['numaxObs']
+#         elif Priors == [1, 0]:
+#             logpN = self.logProbabilities['numaxObs'] + jnp.log(0.5)
+#             logpT = jnp.log(jnp.ones_like(self.logProbabilities['falseAlarm']))
+#         elif Priors == [0, 0]:
+#             logpN = jnp.log(jnp.ones_like(self.logProbabilities['numaxObs'])*0.5)
+#             logpT = jnp.log(jnp.ones_like(self.logProbabilities['falseAlarm']))
+#         elif Priors == [0, 1]:
+#             logpN = jnp.log(jnp.ones_like(self.logProbabilities['numaxObs'])*0.5)
+#             logpT = self.logProbabilities['falseAlarm']
+
+#         logpH0 = self.logProbabilities['H0'][:, None]
+        
+#         logpH1 = self.logProbabilities['H1'].T
+        
+#         wA = self.logProbabilities['wA'].T
+        
+
+#         X = -logpN - logpT + logpH0 - logpH1
+        
+#         Y = logpH0 - logpH1
+        
+#         PH1 = 1 / (1 + jnp.exp(X) - jnp.exp(Y))
+        
+#         if zeronan:
+#             PH1 = np.nan_to_num(PH1, nan=0, posinf=0, neginf=0)
+
+#         # Marginalize over the probabilities weighted by wA
+#         PH1marg = jnp.trapz(wA*PH1, self.Amax, axis=1)
+
+#         X = self.logProbabilities['H1'].T - self.logProbabilities['H0'][:, None] + self.logProbabilities['falseAlarm'] + self.logProbabilities['numaxObs']
+        
+#         logLnumax= X[:, self.Nint//2]
+        
+#         maxlogL = jnp.nanmax(logLnumax[~jnp.isinf(logLnumax)])
+
+#         logLprime = logLnumax-maxlogL
+         
+#         numaxpdf = jnp.exp(logLprime)/jnp.nansum(jnp.exp(logLprime))/self.dfb
+
+#         self.numaxpdf = jnp.nan_to_num(numaxpdf, nan=0, posinf=0, neginf=0)
+
+#         return PH1, PH1marg
+
+#     @partial(jax.jit, static_argnums=(0,))
+#     def logNumaxPrior(self, nu, numaxGuess, sigmaNumax):
+#          """ Prior on numax
+
+#          The log-normal function in frequency for the prior on numax.
+
+#          Parameters
+#          ----------
+#          nu : float
+#              Frequency to evaluate the prior at, in muHz.
+#          numaxGuess : float
+#              Prior mean/center, in muHz.
+#          sigmaNumax : float
+#              Width of the log-normal function.
+
+#          Returns
+#          -------
+#          logp : float
+#              Logarithmic probability. Prior evaluated at nu.
+#          """
+
+#          p = jar.gaussian(jnp.log(nu), 1, jnp.log(numaxGuess), sigmaNumax)  
+
+#          return jnp.log(p)
+
+
+#     def _pmode_env(self, f, numax, Teff):
+#         """ DEPRECATED p-mode envelope as a function of frequency.
+
+#         The p-mode envelope is assumed to be a Guassian.
+
+#         Parameters
+#         ----------
+#         f : array
+#             Frequency bins in the spectrum, in muHz.
+#         numax : float
+#             Frequency to place the p-mode envelope at, in muHz.
+#         Amax : float
+#             Amplitude of the p-mode envelope at numax, in ppm.
+
+#         Returns
+#         -------
+#         envelope : array
+#             Predicted Guassian p-mode envelope, in ppm^2/muHz.
+#         """
+ 
+#         eta = jar.attenuation(numax, self.Nyquist)
+
+#         Amax = sr.Amax(numax, Teff)
+
+#         Henv = sr.envHeight(Amax, self.V, self.dilution, eta, numax=numax)
+
+#         stdenv = sr.envWidth(numax, Teff) / 2 / np.sqrt(2*np.log(2))
+
+#         envelope = jar.gaussian(f, Henv, numax, stdenv)
+                                
+#         return envelope
+    
+#     def _thresholdPrior(self, SNRPred, dof):
+#         """ DEPRECATED Computes the false alarm probability prior
+
+#         Estimates where we can be reasonably sure that the predicted p-modes
+#         will be visible, given the observed background. This is then used as a
+#         prior.
+
+#         Parameters
+#         ----------
+#         SNRPred : array
+#             Array of predicted SNR values in the spectrum (Ptot_pred/Btot).
+#         dof : int
+#             Degress of freedom of the chi^2 distribution
+
+#         Returns
+#         -------
+#         logp_thresh : array
+#             The log of the threshold prior at each frequency.
+#         """
+#         warnings.warn("This method is deprecated and is only kept for testing purposes ", DeprecationWarning)
+
+#         # Find the value of x corresponding to a false alarm probability
+#         x = self.FA[int(dof)-1]
+
+#         # This is redundant given below, but for clarity
+#         SNRThresh = x-1
+
+#         # False alarm (threshold) prior
+#         logp_thresh = chi2logsf((1+SNRThresh)/(1+SNRPred), df=dof,
+#                                  scale=1./dof)
+
+#         return logp_thresh
+
+#     def _numaxLogProbability(self, Nsig=5):
+#         """ DEPRECATED Computed numax log probability along frequency axis
+
+#         Computes the log-probabilities associated with estimating whether a
+#         p-mode envelope is present in the spectrum.
+
+#         These estimates are based on the scaling relations for the envelope
+#         height and width. Where the power in a predicted envelope is compared
+#         to the estimated noise level and the power predicted by the scaling
+#         relations.
+
+#         A range of envelope amplitudes are computed in order to marginalize over
+#         the uncertainty in the scaling relations. The uncertainty can be
+#         adjusted using the sigmaAmax argument when initializing the Detection
+#         class.
+
+#         A prior on numax from Gaia observations is applied and a prior based on
+#         the prediction having a low false alarm probability.
+
+#         Parameters
+#         ----------
+#         Nsig : int
+#             The amplitude marginalization is computed to +/-Nsig around the
+#             scaling relation. Nsig ~ 1 is probably insufficient as it might not
+#             capture the spread in true Amax values. Default is 5.
+
+#         """
+#         warnings.warn("This method is deprecated and is only kept for testing purposes ", DeprecationWarning)
+
+#         # Loop over all test frequencies
+#         for i, nu in enumerate(self.fb):
+
+#             # The numax prior and the H0 probabilities are independent of the
+#             # predicted envelope amplitude (no marginalization), so we compute
+#             # these first to get them out of the way. Note the scaling of the
+#             # width to 1.5*sigma
+#             width = 1.5 * sr.envWidth(nu) / (2*jnp.sqrt(2*jnp.log(2)))
+
+#             # Set the range of the envelope in terms of frequency array indices.
+#             envRange = abs(self.fb-nu) < (width + self.dfb)
+
+#             # Total observed power in the range of the notial envelope
+#             Ptot = jnp.sum(self.pb[envRange]-self.bb[envRange])
+
+#             # Total background power in the range of the notial envelope
+#             Btot = jnp.sum(self.bb[envRange])
+
+#             # Degrees of freedom of the chi2 distribution
+#             dof = 2 * len(self.pb[envRange])*self.Nbin
+#             self.dof[i] = dof
+
+#             # Compute observed SNR
+#             self.SNR[i, :] = Ptot / Btot
+
+#             # Compute the probability of numax given photometric constraints.
+#             self.logProbabilities['numaxObs'][i, :] = self.logNumaxPrior(nu, self.numax_guess, self.sigmaNumax)
+
+#             # Compute the H0 probability. Can maybe use chi2.logsf instead?
+#             self.logProbabilities['H0'][i, :] = chi2logpdf(1 + self.SNR[i,:], df=dof, scale=1./dof) # scalar -> array
+
+#             # We assume that the envelope amplitude at numax, Amax, generally
+#             # follows the scaling relation given by muAmax, but with some
+#             # scatter around it given by sigmaAmax, and that the scatter in
+#             # true values of Amax are symmetric around log(Amax) from the
+#             # scaling relations, and roughly Gaussian.
+#             muAmax = jnp.log10(sr.Amax(nu, self.Teff))
+
+#             # Define the range of amplitudes to try out (integrate over). This
+#             # is centered on muAmax with a spread of 2*Nsig*sigmaAmax. Here Nsig
+#             # determines the number of sigma the amplitude range should span.
+#             Amax_error = jnp.linspace(-Nsig * self.sigmaAmax, Nsig * self.sigmaAmax, self.Nint)
+#             self.Amax[i,:] =  muAmax + Amax_error
+
+#             # The weights are assumed to be Gaussian distributed around muAmax.
+#             # The normalization can probably be computed outside the loop to
+#             # speed things a bit? Also This could potentially be turned into log-wA
+#             # to get rid of the exp call.
+#             self.logProbabilities['wA'][i, :] = jar.normal(self.Amax[i,:], muAmax, self.sigmaAmax) 
+
+#             # Compute the predicted p-mode envelope. Now, one for each value of
+#             # Amax that we want to integrate over. Note that pmode_env takes
+#             # linear values of Amax. The Amax array above is in log-amplitude.
+#             env = jnp.array([self.pmode_env(self.fb, nu, self.Teff)*10**(2*sigma) for sigma in Amax_error])
+
+#             # Compute the total power under the predicted envelope
+#             PtotPred = jnp.sum(env[:, envRange], axis = 1)
+
+#             # Compute the predicted SNR
+#             self.SNRPred[i, :] = PtotPred / Btot
+
+#             # Compute the H1 likelihood.
+#             self.logProbabilities['H1'][i, :] = chi2logpdf((1 + self.SNR[i, :]) / (1 + self.SNRPred[i, :]), df=dof, scale=1./dof)
+
+#             # Compute the false alarm (threshold) probability
+#             self.logProbabilities['falseAlarm'][i, :] = self.thresholdPrior(self.SNRPred[i, :], dof)
+
+#     def _computePosterior(self, zeronan=False, Priors=[1,1]):
+#         """ Deprecated: Compute the posterior H1
+
+#         Assumes the posterior of H1 is given by
+#         P_H1 = pT*pN*pH1 / (pT*pN*pH1 + (1-pTpN)*pH0)
+
+#         When the probabilities are computed as log-probabilities, adding them up
+#         requires a bit of care to maintain numerical precision. The above
+#         equation may evaluate as 1 even when pH1 is very very small, so long as
+#         pH0 is smaller.
+
+#         Parameters
+#         ----------
+#         zeronan : bool
+#             Switch for setting all nan values in the resulting posterior array
+#             to 0.
+
+#         Returns
+#         -------
+#         PH1 : array
+#             The posterior probability (not log) of the H1 hypothesis for all the
+#             Amax guesses. The result is a 2D (M, N) array where M is the length
+#             of the power spectrum and N is the number of Amax values that are
+#             tested.
+#         PH1marg : array
+#             The posterior probability (not log) of the H1 hypothesis where
+#             the Amax uncertainty is marginalized. The result isa 1D array of
+#             length equal to the power spectrum.
+
+#         """
+#         warnings.warn("This method is deprecated and is only kept for testing purposes ", DeprecationWarning)
+
+#         #Adding in the 0.5 so that the priors tend to uninformative rather than
+#         # the opposite.
+#         if Priors == [1, 1]:
+#             logpT = self.logProbabilities['falseAlarm'] + np.log(0.5)
+#             logpN = self.logProbabilities['numaxObs']
+#         elif Priors == [1, 0]:
+#             logpN = self.logProbabilities['numaxObs'] + np.log(0.5)
+#             logpT = np.log(np.ones_like(self.logProbabilities['falseAlarm']))
+#         elif Priors == [0, 0]:
+#             logpN = np.log(np.ones_like(self.logProbabilities['numaxObs'])*0.5)
+#             logpT = np.log(np.ones_like(self.logProbabilities['falseAlarm']))
+#         elif Priors == [0, 1]:
+#             logpN = np.log(np.ones_like(self.logProbabilities['numaxObs'])*0.5)
+#             logpT = self.logProbabilities['falseAlarm']
+
+#         logpH0 = self.logProbabilities['H0']
+        
+#         logpH1 = self.logProbabilities['H1'].T
+        
+#         wA = self.logProbabilities['wA'].T
+    
+#         X = -logpN - logpT + logpH0 - logpH1.T
+        
+#         Y = logpH0 - logpH1.T
+        
+#         PH1 = 1 / (1 + np.exp(X) - np.exp(Y))
+        
+#         if zeronan:
+#             PH1 = np.nan_to_num(PH1, nan=0, posinf=0, neginf=0)
+
+#         # Marginalize over the probabilities weighted by wA
+#         PH1marg = np.trapz(wA.T*PH1, self.Amax, axis=1)
+
+#         X = self.logProbabilities['H1'] - self.logProbabilities['H0'] + self.logProbabilities['falseAlarm'] + self.logProbabilities['numaxObs']
+        
+#         logLnumax= X[:, self.Nint//2]
+        
+#         maxlogL = np.nanmax(logLnumax[~np.isinf(logLnumax)])
+
+#         logLprime = logLnumax-maxlogL
+         
+#         numaxpdf = np.exp(logLprime)/np.nansum(np.exp(logLprime))/self.dfb
+
+#         self.numaxpdf = np.nan_to_num(numaxpdf, nan=0, posinf=0, neginf=0)
+
+#         return PH1, PH1marg
+
+
+
+

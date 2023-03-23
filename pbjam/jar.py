@@ -17,13 +17,16 @@ from dataclasses import dataclass
 @dataclass
 class constants:
     
-    Teff0: float = 5777
-    TeffRed0: float = 8907
-    numax0: float = 3090
-    Delta_Teff: float = 1550
-    Henv0: float = 0.1
-    nu_to_omega: float = 2 * jnp.pi / 1e6
+    Teff0: float = 5777 # K
+    TeffRed0: float = 8907 # K
+    numax0: float = 3090 # muHz
+    Delta_Teff: float = 1550 # K
+    Henv0: float = 0.1 # ppm^2/muHz
+    nu_to_omega: float = 2 * jnp.pi / 1e6 # radians/muHz
+    dnu0: float = 135.9 # muHz
+    logg0 : float = 4.43775 # log10(2.74e4)
 
+@jax.jit
 def attenuation(f, nyq):
     """ The sampling attenuation
 
@@ -176,20 +179,64 @@ class scalingRelations():
 
     @staticmethod
     @jax.jit
-    def envWidth(numax, Teff=0, Tefflim=5600):
-        """ Scaling relation for the envelope height
+    def envHeight(Amax, V, dilution, eta, numax=None, dnu=None, alpha=0.791):
+        """ Envelope height
 
-        Currently just a crude estimate. This can probably
-        be improved.
+        Scaling relation for the p-mode envelope height. 
+
+        Parameters
+        ----------
+        Amax : float
+            Amplitude of the p-modes for a notinoal radial mode at numax. 
+        V : float
+            Visibility scaling of the oscillations. This is instrument dependent.
+        dilution : float
+            Fraction of the flux due to the source, compared to the overall 
+            flux in the aperature. Also known as wash-out.
+        eta : float
+            Attenuation of the continuous signal due to discrete sampling.
+        numax : float
+            Frequency of maximum power of the p-mode envelope in muHz, by 
+            default None.
+        dnu : float, optional
+            Large separation of the target, by default None
+        alpha : float, optional
+            Exponent of the dnu/numax scaling relation. Default is 0.791
+
+        Returns
+        -------
+        Henv : float
+            Height of the p-mode envelope at numax.
+        """
+         
+        I = eta * dilution * V
+
+        if numax is not None:
+            Henv = constants.Henv0 * I**2 * (numax/constants.numax0)**-alpha * Amax**2
+
+        elif dnu is not None:
+            Henv = constants.Henv0 * I**2 * (dnu/constants.dnu0) * Amax**2
+
+        else:
+            raise ValueError('Must provide either dnu or numax.')
+        
+        return Henv
+
+    @staticmethod
+    @jax.jit
+    def envWidth(numax, Teff=0, Tefflim=5600):
+        """ Scaling relation for the envelope width
 
         Full width at half maximum.
 
         Parameters
         ----------
         numax : float
-            Frequency of maximum power of the p-mode envelope.
-        Teff0 : float, optional
-            Solar effective temperature in K. Default is 5777 K.
+            Frequency of maximum power of the p-mode envelope in muHz.
+        Teff : float
+            Stellar effective temperature in K.
+        Tefflim : float
+            Limit for adding the Teff dependence in K. Default is 5600 K.
 
         Returns
         -------
@@ -205,8 +252,9 @@ class scalingRelations():
             
         return width
 
-    @partial(jax.jit, static_argnums=(0,))
-    def nuHarveyGran(self, numax):
+    @staticmethod
+    @jax.jit
+    def nuHarveyGran(numax):
         """ Harvey frequency for granulation term
 
         Scaling relation for the characteristic frequency of the granulation
@@ -227,9 +275,10 @@ class scalingRelations():
         nu = 0.317 * numax**0.970
 
         return nu
-
-    @partial(jax.jit, static_argnums=(0,))
-    def nuHarveyEnv(self, numax):
+    
+    @staticmethod
+    @jax.jit
+    def nuHarveyEnv(numax):
         """ Harvey frequency for envelope term
 
         Scaling relation for the characteristic frequency of the envelope
@@ -251,42 +300,120 @@ class scalingRelations():
 
         return nu
     
-    @partial(jax.jit, static_argnums=(0,))
-    def dnuScale(self, nu, gamma=0.0, p=[0.79101684, -0.63285292]):
-        """ Compute dnu from numax
+    @staticmethod
+    @jax.jit
+    def dnuScale(numax=None, rho=None, R=None, Teff=None, gamma=0.0, p=jnp.array([0.79101684, -0.63285292])):
+        """ Scaling relation dnu
 
-        Computes an estimate of the large separation from a given value of numax,
-        assuming the two parameters scale as a polynomial in log(dnu) and
-        log(numax).
+        Computes an estimate of the large separation from scaling relations.
+         
+        Default is to use the mean density rho of the star. Otherwise if R
+        Teff and numax are given instead, it will use these.
 
-        The default is a linear function in log(dnu) and log(numax), estimated
-        based on a polynomial fit performed on a set of main-sequence and sub-
-        giant stars in the literature.
+        Finally if only numax is given dnu is evaluated based on the polynomial
+        relation between log(dnu) and log(numax). This estimated based on a 
+        polynomial fit performed on a set of main-sequence and sub- giant stars 
+        in the literature.
 
         The output may be scaled by a factor gamma, e.g., for setting credible
         intervals.
 
         Parameters
         ----------
-        nu : float, array
-            Value(s) at which to compute dnu, assuming nu corresponds to numax.
-        gamma : float
-            Scaling factor to apply.
+        numax : float
+            Value(s) at which to compute dnu in muHz.
+        rho : float
+            Mean density of the star in solar units.
+        Teff : float
+            Stellar effective temperature in K.
+        R : float
+            Stellar radius in solar radii.
+        gamma : float, optional
+            Scaling factor to apply. Only applies to the polynomial scaling 
+            relation. Default is 0.
         p : array-like, optional
-            Polynomial coefficients to use for log(dnu), log(numax), starting with
-            the coefficient of the Nth order term and ending at the bias term.
+            Polynomial coefficients to use for log(dnu), log(numax), starting 
+            with the coefficient of the Nth order term and ending at the bias 
+            term.
 
         Returns
         -------
-        dnu : float, array
-            Estimate of the large separation dnu
+        dnu : float 
+            Estimate of the large separation dnu in muHz.
         """
+        
+        if rho is not None:
+            dnu = jnp.sqrt(rho) * constants.dnu0
 
-        return 10**(jnp.polyval(p, jnp.log10(nu), unroll=128) + gamma)
+        elif (R is not None) and (Teff is not None) and (numax is not None):
+            dnu = jnp.sqrt(R * (Teff / constants.Teff0)**(-1/2) * (numax/constants.numax0)**(-1))
+
+        else:
+            dnu = 10**(jnp.polyval(p, jnp.log10(numax), unroll=128) + gamma)
+
+        return dnu
     
     @staticmethod
     @jax.jit
-    def env_beta(numax, Teff, L=None, a=0.11, b=-0.47, c=-0.093):
+    def numaxScale(Teff=None, R=None, dnu=None, logg=None, alpha=0.791):
+        """ Scaling relation numax
+
+        Compute numax from scaling relations given some combination of 
+        parameters.
+
+        The default is to use log(g), and if not available to use dnu and R. If
+        only R is given, it uses the mass-less approximation and if only dnu
+        is given the power-law relation. 
+
+        Parameters
+        ----------
+        Teff : float
+            Stellar effective temperature in K.
+        R : float
+            Stellar radius in solar radii.
+        dnu : float, optional
+            Large frequency separation in muHz, by default None.
+        logg : float, optional
+            logg for the star in log(cm/s**2), by default None.
+        alpha : float, optional
+            Exponent to use in the dnu \propto numax**n relation. Default is
+            0.791.
+
+        Returns
+        -------
+        numax : float
+            Frequency of maximum power of the p-mode envelope in muHz.
+
+        Raises
+        ------
+        ValueError
+            If none of the combination of parameters match.
+        """
+
+        if logg is not None:
+            numax = (Teff / constants.Teff0)**(-1/2) * 10**(logg - constants.logg0) * constants.numax0
+            
+        elif (dnu is not None) and (R is not None):
+            numax = (Teff / constants.Teff0)**(-1/2) * R * (dnu/constants.dnu0)**-2 * constants.numax0
+            
+        elif (dnu is None) and (R is not None):
+            A = 0.5/(0.5 - alpha)
+
+            B = -0.25/(0.5 - alpha)
+
+            numax = (Teff / constants.Teff0)**B * R**A * constants.numax0
+
+        elif (dnu is not None) and (R is None) and (Teff is None):
+            numax = (dnu/constants.dnu0)**(1/alpha) * constants.numax0
+            
+        else:
+            raise ValueError('Must provide logg, or dnu and/or R to compute numax')
+
+        return numax
+    
+    @staticmethod
+    @jax.jit
+    def envBeta(nu, Teff, L=None, a=0.11, b=-0.47, c=-0.093):
         """ Compute beta correction
 
         Computes the beta correction factor for Amax. This has the effect of
@@ -300,17 +427,21 @@ class scalingRelations():
 
         Parameters
         ----------
-        numax : float
-            Value of numax in muHz to compute the beta correction at.
-        Teff0 : float, optional
-            Solar effective temperature in K. Default is 5777K.
-        TeffRed0 : float, optional
-            Red edge temperature in K for a 1 solar luminosity star. Default is
-            8907K.
-        numax0: float, optional
-            Solar numax. Default is 3050 muHz.
-        Delta_Teff : float, optional
-            The fall-off rate of the beta correction factor. Default is 1550K
+        nu : float
+            Value of nu in muHz to compute the beta correction at.
+        Teff : float
+            Stellar effective temperature in K.
+        L : float
+            Stellar luminosity in solar units. Default is None.
+        a : float
+            Scaling relation exponent to compute TeffRed for when L is None. By
+            default 0.11.
+        b : float
+            Scaling relation exponent to compute TeffRed for when L is None. By 
+            default -0.47.
+        c : float
+            Scaling relation exponent to compute TeffRed for when L is not None.
+            By default -0.093.
 
         Returns
         -------
@@ -318,10 +449,10 @@ class scalingRelations():
             The correction factor for Amax.
         """
         
-        numax = jnp.asarray(numax)
+        nu = jnp.asarray(nu)
         
         if L is None:
-            TeffRed = constants.TeffRed0 * (numax/constants.numax0)**a * (Teff/constants.Teff0)**b
+            TeffRed = constants.TeffRed0 * (nu/constants.numax0)**a * (Teff/constants.Teff0)**b
 
         else:
             TeffRed = constants.TeffRed0 * L**c
@@ -331,6 +462,38 @@ class scalingRelations():
         beta = jnp.where(_beta <= 0, jnp.exp(-1250), _beta)
         
         return beta
+    
+    @staticmethod
+    @jax.jit
+    def Amax(numax, Teff, L=None, M=None):
+        """ Compute Amax
+
+        Computes the mode amplitude of a notional radial mode at nu_max, based
+        on scaling relations.
+
+        This includes the beta correction factor.
+
+        Parameters
+        ----------
+        numax : float
+            Frequency of maximum power of the p-mode envelope in muHz.
+        Teff : float
+            Stellar effective temperature in K.
+
+        Returns
+        -------
+        Amax : float
+            Amplitude in ppm of a radial order if it were exactly at nu_max.
+        """
+
+        beta = scalingRelations.envBeta(numax, Teff)
+    
+        if (L is None) and (M is None):
+            Amax =  beta * (numax/constants.numax0)**-1 * (Teff/constants.Teff0)**1.5
+        else:
+            Amax =  beta *  L / M * (Teff/constants.Teff0)**-2
+
+        return Amax # solar units
 
 class references():
     """ A class for managing references used when running PBjam.
@@ -577,3 +740,8 @@ def normal(x, mu, sigma):
 @jax.jit
 def gaussian(x, A, mu, sigma):
     return A*jnp.exp(-(x-mu)**2/(2*sigma**2))
+
+def makeUneven(n):
+        if n % 2 == 0:
+            n += 1
+        return n
