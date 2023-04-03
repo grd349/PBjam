@@ -11,9 +11,9 @@ import numpy as np
 
 class modeIDsampler():
 
-    def __init__(self, f, s, obs, N_p, freq_limits=[1, 5000], 
+    def __init__(self, f, s, obs, addPriors={}, N_p=7, freq_limits=[1, 5000], 
                  vis={'V20': 0.71, 'V10': 1.22}, envelope_only=False, 
-                 Npca=50, PCAdims=8, priorpath=None, priors={}):
+                 Npca=50, PCAdims=8, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
@@ -23,21 +23,19 @@ class modeIDsampler():
       
         self.Nyquist = self.f[-1]
 
-        self.set_labels(priors)
+        self.set_labels(self.addPriors)
 
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
         self.setupDR()
 
         self.setPriors()
-
+ 
         self.AsyFreqModel = AsyFreqModel(self.N_p)
 
         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, self.priors)
 
         self.sel = self._setFreqRange(self.envelope_only)
-
-        self.labels = self.pcalabels + self.addlabels
 
         self.setAddObs()
  
@@ -46,16 +44,21 @@ class modeIDsampler():
     def set_labels(self, priors):
 
         # Default PCA parameters       
-        self.pcalabels = [key for key in self.variables.keys() if self.variables[key]['pca']]
+        self.pcalabels = []
         
         # Default additional parameters
-        self.addlabels = [key for key in self.variables.keys() if key not in self.pcalabels]
- 
+        self.addlabels = []
+        
         # If key appears in priors dict, override default and move it to add.
-        for key in priors.keys():
-            self.pcalabels.remove(key)
+        for key in self.variables.keys():
 
-            self.addlabels.append(key)
+            if self.variables[key]['pca'] and (key not in priors.keys()):
+                self.pcalabels.append(key)
+
+            else:
+                self.addlabels.append(key)
+
+        self.labels = self.pcalabels + self.addlabels
 
         # Parameters that are in log10
         self.logpars = [key for key in self.variables.keys() if self.variables[key]['log10']]
@@ -102,9 +105,9 @@ class modeIDsampler():
         theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
 
         theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
-
+         
         theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
-
+         
         theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
 
         theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
@@ -130,38 +133,29 @@ class modeIDsampler():
                                                  self.DR.logpdf[i], 
                                                  self.DR.cdf[i])
 
-        self.priors['p_L0'] = dist.normal(loc=self.obs['p_L0'], scale= 0.1 * self.obs['p_L0'])
-        
-        self.priors['p_D0'] = dist.normal(loc=self.obs['p_D0'], scale= 0.1 * self.obs['p_D0'])
-
-        self.priors['DPi0'] = dist.normal(loc=self.obs['DPi0'], scale= 0.1 * self.obs['DPi0']) 
-                                            
-        self.priors['eps_g'] = dist.normal(loc=self.obs['eps_g'], scale= 0.01 * self.obs['eps_g']) 
-                               
-        self.priors['alpha_g'] = dist.normal(loc=self.obs['alpha_g'], scale= 0.1 * self.obs['alpha_g']) 
-                                               
-        self.priors['d01'] = dist.normal(loc=self.obs['dnu'][0]/2 - self.obs['d02'][0]/3,
-                                         scale= 0.1 * (self.obs['dnu'][0]/2 - self.obs['d02'][0]/3))
+        self.priors.update((k, v) for k, v in self.addPriors.items())
+                                     
+        # self.priors['d01'] = dist.normal(loc=self.obs['dnu'][0]/2 - self.obs['d02'][0]/3,
+        #                                  scale= 0.1 * (self.obs['dnu'][0]/2 - self.obs['d02'][0]/3))
  
-        self.priors['nurot_c'] = dist.uniform(loc=-2.1, scale=1.1)
-        
+        # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()
 
+        # The instrumental components are set based on the PSD, but Bayesian but...
         hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
-        lo_idx = abs(self.f - self.f[0]) < 10
-
         shot_est = jnp.nanmean(self.s[hi_idx])
+
+        lo_idx = abs(self.f - self.f[0]) < 10
         inst_est = jnp.nanmean(self.s[lo_idx])
         
         mu = jnp.array([1, inst_est - shot_est]).max()
         
-        self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=2) # hsig
+        self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=2)  
 
-        self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-1, scale=2) # replace H1_nu prior with a beta distribution
+        self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-1, scale=2)  
         
-        self.priors['H3_exp'] = dist.beta(a=1.2, b=1.2, loc=1.5, scale=3.5) # hexp
-        
-        # White noise
+        self.priors['H3_exp'] = dist.beta(a=1.2, b=1.2, loc=1.5, scale=3.5)  
+ 
         self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
 
     @partial(jax.jit, static_argnums=(0,))
@@ -176,8 +170,9 @@ class modeIDsampler():
         H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
 
          
- 
         eta = jar.attenuation(nu, self.Nyquist)**2
+
+        bkg = (H1 + H2 + H3) * eta + theta_u['shot']
 
         # l=2,0
         nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
@@ -204,7 +199,7 @@ class modeIDsampler():
         
             modes += jar.lor(nu, nu1s[i] + zeta[i] * 10**theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
  
-        return (1 + modes) * (H1 + H2) * eta + H3  + theta_u['shot']
+        return (1 + modes) * bkg
 
     def setupDR(self):
         """ Setup the latent parameters and projection functions
@@ -581,12 +576,12 @@ class modeIDsampler():
                  'H2_power'  : {'info': 'Power of the mid-frequency Harvey'        , 'log10': True , 'pca': True}, 
                  'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
                  #'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
-                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': False},  
-                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': False}, 
-                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': False}, 
-                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': False}, 
-                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': False, 'pca': False}, 
-                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': False},
+                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': True},  
+                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': True}, 
+                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
+                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
+                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': False, 'pca': True}, 
+                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True},
                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
                  'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},
                  'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False}, 
