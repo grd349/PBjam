@@ -418,24 +418,52 @@ class modeIDsampler():
          
     @partial(jax.jit, static_argnums=(0,))
     def ptform(self, u):
-        """ The prior transform function for the nested sampling
-        
-        Evaluates the ppf for a list of values drawn from the unit cube.
-        
+        """
+        Transform a set of random variables from the unit hypercube to a set of 
+        random variables distributed according to specified prior distributions.
+
         Parameters
         ----------
-        u : list
-            List of floats between 0 and 1 with length equivalent to ndim. 
-            
+        u : jax device array
+            Set of pionts distributed randomly in the unit hypercube.
+
         Returns
         -------
-        x : list
-            List of floats of the prior pdfs evaluated at each point in u.
+        theta : jax device array
+            Set of random variables distributed according to specified prior 
+            distributions.
+
+        Notes
+        -----
+        This method uses the inverse probability integral transform 
+        (also known as the quantile function or percent point function) to 
+        transform each element of `u` using the corresponding prior 
+        distribution. The resulting transformed variables are returned as a 
+        JAX device array.
+
+        Examples
+        --------
+        >>> from scipy.stats import uniform, norm
+        >>> import jax.numpy as jnp
+        >>> class MyModel:
+        ...     def __init__(self):
+        ...         self.priors = {'a': uniform(loc=0.0, scale=1.0), 'b': norm(loc=0.0, scale=1.0)}
+        ...     def ptform(self, u):
+        ...         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
+        ...         return theta
+        ...
+        >>> model = MyModel()
+        >>> u = jnp.array([0.5, 0.8])
+        >>> theta = model.ptform(u)
+        >>> print(theta)
+        [0.5        0.84162123]
         """
 
         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
 
         return theta
+    
+
     
     @partial(jax.jit, static_argnums=(0,))
     def lnlikelihood(self, theta, nu):
@@ -537,7 +565,50 @@ class modeIDsampler():
         return sampler, samples
     
     def unpackSamples(self, samples):
-    
+        """
+        Unpack a set of parameter samples into a dictionary of arrays.
+
+        Parameters
+        ----------
+        samples : array-like
+            A 2D array of shape (n, m), where n is the number of samples and 
+            m is the number of parameters.
+
+        Returns
+        -------
+        S : dict
+            A dictionary containing the parameter values for each parameter 
+            label.
+
+        Notes
+        -----
+        This method takes a 2D numpy array of parameter samples and unpacks each
+        sample into a dictionary of parameter values. The keys of the dictionary 
+        are the parameter labels and the values are 1D numpy arrays containing 
+        the parameter values for each sample.
+
+        Examples
+        --------
+        >>> class MyModel:
+        ...     def __init__(self):
+        ...         self.labels = ['a', 'b', 'c']
+        ...     def unpackParams(self, theta):
+        ...         return {'a': theta[0], 'b': theta[1], 'c': theta[2]}
+        ...     def unpackSamples(self, samples):
+        ...         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        ...         for i, theta in enumerate(samples):
+        ...             theta_u = self.unpackParams(theta)
+        ...             for key in self.labels:
+        ...                 S[key][i] = theta_u[key]
+        ...         return S
+        ...
+        >>> model = MyModel()
+        >>> samples = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        >>> S = model.unpackSamples(samples)
+        >>> print(S)
+        {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
+        """
+
         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
         
         for i, theta in enumerate(samples):
