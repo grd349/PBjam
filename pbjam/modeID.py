@@ -88,17 +88,7 @@ class modeIDsampler():
         phi : array
             The model scaling parameter.  
 
-        self.labels = ['dnu', 'd02', 'alpha', 'mode_width', 'teff', 'bp_rp', 'eps',
-                       'numax', 'env_height', 'env_width', 
-                       'H1_power', 'H1_nu', 'H1_exp',
-                       'H2_power', 'H2_nu', 'H2_exp',
-                       'H3_power', 'H3_nu', 'H3_exp',
-                       'shot']
-
-        self.pcalabels = ['dnu', 'd02', 'alpha', 'mode_width', 'teff', 'bp_rp', 'eps',
-                              'numax', 'env_height', 'env_width',
-                              'H1_power', 'H1_nu', 'H1_exp',
-                              'H2_power', 'H2_nu', 'H2_exp',]
+ 
 
         """
          
@@ -163,9 +153,9 @@ class modeIDsampler():
 
         
         # Background
-        H1 = self.harvey(nu, theta_u['H2_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
+        H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
 
-        H2 = self.harvey(nu, theta_u['H2_power'], theta_u['H2_nu'], theta_u['H1_exp'],)
+        H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H1_exp'],)
 
         H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
 
@@ -573,7 +563,7 @@ class modeIDsampler():
                  #'H1_power'  : {'info': 'Power of the highest frequency Harvey'    , 'log10': True , 'pca': True}, 
                  'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True}, 
                  'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
-                 'H2_power'  : {'info': 'Power of the mid-frequency Harvey'        , 'log10': True , 'pca': True}, 
+                 'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True}, 
                  'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
                  #'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
                  'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': True},  
@@ -581,7 +571,7 @@ class modeIDsampler():
                  'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
                  'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': False, 'pca': True}, 
-                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True},
+                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True},
                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
                  'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},
                  'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False}, 
