@@ -28,18 +28,38 @@ class modeIDsampler():
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
         self.setupDR()
-
+  
         self.setPriors()
  
+        self.ndims = len(self.latent_labels+self.addlabels)
+
         self.AsyFreqModel = AsyFreqModel(self.N_p)
 
-        self.MixFreqModel = MixFreqModel(self.N_p, self.obs, self.priors)
+        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi0', 'eps_g'])
+
+        self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
 
         self.sel = self._setFreqRange(self.envelope_only)
 
         self.setAddObs()
  
-        self.ndims = len(self.latent_labels+self.addlabels)
+
+    def _makeTmpSample(self, keys, N=1000):
+
+        K = np.zeros((len(keys), N))
+
+        for i in range(N):
+            u = np.random.uniform(0, 1, size=self.ndims)
+        
+            theta = self.ptform(u)
+
+            theta_u = self.unpackParams(theta)
+
+            K[:, i] = np.array([theta_u[key] for key in keys]) 
+        
+        ppf, pdf, logpdf, cdf = dist.getQuantileFuncs(K.T)
+        
+        return ppf, pdf, logpdf, cdf
 
     def set_labels(self, priors):
 
@@ -66,9 +86,7 @@ class modeIDsampler():
 
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
-        """ Separate the model parameters into asy, bkg, reg and phi
-
-        This will need to be updated when bkg is rolled into DR.
+        """ Cast the parameters in a dictionary
 
         Parameters
         ----------
@@ -77,18 +95,8 @@ class modeIDsampler():
 
         Returns
         -------
-        theta_asy : array
-            The unpacked parameters of the p-mode asymptotic relation.
-        theta_obs : array
-            The unpacked parameters of the observational parameters.
-        theta_bkg : array
-            The unpacked parameters of the harvey background model.
-        theta_reg : array
-            The unpacked parameters of the reggae model.
-        phi : array
-            The model scaling parameter.  
-
- 
+        theta_u : dict
+            The unpacked parameters.
 
         """
          
@@ -124,14 +132,11 @@ class modeIDsampler():
                                                  self.DR.cdf[i])
 
         self.priors.update((k, v) for k, v in self.addPriors.items())
-                                     
-        # self.priors['d01'] = dist.normal(loc=self.obs['dnu'][0]/2 - self.obs['d02'][0]/3,
-        #                                  scale= 0.1 * (self.obs['dnu'][0]/2 - self.obs['d02'][0]/3))
- 
+        
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()
 
-        # The instrumental components are set based on the PSD, but Bayesian but...
+        # The instrumental components are set based on the PSD, not Bayesian but...
         hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
         shot_est = jnp.nanmean(self.s[hi_idx])
 
@@ -155,7 +160,7 @@ class modeIDsampler():
         # Background
         H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
 
-        H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H1_exp'],)
+        H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
 
         H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
 
@@ -215,7 +220,7 @@ class modeIDsampler():
 
         _Y = self.DR.transform(self.DR.data_F)
 
-        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = self.DR.getQuantileFuncs(_Y)
+        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
 
     def _setFreqRange(self, envelope_only=False):
         """ Get frequency range around numax for model 
@@ -275,7 +280,7 @@ class modeIDsampler():
             Power at frequency nu (in SNR)   
         """
     
-        return 2*jar.gaussian(nu, env_height, numax, env_width) # env_height* jnp.exp(-0.5 * (nu - numax)**2 / env_width**2)
+        return jar.gaussian(nu, 2*env_height, numax, env_width)
     
     @partial(jax.jit, static_argnums=(0,))
     def _l1_modewidths(self, zeta, mode_width, **kwargs):
@@ -636,12 +641,12 @@ class modeIDsampler():
                  'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
                  'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True}, 
                  'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
-                 #'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
-                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': True},  
-                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': True}, 
-                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
+                 'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
+                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': True, 'pca': True},  
+                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': True, 'pca': True}, 
+                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': True, 'pca': True}, 
                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
-                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': False, 'pca': True}, 
+                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True, 'pca': True}, 
                  'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True},
                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
                  'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},

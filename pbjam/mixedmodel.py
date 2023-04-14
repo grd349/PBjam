@@ -7,7 +7,7 @@ jax.config.update('jax_enable_x64', True)
  
 class MixFreqModel():
 
-    def __init__(self,  N_p, obs, priors):
+    def __init__(self,  N_p, obs, n_g_ppf):
         """ Class for sampling the l=1 mode model.
 
         The class takes the residual spectrum as input in a frequency range that
@@ -52,11 +52,13 @@ class MixFreqModel():
 
         self.obs = obs
  
-        self.n_g = self.select_n_g(priors)
+        self.n_g = self.select_n_g(n_g_ppf)
 
         self.N_g = len(self.n_g)
-    
-    def select_n_g(self, priors):
+
+
+
+    def select_n_g(self, n_g_ppf):
         """ Select and initial range for n_g
 
         Computes the number of g-modes that are relevant near the oscillation
@@ -89,9 +91,9 @@ class MixFreqModel():
         max_n_g = init_n_g.min()
 
         # Loop over combinations of DPi0 and eps_g as drawn from the respective PDFs.       
-        for DPi0 in jnp.linspace(priors['DPi0'].ppf(1e-3), priors['DPi0'].ppf(1-1e-3), 3):
+        for DPi0 in jnp.linspace(n_g_ppf[0](1e-3), n_g_ppf[0](1-1e-3), 3):
  
-            for eps_g in jnp.linspace(priors['eps_g'].ppf(1e-3), priors['eps_g'].ppf(1-1e-3), 3):
+            for eps_g in jnp.linspace(n_g_ppf[1](1e-3), n_g_ppf[1](1-1e-3), 3):
 
                 nu_g = self.asymptotic_nu_g(init_n_g, DPi0, eps_g, 1e-4)
                 
