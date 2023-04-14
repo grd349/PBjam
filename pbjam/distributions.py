@@ -8,58 +8,58 @@ import statsmodels.api as sm
 
 
 def getQuantileFuncs(data):
-        """ Compute distribution methods for arbitrary distributions.
+    """ Compute distribution methods for arbitrary distributions.
 
-        All distributions are treated as separable.
+    All distributions are treated as separable.
 
-        Parameters
-        ----------
-        data : array
-            Array of samples to compute the distribution functions of.
+    Parameters
+    ----------
+    data : array
+        Array of samples to compute the distribution functions of.
 
-        Returns
-        -------
-        ppfs : list
-            List of callable functions to evaluate the ppfs of the samples.
-        pdfs : list
-            List of callable functions to evaluate the pdfs of the samples.
-        logpdfs : list
-            List of callable functions to evaluate the logpdfs of the samples.
-        cdfs : list
-            List of callable functions to evaluate the cdfs of the samples.
-        """
- 
-        ppfs = []
+    Returns
+    -------
+    ppfs : list
+        List of callable functions to evaluate the ppfs of the samples.
+    pdfs : list
+        List of callable functions to evaluate the pdfs of the samples.
+    logpdfs : list
+        List of callable functions to evaluate the logpdfs of the samples.
+    cdfs : list
+        List of callable functions to evaluate the cdfs of the samples.
+    """
 
-        pdfs = []
+    ppfs = []
 
-        cdfs = []
+    pdfs = []
 
-        logpdfs = []
+    cdfs = []
 
-        for i in range(data.shape[1]):
+    logpdfs = []
 
-            kde = sm.nonparametric.KDEUnivariate(np.array(data[:, i]).real)
+    for i in range(data.shape[1]):
 
-            kde.fit(cut=5)
+        kde = sm.nonparametric.KDEUnivariate(np.array(data[:, i]).real)
 
-            A = jnp.linspace(0, 1, len(kde.cdf))
+        kde.fit(cut=5)
 
-            cdfs.append(kde.cdf)
-            
-            # The icdf from statsmodels is only evaluated on the input values,
-            # not the complete support of the pdf which may be wider. 
-            Q = jar.getCurvePercentiles(kde.support, 
-                                        kde.evaluate(kde.support),
-                                        percentiles=A)
+        A = jnp.linspace(0, 1, len(kde.cdf))
 
-            ppfs.append(jar.jaxInterp1D(A, Q))
-            
-            pdfs.append(jar.jaxInterp1D(kde.support, kde.evaluate(kde.support)))
+        cdfs.append(kde.cdf)
+        
+        # The icdf from statsmodels is only evaluated on the input values,
+        # not the complete support of the pdf which may be wider. 
+        Q = jar.getCurvePercentiles(kde.support, 
+                                    kde.evaluate(kde.support),
+                                    percentiles=A)
 
-            logpdfs.append(jar.jaxInterp1D(kde.support, jnp.log(kde.evaluate(kde.support))))
+        ppfs.append(jar.jaxInterp1D(A, Q))
+        
+        pdfs.append(jar.jaxInterp1D(kde.support, kde.evaluate(kde.support)))
 
-        return ppfs, pdfs, logpdfs, cdfs
+        logpdfs.append(jar.jaxInterp1D(kde.support, jnp.log(kde.evaluate(kde.support))))
+
+    return ppfs, pdfs, logpdfs, cdfs
 
 class beta():
     def __init__(self, a=1, b=1, loc=0, scale=1):
