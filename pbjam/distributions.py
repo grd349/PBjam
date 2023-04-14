@@ -3,6 +3,63 @@ from functools import partial
 import jax
 import numpy as np
 import jax.scipy.special as jsp
+from pbjam import jar
+import statsmodels.api as sm
+
+
+def getQuantileFuncs(data):
+        """ Compute distribution methods for arbitrary distributions.
+
+        All distributions are treated as separable.
+
+        Parameters
+        ----------
+        data : array
+            Array of samples to compute the distribution functions of.
+
+        Returns
+        -------
+        ppfs : list
+            List of callable functions to evaluate the ppfs of the samples.
+        pdfs : list
+            List of callable functions to evaluate the pdfs of the samples.
+        logpdfs : list
+            List of callable functions to evaluate the logpdfs of the samples.
+        cdfs : list
+            List of callable functions to evaluate the cdfs of the samples.
+        """
+ 
+        ppfs = []
+
+        pdfs = []
+
+        cdfs = []
+
+        logpdfs = []
+
+        for i in range(data.shape[1]):
+
+            kde = sm.nonparametric.KDEUnivariate(np.array(data[:, i]).real)
+
+            kde.fit(cut=5)
+
+            A = jnp.linspace(0, 1, len(kde.cdf))
+
+            cdfs.append(kde.cdf)
+            
+            # The icdf from statsmodels is only evaluated on the input values,
+            # not the complete support of the pdf which may be wider. 
+            Q = jar.getCurvePercentiles(kde.support, 
+                                        kde.evaluate(kde.support),
+                                        percentiles=A)
+
+            ppfs.append(jar.jaxInterp1D(A, Q))
+            
+            pdfs.append(jar.jaxInterp1D(kde.support, kde.evaluate(kde.support)))
+
+            logpdfs.append(jar.jaxInterp1D(kde.support, jnp.log(kde.evaluate(kde.support))))
+
+        return ppfs, pdfs, logpdfs, cdfs
 
 class beta():
     def __init__(self, a=1, b=1, loc=0, scale=1):
