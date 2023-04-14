@@ -137,7 +137,7 @@ class PCA():
             keys = ['numax']
 
         else:
-            keys = ['numax', 'dnu'] #self.obs.keys()
+            keys = ['numax', 'dnu', 'teff'] #self.obs.keys()
  
         mu = np.mean(pdata[keys].values, axis=0)
     
