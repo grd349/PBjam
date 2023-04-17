@@ -87,29 +87,7 @@ class AsyFreqModel():
 
         return (n_p + eps_p + alpha_p/2*(n_p - n_p_max)**2) * dnu, n_p
  
-        """ Power of the seismic p-mode envelope
     
-        Computes the power at frequency nu in the p-mode envelope from a 
-        Gaussian distribution. Used for computing mode heights.
-    
-        Parameters
-        ----------
-        nu : float
-            Frequency (in muHz).
-        hmax : float
-            Height of p-mode envelope (in SNR).
-        numax : float
-            Frequency of maximum power of the p-mode envelope (in muHz).
-        width : float
-            Width of the p-mode envelope (in muHz).
-    
-        Returns
-        -------
-        h : float
-            Power at frequency nu (in SNR)
-        """
-    
-        return hmax * jnp.exp(- 0.5 * (nu - numax)**2 / width**2)
  
 
 
