@@ -83,7 +83,6 @@ class modeIDsampler():
         # Parameters that are in log10
         self.logpars = [key for key in self.variables.keys() if self.variables[key]['log10']]
 
-
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
@@ -133,6 +132,9 @@ class modeIDsampler():
 
         self.priors.update((k, v) for k, v in self.addPriors.items())
         
+        # Core rotation prior
+        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=1.)
+
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()
 
@@ -188,11 +190,11 @@ class modeIDsampler():
         modewidth1s = self._l1_modewidths(zeta, **theta_u)
     
         for i in range(len(nu1s)):
-            modes += jar.lor(nu, nu1s[i]                                   , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+            modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
-            modes += jar.lor(nu, nu1s[i] - zeta[i] * 10**theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
-            modes += jar.lor(nu, nu1s[i] + zeta[i] * 10**theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
  
         return (1 + modes) * bkg
 
@@ -467,9 +469,7 @@ class modeIDsampler():
         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
 
         return theta
-    
-
-    
+     
     @partial(jax.jit, static_argnums=(0,))
     def lnlikelihood(self, theta, nu):
         """ Likelihood function for set of model parameters
