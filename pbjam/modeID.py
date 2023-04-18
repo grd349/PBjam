@@ -39,7 +39,7 @@ class modeIDsampler():
 
         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
 
-        self.sel = self._setFreqRange(self.envelope_only)
+        self.sel = self.setFreqRange(self.envelope_only)
 
         self.setAddObs()
  
@@ -179,7 +179,7 @@ class modeIDsampler():
         modes = jnp.zeros_like(nu)
 
         for n in range(self.N_p):
-            modes += self._pair(nu, nu0_p[n], Hs0[n], **theta_u)
+            modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
         
          
         # l=1
@@ -187,7 +187,7 @@ class modeIDsampler():
        
         Hs1 = self.envelope(nu1s, **theta_u)
         
-        modewidth1s = self._l1_modewidths(zeta, **theta_u)
+        modewidth1s = self.l1_modewidths(zeta, **theta_u)
     
         for i in range(len(nu1s)):
             modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
@@ -212,7 +212,7 @@ class modeIDsampler():
 
         log_obs = self.log_obs.copy()
 
-        for key in ['bp_rp', 'eps']:
+        for key in ['bp_rp']:
             if key in log_obs.keys():
                 log_obs[key] = self.obs[key]
          
@@ -224,7 +224,7 @@ class modeIDsampler():
 
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
 
-    def _setFreqRange(self, envelope_only=False):
+    def setFreqRange(self, envelope_only=False):
         """ Get frequency range around numax for model 
 
         Returns
@@ -285,7 +285,7 @@ class modeIDsampler():
         return jar.gaussian(nu, 2*env_height, numax, env_width)
     
     @partial(jax.jit, static_argnums=(0,))
-    def _l1_modewidths(self, zeta, mode_width, **kwargs):
+    def l1_modewidths(self, zeta, mode_width, **kwargs):
         """ Compute linewidths for mixed l1 modes
 
         Parameters
@@ -304,7 +304,7 @@ class modeIDsampler():
         return  mode_width * jnp.maximum(0, 1. - zeta) 
     
     @partial(jax.jit, static_argnums=(0,))
-    def _pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
+    def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
         """Define a pair as the sum of two Lorentzians.
 
         A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
@@ -404,7 +404,7 @@ class modeIDsampler():
         return lnp
     
     @partial(jax.jit, static_argnums=(0,))
-    def _chi_sqr(self, mod):
+    def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
         Evaulates the likelihood of observing the data given the model.
@@ -500,7 +500,7 @@ class modeIDsampler():
         # Constraint from the periodogram 
         mod = self.model(theta_u, nu)
 
-        lnlike += self._chi_sqr(mod)
+        lnlike += self.chi_sqr(mod)
  
         T = (theta_u['H3_nu'] < theta_u['H2_nu']) & \
             (theta_u['H2_nu'] < theta_u['numax']) & \
