@@ -654,4 +654,111 @@ class modeIDsampler():
                  'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False},
                  'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False},
                  'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False}}
- 
+
+
+    def _modeUpdoot(self, result, sample, key, Nmodes):
+        
+        result['summary'][key] = np.hstack((result['summary'][key], 
+                                           np.array([jar.smryStats(sample[:, j]) for j in range(Nmodes)]).T))
+        result['samples'][key] = np.hstack((result['samples'][key], 
+                                            sample))
+
+    def parseSamples(self, smp, Nmax=10000):
+
+        N = min([len(smp['dnu']), Nmax])
+        
+        for key in smp.keys():
+            smp[key] = smp[key][:N]
+        
+        result = {'ell': np.array([]),
+                'enn': np.array([]),
+                'summary': {'freqs': np.array([]).reshape((2, 0)), 
+                            'heights': np.array([]).reshape((2, 0)), 
+                            'widths': np.array([]).reshape((2, 0))
+                            },
+                'samples': {'freqs': np.array([]).reshape((N, 0)), 
+                            'heights': np.array([]).reshape((N, 0)), 
+                            'widths': np.array([]).reshape((N, 0))
+                            },
+                }
+        
+        result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
+        result['samples'].update(smp)
+  
+        # l=0
+        asymptotic_samps = np.array([self.AsyFreqModel.asymptotic_nu_p(smp['numax'][i], smp['dnu'][i], smp['eps_p'][i], smp['alpha_p'][i]) for i in range(N)])
+        n_p = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
+        
+        result['ell'] = np.append(result['ell'], np.zeros(self.N_p))
+        result['enn'] = np.append(result['enn'], n_p)
+
+        # # Frequencies
+        nu0_samps = asymptotic_samps[:, 0, :]
+        self._modeUpdoot(result, nu0_samps, 'freqs', self.N_p)
+
+        
+
+        # # Heights
+        H0_samps = np.array([self.envelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
+        self._modeUpdoot(result, H0_samps, 'heights', self.N_p)
+
+        # # Widths
+        W0_samps = np.tile(smp['mode_width'], self.N_p).reshape((self.N_p, N)).T
+        self._modeUpdoot(result, W0_samps, 'widths', self.N_p)
+        
+        
+        # l=1
+        A = np.array([self.MixFreqModel.mixed_nu1(nu0_samps[i, :], 
+                                                n_p, smp['d01'][i], 
+                                                smp['DPi0'][i], 
+                                                jnp.array([smp['p_L0'][i]]),  
+                                                jnp.array([smp['p_D0'][i]]), 
+                                                smp['eps_g'][i], 
+                                                smp['alpha_g'][i]) for i in range(N)])
+        
+        N_pg = self.MixFreqModel.N_p + self.MixFreqModel.N_g
+        
+        result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
+        result['enn'] = np.append(result['enn'], np.zeros(N_pg) - 1)
+
+        # # Frequencies 
+        nu1_samps = A[:, 0, :]
+        self._modeUpdoot(result, nu1_samps, 'freqs', N_pg)
+
+            
+        zeta_samps = A[:, 1, :]
+        
+        # # Heights
+        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :], 
+                                                            smp['env_height'][i], 
+                                                            smp['numax'][i], 
+                                                            smp['env_width'][i]) for i in range(N)]) 
+        self._modeUpdoot(result, H1_samps, 'heights', N_pg)
+        
+        # # Widths
+        W1_samps = np.array([self.l1_modewidths(zeta_samps[i, :], 
+                                                smp['mode_width'][i]) for i in range(N)]) 
+        self._modeUpdoot(result, W1_samps, 'widths', N_pg)
+        
+        # l=2
+        result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 2)
+        result['enn'] = np.append(result['enn'], n_p-1)
+        
+        # # Frequencies
+        nu2_samps = np.array([nu0_samps[i, :] - smp['d02'][i] for i in range(N)])
+        self._modeUpdoot(result, nu2_samps, 'freqs', self.N_p)
+
+        # # Heights
+        H2_samps = self.vis['V20'] * np.array([self.envelope(nu2_samps[i, :],  
+                                                            smp['env_height'][i], 
+                                                            smp['numax'][i], 
+                                                            smp['env_width'][i]) for i in range(N)])
+        self._modeUpdoot(result, H2_samps, 'heights', self.N_p)
+        
+        # # Widths
+        W2_samps = np.tile(smp['mode_width'], np.shape(nu2_samps)[1]).reshape((nu2_samps.shape[1], nu2_samps.shape[0])).T
+        self._modeUpdoot(result, W2_samps, 'widths', self.N_p)
+    
+        return result
+
+        
