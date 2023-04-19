@@ -26,6 +26,14 @@ class constants:
     dnu0: float = 135.9 # muHz
     logg0 : float = 4.43775 # log10(2.74e4)
 
+def smryStats(y):
+
+    p = np.array([0.5 - sc.erf(n/np.sqrt(2))/2 for n in range(-1, 2)])[::-1]*100
+
+    u = np.percentile(y, p)
+    
+    return (u[1], np.mean(np.diff(u)))
+
 @jax.jit
 def attenuation(f, nyq):
     """ The sampling attenuation
