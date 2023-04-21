@@ -608,19 +608,16 @@ class modeIDsampler():
             
         return S
     
-    def meanBkg(self, nu, samples, N=30):
-
-        idx =  np.random.choice(np.arange(samples.shape[0]), size=N, replace=False)
+    def meanBkg(self, nu, samples_u, N=30):
 
         mod = np.zeros((len(nu), N))
+
+        idx =  np.random.choice(np.arange(len(samples_u['dnu'])), size=N, replace=False)
+
+        for i, j in enumerate(idx):
+            theta_u = {k: v[2] for k,v in samples_u.items()}
         
-        for i,j in enumerate(idx):
-
-            theta = samples[i, :]
-
-            theta_u = self.unpackParams(theta)
-
-            mod[:, j] = self.background(theta_u, nu)
+            mod[:, i] = self.background(theta_u, nu)
 
         return np.median(mod, axis=1)
 
@@ -759,7 +756,19 @@ class modeIDsampler():
         # # Widths
         W2_samps = np.tile(smp['mode_width'], np.shape(nu2_samps)[1]).reshape((nu2_samps.shape[1], nu2_samps.shape[0])).T
         self._modeUpdoot(result, W2_samps, 'width', self.N_p)
-    
+
+
+        # Background
+        muBkg = np.zeros((len(nu), N))
+        
+        for i, j in enumerate(idx):
+
+            mod[:, i] = self.background(theta_u, nu)
+
+        result['background'] = jar.jaxInterp1D(self.f, muBkg)
+
+
+
         return result
 
         
