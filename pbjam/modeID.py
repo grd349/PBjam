@@ -759,15 +759,8 @@ class modeIDsampler():
 
 
         # Background
-        muBkg = np.zeros((len(nu), N))
-        
-        for i, j in enumerate(idx):
-
-            mod[:, i] = self.background(theta_u, nu)
-
+        muBkg = self.meanBkg(self.f, smp)
         result['background'] = jar.jaxInterp1D(self.f, muBkg)
-
-
 
         return result
 

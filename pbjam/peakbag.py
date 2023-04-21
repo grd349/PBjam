@@ -4,6 +4,7 @@ import jax, dynesty
 import pbjam.distributions as dist
 from pbjam import jar
 from dynesty import utils as dyfunc
+import numpy as np
 
 class peakbag():
     
@@ -49,8 +50,9 @@ class peakbag():
         for i in range(self.Nmodes):
             _key = f'height{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=jnp.log10(self.modeIDres['summary']['height'][0, i]),
-                                                scale=0.4)
+                mode_snr = self.modeIDres['summary']['height'][0, i] / self.modeIDres['background'](self.modeIDres['summary']['freq'][0, i])
+                self.priors[_key] = dist.normal(loc=jnp.log10(mode_snr), scale=0.1)
+
         for i in range(self.Nmodes):
             _key = f'width{i}'
             if _key not in self.priors:
@@ -74,7 +76,7 @@ class peakbag():
             #hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
             #shot_est = jnp.nanmean(self.s[hi_idx])
             #self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.5)
-            self.priors['shot'] = dist.normal(loc=1, scale=0.5)
+            self.priors['shot'] = dist.normal(loc=0, scale=0.5)
 
         if not all([key in self.labels for key in self.priors.keys()]):
             raise ValueError('Length of labels doesnt match lenght of priors.')
@@ -404,7 +406,17 @@ class peakbag():
         return sampler, samples
 
 
-
+    def unpackSamples(self, samples):
+        S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+    
+        for i, key in enumerate(self.labels):
+            S[f'{key}'] = samples[:, i]
+        
+        for key in self.labels:
+            if any([key.startswith(logkey) for logkey in self.logpars]):
+                S[key] = 10**S[key]
+    
+        return S
 
 
 
