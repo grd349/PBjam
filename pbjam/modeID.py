@@ -8,6 +8,7 @@ import pbjam.distributions as dist
 from pbjam import jar
 from pbjam.DR import PCA
 import numpy as np
+from pbjam.background import bkgModel
 
 class modeIDsampler():
 
@@ -38,6 +39,8 @@ class modeIDsampler():
         n_g_ppf, _, _, _ = self._makeTmpSample(['DPi0', 'eps_g'])
 
         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
+
+        self.background = bkgModel(self.Nyquist)
 
         self.sel = self.setFreqRange(self.envelope_only)
 
@@ -158,18 +161,19 @@ class modeIDsampler():
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u, nu):
 
-        
-        # Background
-        H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
+        # # Background
+        # H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
 
-        H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
+        # H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
 
-        H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
+        # H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
 
          
-        eta = jar.attenuation(nu, self.Nyquist)**2
+        # eta = jar.attenuation(nu, self.Nyquist)**2
 
-        bkg = (H1 + H2 + H3) * eta + theta_u['shot']
+        # bkg = (H1 + H2 + H3) * eta + theta_u['shot']
+
+        bkg = self.background(theta_u, nu)
 
         # l=2,0
         nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
@@ -421,6 +425,7 @@ class modeIDsampler():
         """
 
         L = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
+
         return L      
          
     @partial(jax.jit, static_argnums=(0,))
@@ -626,6 +631,22 @@ class modeIDsampler():
             
         return S
     
+    def meanBkg(self, nu, samples, N=30):
+
+        idx =  np.random.choice(np.arange(samples.shape[0]), size=N, replace=False)
+
+        mod = np.zeros((len(nu), N))
+        
+        for i,j in enumerate(idx):
+
+            theta = samples[i, :]
+
+            theta_u = self.unpackParams(theta)
+
+            mod[:, j] = self.background(theta_u, nu)
+
+        return np.median(mod, axis=1)
+
     variables = {'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True}, 
                  'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True}, 
                  'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True}, 
@@ -636,7 +657,6 @@ class modeIDsampler():
                  'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True}, 
                  'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True}, 
                  'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True},
-                 #'H1_power'  : {'info': 'Power of the highest frequency Harvey'    , 'log10': True , 'pca': True}, 
                  'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True}, 
                  'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
                  'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True}, 
@@ -672,13 +692,14 @@ class modeIDsampler():
         
         result = {'ell': np.array([]),
                 'enn': np.array([]),
-                'summary': {'freqs': np.array([]).reshape((2, 0)), 
-                            'heights': np.array([]).reshape((2, 0)), 
-                            'widths': np.array([]).reshape((2, 0))
+                'zeta': np.array([]),
+                'summary': {'freq': np.array([]).reshape((2, 0)), 
+                            'height': np.array([]).reshape((2, 0)), 
+                            'width': np.array([]).reshape((2, 0))
                             },
-                'samples': {'freqs': np.array([]).reshape((N, 0)), 
-                            'heights': np.array([]).reshape((N, 0)), 
-                            'widths': np.array([]).reshape((N, 0))
+                'samples': {'freq': np.array([]).reshape((N, 0)), 
+                            'height': np.array([]).reshape((N, 0)), 
+                            'width': np.array([]).reshape((N, 0))
                             },
                 }
         
@@ -691,20 +712,21 @@ class modeIDsampler():
         
         result['ell'] = np.append(result['ell'], np.zeros(self.N_p))
         result['enn'] = np.append(result['enn'], n_p)
+        result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
 
         # # Frequencies
         nu0_samps = asymptotic_samps[:, 0, :]
-        self._modeUpdoot(result, nu0_samps, 'freqs', self.N_p)
+        self._modeUpdoot(result, nu0_samps, 'freq', self.N_p)
 
         
 
         # # Heights
         H0_samps = np.array([self.envelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
-        self._modeUpdoot(result, H0_samps, 'heights', self.N_p)
+        self._modeUpdoot(result, H0_samps, 'height', self.N_p)
 
         # # Widths
         W0_samps = np.tile(smp['mode_width'], self.N_p).reshape((self.N_p, N)).T
-        self._modeUpdoot(result, W0_samps, 'widths', self.N_p)
+        self._modeUpdoot(result, W0_samps, 'width', self.N_p)
         
         
         # l=1
@@ -723,41 +745,43 @@ class modeIDsampler():
 
         # # Frequencies 
         nu1_samps = A[:, 0, :]
-        self._modeUpdoot(result, nu1_samps, 'freqs', N_pg)
+        self._modeUpdoot(result, nu1_samps, 'freq', N_pg)
 
-            
         zeta_samps = A[:, 1, :]
+
+        result['zeta'] = np.append(result['zeta'], np.median(zeta_samps, axis=0))
         
         # # Heights
         H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :], 
                                                             smp['env_height'][i], 
                                                             smp['numax'][i], 
                                                             smp['env_width'][i]) for i in range(N)]) 
-        self._modeUpdoot(result, H1_samps, 'heights', N_pg)
+        self._modeUpdoot(result, H1_samps, 'height', N_pg)
         
         # # Widths
         W1_samps = np.array([self.l1_modewidths(zeta_samps[i, :], 
                                                 smp['mode_width'][i]) for i in range(N)]) 
-        self._modeUpdoot(result, W1_samps, 'widths', N_pg)
+        self._modeUpdoot(result, W1_samps, 'width', N_pg)
         
         # l=2
         result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 2)
         result['enn'] = np.append(result['enn'], n_p-1)
-        
+        result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
+
         # # Frequencies
         nu2_samps = np.array([nu0_samps[i, :] - smp['d02'][i] for i in range(N)])
-        self._modeUpdoot(result, nu2_samps, 'freqs', self.N_p)
+        self._modeUpdoot(result, nu2_samps, 'freq', self.N_p)
 
         # # Heights
         H2_samps = self.vis['V20'] * np.array([self.envelope(nu2_samps[i, :],  
                                                             smp['env_height'][i], 
                                                             smp['numax'][i], 
                                                             smp['env_width'][i]) for i in range(N)])
-        self._modeUpdoot(result, H2_samps, 'heights', self.N_p)
+        self._modeUpdoot(result, H2_samps, 'height', self.N_p)
         
         # # Widths
         W2_samps = np.tile(smp['mode_width'], np.shape(nu2_samps)[1]).reshape((nu2_samps.shape[1], nu2_samps.shape[0])).T
-        self._modeUpdoot(result, W2_samps, 'widths', self.N_p)
+        self._modeUpdoot(result, W2_samps, 'width', self.N_p)
     
         return result
 
