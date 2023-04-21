@@ -7,7 +7,7 @@ from dynesty import utils as dyfunc
 
 class peakbag():
     
-    def __init__(self, f, s, modeIDres=None, addPriors={}, freq_limits=[], ell=None):
+    def __init__(self, f, snr, modeIDres=None, addPriors={}, freq_limits=[], ell=None):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -71,8 +71,8 @@ class peakbag():
 
         # The instrumental components are set based on the PSD, not Bayesian but...
         if 'shot' not in self.priors.keys():
-            hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
-            shot_est = jnp.nanmean(self.s[hi_idx])
+            #hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
+            #shot_est = jnp.nanmean(self.s[hi_idx])
             #self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.5)
             self.priors['shot'] = dist.normal(loc=1, scale=0.5)
 
@@ -154,7 +154,7 @@ class peakbag():
             Likelihood of the data given the model
         """
 
-        L = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
+        L = -jnp.sum(jnp.log(mod) + self.snr[self.sel] / mod)
         
         return L 
         
