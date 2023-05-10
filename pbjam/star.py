@@ -70,21 +70,22 @@ class star():
 
     """
 
-    def __init__(self, ID, f, s, addObs, addPriors={}, outpath=None, priorpath=None):
+    def __init__(self, ID, f, s, addObs, outpath=None, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
-        self.references = references()
+        #self.references = references()
 
-        self.references._addRef(['numpy', 'python', 'astropy'])
+        #self.references._addRef(['numpy', 'python', 'astropy'])
 
-        IO.set_outpath(self, self.outpath)
+        self.outpath = IO._set_outpath(ID, self.outpath)
 
         if priorpath is None:
             self.priorpath = IO.get_priorpath()
                 
-    def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
-                    make_plots=False, store_chains=False):
+    # def run_peakbag(self, model_type='simple', tune=1500, nthreads=1,
+    #                 make_plots=False, store_chains=False):
+    def run_peakbag(self, modeID_result, snr=None, **kwargs):
         """  Run all steps involving peakbag.
 
         Performs fit using simple Lorentzian profile pairs to subsections of 
@@ -106,40 +107,51 @@ class star():
 
         """
 
+        if (snr is None) and hasattr(self, 'snr'):
+            snr = self.snr
+
         print('Starting peakbagging')
+
+
+        self.peakbag = peakbag(self.f, snr, modeIDres=modeID_result)
+
+        self.peakbag_sampler, self.peakbag_samples = self.peakbag(nlive=300)
+
+        S = self.peakbag.unpackSamples(self.peakbag_samples)
+
+        return S
         # Init
-        peakbag(self)
+        # peakbag(self)
 
-        # Call
-        self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
+        # # Call
+        # self.peakbag(model_type=model_type, tune=tune, nthreads=nthreads)
 
-        # Store
-        self.peakbag.summary.to_csv(IO._get_outpath(self, f'peakbag_summary_{self.ID}.csv'),
-                                    index_label='name')
+        # # Store
+        # self.peakbag.summary.to_csv(IO._get_outpath(self, f'peakbag_summary_{self.ID}.csv'),
+        #                             index_label='name')
             
-        if make_plots:
-            self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
-                                       savefig=make_plots)
-            self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
-                                      savefig=make_plots)
-            self.references._addRef('matplotlib')
+        # if make_plots:
+        #     self.peakbag.plot_spectrum(path=self.path, ID=self.ID,
+        #                                savefig=make_plots)
+        #     self.peakbag.plot_echelle(path=self.path, ID=self.ID, 
+        #                               savefig=make_plots)
+        #     self.references._addRef('matplotlib')
 
-        if store_chains:
-            peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
-            peakbag_samps.to_csv(IO._get_outpath(self, f'peakbag_chains_{self.ID}.csv'), index=False)
+        # if store_chains:
+        #     peakbag_samps = pd.DataFrame(self.peakbag.samples, columns=self.peakbag.par_names)
+        #     peakbag_samps.to_csv(IO._get_outpath(self, f'peakbag_chains_{self.ID}.csv'), index=False)
             
-    def run_modeID(self, N_p=7, N_pca=100, PCAdims=8):
+    def run_modeID(self, addPriors={}, N_p=7, N_pca=100, PCAdims=8, **kwargs):
         
-        M = modeIDsampler(self.f, self.s, self.addObs, self.addPriors, N_p=N_p, Npca=N_pca, PCAdims=PCAdims, priorpath=self.priorpath)
+        self.modeID = modeIDsampler(self.f, self.s, self.addObs, addPriors, N_p=N_p, Npca=N_pca, PCAdims=PCAdims, priorpath=self.priorpath)
 
-        self.modeID_sampler, self.modeID_samples = M()
+        self.modeID_sampler, self.modeID_samples = self.modeID()
 
         #TODO make storage and plots
 
         return self.modeID_sampler, self.modeID_samples
 
-    def __call__(self, norders=8, model_type='simple', tune=1500,
-                 nthreads=1, make_plots=True, store_chains=False):
+    def __call__(self, norders=8, modeID_kwargs={}, peakbag_kwargs={}):
         """ Perform all the PBjam steps
 
         Starts by running KDE, followed by Asy_peakbag and then finally peakbag.
@@ -174,20 +186,16 @@ class star():
             science results!    
         """
  
-        self.run_modeID(N_p=norders)
+        self.run_modeID(N_p=norders, **modeID_kwargs)
 
-        samples_u = self.unpackSamples(self.modeID_samples)
+        samples_u = self.modeID.unpackSamples(self.modeID_samples)
 
-        modeID_result = self.modeID_sampler.parseSamples(samples_u)
+        modeID_result = self.modeID.parseSamples(samples_u)
 
-        muBkg = self.meanBkg(self.f, samples_u)
+        muBkg = self.modeID.meanBkg(self.f, samples_u)
 
         self.snr = self.s / muBkg
+ 
+        peakbag_summary = self.run_peakbag(modeID_result, **peakbag_kwargs)
 
-        self.run_peakbag(model_type=model_type, tune=tune, nthreads=nthreads,
-                         make_plots=make_plots, store_chains=store_chains)
-
-        self.references._addRef('pandas')
-
-
-    
+        return peakbag_summary, modeID_result
