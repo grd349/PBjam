@@ -840,7 +840,7 @@ def _get_outpath(self, fname):
         else:
             return path
 
-def _set_outpath(self, path):
+def _set_outpath(ID, rootPath):
     """ Sets the path attribute for star
 
     If path is a string it is assumed to be a path name, if not the
@@ -852,25 +852,28 @@ def _set_outpath(self, path):
 
     Parameters
     ----------
-    path : str
+    rootPath : str
         Directory to place the star subdirectory.
 
     """
 
-    if isinstance(path, str):
-        # If path is str, presume user wants to put stuff somewhere specific.
-        self.path = os.path.join(*[path, f'{self.ID}'])
+    if rootPath is None:
+        rootPath = os.getcwd()
+
+    if not os.path.basename == ID:
+        path = os.path.join(*[rootPath, f'{ID}'])
     else:
-        # Otherwise just create a subdir in cwd.
-        self.path = os.path.join(*[os.getcwd(), f'{self.ID}'])
+        path = rootPath
 
     # Check if self.path exists, if not try to create it
-    if not os.path.isdir(self.path):
+    if not os.path.isdir(path):
         try:
-            os.makedirs(self.path)
+            os.makedirs(path)
         except Exception as ex:
-            message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(self.ID, type(ex).__name__, ex.args)
+            message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(ID, type(ex).__name__, ex.args)
             print(message)
+    
+    return path
 
 def get_priorpath():
     """ Get default prior path name
