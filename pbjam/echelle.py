@@ -5,10 +5,39 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider
+from astropy.convolution import convolve, Box1DKernel
+import astropy.convolution as conv
 
-from .utils import smooth_power
+#from .utils import smooth_power
 
 __all__ = ["echelle", "plot_echelle"]
+
+
+ 
+
+
+
+def smooth_power(freq, power, smooth_filter_width):
+    """Smooths the input power array with a Box1DKernel from astropy
+    Parameters
+    ----------
+    power : array-like
+        Array of power values
+    smooth_filter_width : float
+        filter width
+    Returns
+    -------
+    array-like
+        Smoothed power
+    """
+    # return convolve(power, Box1DKernel(smooth_filter_width))
+
+    fac = max([1, smooth_filter_width / (freq[1] - freq[0])])
+    kernel = conv.Gaussian1DKernel(stddev=np.array(fac))
+    smoo = conv.convolve(power, kernel)
+
+    return smoo
+
 
 
 def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
@@ -74,19 +103,9 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
     return xn, yn, z
 
 
-def plot_echelle(
-    freq,
-    power,
-    dnu,
-    # mirror=False,
-    ax=None,
-    cmap="Blues",
-    scale=None,
-    interpolation=None,
-    smooth=False,
-    smooth_filter_width=50,
-    **kwargs
-):
+def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
+                 interpolation=None, smooth=False, smooth_filter_width=50, 
+                 **kwargs):
     """Plots the echelle diagram.
 
     Parameters
@@ -119,26 +138,20 @@ def plot_echelle(
         The plotted echelle diagram on the axes
     """
     if smooth:
-        power = smooth_power(power, smooth_filter_width)
+        power = smooth_power(freq, power, smooth_filter_width)
     echx, echy, echz = echelle(freq, power, dnu, **kwargs)
 
     if scale is not None:
-        if scale is "log":
+        if scale == "log":
             echz = np.log10(echz)
-        elif scale is "sqrt":
+        elif scale == "sqrt":
             echz = np.sqrt(echz)
 
     if ax is None:
         fig, ax = plt.subplots()
 
-    ax.imshow(
-        echz,
-        aspect="auto",
-        extent=(echx.min(), echx.max(), echy.min(), echy.max()),
-        origin="lower",
-        cmap=cmap,
-        interpolation=interpolation,
-    )
+    ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min(), echy.max()),
+              origin="lower", cmap=cmap, interpolation=interpolation, )
 
     # It's much cheaper just to replot the data we already have
     # and mirror it.
@@ -159,4 +172,6 @@ def plot_echelle(
 
     ax.set_xlabel(r"Frequency" + " mod " + str(dnu))
     ax.set_ylabel(r"Frequency")
+
+    ax.set_ylim(freq[0], freq[-1])
     return ax
