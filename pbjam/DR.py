@@ -33,6 +33,8 @@ class PCA():
 
         self.pcalabels = pcalabels
 
+        self.complabels = ['numax', 'dnu', 'teff', 'bp_rp']
+
         self.obs = obs
 
         if nsamples > 5000:
@@ -94,8 +96,10 @@ class PCA():
             Number of samples in the output. Might be less than the requested
             if the prior sample file is small in comparison.
         """
- 
-        pdata = pd.read_csv(fname, usecols=self.pcalabels)
+        
+        labels = self.pcalabels + [key for key in self.complabels if key not in self.pcalabels]
+         
+        pdata = pd.read_csv(fname, usecols=labels)
 
         pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
  
@@ -135,7 +139,7 @@ class PCA():
             keys = ['numax']
 
         else:
-            keys = ['numax', 'dnu', 'teff'] #self.obs.keys()
+            keys = self.complabels # ['numax', 'dnu', 'teff'] #self.obs.keys()
  
         mu = np.mean(pdata[keys].values, axis=0)
     

@@ -214,13 +214,12 @@ class modeIDsampler():
 
         self.latent_labels = ['theta_%i' % (i) for i in range(self.PCAdims)]
 
-        log_obs = self.log_obs.copy()
+        _obs = self.log_obs.copy()
 
         for key in ['bp_rp']:
-            if key in log_obs.keys():
-                log_obs[key] = self.obs[key]
+            _obs[key] = self.obs[key]
          
-        self.DR = PCA(log_obs, self.pcalabels, self.priorpath, self.Npca) 
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca) 
 
         self.DR.fit_weightedPCA(self.PCAdims)
 
