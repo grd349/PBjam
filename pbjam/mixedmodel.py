@@ -77,9 +77,9 @@ class MixFreqModel():
         """
   
         n = self.N_p // 2 + 1
-
-        width = max((n + 1) * self.obs['dnu'][0], 3 * jar.scalingRelations.envWidth(self.obs['numax'][0]))
-
+ 
+        width = max((n + 1) * self.obs['dnu'][0], 1.5 * jar.scalingRelations.envWidth(self.obs['numax'][0]))
+         
         freq_lims = (self.obs['numax'][0] - width, 
                      self.obs['numax'][0] + width)
          
@@ -92,9 +92,9 @@ class MixFreqModel():
 
         # Loop over combinations of DPi0 and eps_g as drawn from the respective PDFs.       
         for DPi0 in jnp.linspace(n_g_ppf[0](1e-3), n_g_ppf[0](1-1e-3), 3):
- 
+            
             for eps_g in jnp.linspace(n_g_ppf[1](1e-3), n_g_ppf[1](1-1e-3), 3):
-
+                
                 nu_g = self.asymptotic_nu_g(init_n_g, DPi0, eps_g, 1e-4)
                 
                 idx = (freq_lims[0] < nu_g) & (nu_g < freq_lims[1])

@@ -32,7 +32,7 @@ class modeIDsampler():
   
         self.setPriors()
  
-        self.ndims = len(self.latent_labels+self.addlabels)
+        self.ndims = len(self.latentLabels+self.addlabels)
 
         self.AsyFreqModel = AsyFreqModel(self.N_p)
 
@@ -132,13 +132,14 @@ class modeIDsampler():
 
         self.priors = {}
 
-        for i, key in enumerate(self.latent_labels):
+        for i, key in enumerate(self.latentLabels):
             self.priors[key] = dist.distribution(self.DR.ppf[i], 
                                                  self.DR.pdf[i], 
                                                  self.DR.logpdf[i], 
                                                  self.DR.cdf[i])
 
-        self.priors.update((k, v) for k, v in self.addPriors.items())
+        orderedAddKeys = [k for k in self.variables if k in self.addPriors.keys()]
+        self.priors.update({key:self.addPriors[key] for key in orderedAddKeys})
         
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=1.)
@@ -197,7 +198,7 @@ class modeIDsampler():
         Hs1 = self.envelope(nu1s, **theta_u)
         
         modewidth1s = self.l1_modewidths(zeta, **theta_u)
-    
+         
         for i in range(len(nu1s)):
             modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
@@ -217,7 +218,7 @@ class modeIDsampler():
  
         """
 
-        self.latent_labels = ['theta_%i' % (i) for i in range(self.PCAdims)]
+        self.latentLabels = ['theta_%i' % (i) for i in range(self.PCAdims)]
 
         _obs = self.log_obs.copy()
 
