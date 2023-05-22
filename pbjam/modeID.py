@@ -84,7 +84,12 @@ class modeIDsampler():
         self.labels = self.pcalabels + self.addlabels
 
         # Parameters that are in log10
-        self.logpars = [key for key in self.variables.keys() if self.variables[key]['log10']]
+        self.logpars = []
+        for key in self.variables.keys():
+            if self.variables[key]['log10']:
+                self.logpars.append(key)
+                if key.startswith('p_L') or key.startswith('p_D'):
+                    self.logpars.append(key[:3])
 
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
