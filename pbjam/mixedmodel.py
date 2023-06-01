@@ -128,7 +128,7 @@ class MixFreqModel():
         n_g : jax device array
             Array of radial orders for the g-modes.
         DPi0 : float
-            Period spacing for l=0.
+            Period spacing for l=0 in 1/muHz (DPi1/sqrt(2)  in mega-seconds).
         eps_g : float
             Phase offset of the g-modes.
         alpha_g : float
