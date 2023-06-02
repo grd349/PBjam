@@ -14,13 +14,14 @@ only use the `star' class for more granular control of the peakbagging process.
 
 """
 
-from .peakbag import peakbag
-from .jar import references
-import pandas as pd
-from pbjam import IO
-from pbjam.modeID import modeIDsampler
 
-class star():
+#from pbjam import IO
+from pbjam.peakbag import peakbag
+from pbjam.jar import references
+from pbjam.modeID import modeIDsampler
+from pbjam.plotting import plotting
+
+class star(plotting):
     """ Class for each star to be peakbagged
 
     Additional attributes are added for each step of the peakbagging process
@@ -145,11 +146,11 @@ class star():
         
         self.modeID = modeIDsampler(self.f, self.s, self.addObs, addPriors, N_p=N_p, Npca=N_pca, PCAdims=PCAdims, priorpath=self.priorpath)
 
-        self.modeID_sampler, self.modeID_samples = self.modeID()
-
+        self.modeID_samples, self.modeID_result = self.modeID()
+ 
         #TODO make storage and plots
 
-        return self.modeID_sampler, self.modeID_samples
+        return self.modeID_samples, self.modeID_result
 
     def __call__(self, norders=8, modeID_kwargs={}, peakbag_kwargs={}):
         """ Perform all the PBjam steps
@@ -190,12 +191,10 @@ class star():
 
         samples_u = self.modeID.unpackSamples(self.modeID_samples)
 
-        modeID_result = self.modeID.parseSamples(samples_u)
-
         muBkg = self.modeID.meanBkg(self.f, samples_u)
 
         self.snr = self.s / muBkg
  
-        peakbag_summary = self.run_peakbag(modeID_result, **peakbag_kwargs)
+        peakbag_summary = self.run_peakbag(self.modeID_result, **peakbag_kwargs)
 
-        return peakbag_summary, modeID_result
+        return peakbag_summary, self.modeID_result
