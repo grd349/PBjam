@@ -16,7 +16,7 @@ only use the `star' class for more granular control of the peakbagging process.
 
 
 #from pbjam import IO
-from pbjam.peakbag import peakbag
+from pbjam.peakbagging import peakbag
 from pbjam.jar import references
 from pbjam.modeID import modeIDsampler
 from pbjam.plotting import plotting
