@@ -104,7 +104,7 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
 
 
 def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
-                 interpolation=None, smooth=False, smooth_filter_width=50, 
+                 interpolation=None, smooth=False, smooth_filter_width=1, 
                  **kwargs):
     """Plots the echelle diagram.
 
@@ -170,7 +170,7 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     #         interpolation=interpolation,
     #     )
 
-    ax.set_xlabel(r"Frequency" + " mod " + str(dnu))
+    ax.set_xlabel(r"Frequency" + " mod " + str(np.round(dnu, 2)))
     ax.set_ylabel(r"Frequency")
 
     ax.set_ylim(freq[0], freq[-1])

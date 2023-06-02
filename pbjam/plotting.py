@@ -37,7 +37,6 @@ def smooth_power(freq, power, smooth_filter_width):
     return smoo
 
 
-
 def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
     """Calculates the echelle diagram. Use this function if you want to do
     some more custom plotting.
@@ -151,25 +150,8 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min(), echy.max()),
               origin="lower", cmap=cmap, interpolation=interpolation, )
 
-    # It's much cheaper just to replot the data we already have
-    # and mirror it.
-    # if mirror:
-    #     ax.imshow(
-    #         echz,
-    #         aspect="auto",
-    #         extent=(
-    #             (echx.min() + dnu),
-    #             (echx.max() + dnu),
-    #             (echy.min() - dnu),
-    #             (echy.max()) - dnu,
-    #         ),
-    #         origin="lower",
-    #         cmap=cmap,
-    #         interpolation=interpolation,
-    #     )
-
-    ax.set_xlabel(r"Frequency" + " mod " + str(dnu))
-    ax.set_ylabel(r"Frequency")
+    ax.set_xlabel(f"Frequency mod {str(np.round(dnu, 2))} "+r"[$\mu$Hz]")
+    ax.set_ylabel(r"Frequency [$\mu$Hz]")
 
     ax.set_ylim(freq[0], freq[-1])
     return ax
@@ -226,88 +208,88 @@ class plotting():
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
 
-    def plot_echelle(self, ID=None, path=None, savefig=False):
-        """ Make echelle plot
+    def echelle(self, ID=None, path=None, savefig=False):
+            """ Make echelle plot
 
-        Plots an echelle diagram with mode frequencies if available.
+            Plots an echelle diagram with mode frequencies if available.
 
-        Parameters
-        ----------
-        path : str, optional
-            Used along with savefig, sets the output directory to store the
-            figure. Default is to save the figure to the star directory.
-        ID : str, optional
-            ID of the target to be included in the filename of the figure.
-        savefig : bool
-            Whether or not to save the figure to disk. Default is False.
+            Parameters
+            ----------
+            path : str, optional
+                Used along with savefig, sets the output directory to store the
+                figure. Default is to save the figure to the star directory.
+            ID : str, optional
+                ID of the target to be included in the filename of the figure.
+            savefig : bool
+                Whether or not to save the figure to disk. Default is False.
+
+            Returns
+            -------
+            fig : Matplotlib figure object
+                Figure object with the echelle diagram.
+
+            """
+
+            freqs = {'l'+str(i): {'nu': [], 'err': [], 'zeta': []} for i in range(4)}
+
+            if isinstance(self, pbjam.core.star): 
+                dnu = self.obs['dnu'][0]
+                
+                numax = self.obs['numax'][0]
+
+            elif isinstance(self, pbjam.modeID.modeIDsampler):  
+                dnu = self.result['summary']['dnu'][0]
+
+                numax = self.result['summary']['numax'][0]
+
+                for l in np.arange(4):
+                    idx = self.result['ell'] == l
+
+                    freqs['l'+str(l)]['nu'] = self.result['summary']['freq'][0, idx]
+
+                    freqs['l'+str(l)]['err'] = self.result['summary']['freq'][1, idx]
+
+            elif isinstance(self, pbjam.peakbag.peakbag):  
+                numax = 10**self.asy_fit.summary.loc['numax', '50th']
+                for l in np.arange(4):
+                    ell = 'l'+str(l)
+                    freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
+                    freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
+                dnu = np.median(np.diff(freqs['l0']['nu']))
+
+            else:
+                raise ValueError('Unrecognized class type')
+
+            n = max([self.N_p + 1, 10])
+
+            idx = ((numax - n * dnu) < self.f) & (self.f < (numax + n * dnu))
+
+            fig, ax = plt.subplots(figsize=(8,7))    
+            
+            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=0.1)
         
-        Returns
-        -------
-        fig : Matplotlib figure object
-            Figure object with the echelle diagram.
+            # Overplot modes
+            cols = ['C1', 'C2', 'C3', 'C4']
 
-        """
-
-        freqs = {'l'+str(i): {'nu': [], 'err': []} for i in range(4)}
-
-        if isinstance(self, pbjam.star): 
-            dnu = self.obs['dnu'][0]
-            numax = self.pbs['numax'][0]
-
-        elif isinstance(self, pbjam.modeID.modeIDsampler):  
-            dnu = 10**self.summary.loc['dnu', '50th']
-            numax = 10**self.summary.loc['numax', '50th']
-            for l in np.arange(4):
-                idx = self.modeID.ell == l
-                freqs['l'+str(l)]['nu'] = self.modeID.loc[idx, 'nu_med']
-                freqs['l'+str(l)]['err'] = self.modeID.loc[idx, 'nu_mad']
-
-        elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
-            numax = 10**self.asy_fit.summary.loc['numax', '50th']
             for l in np.arange(4):
                 ell = 'l'+str(l)
-                freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
-                freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
-            dnu = np.median(np.diff(freqs['l0']['nu']))
+                
+                if len(freqs[ell]['nu']) > 0:
 
-        else:
-            raise ValueError('Unrecognized class type')
+                    nu = freqs[ell]['nu']
 
-        # make dnu an intger multiple of bw
-        dnu -= dnu % (self.f[1] - self.f[0])
-        #nmin = np.floor(self.f.min() / dnu) + 1
+                    err = freqs[ell]['err']
 
-        if pg:
-            peri = pg
-        elif hasattr(self, 'pg'):
-            peri = self.pg
-        else:
-            raise ValueError('Need spectrum to plot echelle diagram')
+                    ax.errorbar(nu%dnu, (nu//dnu) * dnu+dnu/2, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l), ms=5)
 
-        seismology = peri.flatten().to_seismology()
+            ax.legend()
 
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax = seismology.plot_echelle(deltanu=dnu * u.uHz,
-                                     numax=numax * u.uHz,
-                                     ax=ax)
+            fig.tight_layout()
 
-        # Overplot modes
-        cols = ['C1', 'C2', 'C3', 'C4']
+            if savefig:
+                self._save_my_fig(fig, 'echelle', path, ID)
 
-        for l in np.arange(4):
-            ell = 'l'+str(l)
-            if len(freqs[ell]['nu']) > 0:
-                nu = freqs[ell]['nu']
-                err = freqs[ell]['err']
-                ax.errorbar(nu%dnu, (nu//dnu) * dnu, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l))
-        ax.legend(fontsize = 'x-small')
-        
-        fig.tight_layout()
-
-        if savefig:
-            self._save_my_fig(fig, 'echelle', path, ID)
-            
-        return fig
+            return fig
 
     def plot_corner(self, path=None, ID=None, savefig=False):
         """ Make corner plot of result.

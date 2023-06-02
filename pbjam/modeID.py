@@ -2,15 +2,16 @@ from functools import partial
 import jax, dynesty
 import jax.numpy as jnp
 from dynesty import utils as dyfunc
-from pbjam.mixedmodel import MixFreqModel
-from pbjam.pairmodel import AsyFreqModel
-import pbjam.distributions as dist
+import numpy as np
 from pbjam import jar
 from pbjam.DR import PCA
-import numpy as np
+import pbjam.distributions as dist
+from pbjam.mixedmodel import MixFreqModel
+from pbjam.pairmodel import AsyFreqModel
 from pbjam.background import bkgModel
+from pbjam.plotting import plotting
 
-class modeIDsampler():
+class modeIDsampler(plotting):
 
     def __init__(self, f, s, obs, addPriors={}, N_p=7, freq_limits=[1, 5000], 
                  vis={'V20': 0.71, 'V10': 1.22}, envelope_only=False, 
@@ -497,7 +498,18 @@ class modeIDsampler():
         
         return lnlike
     
-    def __call__(self, dynamic=False, progress=True, nlive=100):
+    def __call__(self, dynesty_kwargs={}):
+
+        self.sampler, self.samples = self.runDynesty(**dynesty_kwargs)
+
+        samples_u = self.unpackSamples()
+
+        self.result = self.parseSamples(samples_u)
+
+        return self.samples, self.result
+
+
+    def runDynesty(self, dynamic=False, progress=True, nlive=100):
         """ Start nested sampling
 
         Initializes and runs the nested sampling with Dynesty. We use the 
@@ -556,7 +568,7 @@ class modeIDsampler():
 
         return sampler, samples
     
-    def unpackSamples(self, samples):
+    def unpackSamples(self, samples=None):
         """
         Unpack a set of parameter samples into a dictionary of arrays.
 
@@ -600,6 +612,8 @@ class modeIDsampler():
         >>> print(S)
         {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
         """
+        if samples is None:
+            samples = self.samples
 
         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
         
@@ -697,8 +711,6 @@ class modeIDsampler():
         nu0_samps = asymptotic_samps[:, 0, :]
         self._modeUpdoot(result, nu0_samps, 'freq', self.N_p)
 
-        
-
         # # Heights
         H0_samps = np.array([self.envelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
         self._modeUpdoot(result, H0_samps, 'height', self.N_p)
@@ -708,6 +720,7 @@ class modeIDsampler():
         self._modeUpdoot(result, W0_samps, 'width', self.N_p)
         
         
+
         # l=1
         A = np.array([self.MixFreqModel.mixed_nu1(nu0_samps[i, :], 
                                                 n_p, smp['d01'][i], 
@@ -743,7 +756,7 @@ class modeIDsampler():
         self._modeUpdoot(result, W1_samps, 'width', N_pg)
         
         # l=2
-        result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 2)
+        result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 2)
         result['enn'] = np.append(result['enn'], n_p-1)
         result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
 
