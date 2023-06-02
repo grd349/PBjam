@@ -280,7 +280,7 @@ class plotting():
 
                     err = freqs[ell]['err']
 
-                    ax.errorbar(nu%dnu, (nu//dnu) * dnu+dnu/2, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l), ms=5)
+                    ax.errorbar(nu%dnu, (nu//dnu) * dnu + dnu/2, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l), ms=5)
 
             ax.legend()
 
