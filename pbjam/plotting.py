@@ -249,7 +249,7 @@ class plotting():
 
                     freqs['l'+str(l)]['err'] = self.result['summary']['freq'][1, idx]
 
-            elif isinstance(self, pbjam.peakbag.peakbag):  
+            elif isinstance(self, pbjam.peakbagging.peakbag):  
                 numax = 10**self.asy_fit.summary.loc['numax', '50th']
                 for l in np.arange(4):
                     ell = 'l'+str(l)
