@@ -187,9 +187,9 @@ class MixFreqModel():
         nu1_p = nu0_p + d01  
  
         nu_g = self.asymptotic_nu_g(self.n_g, DPi0, eps_g, alpha_g)
-                         
+ 
         L, D = self.generate_matrices(n_p, self.n_g, nu1_p, nu_g, p_L, p_D)
-
+         
         nu, zeta = self.new_modes(L, D)
 
         return nu, zeta 
@@ -389,7 +389,7 @@ class MixFreqModel():
         D_gamma = jnp.vstack((D0, D1))
 
         new_omega2 = -Lambda
-
+ 
         zeta = jnp.diag(U.T @ D_gamma @ U)
 
         sidx = jnp.argsort(new_omega2)

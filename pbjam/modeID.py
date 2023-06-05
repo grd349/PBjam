@@ -181,8 +181,7 @@ class modeIDsampler(plotting):
         # bkg = (H1 + H2 + H3) * eta + theta_u['shot']
 
         bkg = self.background(theta_u, nu)
-
-        # l=2,0
+ 
         nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
 
         Hs0 = self.envelope(nu0_p, **theta_u)
@@ -195,7 +194,7 @@ class modeIDsampler(plotting):
          
         # l=1
         nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
-       
+        
         Hs1 = self.envelope(nu1s, **theta_u)
         
         modewidth1s = self.l1_modewidths(zeta, **theta_u)

@@ -208,7 +208,7 @@ class plotting():
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
 
-    def echelle(self, ID=None, path=None, savefig=False):
+    def echelle(self, ID=None, path=None, savefig=False, N=200):
             """ Make echelle plot
 
             Plots an echelle diagram with mode frequencies if available.
@@ -230,7 +230,8 @@ class plotting():
 
             """
 
-            freqs = {'l'+str(i): {'nu': [], 'err': [], 'zeta': []} for i in range(4)}
+            freqs = {'l'+str(i): {'nu': [], 'err': [], 'zeta': [], 'samples': None} for i in range(4)}
+ 
 
             if isinstance(self, pbjam.core.star): 
                 dnu = self.obs['dnu'][0]
@@ -245,16 +246,22 @@ class plotting():
                 for l in np.arange(4):
                     idx = self.result['ell'] == l
 
-                    freqs['l'+str(l)]['nu'] = self.result['summary']['freq'][0, idx]
+                    freqs[f'l{str(l)}']['nu'] = self.result['summary']['freq'][0, idx]
 
-                    freqs['l'+str(l)]['err'] = self.result['summary']['freq'][1, idx]
+                    freqs[f'l{str(l)}']['err'] = self.result['summary']['freq'][1, idx]
+
+                    freqs[f'l{str(l)}']['samples'] = self.result['samples']['freq'][:N, idx]
 
             elif isinstance(self, pbjam.peakbagging.peakbag):  
                 numax = 10**self.asy_fit.summary.loc['numax', '50th']
+
                 for l in np.arange(4):
                     ell = 'l'+str(l)
+
                     freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
+
                     freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
+
                 dnu = np.median(np.diff(freqs['l0']['nu']))
 
             else:
@@ -275,13 +282,17 @@ class plotting():
                 ell = 'l'+str(l)
                 
                 if len(freqs[ell]['nu']) > 0:
-
-                    nu = freqs[ell]['nu']
-
+ 
                     err = freqs[ell]['err']
 
-                    ax.errorbar(nu%dnu, (nu//dnu) * dnu + dnu/2, xerr=err, fmt='o', color = cols[l], label = r'$\ell=$%i' % (l), ms=5)
+                    smry_x, smry_y = self.echelle_freqs(freqs[ell]['nu'], dnu) 
 
+                    ax.errorbar(smry_x, smry_y, xerr=err, fmt='o', color=cols[l], label=r'$\ell=$%i' % (l), ms=5)
+ 
+                    smp_x, smp_y = self.echelle_freqs(freqs[ell]['samples'], dnu) 
+
+                    ax.scatter(smp_x, smp_y, alpha=0.2, color=cols[l])
+                        
             ax.legend()
 
             fig.tight_layout()
@@ -289,7 +300,16 @@ class plotting():
             if savefig:
                 self._save_my_fig(fig, 'echelle', path, ID)
 
-            return fig
+            return fig, ax
+
+    def echelle_freqs(self, nu, dnu):
+        x = nu%dnu
+
+        y = (nu//dnu) * dnu + dnu/2
+
+        return x, y
+        
+        
 
     def plot_corner(self, path=None, ID=None, savefig=False):
         """ Make corner plot of result.
@@ -614,105 +634,3 @@ class plotting():
         ax.legend()
         return fig
 
-
-# =============================================================================
-# To be implemented later
-# =============================================================================
-#def plot_trace(stage):
-#    """ Make a trace plot of the MCMC chains
-#    """
-#
-#    import pymc3 as pm
-#
-#    if type(stage) == pbjam.priors.kde:
-#        # TODO - make this work for kde
-#        print('Traceplot for kde not yet implimented')
-#
-#    if type(stage) == pbjam.asy_peakbag.asymptotic_fit:
-#        # TODO - make this work for asy_peakbag
-#        print('Traceplot for asy_peakbag not yet implimented')
-#
-#    if type(stage) == pbjam.peakbag:
-#        pm.traceplot(stage.samples)
-#
-#
-## Peakbag
-#def plot_linewidth(self, thin=10):
-#    """ Plot estimated line width as a function of scaled n.
-#    """
-#
-#    fig, ax = plt.subplots(1, 2, figsize=[16,9])
-#
-#    if self.gp0 != []:
-#
-#        n_new = np.linspace(-0.2, 1.2, 100)[:,None]
-#        with self.pm_model:
-#            f_pred0 = self.gp0.conditional("f_pred0", n_new)
-#            f_pred2 = self.gp2.conditional("f_pred2", n_new)
-#            self.pred_samples = pm.sample_posterior_predictive(self.samples,
-#                           vars=[f_pred0, f_pred2], samples=1000)
-#        plot_gp_dist(ax[0], self.pred_samples["f_pred0"], n_new)
-#        plot_gp_dist(ax[1], self.pred_samples["f_pred2"], n_new)
-#
-#        for i in range(0, len(self.samples), thin):
-#            ax[0].scatter(self.n,
-#                          self.samples['ln_width0'][i, :], c='k', alpha=0.3)
-#            ax[1].scatter(self.n,
-#                          self.samples['ln_width2'][i, :], c='k', alpha=0.3)
-#
-#
-#    else:
-#        for i in range(0, len(self.samples), thin):
-#            ax[0].scatter(self.n,
-#                          np.log(self.samples['width0'][i, :]), c='k', alpha=0.3)
-#            ax[1].scatter(self.n,
-#                          np.log(self.samples['width2'][i, :]), c='k', alpha=0.3)
-#
-#    ax[0].set_xlabel('normalised order')
-#    ax[1].set_xlabel('normalised order')
-#    ax[0].set_ylabel('ln line width')
-#    ax[1].set_ylabel('ln line width')
-#    ax[0].set_title('Radial modes')
-#    ax[1].set_title('Quadrupole modes')
-#    return fig
-#
-#def plot_height(self, thin=10):
-#    """ Plots the estimated mode height.
-#    """
-#
-#    fig, ax = plt.subplots(figsize=[16,9])
-#    for i in range(0, len(self.samples), thin):
-#        ax.scatter(self.samples['l0'][i, :], self.samples['height0'][i, :])
-#        ax.scatter(self.samples['l2'][i, :], self.samples['height2'][i, :])
-#    return fig
-#
-#def plot_ladder(self, thin=10, alpha=0.2):
-#    """
-#    Plots the ladder data and models from the samples
-#
-#    Parameters
-#    ----------
-#    thin: int
-#        Uses every other thin'th value from the samkles, i.e. [::thin].
-#    alpha: float64
-#        The alpha to use for plotting the models from samples.
-#
-#    """
-#
-#    n = self.ladder_s.shape[0]
-#    fig, ax = plt.subplots(n, figsize=[16,9])
-#    for i in range(n):
-#        for j in range(0, len(self.samples), thin):
-#            mod = self.model(self.samples['l0'][j],
-#                             self.samples['l2'][j],
-#                             self.samples['width0'][j],
-#                             self.samples['width2'][j],
-#                             self.samples['height0'][j],
-#                             self.samples['height2'][j],
-#                             self.samples['back'][j])
-#            ax[i].plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=alpha)
-#        ax[i].plot(self.ladder_f[i, :], self.ladder_s[i, :], c='k')
-#        ax[i].set_xlim([self.ladder_f[i, 0], self.ladder_f[i, -1]])
-#    ax[n-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
-#    fig.tight_layout()
-#    return fig
