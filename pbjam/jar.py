@@ -13,6 +13,31 @@ from functools import partial
 import scipy.special as sc
 import scipy.integrate as si
 from dataclasses import dataclass
+import pandas as pd
+
+def updatePrior(ID, R, addObs):
+    
+    prior = pd.read_csv('pbjam/data/prior_data.csv')
+
+    badkeys = ['freq', 'height', 'width', 'teff', 'bp_rp', 'nurot_c', 'inc', 'H3_power', 'H3_nu', 'H3_exp', 'shot']
+
+    r = {key: [R[key][0]] for key in R.keys() if key not in badkeys}
+
+    for key in r.keys():
+        if key in ['eps_p', 'eps_g', 'bp_rp']:
+            continue
+        else:
+            r[key] = np.log10(r[key])
+
+    r['ID'] = ID
+    r['teff'] = np.log10(addObs['teff'][0])
+    r['bp_rp'] = np.log10(addObs['bp_rp'][0])
+
+    row = pd.DataFrame.from_dict(r)
+     
+    prior = prior.append(row, ignore_index=True)
+
+    return prior
 
 @dataclass
 class constants:
@@ -32,7 +57,7 @@ def smryStats(y):
 
     u = np.percentile(y, p)
     
-    return (u[1], np.mean(np.diff(u)))
+    return np.array([u[1], np.mean(np.diff(u))])
 
 @jax.jit
 def attenuation(f, nyq):
