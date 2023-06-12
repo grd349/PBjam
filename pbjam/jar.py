@@ -31,7 +31,7 @@ def updatePrior(ID, R, addObs):
 
     r['ID'] = ID
     r['teff'] = np.log10(addObs['teff'][0])
-    r['bp_rp'] = np.log10(addObs['bp_rp'][0])
+    r['bp_rp'] = addObs['bp_rp'][0]
 
     row = pd.DataFrame.from_dict(r)
      
