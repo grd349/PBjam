@@ -47,7 +47,6 @@ class modeIDsampler(plotting):
 
         self.setAddObs()
  
-
     def _makeTmpSample(self, keys, N=1000):
 
         K = np.zeros((len(keys), N))
@@ -198,14 +197,15 @@ class modeIDsampler(plotting):
         Hs1 = self.envelope(nu1s, **theta_u)
         
         modewidth1s = self.l1_modewidths(zeta, **theta_u)
-         
+        
         for i in range(len(nu1s)):
+             
             modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
             modes += jar.lor(nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
             modes += jar.lor(nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
- 
+  
         return (1 + modes) * bkg
 
     def setupDR(self):
@@ -345,8 +345,6 @@ class modeIDsampler(plotting):
 
         return pair_model
     
-    
-
     def setAddObs(self):
         """ Set attribute containing additional observational data
 
@@ -483,10 +481,10 @@ class modeIDsampler(plotting):
  
         # Constraint from input obs
         lnlike = self.addAddObsLike(theta_u)
-        
+
         # Constraint from the periodogram 
         mod = self.model(theta_u, nu)
-
+         
         lnlike += self.chi_sqr(mod)
  
         T = (theta_u['H3_nu'] < theta_u['H2_nu']) & \
@@ -506,7 +504,6 @@ class modeIDsampler(plotting):
         self.result = self.parseSamples(samples_u)
 
         return self.samples, self.result
-
 
     def runDynesty(self, dynamic=False, progress=True, nlive=100):
         """ Start nested sampling
@@ -654,9 +651,9 @@ class modeIDsampler(plotting):
                  'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True}, 
                  'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
                  'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
-                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': True, 'pca': True},  
-                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': True, 'pca': True}, 
-                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': True, 'pca': True}, 
+                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': True},  
+                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': True}, 
+                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
                  'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True, 'pca': True}, 
                  'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True},
@@ -666,7 +663,6 @@ class modeIDsampler(plotting):
                  'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False},
                  'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False},
                  'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False}}
-
 
     def _modeUpdoot(self, result, sample, key, Nmodes):
         
@@ -722,12 +718,14 @@ class modeIDsampler(plotting):
 
         # l=1
         A = np.array([self.MixFreqModel.mixed_nu1(nu0_samps[i, :], 
-                                                n_p, smp['d01'][i], 
-                                                smp['DPi0'][i], 
-                                                jnp.array([smp['p_L0'][i]]),  
-                                                jnp.array([smp['p_D0'][i]]), 
-                                                smp['eps_g'][i], 
-                                                smp['alpha_g'][i]) for i in range(N)])
+                                                  n_p, smp['d01'][i], 
+                                                  smp['DPi0'][i], 
+                                                  jnp.array([smp['p_L0'][i]]),  
+                                                  jnp.array([smp['p_D0'][i]]), 
+                                                  smp['eps_g'][i], 
+                                                  smp['alpha_g'][i]) for i in range(N)])
+        
+         
         
         N_pg = self.MixFreqModel.N_p + self.MixFreqModel.N_g
         

@@ -273,7 +273,7 @@ class plotting():
 
             fig, ax = plt.subplots(figsize=(8,7))    
             
-            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=0.1)
+            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=0.2, scale='log')
         
             # Overplot modes
             cols = ['C1', 'C2', 'C3', 'C4']
@@ -291,7 +291,7 @@ class plotting():
  
                     smp_x, smp_y = self.echelle_freqs(freqs[ell]['samples'], dnu) 
 
-                    ax.scatter(smp_x, smp_y, alpha=0.2, color=cols[l])
+                    ax.scatter(smp_x, smp_y, alpha=0.05, color=cols[l])
                         
             ax.legend()
 
@@ -305,7 +305,7 @@ class plotting():
     def echelle_freqs(self, nu, dnu):
         x = nu%dnu
 
-        y = (nu//dnu) * dnu + dnu/2
+        y = nu #+ dnu/2
 
         return x, y
         

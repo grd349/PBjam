@@ -56,9 +56,7 @@ class MixFreqModel():
 
         self.N_g = len(self.n_g)
 
-
-
-    def select_n_g(self, n_g_ppf):
+    def select_n_g(self, n_g_ppf, fac=2):
         """ Select and initial range for n_g
 
         Computes the number of g-modes that are relevant near the oscillation
@@ -72,13 +70,17 @@ class MixFreqModel():
 
         Returns
         -------
-        n_g : jax device array
-            Initial list of g-mode radial orders.
+        n_g_ppf : list
+            The quauntile functions for DPi0 and eps_g. 
+        fac : float
+            g-modes are considered if they fall within +/- fac * envelope_width
+            of numax. A larger may(??) increase precision at the cost of time
+            to perform eigendecomposition.
         """
   
         n = self.N_p // 2 + 1
  
-        width = max((n + 1) * self.obs['dnu'][0], 1.5 * jar.scalingRelations.envWidth(self.obs['numax'][0]))
+        width = max((n + 1) * self.obs['dnu'][0], fac * jar.scalingRelations.envWidth(self.obs['numax'][0]))
          
         freq_lims = (self.obs['numax'][0] - width, 
                      self.obs['numax'][0] + width)
@@ -185,7 +187,7 @@ class MixFreqModel():
         """
  
         nu1_p = nu0_p + d01  
- 
+    
         nu_g = self.asymptotic_nu_g(self.n_g, DPi0, eps_g, alpha_g)
  
         L, D = self.generate_matrices(n_p, self.n_g, nu1_p, nu_g, p_L, p_D)

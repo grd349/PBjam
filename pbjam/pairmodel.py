@@ -54,7 +54,7 @@ class AsyFreqModel():
         """
 
         below = jnp.floor(nmax - jnp.floor(self.N_p/2)).astype(int)
-
+         
         enns = jnp.arange(self.N_p) + below
 
         return enns 
