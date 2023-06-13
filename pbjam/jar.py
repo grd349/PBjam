@@ -24,7 +24,7 @@ def updatePrior(ID, R, addObs):
     r = {key: [R[key][0]] for key in R.keys() if key not in badkeys}
 
     for key in r.keys():
-        if key in ['eps_p', 'eps_g', 'bp_rp']:
+        if key in ['eps_p', 'eps_g', 'bp_rp', 'H1_exp', 'H2_exp']:
             continue
         else:
             r[key] = np.log10(r[key])
