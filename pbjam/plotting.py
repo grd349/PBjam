@@ -273,7 +273,7 @@ class plotting():
 
             fig, ax = plt.subplots(figsize=(8,7))    
             
-            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=0.2, scale='log')
+            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=dnu/70, scale='log')
         
             # Overplot modes
             cols = ['C1', 'C2', 'C3', 'C4']

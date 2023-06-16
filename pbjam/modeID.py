@@ -656,7 +656,7 @@ class modeIDsampler(plotting):
                  'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
                  'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True, 'pca': True}, 
-                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True},
+                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True},
                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
                  'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},
                  'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False}, 
