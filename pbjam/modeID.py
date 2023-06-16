@@ -46,6 +46,8 @@ class modeIDsampler(plotting):
         self.sel = self.setFreqRange(self.envelope_only)
 
         self.setAddObs()
+
+    
  
     def _makeTmpSample(self, keys, N=1000):
 
@@ -198,13 +200,29 @@ class modeIDsampler(plotting):
         
         modewidth1s = self.l1_modewidths(zeta, **theta_u)
         
+        z = jnp.zeros_like(nu)
+
         for i in range(len(nu1s)):
              
-            modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+        #     modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
-            modes += jar.lor(nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+        #     modes += jar.lor(nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
-            modes += jar.lor(nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+        #     modes += jar.lor(nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+
+            T = jnp.isnan(nu1s[i])
+            
+            modes += jax.lax.cond(T, lambda a, b, c, d: z, jar.lor, 
+                                nu, nu1s[i], Hs1[i] * self.vis['V10'], modewidth1s[i]
+                                ) * jnp.cos(theta_u['inc'])**2
+            
+            modes += jax.lax.cond(T, lambda a, b, c, d: z,  jar.lor, 
+                                nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]
+                                ) * jnp.sin(theta_u['inc'])**2 / 2
+                
+            modes += jax.lax.cond(T, lambda a, b, c, d: z,  jar.lor, 
+                                nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]
+                                ) * jnp.sin(theta_u['inc'])**2 / 2
   
         return (1 + modes) * bkg
 
