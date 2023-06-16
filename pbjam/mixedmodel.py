@@ -348,14 +348,16 @@ class MixFreqModel():
 
         D_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_D) * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
 
+        # print(L_cross.shape)
+        # print(D_cross.shape)
         L = jnp.hstack((jnp.vstack((jnp.diag(-(nu_p * c.nu_to_omega)**2), L_cross.T)),
                         jnp.vstack((L_cross, jnp.diag( -(nu_g * c.nu_to_omega)**2 )))))
 
-        D = jnp.hstack((jnp.vstack((jnp.eye(self.N_p), D_cross.T)),
-                        jnp.vstack((D_cross, jnp.eye(self.N_g)))))
+        D = jnp.hstack((jnp.vstack((jnp.eye(self.N_p), D_cross[::-1, ::-1].T)),
+                        jnp.vstack((D_cross[::-1, ::-1], jnp.eye(self.N_g)))))
 
-        return L, D
-
+        return L, D#, L_cross, D_cross
+    
     @partial(jax.jit, static_argnums=(0,))
     def new_modes(self, L, D):
         """ Solve for mixed mode frequencies
