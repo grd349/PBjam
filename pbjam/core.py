@@ -20,6 +20,7 @@ from pbjam.peakbagging import peakbag
 from pbjam.jar import references
 from pbjam.modeID import modeIDsampler
 from pbjam.plotting import plotting
+from pbjam import IO
 
 class star(plotting):
     """ Class for each star to be peakbagged

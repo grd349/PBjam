@@ -170,17 +170,6 @@ class modeIDsampler(plotting):
     def model(self, theta_u, nu):
 
         # # Background
-        # H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
-
-        # H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
-
-        # H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
-
-         
-        # eta = jar.attenuation(nu, self.Nyquist)**2
-
-        # bkg = (H1 + H2 + H3) * eta + theta_u['shot']
-
         bkg = self.background(theta_u, nu)
  
         nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
@@ -203,13 +192,7 @@ class modeIDsampler(plotting):
         z = jnp.zeros_like(nu)
 
         for i in range(len(nu1s)):
-             
-        #     modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
-        
-        #     modes += jar.lor(nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
-        
-        #     modes += jar.lor(nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
-
+ 
             T = jnp.isnan(nu1s[i])
             
             modes += jax.lax.cond(T, lambda a, b, c, d: z, jar.lor, 
@@ -243,7 +226,7 @@ class modeIDsampler(plotting):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
          
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca) 
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectlabels=['numax', 'dnu', 'teff', 'bp_rp']) 
 
         self.DR.fit_weightedPCA(self.PCAdims)
 

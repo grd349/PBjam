@@ -6,8 +6,8 @@ from functools import partial
 jax.config.update('jax_enable_x64', True)
 
 class PCA():
-    def __init__(self, obs, pcalabels, fname, nsamples, weights=None, 
-                 weight_args={}):
+    def __init__(self, obs, pcalabels, fname, nsamples, selectlabels, 
+                 weights=None, weight_args={}):
         """ Class for handling PCA-based dimensionality reduction
 
         Parameters
@@ -33,7 +33,7 @@ class PCA():
 
         self.pcalabels = pcalabels
 
-        self.complabels = ['numax', 'dnu', 'teff', 'bp_rp']
+        self.selectlabels = selectlabels
 
         self.obs = obs
 
@@ -42,12 +42,12 @@ class PCA():
 
         self.data_F, self.dims_F, self.nsamples = self.getPCAsample(fname, 
                                                                     nsamples)
-
+        print(self.data_F.shape)
         self.setWeights(weights, weight_args)
 
         self.mu  = jnp.average(self.data_F, axis=0, weights=self.weights)
 
-        self.var = jnp.average((self.data_F-self.mu)**2, axis=0, 
+        self.var = jnp.average((self.data_F - self.mu)**2, axis=0, 
                                weights=self.weights)
 
         self.std = jnp.sqrt(self.var)
@@ -73,6 +73,49 @@ class PCA():
         else:
             self.weights = w
 
+
+    def readPriorData(self, fname, labels):
+        """
+        Read and preprocess prior data from a CSV file.
+        
+        Parameters
+        ----------
+        fname : str 
+            The file name or path of the CSV file to be read.
+        labels : list: 
+            A list of column labels to be extracted from the CSV file.
+        
+        Returns
+        -------
+        pdata : pandas.DataFrame
+            A pandas DataFrame containing the extracted data with preprocessing 
+            applied.
+        
+        Raises
+        ------
+            FileNotFoundError: If the specified file `fname` does not exist.
+            ValueError: If the `labels` parameter is empty or contains invalid column labels.
+        
+        Notes
+        -----
+            - The function reads the CSV file specified by `fname` and extracts the columns
+            specified by the `labels` parameter.
+            - It performs preprocessing on the extracted data, including replacing infinite
+            values with NaN, dropping rows with any NaN values, and resetting the DataFrame
+            index.
+            - The resulting preprocessed DataFrame is returned.
+        """
+
+        pdata = pd.read_csv(fname, usecols=labels)
+
+        pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
+ 
+        pdata.dropna(axis=0, how="any", inplace=True)
+
+        pdata.reset_index(inplace=True)
+
+        return pdata
+
     def getPCAsample(self, fname, nsamples):
         """_summary_
 
@@ -96,24 +139,20 @@ class PCA():
             Number of samples in the output. Might be less than the requested
             if the prior sample file is small in comparison.
         """
-        
-        labels = self.pcalabels + [key for key in self.complabels if key not in self.pcalabels]
          
-        pdata = pd.read_csv(fname, usecols=labels)
+        readlabels = self.pcalabels + [key for key in self.selectlabels if key not in self.pcalabels]
+         
+        priorData = self.readPriorData(fname, readlabels)
+         
+        nearestSubset = self.findNearest(priorData, nsamples)
+         
+        selectedSubset = nearestSubset[self.pcalabels]
+         
+        _nsamples, _ndim = selectedSubset.shape
+        
+        return jnp.array(selectedSubset.to_numpy()), _ndim, _nsamples
 
-        pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
- 
-        pdata.dropna(axis=0, how="any", inplace=True)
-
-        pdata.reset_index(inplace=True)
-
-        pdata = self.findNearest(pdata, nsamples)
-
-        _nsamples, _ndim = pdata.shape
-
-        return jnp.array(pdata.to_numpy()), _ndim, _nsamples
-
-    def findNearest(self, pdata, N, precision='high'):
+    def findNearest(self, pdata, N):
         """ Find nearest neighbours.
         
         Uses Euclidean distance to find the N nearest neighbors to a set of 
@@ -125,9 +164,6 @@ class PCA():
             Dataframe of the set of observations to search.
         N : int
             Number of neighbors to find.
-        precision : str, optional
-            Flag to use high precision, i.e. to use all the parameters in obs,
-            by default 'high'
 
         Returns
         -------
@@ -135,23 +171,17 @@ class PCA():
             Subset of pdata that contains only the N nearest neightbors.
         """
 
-        if precision == 'low':
-            keys = ['numax']
-
-        else:
-            keys = self.complabels # ['numax', 'dnu', 'teff'] #self.obs.keys()
- 
-        mu = np.mean(pdata[keys].values, axis=0)
+        mu = np.mean(pdata[self.selectlabels].values, axis=0)
     
-        std = np.std(pdata[keys].values, axis=0)
+        std = np.std(pdata[self.selectlabels].values, axis=0)
         
-        deltas = np.array([(pdata[key].values-mu[i])/std[i] - (self.obs[key][0]-mu[i])/std[i] for i, key in enumerate(keys)])
+        deltas = np.array([(pdata[key].values-mu[i]) / std[i] - (self.obs[key][0] - mu[i]) / std[i] for i, key in enumerate(self.selectlabels)])
 
-        sortidx = np.argsort( np.sqrt(np.sum(deltas**2, axis=0)))
+        sortidx = np.argsort(np.sqrt(np.sum(deltas**2, axis=0)))
          
         out = pdata.loc[sortidx, :][:N]
         
-        return out[self.pcalabels]
+        return out
 
     @partial(jax.jit, static_argnums=(0,))
     def scale(self, data):
@@ -283,5 +313,3 @@ class PCA():
         C = _X.T@W@_X * jnp.sum(self.weights) / (jnp.sum(self.weights)**2 - jnp.sum(self.weights**2))
 
         return C
-
-    
