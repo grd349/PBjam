@@ -309,7 +309,24 @@ class plotting():
 
         return x, y
         
+    def plotLatentCorner(self, samples, labels=None):
+    
+        if labels == None:
+            labels = list(self.priors.keys()) 
         
+        fig = corner.corner(samples, hist_kwargs = {'density': True}, labels=labels)
+
+        axes = np.array(fig.get_axes()).reshape((len(labels), len(labels)))
+
+        for i, key in enumerate(labels):
+        
+            if key in self.priors.keys():
+            
+                x = np.linspace(self.priors[key].ppf(1e-6), self.priors[key].ppf(1-1e-6), 100)
+
+                pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+    
+                axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5)    
 
     def plot_corner(self, path=None, ID=None, savefig=False):
         """ Make corner plot of result.
