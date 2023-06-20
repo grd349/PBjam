@@ -70,15 +70,16 @@ class AsyFreqModel():
             Frequency of maximum power of the p-mode envelope (muHz).
         dnu : float
             Large separation of l=0 modes (muHz).
-        eps : float
+        eps_p : float
             Epsilon phase term in asymptotic relation (unitless).
-        alpha : float
+        alpha_p : float
             Curvature factor of l=0 ridge (second order term, unitless).
     
         Returns
         -------
         nu0s : ndarray
             Array of l=0 mode frequencies from the asymptotic relation (muHz).
+            
         """
         
         n_p_max = self._get_n_p_max(dnu, numax, eps_p)

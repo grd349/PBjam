@@ -158,7 +158,7 @@ class modeIDsampler(plotting):
         
         mu = jnp.array([1, inst_est - shot_est]).max()
         
-        self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=2)  
+        self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=1)  
 
         self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-1, scale=2)  
         
@@ -458,26 +458,7 @@ class modeIDsampler(plotting):
      
     @partial(jax.jit, static_argnums=(0,))
     def lnlikelihood(self, theta, nu):
-        """ Likelihood function for set of model parameters
-
-        Evaluates the likelihood function for a set of model parameters given
-        the data. This includes the constraint from the observed variables.
-
-        The samples l are drawn from the latent parameter priors and are first
-        projected into the model space before the model is constructed and the
-        likelihood is constructed.
-
-        Parameters
-        ----------
-        l : list
-            Array of latent parameters
-
-        Returns
-        -------
-        lnlike : float
-            The log likelihood evaluated at the model parameters p.
-        """
-
+         
         theta_u = self.unpackParams(theta)
  
         # Constraint from input obs
@@ -680,16 +661,16 @@ class modeIDsampler(plotting):
             smp[key] = smp[key][:N]
         
         result = {'ell': np.array([]),
-                'enn': np.array([]),
-                'zeta': np.array([]),
-                'summary': {'freq': np.array([]).reshape((2, 0)), 
-                            'height': np.array([]).reshape((2, 0)), 
-                            'width': np.array([]).reshape((2, 0))
-                            },
-                'samples': {'freq': np.array([]).reshape((N, 0)), 
-                            'height': np.array([]).reshape((N, 0)), 
-                            'width': np.array([]).reshape((N, 0))
-                            },
+                  'enn': np.array([]),
+                  'zeta': np.array([]),
+                  'summary': {'freq': np.array([]).reshape((2, 0)), 
+                              'height': np.array([]).reshape((2, 0)), 
+                              'width': np.array([]).reshape((2, 0))
+                             },
+                  'samples': {'freq': np.array([]).reshape((N, 0)), 
+                              'height': np.array([]).reshape((N, 0)), 
+                              'width': np.array([]).reshape((N, 0))
+                             },
                 }
         
         result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
