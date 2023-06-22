@@ -487,6 +487,20 @@ class modeIDsampler(plotting):
 
         return self.samples, self.result
 
+
+    def getInitLive(self, nlive):
+        u = np.random.uniform(0, 1, size=(4*nlive, self.ndims))
+
+        v = np.array([self.ptform(u[i, :]) for i in range(u.shape[0])])
+        
+        L = np.array([self.lnlikelihood(v[i, :], self.f[self.sel]) for i in range(u.shape[0])])
+
+        idx = np.isfinite(L)
+
+        initLive = u[idx, :][:nlive, :]
+
+        return [u[idx, :][:nlive, :], v[idx, :][:nlive, :], L[idx][:nlive]]
+    
     def runDynesty(self, dynamic=False, progress=True, nlive=100):
         """ Start nested sampling
 
@@ -515,12 +529,17 @@ class modeIDsampler(plotting):
             Array of samples from the nested sampling with shape (Nsamples, Ndim)
         """
 
+ 
+
+        initLive = self.getInitLive(nlive)
+
         if dynamic:
             sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
                                                    self.ptform, 
                                                    self.ndims, 
                                                    nlive=nlive, 
                                                    sample='rwalk',
+                                                   live_points = initLive,
                                                    logl_args=[self.f[self.sel]])
             
             sampler.run_nested(print_progress=progress, 
@@ -534,6 +553,7 @@ class modeIDsampler(plotting):
                                             self.ndims, 
                                             nlive=nlive, 
                                             sample='rwalk',
+                                            live_points = initLive,
                                             logl_args=[self.f[self.sel]])
             
             sampler.run_nested(print_progress=progress)
