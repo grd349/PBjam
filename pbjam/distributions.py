@@ -43,18 +43,20 @@ def getQuantileFuncs(data):
 
         kde.fit(cut=5)
 
-        A = jnp.linspace(0, 1, len(kde.cdf))
+        A = jnp.linspace(0, 1, 10*len(kde.cdf))
 
         cdfs.append(kde.cdf)
         
         # The icdf from statsmodels is only evaluated on the input values,
         # not the complete support of the pdf which may be wider. 
-        Q = jar.getCurvePercentiles(kde.support, 
-                                    kde.evaluate(kde.support),
+        x = np.linspace(kde.support[0], kde.support[-1], len(A))
+        Q = jar.getCurvePercentiles(x, 
+                                    kde.evaluate(x),
                                     percentiles=A)
-
+        
         ppfs.append(jar.jaxInterp1D(A, Q))
         
+        # TODO should increase resolution on pdf like on the ppf
         pdfs.append(jar.jaxInterp1D(kde.support, kde.evaluate(kde.support)))
 
         logpdfs.append(jar.jaxInterp1D(kde.support, jnp.log(kde.evaluate(kde.support))))
