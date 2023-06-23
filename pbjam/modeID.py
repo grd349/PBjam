@@ -469,11 +469,11 @@ class modeIDsampler(plotting):
          
         lnlike += self.chi_sqr(mod)
  
-        T = (theta_u['H3_nu'] < theta_u['H2_nu']) & \
-            (theta_u['H2_nu'] < theta_u['numax']) & \
-            (theta_u['H2_nu'] < theta_u['H1_nu'])
+        # T = (theta_u['H3_nu'] < theta_u['H2_nu']) & \
+        #     (theta_u['H2_nu'] < theta_u['numax']) & \
+        #     (theta_u['H2_nu'] < theta_u['H1_nu'])
 
-        lnlike += jax.lax.cond(T, lambda : 0., lambda : -jnp.inf)
+        # lnlike += jax.lax.cond(T, lambda : 0., lambda : -jnp.inf)
         
         return lnlike
     
@@ -489,6 +489,40 @@ class modeIDsampler(plotting):
 
 
     def getInitLive(self, nlive):
+        """
+        Generate initial live points for a Bayesian inference problem.
+
+        Parameters
+        ----------
+        nlive : int
+            The number of live points to generate.
+
+        Returns
+        -------
+        list : list
+            A list containing three arrays: [u, v, L].
+                - u : ndarray
+                    Initial live points in the unit hypercube [0, 1].
+                    Shape: (nlive, ndims).
+                - v : ndarray
+                    Transformed live points obtained by applying the ptform method to each point in u.
+                    Shape: (nlive, ndims).
+                - L : ndarray
+                    Log-likelihood values calculated for each point in v.
+                    Shape: (nlive,).
+
+        Notes
+        -----
+        This method generates initial live points for a Bayesian inference problem.
+        It follows the following steps:
+        1. Generate a 2D array u of shape (4*nlive, ndims) with values drawn from a uniform distribution in the range [0, 1].
+        2. Apply the ptform method to each row of u to obtain a new 2D array v of the same shape.
+        3. Calculate the log-likelihood values L for each point in v using the lnlikelihood method.
+        4. Filter out invalid values of L (NaN or infinite) using a boolean mask.
+        5. Select the first nlive rows from the filtered arrays to obtain the initial live points u, transformed points v, and log-likelihood values L.
+        6. Return the list [u, v, L].
+        """
+        
         u = np.random.uniform(0, 1, size=(4*nlive, self.ndims))
 
         v = np.array([self.ptform(u[i, :]) for i in range(u.shape[0])])
@@ -496,8 +530,6 @@ class modeIDsampler(plotting):
         L = np.array([self.lnlikelihood(v[i, :], self.f[self.sel]) for i in range(u.shape[0])])
 
         idx = np.isfinite(L)
-
-        initLive = u[idx, :][:nlive, :]
 
         return [u[idx, :][:nlive, :], v[idx, :][:nlive, :], L[idx][:nlive]]
     
