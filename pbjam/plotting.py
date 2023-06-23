@@ -233,39 +233,39 @@ class plotting():
             freqs = {'l'+str(i): {'nu': [], 'err': [], 'zeta': [], 'samples': None} for i in range(4)}
  
 
-            if isinstance(self, pbjam.core.star): 
-                dnu = self.obs['dnu'][0]
+            # if isinstance(self, pbjam.core.star): 
+            #     dnu = self.obs['dnu'][0]
                 
-                numax = self.obs['numax'][0]
+            #     numax = self.obs['numax'][0]
 
-            elif isinstance(self, pbjam.modeID.modeIDsampler):  
-                dnu = self.result['summary']['dnu'][0]
+            #elif isinstance(self, pbjam.modeID.modeIDsampler):  
+            dnu = self.result['summary']['dnu'][0]
 
-                numax = self.result['summary']['numax'][0]
+            numax = self.result['summary']['numax'][0]
 
-                for l in np.arange(4):
-                    idx = self.result['ell'] == l
+            for l in np.arange(4):
+                idx = self.result['ell'] == l
 
-                    freqs[f'l{str(l)}']['nu'] = self.result['summary']['freq'][0, idx]
+                freqs[f'l{str(l)}']['nu'] = self.result['summary']['freq'][0, idx]
 
-                    freqs[f'l{str(l)}']['err'] = self.result['summary']['freq'][1, idx]
+                freqs[f'l{str(l)}']['err'] = self.result['summary']['freq'][1, idx]
 
-                    freqs[f'l{str(l)}']['samples'] = self.result['samples']['freq'][:N, idx]
+                freqs[f'l{str(l)}']['samples'] = self.result['samples']['freq'][:N, idx]
 
-            elif isinstance(self, pbjam.peakbagging.peakbag):  
-                numax = 10**self.asy_fit.summary.loc['numax', '50th']
+            # elif isinstance(self, pbjam.peakbagging.peakbag):  
+            #     numax = 10**self.asy_fit.summary.loc['numax', '50th']
 
-                for l in np.arange(4):
-                    ell = 'l'+str(l)
+            #     for l in np.arange(4):
+            #         ell = 'l'+str(l)
 
-                    freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
+            #         freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
 
-                    freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
+            #         freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
 
-                dnu = np.median(np.diff(freqs['l0']['nu']))
+            #     dnu = np.median(np.diff(freqs['l0']['nu']))
 
-            else:
-                raise ValueError('Unrecognized class type')
+            # else:
+            #     raise ValueError('Unrecognized class type')
 
             n = max([self.N_p + 1, 10])
 

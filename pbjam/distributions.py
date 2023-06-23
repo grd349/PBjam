@@ -43,6 +43,7 @@ def getQuantileFuncs(data):
 
         kde.fit(cut=5)
 
+        # TODO currently sampling the unit interval at 5120 points, is this enough? Increasing doesn't seem to impact evaluation time of the ppf.
         A = jnp.linspace(0, 1, 10*len(kde.cdf))
 
         cdfs.append(kde.cdf)
