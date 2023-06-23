@@ -42,7 +42,7 @@ class PCA():
 
         self.data_F, self.dims_F, self.nsamples = self.getPCAsample(fname, 
                                                                     nsamples)
-        print(self.data_F.shape)
+         
         self.setWeights(weights, weight_args)
 
         self.mu  = jnp.average(self.data_F, axis=0, weights=self.weights)
