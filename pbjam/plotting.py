@@ -62,6 +62,7 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
     array-like
         The x, y, and z values of the echelle diagram.
     """
+     
     if fmax is None:
         fmax = freq[-1]
 
@@ -273,10 +274,10 @@ class plotting():
 
             fig, ax = plt.subplots(figsize=(8,7))    
             
-            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=dnu/70, scale='log')
+            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=dnu/350)
         
             # Overplot modes
-            cols = ['C1', 'C2', 'C3', 'C4']
+            cols = ['C1', 'C4', 'C3', 'C5']
 
             for l in np.arange(4):
                 ell = 'l'+str(l)
@@ -287,11 +288,11 @@ class plotting():
 
                     smry_x, smry_y = self.echelle_freqs(freqs[ell]['nu'], dnu) 
 
-                    ax.errorbar(smry_x, smry_y, xerr=err, fmt='o', color=cols[l], label=r'$\ell=$%i' % (l), ms=5)
+                    ax.errorbar(smry_x, smry_y, xerr=err, fmt='o', color=cols[l], label=r'$\ell=$%i' % (l), ms=10)
  
                     smp_x, smp_y = self.echelle_freqs(freqs[ell]['samples'], dnu) 
 
-                    ax.scatter(smp_x, smp_y, alpha=0.05, color=cols[l])
+                    ax.scatter(smp_x, smp_y, alpha=0.05, color=cols[l], s=100)
                         
             ax.legend()
 
