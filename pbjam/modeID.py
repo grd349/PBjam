@@ -311,7 +311,7 @@ class modeIDsampler(plotting):
             Mode widths of l1 modes.
         """
          
-        return  mode_width * jnp.maximum(0, 1. - zeta) 
+        return  5*mode_width * jnp.maximum(0, 1. - zeta) 
     
     @partial(jax.jit, static_argnums=(0,))
     def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
@@ -642,6 +642,7 @@ class modeIDsampler(plotting):
         >>> print(S)
         {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
         """
+
         if samples is None:
             samples = self.samples
 
