@@ -76,13 +76,13 @@ class modeIDsampler(plotting):
         
         # If key appears in priors dict, override default and move it to add.
         for key in self.variables.keys():
-
+            
             if self.variables[key]['pca'] and (key not in priors.keys()):
                 self.pcalabels.append(key)
 
             else:
                 self.addlabels.append(key)
-
+  
         self.labels = self.pcalabels + self.addlabels
 
         # Parameters that are in log10
@@ -90,8 +90,8 @@ class modeIDsampler(plotting):
         for key in self.variables.keys():
             if self.variables[key]['log10']:
                 self.logpars.append(key)
-                if key.startswith('p_L') or key.startswith('p_D'):
-                    self.logpars.append(key[:3])
+                # if key.startswith('p_L') or key.startswith('p_D'):
+                #     self.logpars.append(key[:3])
 
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
@@ -114,7 +114,11 @@ class modeIDsampler(plotting):
         theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
          
         theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
-         
+
+        theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/2
+
+        theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/2
+
         theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
 
         theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
@@ -141,10 +145,11 @@ class modeIDsampler(plotting):
                                                  self.DR.cdf[i])
 
         orderedAddKeys = [k for k in self.variables if k in self.addPriors.keys()]
-        self.priors.update({key:self.addPriors[key] for key in orderedAddKeys})
+        self.priors.update({key : self.addPriors[key] for key in orderedAddKeys})
         
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=1.)
+        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=1.)
 
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()
@@ -192,7 +197,9 @@ class modeIDsampler(plotting):
         for n in range(self.N_p):
             modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
         
-         
+
+        nurot = zeta * theta_u['nurot_c'] + (1-zeta) * theta_u['nurot_e']
+
         # l=1
         nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
         
@@ -646,13 +653,13 @@ class modeIDsampler(plotting):
         if samples is None:
             samples = self.samples
 
-        S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        S = {key: np.zeros(samples.shape[0]) for key in self.labels + ['p_L0', 'p_D0', 'p_L', 'p_D']}
         
         for i, theta in enumerate(samples):
         
             theta_u = self.unpackParams(theta)
             
-            for key in self.labels:
+            for key in theta_u.keys():
                 
                 S[key][i] = theta_u[key]
             
@@ -686,13 +693,14 @@ class modeIDsampler(plotting):
                  'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True}, 
                  'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
                  'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
-                 'p_L0'      : {'info': 'First polynomial coefficient for L matrix', 'log10': False, 'pca': True},  
-                 'p_D0'      : {'info': 'First polynomial coefficient for D matrix', 'log10': False, 'pca': True}, 
+                 'u1'        : {'info': 'Sum of p_L0 and p_D0'                     , 'log10': False, 'pca': True},
+                 'u2'        : {'info': 'Difference between p_L0 and p_D0'         , 'log10': False, 'pca': True},
                  'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
                  'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True, 'pca': True}, 
                  'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True},
                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
+                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False}, 
                  'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},
                  'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False}, 
                  'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False},
