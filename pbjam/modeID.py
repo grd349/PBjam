@@ -149,7 +149,8 @@ class modeIDsampler(plotting):
         
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=1.)
-        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=1.)
+
+        self.priors['nurot_e'] = dist.uniform(loc=0., scale=1.5)
 
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()
@@ -198,7 +199,6 @@ class modeIDsampler(plotting):
             modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
         
 
-        nurot = zeta * theta_u['nurot_c'] + (1-zeta) * theta_u['nurot_e']
 
         # l=1
         nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
@@ -207,12 +207,14 @@ class modeIDsampler(plotting):
         
         modewidth1s = self.l1_modewidths(zeta, **theta_u)
          
+        nurot = zeta * theta_u['nurot_c'] + (1-zeta) * theta_u['nurot_e']
+
         for i in range(len(nu1s)):
             modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
-            modes += jar.lor(nu, nu1s[i] - zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(nu, nu1s[i] - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
-            modes += jar.lor(nu, nu1s[i] + zeta[i] * theta_u['nurot_c'], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(nu, nu1s[i] + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
  
         return (1 + modes) * bkg
 
