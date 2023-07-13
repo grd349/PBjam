@@ -189,7 +189,7 @@ class MixFreqModel():
         nu1_p = nu0_p + d01  
     
         nu_g = self.asymptotic_nu_g(self.n_g, DPi0, eps_g, alpha_g)
- 
+        
         L, D = self.generate_matrices(n_p, self.n_g, nu1_p, nu_g, p_L, p_D)
          
         nu, zeta = self.new_modes(L, D)
@@ -430,23 +430,23 @@ class MixFreqModel():
         w : jax device array
             Modified w.
         """
-        if jnp.isrealobj(w):
-            return w * jnp.sign(w[0, :])
+        #if jnp.isrealobj(w):
+        return w * jnp.sign(w[0, :])
 
-        else:
-            assert not jnp.isrealobj(b)
+        # else:
+        #     assert not jnp.isrealobj(b)
 
-            bw = b[0] @ w
+        #     bw = b[0] @ w
 
-            factor = bw / jnp.abs(bw)
+        #     factor = bw / jnp.abs(bw)
 
-            w = w / factor[None, :]
+        #     w = w / factor[None, :]
 
-            sign = jnp.sign(w.real[0])
+        #     sign = jnp.sign(w.real[0])
 
-            w = w * sign
+        #     w = w * sign
 
-            return w
+        #     return w
 
     @partial(jax.jit, static_argnums=(0,))
     def eigh(self, a, b):
@@ -493,9 +493,9 @@ class MixFreqModel():
             w.H @ b @ w = I.
         """
 
-        a = self.symmetrize(a)
+        #a = self.symmetrize(a)
 
-        b = self.symmetrize(b)
+        #b = self.symmetrize(b)
         
         b_inv_a = jax.scipy.linalg.cho_solve(jax.scipy.linalg.cho_factor(b), a)
 
@@ -515,9 +515,7 @@ class MixFreqModel():
         # renormalize so v.H @ b @ H == 1
         norm2 = jax.vmap(lambda wi: (wi.conj() @ b @ wi).real, in_axes=1)(w)
 
-        norm = jnp.sqrt(norm2)
-
-        w = w / norm
+        w = w / jnp.sqrt(norm2)
 
         w = self.standardize_angle(w, b)
 

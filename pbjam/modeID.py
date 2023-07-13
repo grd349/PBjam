@@ -115,9 +115,9 @@ class modeIDsampler(plotting):
          
         theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
 
-        theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/2
+        theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
 
-        theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/2
+        theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
 
         theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
 
@@ -195,7 +195,7 @@ class modeIDsampler(plotting):
         
         modes = jnp.zeros_like(nu)
 
-        for n in range(self.N_p):
+        for n in range(1,self.N_p-1):
             modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
         
 
@@ -304,7 +304,7 @@ class modeIDsampler(plotting):
         return jar.gaussian(nu, 2*env_height, numax, env_width)
     
     @partial(jax.jit, static_argnums=(0,))
-    def l1_modewidths(self, zeta, mode_width, **kwargs):
+    def l1_modewidths(self, zeta, mode_width, fac=1, **kwargs):
         """ Compute linewidths for mixed l1 modes
 
         Parameters
@@ -320,7 +320,7 @@ class modeIDsampler(plotting):
             Mode widths of l1 modes.
         """
          
-        return  5*mode_width * jnp.maximum(0, 1. - zeta) 
+        return  fac * mode_width * jnp.maximum(0, 1. - zeta) 
     
     @partial(jax.jit, static_argnums=(0,))
     def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
