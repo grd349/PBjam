@@ -37,7 +37,7 @@ class modeIDsampler(plotting):
 
         self.AsyFreqModel = AsyFreqModel(self.N_p)
 
-        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi0', 'eps_g'])
+        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
 
         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
 
@@ -175,20 +175,10 @@ class modeIDsampler(plotting):
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u, nu):
 
-        # # Background
-        # H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
-
-        # H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
-
-        # H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
-
-         
-        # eta = jar.attenuation(nu, self.Nyquist)**2
-
-        # bkg = (H1 + H2 + H3) * eta + theta_u['shot']
-
+        # Background
         bkg = self.background(theta_u, nu)
  
+        # l=2,0
         nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
 
         Hs0 = self.envelope(nu0_p, **theta_u)
@@ -198,8 +188,6 @@ class modeIDsampler(plotting):
         for n in range(1,self.N_p-1):
             modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
         
-
-
         # l=1
         nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
         
@@ -210,7 +198,7 @@ class modeIDsampler(plotting):
         nurot = zeta * theta_u['nurot_c'] + (1-zeta) * theta_u['nurot_e']
 
         for i in range(len(nu1s)):
-            modes += jar.lor(nu, nu1s[i]                               , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+            modes += jar.lor(nu, nu1s[i]                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
             modes += jar.lor(nu, nu1s[i] - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
@@ -496,7 +484,6 @@ class modeIDsampler(plotting):
 
         return self.samples, self.result
 
-
     def getInitLive(self, nlive):
         """
         Generate initial live points for a Bayesian inference problem.
@@ -680,34 +667,34 @@ class modeIDsampler(plotting):
 
         return np.median(mod, axis=1)
 
-    variables = {'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True}, 
-                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True}, 
-                 'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True}, 
-                 'd02'       : {'info': 'l=0,2 mean frequency difference'          , 'log10': True , 'pca': True}, 
+    variables = {'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
+                 'd02'       : {'info': 'l=0,2 mean frequency difference'          , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
                  'alpha_p'   : {'info': 'curvature of the p-modes'                 , 'log10': True , 'pca': True}, 
-                 'env_width' : {'info': 'envelope width'                           , 'log10': True , 'pca': True},
-                 'env_height': {'info': 'envelope height'                          , 'log10': True , 'pca': True}, 
-                 'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True}, 
-                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True}, 
-                 'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True},
-                 'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True}, 
-                 'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True},
-                 'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True}, 
-                 'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True},
-                 'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True},
+                 'env_width' : {'info': 'envelope width'                           , 'log10': True , 'pca': True, 'unit': 'muHz'},
+                 'env_height': {'info': 'envelope height'                          , 'log10': True , 'pca': True, 'unit': 'ppm^2/muHz'}, 
+                 'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True, 'unit': 'K'}, 
+                 'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True, 'unit': 'mag'},
+                 'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True, 'unit': 'None'},
+                 'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True, 'unit': 'ppm^2/muHz'}, 
+                 'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True, 'unit': 'muHz'},
+                 'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True, 'unit': 'None'},
                  'u1'        : {'info': 'Sum of p_L0 and p_D0'                     , 'log10': False, 'pca': True},
                  'u2'        : {'info': 'Difference between p_L0 and p_D0'         , 'log10': False, 'pca': True},
-                 'DPi0'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True}, 
-                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True}, 
-                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True, 'pca': True}, 
-                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True},
-                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False}, 
-                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False}, 
-                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False},
-                 'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False}, 
-                 'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False},
-                 'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False},
-                 'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False}}
+                 'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
+                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
+                 'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True}, 
+                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True, 'unit': 'muHz'},
+                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'deg'},
+                 'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'}, 
+                 'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False, 'unit': 'muHz'},
+                 'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False, 'unit': 'None'},
+                 'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'}}
 
     def _modeUpdoot(self, result, sample, key, Nmodes):
         
@@ -764,7 +751,7 @@ class modeIDsampler(plotting):
         # l=1
         A = np.array([self.MixFreqModel.mixed_nu1(nu0_samps[i, :], 
                                                   n_p, smp['d01'][i], 
-                                                  smp['DPi0'][i], 
+                                                  smp['DPi1'][i], 
                                                   jnp.array([smp['p_L0'][i]]),  
                                                   jnp.array([smp['p_D0'][i]]), 
                                                   smp['eps_g'][i], 
