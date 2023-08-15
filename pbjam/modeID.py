@@ -175,20 +175,10 @@ class modeIDsampler(plotting):
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u, nu):
 
-        # # Background
-        # H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
-
-        # H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
-
-        # H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
-
-         
-        # eta = jar.attenuation(nu, self.Nyquist)**2
-
-        # bkg = (H1 + H2 + H3) * eta + theta_u['shot']
-
+        # Background
         bkg = self.background(theta_u, nu)
  
+        # l=2,0
         nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
 
         Hs0 = self.envelope(nu0_p, **theta_u)
@@ -304,7 +294,7 @@ class modeIDsampler(plotting):
         return jar.gaussian(nu, 2*env_height, numax, env_width)
     
     @partial(jax.jit, static_argnums=(0,))
-    def l1_modewidths(self, zeta, mode_width, **kwargs):
+    def l1_modewidths(self, zeta, mode_width, fac=1, **kwargs):
         """ Compute linewidths for mixed l1 modes
 
         Parameters
@@ -320,7 +310,7 @@ class modeIDsampler(plotting):
             Mode widths of l1 modes.
         """
          
-        return  5*mode_width * jnp.maximum(0, 1. - zeta) 
+        return  fac * mode_width * jnp.maximum(0, 1. - zeta) 
     
     @partial(jax.jit, static_argnums=(0,))
     def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
@@ -477,13 +467,7 @@ class modeIDsampler(plotting):
         mod = self.model(theta_u, nu)
          
         lnlike += self.chi_sqr(mod)
- 
-        # T = (theta_u['H3_nu'] < theta_u['H2_nu']) & \
-        #     (theta_u['H2_nu'] < theta_u['numax']) & \
-        #     (theta_u['H2_nu'] < theta_u['H1_nu'])
-
-        # lnlike += jax.lax.cond(T, lambda : 0., lambda : -jnp.inf)
-        
+         
         return lnlike
     
     def __call__(self, dynesty_kwargs={}):
