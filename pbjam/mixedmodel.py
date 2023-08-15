@@ -8,46 +8,7 @@ jax.config.update('jax_enable_x64', True)
 class MixFreqModel():
 
     def __init__(self,  N_p, obs, n_g_ppf):
-        """ Class for sampling the l=1 mode model.
-
-        The class takes the residual spectrum as input in a frequency range that
-        covers the oscillation envelope. 
-
-        The sampling is done over the space spanned by the asymptotic g-mode
-        parameters for l=1 modes and the mixing parameters. 
-
-        The priors are currently defined as Gaussian and uniform distributions
-        centered on a set of manual inputs. TODO this is to be replaced by 
-        a prior sample that will define the distributions that will be sampled.
-
-        Some parameters are inherited from the l=2,0 model such as the envelope
-        height, width and location (numax). These are kept fixed for the 
-        sampling. 
-
-        The set of g-modes that are considered during sampling are determined at 
-        when the class is initialized, based on the DPi1 and eps_g prior 
-        distributions and are conservatively set high. The range of g-modes 
-        stretches well beyond the oscillation  envelope such that the majority 
-        of relevant perturbations are accounted for.
-
-        Parameters
-        ----------
-        f : jax device array
-            Frequency range that covers the oscillation envelope.
-        s : jax device array
-            Residual spectrum after dividing out background and l=2,0 model.
-        nu0_p : jax device array
-            Array of l=0 mode frequencies.
-        n_p : jax device array
-            Array of radial orders for the p-mode frequencies.
-        obs : dictionary
-            Dictionary of observational parameters. Primarily used to set priors.
-            This will be reduced once the prior sample is built.
-        V01 : float
-            Visibility of the nominal l=1 p-modes relative to the l=0 modes. 
-            Default is 1.5 based on Kepler.
-        """
-  
+   
         self.N_p = N_p
 
         self.obs = obs
@@ -137,8 +98,6 @@ class MixFreqModel():
             Phase offset of the g-modes.
         alpha_g : float
             Curvature scale of the g-modes.
-        l : int, optional
-           Which ell to compute the asymptotic g-modes for, by default 1.
         max_N2 : float
             Maximum of the Brunt-Vaisala frequency.
         Returns
@@ -162,24 +121,29 @@ class MixFreqModel():
 
     @partial(jax.jit, static_argnums=(0,))
     def mixed_nu1(self, nu0_p, n_p, d01, DPi1, p_L, p_D, eps_g, alpha_g, **kwargs):
-        """_summary_
-
+        """
+        Calculate mixed nu1 values and associated zeta values.
+        
         Parameters
         ----------
+        nu0_p : float
+            Initial nu0 value.
+        n_p : int
+            Number of n values.
         d01 : float
             The d01 frequency separation
         DPi1 : float
             Period spacing for l=1.
         p_L : jax device array
-            Polynomial coefficients for the L coupling strength 
-            matrix.
+            Polynomial coefficients for the L coupling strength matrix.
         p_D : jax device array
-            Polynomial coefficients for the D coupling strength
-            matrix.
+            Polynomial coefficients for the D coupling strength matrix.
         eps_g : float
             Phase offset of the g-modes.
         alpha_g : float
-            Curvature scale of the g-modes, by default 0.
+            Curvature scale of the g-modes.
+        **kwargs : dict
+            Additional keyword arguments.
 
         Returns
         -------
@@ -188,7 +152,7 @@ class MixFreqModel():
         zeta : jax device array
             Array of mixing degrees for the modes.
         """
- 
+        
         nu1_p = nu0_p + d01  
     
         nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g, alpha_g)

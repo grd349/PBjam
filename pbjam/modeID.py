@@ -14,8 +14,8 @@ from pbjam.plotting import plotting
 class modeIDsampler(plotting):
 
     def __init__(self, f, s, obs, addPriors={}, N_p=7, freq_limits=[1, 5000], 
-                 vis={'V20': 0.71, 'V10': 1.22}, envelope_only=False, 
-                 Npca=50, PCAdims=8, priorpath=None):
+                 vis={'V20': 0.71, 'V10': 1.22}, Npca=50, PCAdims=8, 
+                 priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
@@ -33,7 +33,7 @@ class modeIDsampler(plotting):
   
         self.setPriors()
  
-        self.ndims = len(self.latentLabels+self.addlabels)
+        self.ndims = len(self.latentLabels + self.addlabels)
 
         self.AsyFreqModel = AsyFreqModel(self.N_p)
 
@@ -43,7 +43,7 @@ class modeIDsampler(plotting):
 
         self.background = bkgModel(self.Nyquist)
 
-        self.sel = self.setFreqRange(self.envelope_only)
+        self.sel = self.setFreqRange()
 
         self.setAddObs()
 
@@ -311,7 +311,7 @@ class modeIDsampler(plotting):
         return  fac * mode_width * jnp.maximum(0, 1. - zeta) 
     
     @partial(jax.jit, static_argnums=(0,))
-    def pair(self, nu, nu0, h0, mode_width, d02,  **kwargs):
+    def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
         """Define a pair as the sum of two Lorentzians.
 
         A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
@@ -327,8 +327,6 @@ class modeIDsampler(plotting):
             Frequency of the l=0 (muHz).
         h0 : float
             Height of the l=0 (SNR).
-
-            
         w0 : float
             The mode width (identical for l=2 and l=0) (log10(muHz)).
         d02 : float
@@ -651,16 +649,51 @@ class modeIDsampler(plotting):
         return S
     
     def meanBkg(self, nu, samples_u, N=30):
+        """
+        Compute median background model from samples.
+
+        Parameters
+        ----------
+        nu : numpy.ndarray
+            Array of frequency values at which to compute the background 
+            model.
+        samples_u : dict
+            A dictionary containing samples of the background parameters.
+        N : int, optional
+            Number of samples to use for computing the median. Default is 
+            30.
+
+        Returns
+        -------
+        numpy.ndarray
+            An array of shape (len(nu),) representing the median background 
+            model.
+
+        Notes
+        -----
+        - The function generates `N` random indices to select samples from 
+          the provided `samples_u`.
+        - For each selected sample, the `background` function is called to 
+          compute the background model using the background parameters.
+        - The median of these `N` background models is computed along each 
+          frequency bin specified in `nu`, and the resulting median 
+          background model is returned.
+        """
+
 
         mod = np.zeros((len(nu), N))
-
-        idx =  np.random.choice(np.arange(len(samples_u['dnu'])), size=N, replace=False)
-
-        for i, j in enumerate(idx):
-            theta_u = {k: v[2] for k,v in samples_u.items()}
         
+        # Generate random indices for selecting samples
+        idx = np.random.choice(np.arange(len(samples_u['dnu'])), size=N, replace=False)
+        
+        for i, j in enumerate(idx):
+            # Extract background parameters for the selected sample
+            theta_u = {k: v[j] for k, v in samples_u.items()}
+            
+            # Compute the background model for the selected sample
             mod[:, i] = self.background(theta_u, nu)
-
+        
+        # Compute the median background model across samples
         return np.median(mod, axis=1)
 
     variables = {'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
