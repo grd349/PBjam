@@ -25,7 +25,7 @@ class MixFreqModel():
         sampling. 
 
         The set of g-modes that are considered during sampling are determined at 
-        when the class is initialized, based on the DPi0 and eps_g prior 
+        when the class is initialized, based on the DPi1 and eps_g prior 
         distributions and are conservatively set high. The range of g-modes 
         stretches well beyond the oscillation  envelope such that the majority 
         of relevant perturbations are accounted for.
@@ -56,22 +56,24 @@ class MixFreqModel():
 
         self.N_g = len(self.n_g)
 
+        self.ones = jnp.ones((self.N_p, self.N_g))
+
     def select_n_g(self, n_g_ppf, fac=2):
         """ Select and initial range for n_g
 
         Computes the number of g-modes that are relevant near the oscillation
-        envelope. This is based on the expected range for DPi0 and eps_g and 
+        envelope. This is based on the expected range for DPi1 and eps_g and 
         numax.
 
         This is used to set the number of g-modes at the start of the run, and
         sets the number of g-modes at or near the p-mode envelope. The range is
         significantly wider than the actual power distribution of the envelope
-        so there is room for DPi0 and eps_g to change.
+        so there is room for DPi1 and eps_g to change.
 
         Returns
         -------
         n_g_ppf : list
-            The quauntile functions for DPi0 and eps_g. 
+            The quauntile functions for DPi1 and eps_g. 
         fac : float
             g-modes are considered if they fall within +/- fac * envelope_width
             of numax. A larger may(??) increase precision at the cost of time
@@ -92,12 +94,12 @@ class MixFreqModel():
 
         max_n_g = init_n_g.min()
 
-        # Loop over combinations of DPi0 and eps_g as drawn from the respective PDFs.       
-        for DPi0 in jnp.linspace(n_g_ppf[0](1e-3), n_g_ppf[0](1-1e-3), 3):
+        # Loop over combinations of DPi1 and eps_g as drawn from the respective PDFs.       
+        for DPi1 in jnp.linspace(n_g_ppf[0](1e-3), n_g_ppf[0](1-1e-3), 3):
             
             for eps_g in jnp.linspace(n_g_ppf[1](1e-3), n_g_ppf[1](1-1e-3), 3):
                 
-                nu_g = self.asymptotic_nu_g(init_n_g, DPi0, eps_g, 1e-4)
+                nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g, 1e-4)
                 
                 idx = (freq_lims[0] < nu_g) & (nu_g < freq_lims[1])
                  
@@ -117,7 +119,7 @@ class MixFreqModel():
         return n_g
  
     @partial(jax.jit, static_argnums=(0,))
-    def asymptotic_nu_g(self, n_g, DPi0, eps_g, alpha_g, l=1, max_N2=jnp.inf):
+    def asymptotic_nu_g(self, n_g, DPi1, eps_g, alpha_g, max_N2=jnp.inf):
         """Asymptotic relation for g-modes
 
         Asymptotic relation for the g-mode frequencies in terms of a fundamental
@@ -129,8 +131,8 @@ class MixFreqModel():
         ----------
         n_g : jax device array
             Array of radial orders for the g-modes.
-        DPi0 : float
-            Period spacing for l=0 in 1/muHz (DPi1/sqrt(2)  in mega-seconds).
+        DPi1 : float
+            Period spacing for l=1 in seconds).
         eps_g : float
             Phase offset of the g-modes.
         alpha_g : float
@@ -147,7 +149,8 @@ class MixFreqModel():
  
         P0 = 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
 
-        DPi1 = DPi0 / jnp.sqrt(2)  
+        #DPi0 = DPi1 / jnp.sqrt(2)  
+        DPi1 *= 1e-6 # DPi1 in s to Ms.  
 
         P_max = 1/self.obs['numax'][0]
 
@@ -158,15 +161,15 @@ class MixFreqModel():
         return 1/P
 
     @partial(jax.jit, static_argnums=(0,))
-    def mixed_nu1(self, nu0_p, n_p, d01, DPi0, p_L, p_D, eps_g, alpha_g, **kwargs):
+    def mixed_nu1(self, nu0_p, n_p, d01, DPi1, p_L, p_D, eps_g, alpha_g, **kwargs):
         """_summary_
 
         Parameters
         ----------
         d01 : float
             The d01 frequency separation
-        DPi0 : float
-            Period spacing for l=0.
+        DPi1 : float
+            Period spacing for l=1.
         p_L : jax device array
             Polynomial coefficients for the L coupling strength 
             matrix.
@@ -188,8 +191,8 @@ class MixFreqModel():
  
         nu1_p = nu0_p + d01  
     
-        nu_g = self.asymptotic_nu_g(self.n_g, DPi0, eps_g, alpha_g)
- 
+        nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g, alpha_g)
+        
         L, D = self.generate_matrices(n_p, self.n_g, nu1_p, nu_g, p_L, p_D)
          
         nu, zeta = self.new_modes(L, D)
@@ -344,9 +347,11 @@ class MixFreqModel():
             Matrix of overlap integrals.
         """
  
-        L_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_L) * (nu_g * c.nu_to_omega)**2
+        #L_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_L) * (nu_g * c.nu_to_omega)**2
+        L_cross = self.ones * p_L * (nu_g * c.nu_to_omega)**2
 
-        D_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_D) * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
+        #D_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_D) * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
+        D_cross = self.ones* p_D * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
 
         L = jnp.hstack((jnp.vstack((jnp.diag(-(nu_p * c.nu_to_omega)**2), L_cross.T)),
                         jnp.vstack((L_cross, jnp.diag( -(nu_g * c.nu_to_omega)**2 )))))
@@ -398,21 +403,21 @@ class MixFreqModel():
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
 
-    @partial(jax.jit, static_argnums=(0,))
-    def symmetrize(self, x):
-        """ Symmetrize matrix.
+    # @partial(jax.jit, static_argnums=(0,))
+    # def symmetrize(self, x):
+    #     """ Symmetrize matrix.
 
-        Parameters
-        ----------
-        x : jax device array
-            A square matrix.
+    #     Parameters
+    #     ----------
+    #     x : jax device array
+    #         A square matrix.
 
-        Returns
-        -------
-        w : jax device array
-            Symmetrized matrix.
-        """
-        return (x + jnp.conj(jnp.swapaxes(x, -1, -2))) / 2
+    #     Returns
+    #     -------
+    #     w : jax device array
+    #         Symmetrized matrix.
+    #     """
+    #     return (x + jnp.conj(jnp.swapaxes(x, -1, -2))) / 2
 
     @partial(jax.jit, static_argnums=(0,))
     def standardize_angle(self, w, b):
@@ -430,23 +435,9 @@ class MixFreqModel():
         w : jax device array
             Modified w.
         """
-        if jnp.isrealobj(w):
-            return w * jnp.sign(w[0, :])
 
-        else:
-            assert not jnp.isrealobj(b)
+        return w * jnp.sign(w[0, :])
 
-            bw = b[0] @ w
-
-            factor = bw / jnp.abs(bw)
-
-            w = w / factor[None, :]
-
-            sign = jnp.sign(w.real[0])
-
-            w = w * sign
-
-            return w
 
     @partial(jax.jit, static_argnums=(0,))
     def eigh(self, a, b):
@@ -493,9 +484,9 @@ class MixFreqModel():
             w.H @ b @ w = I.
         """
 
-        a = self.symmetrize(a)
+        #a = self.symmetrize(a)
 
-        b = self.symmetrize(b)
+        #b = self.symmetrize(b)
         
         b_inv_a = jax.scipy.linalg.cho_solve(jax.scipy.linalg.cho_factor(b), a)
 
@@ -515,9 +506,7 @@ class MixFreqModel():
         # renormalize so v.H @ b @ H == 1
         norm2 = jax.vmap(lambda wi: (wi.conj() @ b @ wi).real, in_axes=1)(w)
 
-        norm = jnp.sqrt(norm2)
-
-        w = w / norm
+        w = w / jnp.sqrt(norm2)
 
         w = self.standardize_angle(w, b)
 
