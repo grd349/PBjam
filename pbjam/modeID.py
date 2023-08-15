@@ -311,7 +311,7 @@ class modeIDsampler(plotting):
         return  fac * mode_width * jnp.maximum(0, 1. - zeta) 
     
     @partial(jax.jit, static_argnums=(0,))
-    def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
+    def pair(self, nu, nu0, h0, mode_width, d02,  **kwargs):
         """Define a pair as the sum of two Lorentzians.
 
         A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
@@ -327,6 +327,8 @@ class modeIDsampler(plotting):
             Frequency of the l=0 (muHz).
         h0 : float
             Height of the l=0 (SNR).
+
+            
         w0 : float
             The mode width (identical for l=2 and l=0) (log10(muHz)).
         d02 : float
