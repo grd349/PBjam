@@ -158,17 +158,17 @@ class modeIDsampler(plotting):
          
         theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
 
-        theta_u['p_L'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
+        theta_u['p_L'] = jnp.array([(theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)])
 
-        theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
+        theta_u['p_D'] = jnp.array([(theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)])
 
         # theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
 
         # theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
 
-        #theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
+        # theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
 
-        #theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
+        # theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
 
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]
@@ -219,6 +219,27 @@ class modeIDsampler(plotting):
  
         self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
 
+
+
+    @partial(jax.jit, static_argnums=(0,))
+    def add20Pairs(self, nu, nu0_p, Hs0, d02, mode_width, nurot_e, inc, **kwargs):
+        
+        modes = jnp.zeros_like(nu)
+
+        for n in range(self.N_p):
+
+            modes += jar.lor(nu, nu0_p[n], Hs0[n], mode_width) 
+            
+            for m in [-2, -1, 0, 1, 2]:
+                
+                H = Hs0[n] * self.vis['V20'] * jar.visell2(abs(m), inc)
+                
+                f = nu0_p[n] - d02 + m * nurot_e
+
+                modes += jar.lor(nu, f, H, mode_width)
+
+        return modes
+
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u, nu):
 
@@ -230,10 +251,17 @@ class modeIDsampler(plotting):
 
         Hs0 = self.envelope(nu0_p, **theta_u)
         
-        modes = jnp.zeros_like(nu)
+        modes = self.add20Pairs(nu, nu0_p, Hs0, **theta_u)
+        # modes = jnp.zeros_like(nu)
 
-        for n in range(1,self.N_p-1):
-            modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
+        # for n in range(1, self.N_p-1):
+        #     #modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
+
+        #     modes += jar.lor(nu, nu0_p[n]                 , Hs0[n]                  , theta_u['mode_width']) 
+            
+        #     modes += jar.lor(nu, nu0_p[n] - theta_u['d02'], Hs0[n] * self.vis['V20'], theta_u['mode_width'])
+
+
         
         # l=1
         nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
@@ -357,38 +385,38 @@ class modeIDsampler(plotting):
          
         return  fac * mode_width * jnp.maximum(0, 1. - zeta) 
     
-    @partial(jax.jit, static_argnums=(0,))
-    def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
-        """Define a pair as the sum of two Lorentzians.
+    # @partial(jax.jit, static_argnums=(0,))
+    # def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
+    #     """Define a pair as the sum of two Lorentzians.
 
-        A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
-        assumed to be identical, and the height of the l=2 mode is scaled
-        relative to that of the l=0 mode. The frequency of the l=2 mode is the
-        l=0 frequency minus the small separation.
+    #     A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
+    #     assumed to be identical, and the height of the l=2 mode is scaled
+    #     relative to that of the l=0 mode. The frequency of the l=2 mode is the
+    #     l=0 frequency minus the small separation.
 
-        Parameters
-        ----------
-        nu : jax device array
-            Frequency range to compute the pair on.
-        nu0 : float
-            Frequency of the l=0 (muHz).
-        h0 : float
-            Height of the l=0 (SNR).
-        w0 : float
-            The mode width (identical for l=2 and l=0) (log10(muHz)).
-        d02 : float
-            The small separation (muHz).
+    #     Parameters
+    #     ----------
+    #     nu : jax device array
+    #         Frequency range to compute the pair on.
+    #     nu0 : float
+    #         Frequency of the l=0 (muHz).
+    #     h0 : float
+    #         Height of the l=0 (SNR).
+    #     w0 : float
+    #         The mode width (identical for l=2 and l=0) (log10(muHz)).
+    #     d02 : float
+    #         The small separation (muHz).
 
-        Returns
-        -------
-        pair_model : array
-            The SNR as a function of frequency of a mode pair.
+    #     Returns
+    #     -------
+    #     pair_model : array
+    #         The SNR as a function of frequency of a mode pair.
             
-        """
+    #     """
         
-        pair_model = jar.lor(nu, nu0, h0, mode_width) + jar.lor(nu, nu0 - d02, h0 * self.vis['V20'], mode_width)
+    #     pair_model = 
 
-        return pair_model
+    #     return pair_model
     
     def setAddObs(self):
         """ Set attribute containing additional observational data
@@ -718,7 +746,7 @@ class modeIDsampler(plotting):
         if samples is None:
             samples = self.samples
 
-        S = {key: np.zeros(samples.shape[0]) for key in self.labels + ['p_L0', 'p_D0', 'p_L', 'p_D']}
+        S = {key: np.zeros(samples.shape[0]) for key in self.labels + ['p_L', 'p_D']}
         
         for i, theta in enumerate(samples):
         
@@ -863,8 +891,8 @@ class modeIDsampler(plotting):
         A = np.array([self.MixFreqModel.mixed_nu1(nu0_samps[i, :], 
                                                   n_p, smp['d01'][i], 
                                                   smp['DPi1'][i], 
-                                                  jnp.array([smp['p_L0'][i]]),  
-                                                  jnp.array([smp['p_D0'][i]]), 
+                                                  jnp.array([smp['p_L'][i]]),  
+                                                  jnp.array([smp['p_D'][i]]), 
                                                   smp['eps_g'][i], 
                                                   smp['alpha_g'][i]) for i in range(N)])
         
