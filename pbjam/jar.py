@@ -15,6 +15,54 @@ import scipy.integrate as si
 from dataclasses import dataclass
 import pandas as pd
 
+
+@jax.jit
+def visell1(emm, inc):
+
+    y = jax.lax.cond(emm == 0, 
+                        lambda : jnp.cos(inc)**2,
+                        lambda : 0.5*jnp.sin(inc)**2
+                    )
+    return y
+
+@jax.jit
+def visell2(emm, inc):
+
+    y = jax.lax.cond(emm == 0, 
+                        lambda : (3*jnp.cos(inc)**2-1)**2/4,
+                        lambda : jax.lax.cond(emm == 1,
+                                            lambda : jnp.sin(2*inc)**2*3/8,
+                                            lambda : jnp.sin(inc)**4*3/8))
+    return y
+
+@jax.jit
+def visell3(emm, inc):
+
+    y = jax.lax.cond(emm == 0, 
+                        lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
+                        lambda : jax.lax.cond(emm == 1,
+                                            lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
+                                            lambda : jax.lax.cond(emm == 2,
+                                                                    lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
+                                                                    lambda : jnp.sin(inc)**6*5/16)))
+    return y
+
+@jax.jit
+def visibility(ell, m, inc):
+
+    emm = abs(m)
+
+    y = jax.lax.cond(ell == 0, 
+                        lambda : 1.,
+                        lambda : jax.lax.cond(ell == 1,
+                                            lambda : visell1(emm, inc),
+                                            lambda : jax.lax.cond(ell == 2,
+                                                                    lambda : visell2(emm, inc),
+                                                                    lambda : jax.lax.cond(ell == 3,
+                                                                                        lambda : visell3(emm, inc),
+                                                                                        lambda : jnp.nan))))
+    return y 
+
 def updatePrior(ID, R, addObs):
     
     prior = pd.read_csv('pbjam/data/prior_data.csv')
