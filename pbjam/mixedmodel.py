@@ -152,7 +152,7 @@ class MixFreqModel():
         zeta : jax device array
             Array of mixing degrees for the modes.
         """
-        
+
         nu1_p = nu0_p + d01  
     
         nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g, alpha_g)
@@ -315,7 +315,7 @@ class MixFreqModel():
         L_cross = self.ones * p_L * (nu_g * c.nu_to_omega)**2
 
         #D_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_D) * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
-        D_cross = self.ones* p_D * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
+        D_cross = self.ones * p_D * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
 
         L = jnp.hstack((jnp.vstack((jnp.diag(-(nu_p * c.nu_to_omega)**2), L_cross.T)),
                         jnp.vstack((L_cross, jnp.diag( -(nu_g * c.nu_to_omega)**2 )))))

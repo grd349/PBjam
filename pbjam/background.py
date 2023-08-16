@@ -4,7 +4,15 @@ import jax
 
 class bkgModel():
     def __init__(self, Nyquist):
+        """
+        Initialize the background model calculator.
 
+        Parameters
+        ----------
+        Nyquist : float
+            Nyquist frequency.
+        """
+        
         self.Nyquist = Nyquist
 
     @partial(jax.jit, static_argnums=(0,))
@@ -13,7 +21,7 @@ class bkgModel():
 
         Parameters
         ----------
-        f : np.array
+        nu : np.array
             Frequency axis of the PSD.
         a : float
             The amplitude (divided by 2 pi) of the Harvey-like profile.
@@ -34,7 +42,29 @@ class bkgModel():
 
     @partial(jax.jit, static_argnums=(0,))
     def __call__(self, theta_u, nu):
-            # Background
+        """
+        Calculate the background model.
+
+        Parameters
+        ----------
+        theta_u : dict
+            A dictionary of background model parameters.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        array
+            The calculated background model.
+
+        Notes
+        -----
+        - Computes the Harvey components H1, H2, and H3 for the given frequency values.
+        - Calculates the attenuation factor eta.
+        - Combines the Harvey components with the attenuation factor and shot noise to
+          compute the background model.
+        """
+
         H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
 
         H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
