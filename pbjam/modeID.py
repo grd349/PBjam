@@ -50,6 +50,31 @@ class modeIDsampler(plotting):
     
  
     def _makeTmpSample(self, keys, N=1000):
+        """
+        Draw samples for specified keys.
+
+        Parameters
+        ----------
+        keys : list
+            List of parameter keys to be sampled.
+        N : int, optional
+            Number of samples to generate. Default is 1000.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the quantile function, probability density 
+            function, log probability density function, and cumulative 
+            distribution function of the generated samples.
+
+        Notes
+        -----
+        - Generates N random samples.
+        - Transforms the samples using `ptform` and `unpackParams`.
+        - Constructs arrays for specified keys.
+        - Computes quantile function, probability density function,
+        log probability density function, and cumulative distribution function.
+        """
 
         K = np.zeros((len(keys), N))
 
@@ -67,6 +92,24 @@ class modeIDsampler(plotting):
         return ppf, pdf, logpdf, cdf
 
     def set_labels(self, priors):
+        """
+        Set parameter labels and categorize them based on priors.
+
+        Parameters
+        ----------
+        priors : dict
+            Dictionary containing prior information for specific parameters.
+
+        Notes
+        -----
+        - Initializes default PCA and additional parameter lists.
+        - Checks if parameters are marked for PCA and not in priors; if so, 
+          adds to PCA list.
+        - Otherwise, adds parameters to the additional list.
+        - Combines PCA and additional lists to create the final labels list.
+        - Identifies parameters that use a logarithmic scale and adds them to 
+          logpars list.
+        """
 
         # Default PCA parameters       
         self.pcalabels = []
@@ -115,13 +158,17 @@ class modeIDsampler(plotting):
          
         theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
 
-        theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
+        theta_u['p_L'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
 
-        theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
+        theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
 
-        theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
+        # theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
 
-        theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
+        # theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
+
+        #theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
+
+        #theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
 
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]
@@ -195,7 +242,7 @@ class modeIDsampler(plotting):
         
         modewidth1s = self.l1_modewidths(zeta, **theta_u)
          
-        nurot = zeta * theta_u['nurot_c'] + (1-zeta) * theta_u['nurot_e']
+        nurot = zeta * theta_u['nurot_c'] + (1 - zeta) * theta_u['nurot_e']
 
         for i in range(len(nu1s)):
             modes += jar.lor(nu, nu1s[i]                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
@@ -350,15 +397,13 @@ class modeIDsampler(plotting):
 
         Can be Teff or bp_rp color, but may also be additional constraints on
         e.g., numax, dnu. 
-
         """
         
         self.addObs = {}
 
         self.addObs['teff'] = dist.normal(loc=self.obs['teff'][0], 
                                           scale=self.obs['teff'][1])
-
-        # bp_rp is not logged in the prior file so should not be logged here.
+ 
         self.addObs['bp_rp'] = dist.normal(loc=self.obs['bp_rp'][0], 
                                            scale=self.obs['bp_rp'][1])
         
@@ -455,7 +500,22 @@ class modeIDsampler(plotting):
      
     @partial(jax.jit, static_argnums=(0,))
     def lnlikelihood(self, theta, nu):
-         
+        """
+        Calculate the log likelihood of the model given parameters and data.
+        
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            Parameter values.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        float :
+            Log-likelihood value.
+        """
+    
         theta_u = self.unpackParams(theta)
  
         # Constraint from input obs
@@ -469,6 +529,28 @@ class modeIDsampler(plotting):
         return lnlike
     
     def __call__(self, dynesty_kwargs={}):
+        """
+        Run the Dynesty sampler.
+
+        Parameters
+        ----------
+        dynesty_kwargs : dict, optional
+            Additional keyword arguments for the Dynesty sampler. 
+
+        Returns
+        -------
+        samples : jax device array
+            The generated samples
+        result : dict
+            Dictionary of parsed result. Contains summary statistics and samples
+            in human-readable form.
+
+        Notes
+        -----
+        - Calls the `runDynesty` method with provided keyword arguments.
+        - Unpacks and parses the generated samples.
+        - Stores the parsed result and returns both the samples and the result.
+        """
 
         self.sampler, self.samples = self.runDynesty(**dynesty_kwargs)
 
