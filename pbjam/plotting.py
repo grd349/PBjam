@@ -209,7 +209,7 @@ class plotting():
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
 
-    def echelle(self, ID=None, path=None, savefig=False, N=200):
+    def echelle(self, ID=None, path=None, savefig=False, N=200, scale=1/350, cols=None):
             """ Make echelle plot
 
             Plots an echelle diagram with mode frequencies if available.
@@ -232,28 +232,76 @@ class plotting():
             """
 
             freqs = {'l'+str(i): {'nu': [], 'err': [], 'zeta': [], 'samples': None} for i in range(4)}
+
+            if cols is None:
+                cols = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
+
+            # TODO the self.__class__.__name__ check is instead of isinstance
+            # since it plays better with auto reload
+            if self.__class__.__name__ == 'star': 
+                dnu = self.obs['dnu'][0]
+                
+                numax = self.obs['numax'][0]
+
+                fig, ax = self.baseEschelle(numax, dnu, scale)
+
+            elif self.__class__.__name__ == 'modeIDsampler':
+ 
+                if not hasattr(self, 'result'):
+                    dnu = self.obs['dnu'][0]
+                
+                    numax = self.obs['numax'][0]
+
+                    fig, ax = self.baseEschelle(numax, dnu, scale)
+    
+                else:  
+
+                    dnu = self.result['summary']['dnu'][0]
+
+                    numax = self.result['summary']['numax'][0]
+
+                    fig, ax = self.baseEschelle(numax, dnu, scale)
+
+                    # Overplot mode frequency samples
+                    for l in np.unique(self.result['ell']).astype(int):
+
+                        idx = self.result['ell'] == l
+
+                        freqs = self.result['samples']['freq'][:N, idx]
+
+                        smp_x, smp_y = self.echelle_freqs(freqs, dnu) 
+
+                        ax.scatter(smp_x, smp_y, alpha=0.05, color=cols[l], s=100)
+
+                        # Add to legend
+                        ax.scatter(np.nan, np.nan, alpha=1, color=cols[l], s=100, label= r'$\ell=$'+str(l))
+
+
+
+                    # Overplot gmode frequencies
+                    nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
+                                                            self.result['summary']['DPi1'][0], 
+                                                            self.result['summary']['eps_g'][0], 
+                                                            self.result['summary']['alpha_g'][0], )
+                    
+                    for nu in nu_g:
+                        ax.axhline(nu, color='k', ls='dashed')
+                    ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
+
+
+                    #Overplot l=1 p-modes
+                    nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(numax, 
+                                                                dnu,  
+                                                                self.result['summary']['eps_p'][0], 
+                                                                self.result['summary']['alpha_p'][0],)
+                    
+                    nu1_p = nu0_p + self.result['summary']['d01'][0]
+                    nu1_p_x, nu1_p_y = self.echelle_freqs(nu1_p, dnu) 
+                    ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+                    
  
 
-            # if isinstance(self, pbjam.core.star): 
-            #     dnu = self.obs['dnu'][0]
-                
-            #     numax = self.obs['numax'][0]
-
-            #elif isinstance(self, pbjam.modeID.modeIDsampler):  
-            dnu = self.result['summary']['dnu'][0]
-
-            numax = self.result['summary']['numax'][0]
-
-            for l in np.arange(4):
-                idx = self.result['ell'] == l
-
-                freqs[f'l{str(l)}']['nu'] = self.result['summary']['freq'][0, idx]
-
-                freqs[f'l{str(l)}']['err'] = self.result['summary']['freq'][1, idx]
-
-                freqs[f'l{str(l)}']['samples'] = self.result['samples']['freq'][:N, idx]
-
-            # elif isinstance(self, pbjam.peakbagging.peakbag):  
+            # elif self.__class__.__name__ is 'peakbag':  
             #     numax = 10**self.asy_fit.summary.loc['numax', '50th']
 
             #     for l in np.arange(4):
@@ -265,36 +313,16 @@ class plotting():
 
             #     dnu = np.median(np.diff(freqs['l0']['nu']))
 
-            # else:
-            #     raise ValueError('Unrecognized class type')
+            else:
+                raise ValueError('Unrecognized class type')
 
-            n = max([self.N_p + 1, 10])
-
-            idx = ((numax - n * dnu) < self.f) & (self.f < (numax + n * dnu))
-
-            fig, ax = plt.subplots(figsize=(8,7))    
-            
-            plot_echelle(self.f[idx], self.s[idx], dnu, ax=ax, smooth=True, smooth_filter_width=dnu/350)
         
-            # Overplot modes
-            cols = ['C1', 'C4', 'C3', 'C5']
-
-            for l in np.arange(4):
-                ell = 'l'+str(l)
-                
-                if len(freqs[ell]['nu']) > 0:
- 
-                    err = freqs[ell]['err']
-
-                    smry_x, smry_y = self.echelle_freqs(freqs[ell]['nu'], dnu) 
-
-                    ax.errorbar(smry_x, smry_y, xerr=err, fmt='o', color=cols[l], label=r'$\ell=$%i' % (l), ms=10)
- 
-                    smp_x, smp_y = self.echelle_freqs(freqs[ell]['samples'], dnu) 
-
-                    ax.scatter(smp_x, smp_y, alpha=0.05, color=cols[l], s=100)
-                        
-            ax.legend()
+            if ID is not None:
+                ax.set_title(ID)
+                         
+            ax.legend(ncols=2)
+            
+            ax.set_xlim(0, dnu)
 
             fig.tight_layout()
 
@@ -302,6 +330,21 @@ class plotting():
                 self._save_my_fig(fig, 'echelle', path, ID)
 
             return fig, ax
+
+    def baseEschelle(self, numax, dnu, scale):
+        n = max([self.N_p + 1, 10])
+
+        idx = ((numax - n * dnu) < self.f) & (self.f < (numax + n * dnu))
+
+        f, s = self.f[idx], self.s[idx]
+
+        fig, ax = plt.subplots(figsize=(8,7))    
+            
+        plot_echelle(f, s, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale)
+
+        return fig, ax
+
+    
 
     def echelle_freqs(self, nu, dnu):
         x = nu%dnu
