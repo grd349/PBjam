@@ -76,7 +76,7 @@ class peakbag():
             #hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
             #shot_est = jnp.nanmean(self.s[hi_idx])
             #self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.5)
-            self.priors['shot'] = dist.normal(loc=0, scale=0.5)
+            self.priors['shot'] = dist.normal(loc=0, scale=0.1)
 
         if not all([key in self.labels for key in self.priors.keys()]):
             raise ValueError('Length of labels doesnt match lenght of priors.')
@@ -157,7 +157,7 @@ class peakbag():
         """
 
         L = -jnp.sum(jnp.log(mod) + self.snr[self.sel] / mod)
-        
+ 
         return L 
         
     variables = {'freq'   : {'info': 'mode frequency list'      , 'log10': False},
@@ -276,66 +276,19 @@ class peakbag():
             theta_u[key] = 10**theta_u[key]
  
         return theta_u
-
-    @partial(jax.jit, static_argnums=(0,))
-    def ell1(self, emm, inc):
-
-        y = jax.lax.cond(emm == 0, 
-                         lambda : jnp.cos(inc)**2,
-                         lambda : 0.5*jnp.sin(inc)**2
-                        )
-        return y
-
-    @partial(jax.jit, static_argnums=(0,))
-    def ell2(self, emm, inc):
-
-        y = jax.lax.cond(emm == 0, 
-                         lambda : (3*jnp.cos(inc)**2-1)**2/4,
-                         lambda : jax.lax.cond(emm == 1,
-                                               lambda : jnp.sin(2*inc)**2*3/8,
-                                               lambda : jnp.sin(inc)**4*3/8))
-        return y
-
-    @partial(jax.jit, static_argnums=(0,))
-    def ell3(self, emm, inc):
-
-        y = jax.lax.cond(emm == 0, 
-                         lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
-                         lambda : jax.lax.cond(emm == 1,
-                                               lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
-                                               lambda : jax.lax.cond(emm == 2,
-                                                                     lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
-                                                                     lambda : jnp.sin(inc)**6*5/16)))
-        return y
-
-    @partial(jax.jit, static_argnums=(0,))
-    def visibility(self, ell, m, inc):
-
-        emm = abs(m)
-
-        y = jax.lax.cond(ell == 0, 
-                         lambda : 1.,
-                         lambda : jax.lax.cond(ell == 1,
-                                               lambda : self.ell1(emm, inc),
-                                               lambda : jax.lax.cond(ell == 2,
-                                                                     lambda : self.ell2(emm, inc),
-                                                                     lambda : jax.lax.cond(ell == 3,
-                                                                                           lambda : self.ell3(emm, inc),
-                                                                                           lambda : jnp.nan))))
-        return y
-
+ 
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u):
          
         modes = jnp.zeros_like(self.f[self.sel]) + theta_u['shot']
         
-        omega = (1-self.zeta) * theta_u['nurot_e'] + self.zeta * theta_u['nurot_c']
+        omega = self.zeta * theta_u['nurot_c'] + (1 - self.zeta) * theta_u['nurot_e']
  
         for i, l in enumerate(self.ell):
             
-            for m in jnp.arange(2*l+1) - l:
+            for m in jnp.arange(2 * l + 1) - l:
                 
-                e = self.visibility(l, m, theta_u['inc'])
+                e = jar.visibility(l, m, theta_u['inc'])
                 
                 modes += jar.lor(self.f[self.sel], 
                                  theta_u['freq'][i] + omega[i] * m, 
@@ -345,8 +298,15 @@ class peakbag():
         
         return modes
     
+    def __call__(self, dynesty_kwargs={}):
 
-    def __call__(self, dynamic=False, progress=True, nlive=200):
+        self.runDynesty(**dynesty_kwargs)
+
+        # TODO output parsed result
+
+        return self.sampler, self.samples
+
+    def runDynesty(self, dynamic=False, progress=True, nlive=200):
         """ Start nested sampling
 
         Initializes and runs the nested sampling with Dynesty. We use the 
@@ -397,13 +357,15 @@ class peakbag():
             
             sampler.run_nested(print_progress=progress)
  
-        result = sampler.results
+        self.sampler = sampler
+
+        result = self.sampler.results
 
         unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
 
-        samples = dyfunc.resample_equal(unweighted_samples, weights)
+        self.samples = dyfunc.resample_equal(unweighted_samples, weights)
 
-        return sampler, samples
+        return self.sampler, self.samples
 
 
     def unpackSamples(self, samples):
@@ -420,7 +382,52 @@ class peakbag():
 
 
 
+    # @partial(jax.jit, static_argnums=(0,))
+    # def ell1(self, emm, inc):
 
+    #     y = jax.lax.cond(emm == 0, 
+    #                      lambda : jnp.cos(inc)**2,
+    #                      lambda : 0.5*jnp.sin(inc)**2
+    #                     )
+    #     return y
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def ell2(self, emm, inc):
+
+    #     y = jax.lax.cond(emm == 0, 
+    #                      lambda : (3*jnp.cos(inc)**2-1)**2/4,
+    #                      lambda : jax.lax.cond(emm == 1,
+    #                                            lambda : jnp.sin(2*inc)**2*3/8,
+    #                                            lambda : jnp.sin(inc)**4*3/8))
+    #     return y
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def ell3(self, emm, inc):
+
+    #     y = jax.lax.cond(emm == 0, 
+    #                      lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
+    #                      lambda : jax.lax.cond(emm == 1,
+    #                                            lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
+    #                                            lambda : jax.lax.cond(emm == 2,
+    #                                                                  lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
+    #                                                                  lambda : jnp.sin(inc)**6*5/16)))
+    #     return y
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def visibility(self, ell, m, inc):
+
+    #     emm = abs(m)
+
+    #     y = jax.lax.cond(ell == 0, 
+    #                      lambda : 1.,
+    #                      lambda : jax.lax.cond(ell == 1,
+    #                                            lambda : self.ell1(emm, inc),
+    #                                            lambda : jax.lax.cond(ell == 2,
+    #                                                                  lambda : self.ell2(emm, inc),
+    #                                                                  lambda : jax.lax.cond(ell == 3,
+    #                                                                                        lambda : self.ell3(emm, inc),
+    #                                                                                        lambda : jnp.nan))))
+    #     return y
 
 
 # """
