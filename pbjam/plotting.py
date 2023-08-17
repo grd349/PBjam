@@ -161,6 +161,351 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
 
 
 
+def _echellify_freqs(nu, dnu):
+    x = nu%dnu
+
+    y = nu #+ dnu/2
+
+    return x, y
+
+def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
+    """
+    Generate a base echelle diagram of the PSD.
+
+    Parameters
+    ----------
+    numax : float
+        Central frequency.
+    dnu : float
+        Frequency spacing.
+    scale : float
+        Smoothing scale.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The generated matplotlib Figure.
+    matplotlib.axes._axes.Axes
+        The generated matplotlib Axes.
+
+    Notes
+    -----
+    - Computes the echelle diagram for the given frequency range.
+    - Smoothes the diagram using the specified smoothing scale.
+    - Returns the generated Figure and Axes objects.
+    """
+
+    n = max([N_p + 1, 10])
+
+    idx = ((numax - n * dnu) < f) & (f < (numax + n * dnu))
+
+    f, s = f[idx], s[idx]
+
+    fig, ax = plt.subplots(figsize=(8,7))    
+        
+    plot_echelle(f, s, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale)
+
+    return fig, ax
+
+def _StarClassEchelle(S, obs, scale, **kwargs):
+    dnu = obs['dnu'][0]
+    
+    numax = obs['numax'][0]
+
+    fig, ax = _baseEchelle(S.f, S.s, S.N_p, numax, dnu, scale)
+        
+    ax.set_xlim(0, dnu)
+
+    return fig, ax
+
+def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
+
+    dnu = self.result['summary']['dnu'][0]
+
+    numax = self.result['summary']['numax'][0]
+
+    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
+
+    # Overplot mode frequency samples
+    for l in np.unique(self.result['ell']).astype(int):
+
+        idx = self.result['ell'] == l
+
+        freqs = self.result['samples']['freq'][:Nsamples, idx]
+
+        smp_x, smp_y = _echellify_freqs(freqs, dnu) 
+
+        ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+
+        # Add to legend
+        ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
+
+    # Overplot gmode frequencies
+    nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
+                                          self.result['summary']['DPi1'][0], 
+                                          self.result['summary']['eps_g'][0], 
+                                          self.result['summary']['alpha_g'][0], )
+    
+    for nu in nu_g:
+        ax.axhline(nu, color='k', ls='dashed')
+
+    ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
+
+    #Overplot l=1 p-modes
+    nu0_p, _ = self.AsyFreqModel.asymptotic_nu_p(numax, 
+                                              dnu,  
+                                              self.result['summary']['eps_p'][0], 
+                                              self.result['summary']['alpha_p'][0],)
+    
+    nu1_p = nu0_p + self.result['summary']['d01'][0]
+
+    nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+
+    ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+
+    ax.legend(ncols=2)
+    
+    ax.set_xlim(0, dnu)
+
+    return fig, ax
+
+def _PeakbagClassPriorEchelle():
+    raise ValueError('Echelles for the prior of the peakbag stage are currently on the TODO.')
+
+def _PeakbagClassPostEchelle():
+    pass 
+
+
+
+def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
+ 
+    ax.plot(f, s, 'k-', label='Data', alpha=0.2)
+    
+    smoo = smooth_power(f, s, smoothness)
+    
+    ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
+    
+    _ylim = list(ax.get_ylim())
+    
+    if ylim[0] is None:
+        _ylim[0] = smoo.min()*0.1
+    else:
+        _ylim[0] = ylim[0]
+
+    if ylim[1] is None:
+        _ylim[1] = smoo.max()*1.3
+    else:
+        _ylim[1] = ylim[1]
+    
+    ax.set_ylim(_ylim)
+    
+    _xlim = list(ax.get_xlim())
+    if xlim[0] is None:
+        _xlim[0] = f.min()
+    else:
+        _xlim[0] = xlim[0]
+    
+    if xlim[1] is None:
+        _xlim[1] = f.max()
+    else:
+        _xlim[1] = xlim[1]
+    
+    ax.set_xlim(_xlim)
+
+def _StarClassSpectrum(self):
+    
+    fig, ax = plt.subplots(2, 1, figsize=(16,9))
+    
+    dnu = self.obs['dnu'][0]
+    
+    numax = self.obs['numax'][0]
+    
+
+    # Full frame
+    _baseSpectrum(ax[0], self.f, self.s)
+    
+    ax[0].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+
+    ax[0].set_yscale('log')
+    
+    ax[0].set_xscale('log')
+    
+    # Zoom on envelope
+
+    xlim = [max([min(self.f), numax - 5 * dnu]), 
+            min([max(self.f), numax + 5 * dnu])]
+
+    sel = (xlim[0] <= self.f) & (self.f <= xlim[1])
+
+    _baseSpectrum(ax[1], self.f[sel], self.s[sel])
+    
+    ax[1].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    
+    ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+
+    ax[1].legend()
+
+    return fig, ax
+
+def _ModeIDClassPriorSpectrum(self, N=20):
+    
+    fig, ax = plt.subplots(figsize=(16,9))
+
+    _baseSpectrum(ax, self.f, self.s, smoothness=0.5)
+ 
+    for i in range(N):
+ 
+        u = np.random.uniform(0, 1, size=self.ndims)
+
+        theta = self.ptform(u)
+        
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u, self.f)
+        
+        ax.plot(self.f, m, alpha=0.2, color='C3')
+
+    ax.plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+
+    ax.set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+
+    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+
+    ax.set_yscale('log')
+    
+    ax.set_xscale('log')
+
+    ax.legend()
+
+    return fig, ax
+
+def _ModeIDClassPostSpectrum(self, N=20):
+
+    rint = np.random.randint(0, self.samples.shape[0], size=N)
+
+    numax = self.obs['numax'][0]
+
+    dnu = self.obs['dnu'][0]
+
+
+    fig, ax = plt.subplots(2, 1, figsize=(16,18))
+    
+    _baseSpectrum(ax[0], self.f, self.s)
+
+    xlim = [max([min(self.f), numax - (self.N_p + 2) * dnu]), 
+            min([max(self.f), numax + ((self.N_p+2)/2) * dnu])]
+     
+    sel = (xlim[0] <= self.f) & (self.f <= xlim[1])
+
+    _baseSpectrum(ax[1], self.f[sel], self.s[sel], ylim=[0, None])
+
+    for k in rint:
+    
+        theta = self.samples[k, :]
+
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u, self.f)
+        
+        ax[0].plot(self.f, m, color='C3', alpha=0.2)
+
+        ax[1].plot(self.f[sel], m[sel], color='C3', alpha=0.2)
+
+    ax[0].set_yscale('log')
+
+    ax[0].set_xscale('log')
+ 
+    ax[0].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+    
+    ax[0].legend()
+    
+    ax[0].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+
+    for nu in self.result['summary']['freq'][0]:
+        ax[1].axvline(nu, c='k', linestyle='--')
+    
+    ax[1].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+
+    ax[1].axvline(-100, c='k', linestyle='--', label='Median frequencies')
+
+    ax[1].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    
+    ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+
+    ax[1].legend()
+
+    return fig, ax
+
+def _PeakbagClassPriorSpectrum(self):
+    
+    fig, ax = _baseSpectrum(self.f, self.snr)
+
+    return fig, ax
+
+def _PeakbagClassPostSpectrum(self):
+    
+    fig, ax = _baseSpectrum(self.f, self.snr)
+
+    return fig, ax
+
+
+
+
+  
+ 
+
+    #     elif isinstance(self, pbjam.asy_peakbag.asymptotic_fit): #type(self) == pbjam.asy_peakbag.asymptotic_fit:
+    #         for j in np.arange(-50,0):
+    #             if j==-1:
+    #                 label='Model'
+    #             else:
+    #                 label=None
+    #             ax.plot(f[self.sel], self.model(self.samples[j, :]), 'r-',
+    #                     alpha=0.1)
+    #         for nu in self.modeID['nu_med']:
+    #             ax.axvline(nu, c='k', linestyle='--')
+    #         dnu = 10**self.summary.loc['dnu', '50th']
+    #         xlim = [min(f[self.sel])-dnu,
+    #                 max(f[self.sel])+dnu]
+
+    #     elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
+    #         n = self.ladder_s.shape[0]
+    #         par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
+    #                      'back']
+    #         for i in range(n):
+    #             for j in range(-50, 0):
+    #                 if (i == 0) and (j==-1):
+    #                     label='Model'
+    #                 else:
+    #                     label=None
+    #                 mod = self.model(*[self.traces[x][j] for x in par_names])
+    #                 ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
+    #                         label=label)
+
+    #         dnu = 10**self.asy_fit.summary.loc['dnu', '50th']
+    #         xlim = [min(f[self.asy_fit.sel])-dnu,
+    #                 max(f[self.asy_fit.sel])+dnu]
+
+    #     else:
+    #         raise ValueError('Unrecognized class type')
+
+    #     ax.set_ylim([0, smoo.max()*1.5])
+    #     ax.set_xlim([max([min(f), xlim[0]]), min([max(f), xlim[1]])])
+    #     ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+    #     ax.set_ylabel(r'SNR')
+    #     ax.legend(loc=1)
+        
+    #     fig.tight_layout()
+    #     if savefig:
+    #         self._save_my_fig(fig, 'spectrum', path, ID)
+
+    #     return fig
+
+
+
+
+
+
 
 
 
@@ -209,150 +554,101 @@ class plotting():
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
 
-    def echelle(self, ID=None, path=None, savefig=False, N=200, scale=1/350, cols=None):
-            """ Make echelle plot
-
-            Plots an echelle diagram with mode frequencies if available.
-
-            Parameters
-            ----------
-            path : str, optional
-                Used along with savefig, sets the output directory to store the
-                figure. Default is to save the figure to the star directory.
-            ID : str, optional
-                ID of the target to be included in the filename of the figure.
-            savefig : bool
-                Whether or not to save the figure to disk. Default is False.
-
-            Returns
-            -------
-            fig : Matplotlib figure object
-                Figure object with the echelle diagram.
-
-            """
-
-            freqs = {'l'+str(i): {'nu': [], 'err': [], 'zeta': [], 'samples': None} for i in range(4)}
-
-            if cols is None:
-                cols = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
-
-            # TODO the self.__class__.__name__ check is instead of isinstance
-            # since it plays better with auto reload
-            if self.__class__.__name__ == 'star': 
-                dnu = self.obs['dnu'][0]
-                
-                numax = self.obs['numax'][0]
-
-                fig, ax = self.baseEschelle(numax, dnu, scale)
-
-            elif self.__class__.__name__ == 'modeIDsampler':
  
-                if not hasattr(self, 'result'):
-                    dnu = self.obs['dnu'][0]
-                
-                    numax = self.obs['numax'][0]
+    def echelle(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
 
-                    fig, ax = self.baseEschelle(numax, dnu, scale)
-    
-                else:  
+        if not 'colors' in kwargs:
+            kwargs['colors'] = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
 
-                    dnu = self.result['summary']['dnu'][0]
+        if not 'scale' in kwargs:
+            kwargs['scale'] = 1/350
 
-                    numax = self.result['summary']['numax'][0]
-
-                    fig, ax = self.baseEschelle(numax, dnu, scale)
-
-                    # Overplot mode frequency samples
-                    for l in np.unique(self.result['ell']).astype(int):
-
-                        idx = self.result['ell'] == l
-
-                        freqs = self.result['samples']['freq'][:N, idx]
-
-                        smp_x, smp_y = self.echelle_freqs(freqs, dnu) 
-
-                        ax.scatter(smp_x, smp_y, alpha=0.05, color=cols[l], s=100)
-
-                        # Add to legend
-                        ax.scatter(np.nan, np.nan, alpha=1, color=cols[l], s=100, label= r'$\ell=$'+str(l))
-
-
-
-                    # Overplot gmode frequencies
-                    nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
-                                                            self.result['summary']['DPi1'][0], 
-                                                            self.result['summary']['eps_g'][0], 
-                                                            self.result['summary']['alpha_g'][0], )
-                    
-                    for nu in nu_g:
-                        ax.axhline(nu, color='k', ls='dashed')
-                    ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
-
-
-                    #Overplot l=1 p-modes
-                    nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(numax, 
-                                                                dnu,  
-                                                                self.result['summary']['eps_p'][0], 
-                                                                self.result['summary']['alpha_p'][0],)
-                    
-                    nu1_p = nu0_p + self.result['summary']['d01'][0]
-                    nu1_p_x, nu1_p_y = self.echelle_freqs(nu1_p, dnu) 
-                    ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
-                    
- 
-
-            # elif self.__class__.__name__ is 'peakbag':  
-            #     numax = 10**self.asy_fit.summary.loc['numax', '50th']
-
-            #     for l in np.arange(4):
-            #         ell = 'l'+str(l)
-
-            #         freqs[ell]['nu'] = self.summary.filter(like=ell, axis=0).loc[:, 'mean']
-
-            #         freqs[ell]['err'] = self.summary.filter(like=ell, axis=0).loc[:, 'sd']
-
-            #     dnu = np.median(np.diff(freqs['l0']['nu']))
-
-            else:
-                raise ValueError('Unrecognized class type')
-
+        if not 'Nsamples' in kwargs:
+            kwargs['Nsamples'] = 200
         
-            if ID is not None:
-                ax.set_title(ID)
-                         
-            ax.legend(ncols=2)
+        # TODO the self.__class__.__name__ check is instead of isinstance
+        # since it plays better with auto reload
+        if self.__class__.__name__ == 'star': 
+
+            fig, ax = _StarClassEchelle(self, self.obs, **kwargs)
             
-            ax.set_xlim(0, dnu)
+        elif self.__class__.__name__ == 'modeIDsampler':
 
-            fig.tight_layout()
+            if stage=='prior':
+                # TODO overplot the prior samples of the freqs?
+                fig, ax = _StarClassEchelle(self, self.obs, **kwargs)
 
-            if savefig:
-                self._save_my_fig(fig, 'echelle', path, ID)
+            elif stage=='posterior': 
+                
+                fig, ax = _ModeIDClassPostEchelle(self, **kwargs)
+                
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
 
-            return fig, ax
-
-    def baseEschelle(self, numax, dnu, scale):
-        n = max([self.N_p + 1, 10])
-
-        idx = ((numax - n * dnu) < self.f) & (self.f < (numax + n * dnu))
-
-        f, s = self.f[idx], self.s[idx]
-
-        fig, ax = plt.subplots(figsize=(8,7))    
+        elif self.__class__.__name__ == 'peakbag':  
             
-        plot_echelle(f, s, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale)
+            if stage=='prior':
+                fig, ax = _PeakbagClassPriorEchelle(**kwargs)
+                
+            elif stage=='posterior':
+                fig, ax = _PeakbagClassPostEchelle(**kwargs)
+
+        else:
+            raise ValueError('Unrecognized class type')
+
+        if ID is not None:
+            ax.set_title(ID)
+                        
+        fig.tight_layout()
+
+        if (savepath is not None):
+            fig.savefig(savepath, **save_kwargs)
 
         return fig, ax
 
-    
 
-    def echelle_freqs(self, nu, dnu):
-        x = nu%dnu
+    def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
 
-        y = nu #+ dnu/2
+        if self.__class__.__name__ == 'star': 
+            
+            _StarClassSpectrum(self, **kwargs)
 
-        return x, y
+        elif self.__class__.__name__ == 'modeIDsampler':
+            if stage=='prior':
+
+                fig, ax = _ModeIDClassPriorSpectrum(self, **kwargs)
+
+            elif stage=='posterior': 
+
+                assert hasattr(self, 'result')
+
+                fig, ax = _ModeIDClassPostSpectrum(self, **kwargs)
+
+        elif self.__class__.__name__ == 'peakbag': 
+
+            if stage=='prior':
+                fig, ax = _PeakbagClassPriorSpectrum(**kwargs)
+                
+            elif stage=='posterior':
+                fig, ax = _PeakbagClassPostSpectrum(**kwargs)
         
+        else:
+            raise ValueError('Unrecognized class type')
+        
+        if ID is not None:
+            ax.set_title(ID)
+                        
+        fig.tight_layout()
+
+        if savepath is not None:
+            fig.savefig(savepath, **save_kwargs)
+
+        return fig, ax
+
+    def corner(self, unpacked=False, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
+
+        pass
+
     def plotLatentCorner(self, samples, labels=None):
     
         if labels == None:
@@ -407,118 +703,7 @@ class plotting():
 
         return fig
 
-    def plot_spectrum(self, f=None, s=None, path=None, ID=None, savefig=False):
-        """ Plot the power spectrum
 
-        Plot the power spectrum around the p-mode envelope. Calling this
-        method from the different classes such as KDE or peakbag, will plot
-        the relevant result from those classes if available.
-
-        Parameters
-        ----------
-        pg : Lightkurve.periodogram object, optional
-            A lightkurve periodogram to plot
-        path : str, optional
-            Used along with savefig, sets the output directory to store the
-            figure. Default is to save the figure to the star directory.
-        ID : str, optional
-            ID of the target to be included in the filename of the figure.
-        savefig : bool
-            Whether or not to save the figure to disk. Default is False.
-
-        Returns
-        -------
-        fig : Matplotlib figure object
-            Figure object with the spectrum.
-
-        """
-
-        if not pg and hasattr(self, 'pg'):
-            pg = self.pg
-
-        if pg:
-            f = pg.frequency.value
-            s = pg.power.value
-
-        elif hasattr(self, 'f') & hasattr(self, 's'):
-            f = self.f
-            s = self.s
-        else:
-            raise ValueError('Unable to plot spectrum.')
-
-        # The raw and smoothed spectrum will always be plotted
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(f, s, 'k-', label='Data', alpha=0.2)
-        fac = max([1, 0.1 / (f[1] - f[0])])
-        kernel = conv.Gaussian1DKernel(stddev=fac)
-        smoo = conv.convolve(s, kernel)
-        ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
-              
-        if isinstance(self, pbjam.star): #type(self) == pbjam.star:
-             xlim = [self.numax[0]-5*self.dnu[0], self.numax[0]+5*self.dnu[0]]
-
-        elif isinstance(self, pbjam.priors.kde): #type(self) == pbjam.priors.kde:
-            h = max(smoo)
-            numax = 10**(np.median(self.samples[:, 1]))
-            dnu = 10**(np.median(self.samples[:, 0]))
-            nmin = np.floor(min(f) / dnu)
-            nmax = np.floor(max(f) / dnu)
-            enns = np.arange(nmin-1, nmax+1, 1)
-            freq, freq_sigma = self.kde_predict(enns)
-            y = np.zeros(len(f))
-            for i in range(len(enns)):
-                y += 0.8 * h * np.exp(-0.5 * (freq[i] - f)**2 / freq_sigma[i]**2)
-            ax.fill_between(f, y, alpha=0.3, facecolor='navy', edgecolor='none',
-                            label=r'$\propto P(\nu_{\ell=0})$')
-           
-            xlim = [numax-5*dnu, numax+5*dnu]
-
-        elif isinstance(self, pbjam.asy_peakbag.asymptotic_fit): #type(self) == pbjam.asy_peakbag.asymptotic_fit:
-            for j in np.arange(-50,0):
-                if j==-1:
-                    label='Model'
-                else:
-                    label=None
-                ax.plot(f[self.sel], self.model(self.samples[j, :]), 'r-',
-                        alpha=0.1)
-            for nu in self.modeID['nu_med']:
-                ax.axvline(nu, c='k', linestyle='--')
-            dnu = 10**self.summary.loc['dnu', '50th']
-            xlim = [min(f[self.sel])-dnu,
-                    max(f[self.sel])+dnu]
-
-        elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
-            n = self.ladder_s.shape[0]
-            par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
-                         'back']
-            for i in range(n):
-                for j in range(-50, 0):
-                    if (i == 0) and (j==-1):
-                        label='Model'
-                    else:
-                        label=None
-                    mod = self.model(*[self.traces[x][j] for x in par_names])
-                    ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
-                            label=label)
-
-            dnu = 10**self.asy_fit.summary.loc['dnu', '50th']
-            xlim = [min(f[self.asy_fit.sel])-dnu,
-                    max(f[self.asy_fit.sel])+dnu]
-
-        else:
-            raise ValueError('Unrecognized class type')
-
-        ax.set_ylim([0, smoo.max()*1.5])
-        ax.set_xlim([max([min(f), xlim[0]]), min([max(f), xlim[1]])])
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend(loc=1)
-        
-        fig.tight_layout()
-        if savefig:
-            self._save_my_fig(fig, 'spectrum', path, ID)
-
-        return fig
 
 
     def _fill_diag(self, axes, vals, vals_err, idxs):
