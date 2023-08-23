@@ -375,7 +375,7 @@ def _ModeIDClassPriorSpectrum(self, N=20):
     
     ax.set_xscale('log')
 
-    ax.legend()
+    ax.legend(loc=3)
 
     return fig, ax
 
@@ -417,7 +417,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
  
     ax[0].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
     
-    ax[0].legend()
+    ax[0].legend(loc=3)
     
     ax[0].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
 
@@ -432,7 +432,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
     
     ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
 
-    ax[1].legend()
+    ax[1].legend(loc=2)
 
     return fig, ax
 
