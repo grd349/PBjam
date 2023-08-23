@@ -207,14 +207,51 @@ def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
 
     return fig, ax
 
-def _StarClassEchelle(S, obs, scale, **kwargs):
+def _StarClassEchelle(self, obs, scale, **kwargs):
     dnu = obs['dnu'][0]
     
     numax = obs['numax'][0]
 
-    fig, ax = _baseEchelle(S.f, S.s, S.N_p, numax, dnu, scale)
+    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
         
     ax.set_xlim(0, dnu)
+
+    return fig, ax
+
+def _ModeIDClassPriorEchelle(self, obs, scale, colors, DPi1=None, eps_g=None, alpha_g=None, **kwargs):
+    dnu = obs['dnu'][0]
+    
+    numax = obs['numax'][0]
+
+    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
+     
+    if DPi1 is None:
+        DPi1 = self.priors['DPi1'].ppf(0.5)
+    if eps_g is None:
+        eps_g = self.priors['eps_g'].ppf(0.5)
+    if alpha_g is None:
+        alpha_g = 10**self.priors['alpha_g'].ppf(0.5)
+     
+    # Overplot gmode frequencies
+    nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, DPi1, eps_g, 
+                                             alpha_g, 
+                                             )
+   
+    curlyN = dnu / (DPi1 *1e-6 * numax**2)
+
+    if curlyN > 1:
+        nu_g_x, nu_g_y = _echellify_freqs(nu_g, dnu)
+
+        ax.scatter(nu_g_x, nu_g_y, color=colors[1])
+
+    else:
+        for nu in nu_g:
+            ax.axhline(nu, color='k', ls='dashed')
+
+        ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{DPi1}s \n' r'$\epsilon_g=$'+f'{eps_g}')
+
+
+    ax.legend(loc=1)
 
     return fig, ax
 
@@ -274,8 +311,6 @@ def _PeakbagClassPriorEchelle():
 
 def _PeakbagClassPostEchelle():
     pass 
-
-
 
 def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
  
@@ -450,70 +485,7 @@ def _PeakbagClassPostSpectrum(self):
 
 
 
-
-  
  
-
-    #     elif isinstance(self, pbjam.asy_peakbag.asymptotic_fit): #type(self) == pbjam.asy_peakbag.asymptotic_fit:
-    #         for j in np.arange(-50,0):
-    #             if j==-1:
-    #                 label='Model'
-    #             else:
-    #                 label=None
-    #             ax.plot(f[self.sel], self.model(self.samples[j, :]), 'r-',
-    #                     alpha=0.1)
-    #         for nu in self.modeID['nu_med']:
-    #             ax.axvline(nu, c='k', linestyle='--')
-    #         dnu = 10**self.summary.loc['dnu', '50th']
-    #         xlim = [min(f[self.sel])-dnu,
-    #                 max(f[self.sel])+dnu]
-
-    #     elif isinstance(self, pbjam.peakbag): #type(self) == pbjam.peakbag:
-    #         n = self.ladder_s.shape[0]
-    #         par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
-    #                      'back']
-    #         for i in range(n):
-    #             for j in range(-50, 0):
-    #                 if (i == 0) and (j==-1):
-    #                     label='Model'
-    #                 else:
-    #                     label=None
-    #                 mod = self.model(*[self.traces[x][j] for x in par_names])
-    #                 ax.plot(self.ladder_f[i, :], mod[i, :], c='r', alpha=0.1,
-    #                         label=label)
-
-    #         dnu = 10**self.asy_fit.summary.loc['dnu', '50th']
-    #         xlim = [min(f[self.asy_fit.sel])-dnu,
-    #                 max(f[self.asy_fit.sel])+dnu]
-
-    #     else:
-    #         raise ValueError('Unrecognized class type')
-
-    #     ax.set_ylim([0, smoo.max()*1.5])
-    #     ax.set_xlim([max([min(f), xlim[0]]), min([max(f), xlim[1]])])
-    #     ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-    #     ax.set_ylabel(r'SNR')
-    #     ax.legend(loc=1)
-        
-    #     fig.tight_layout()
-    #     if savefig:
-    #         self._save_my_fig(fig, 'spectrum', path, ID)
-
-    #     return fig
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 class plotting():
     """ Class inherited by PBjam modules to plot results
     
@@ -575,8 +547,7 @@ class plotting():
         elif self.__class__.__name__ == 'modeIDsampler':
 
             if stage=='prior':
-                # TODO overplot the prior samples of the freqs?
-                fig, ax = _StarClassEchelle(self, self.obs, **kwargs)
+                fig, ax = _ModeIDClassPriorEchelle(self, self.obs, **kwargs)
 
             elif stage=='posterior': 
                 
