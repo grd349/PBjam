@@ -974,7 +974,7 @@ class modeIDsampler(plotting):
         np.savez(basefilename+'.npz', resultDict)
 
         # grab just model parameters and save
-        _tmp = {key: M.result['summary'][key] for key in M.result['summary'].keys() if key not in ['freq', 'height', 'width']}
+        _tmp = {key: self.result['summary'][key] for key in self.result['summary'].keys() if key not in ['freq', 'height', 'width']}
 
         df_data = [{'name': key, 'mean': value[0], 'error': value[1]} for key, value in _tmp.items()]
 
