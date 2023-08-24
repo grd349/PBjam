@@ -239,14 +239,19 @@ def _ModeIDClassPriorEchelle(self, obs, scale, colors, DPi1=None, eps_g=None, al
    
     curlyN = dnu / (DPi1 *1e-6 * numax**2)
 
+    ylims = ax.get_ylim()
     if curlyN > 1:
         nu_g_x, nu_g_y = _echellify_freqs(nu_g, dnu)
 
         ax.scatter(nu_g_x, nu_g_y, color=colors[1])
 
     else:
-        for nu in nu_g:
+        for i, nu in enumerate(nu_g):
+            
             ax.axhline(nu, color='k', ls='dashed')
+
+            if (ylims[0] < nu) & (nu < ylims[1]):
+                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
 
         ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{DPi1}s \n' r'$\epsilon_g=$'+f'{eps_g}')
 
