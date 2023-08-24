@@ -1,5 +1,5 @@
 from functools import partial
-import jax, dynesty
+import jax, dynesty, warnings, os
 import jax.numpy as jnp
 from dynesty import utils as dyfunc
 import numpy as np
@@ -10,6 +10,7 @@ from pbjam.mixedmodel import MixFreqModel
 from pbjam.pairmodel import AsyFreqModel
 from pbjam.background import bkgModel
 from pbjam.plotting import plotting
+import pandas as pd
 
 class modeIDsampler(plotting):
 
@@ -945,9 +946,43 @@ class modeIDsampler(plotting):
 
 
         # Background
-        muBkg = self.meanBkg(self.f, smp)
-        result['background'] = jar.jaxInterp1D(self.f, muBkg)
+        #muBkg = self.meanBkg(self.f, smp)
+        result['background'] = self.meanBkg(self.f, smp) # self.meanBkg(self.f, smp) #jar.jaxInterp1D(self.f, muBkg)
 
         return result
+    
+    def storeResult(self, resultDict, ID=None):
+
+        # TODO ID should come from star?
+        if ID is not None:
+            _ID = ID
+        elif (ID is None) and hasattr(self, 'ID'):
+            _ID = self.ID
+        else:   
+            _ID = f'unknown_tgt_{np.random.randint(0, 1e10)}'
+
+            warnings.warn(f'Output stored under {_ID}. You should probably specify a target ID.')
+        
+        path = _ID
+        
+        basefilename = os.path.join(*[path, f'asymptotic_fit_summary_{_ID}'])
+        
+        if not os.path.exists(path):
+            os.makedirs(path)
+
+        # store everything
+        np.savez(basefilename+'.npz', resultDict)
+
+        # grab just model parameters and save
+        _tmp = {key: M.result['summary'][key] for key in M.result['summary'].keys() if key not in ['freq', 'height', 'width']}
+
+        df_data = [{'name': key, 'mean': value[0], 'error': value[1]} for key, value in _tmp.items()]
+
+        # Create a DataFrame
+        df = pd.DataFrame(df_data)
+        
+        df.to_csv(basefilename+'.csv', index=False)
+
+
 
         
