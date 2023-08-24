@@ -17,7 +17,16 @@ class MixFreqModel():
 
         self.N_g = len(self.n_g)
 
-        self.ones = jnp.ones((self.N_p, self.N_g))
+        self.ones_block = jnp.ones((self.N_p, self.N_g))
+
+        self.zeros_block = jnp.zeros((self.N_p, self.N_g))
+
+        self.eye_N_p = jnp.eye(self.N_p)
+
+        self.eye_N_g = jnp.eye(self.N_g)
+ 
+        self.D_gamma = jnp.vstack((jnp.zeros((self.N_p, self.N_p + self.N_g)), 
+                                   jnp.hstack((self.zeros_block.T, self.eye_N_g))))
 
     def select_n_g(self, n_g_ppf, fac=2):
         """ Select and initial range for n_g
@@ -105,7 +114,7 @@ class MixFreqModel():
         jax device array
             Frequencies of the notionally pure g-modes of degree l.
         """
- 
+         
         P0 = 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
 
         #DPi0 = DPi1 / jnp.sqrt(2)  
@@ -184,6 +193,12 @@ class MixFreqModel():
         jax device array
             Block of shape (len(x), len(y) to be inserted in L or D coupling 
             strength matrices.
+        
+        Notes
+        -----
+        This is legacy code which is not currently in use. May be used in the 
+        future if it's necessary to compute more complicated 2D poly's.
+
         """
       
         xx = (x + 0 * y)
@@ -219,6 +234,12 @@ class MixFreqModel():
         -------
         jax device array
             Square matrix of reshaped polynomial coefficients.
+        
+        Notes
+        -----
+        This is legacy code which is not currently in use. May be used in the 
+        future if it's necessary to compute more complicated 2D poly's.
+
         """
  
         # Check that len(p) a triangular number
@@ -270,6 +291,11 @@ class MixFreqModel():
         -------
         jax device array
             Matrix of the polymial values.
+
+        Notes
+        -----
+        This is legacy code which is not currently in use. May be used in the 
+        future if it's necessary to compute more complicated 2D poly's.
         """
 
         X = jnp.vander(x, P.shape[0], increasing=increasing)
@@ -312,16 +338,18 @@ class MixFreqModel():
         """
  
         #L_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_L) * (nu_g * c.nu_to_omega)**2
-        L_cross = self.ones * p_L * (nu_g * c.nu_to_omega)**2
+        L_cross = self.ones_block * p_L * (nu_g * c.nu_to_omega)**2
 
         #D_cross = self._wrap_polyval2d(n_p[:, jnp.newaxis], n_g[jnp.newaxis, :], p_D) * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
-        D_cross = self.ones * p_D * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
+        D_cross = self.ones_block * p_D * (nu_g[jnp.newaxis, :]) / (nu_p[:, jnp.newaxis])
 
         L = jnp.hstack((jnp.vstack((jnp.diag(-(nu_p * c.nu_to_omega)**2), L_cross.T)),
-                        jnp.vstack((L_cross, jnp.diag( -(nu_g * c.nu_to_omega)**2 )))))
+                        jnp.vstack((L_cross, jnp.diag( -(nu_g * c.nu_to_omega)**2 )))
+                        ))
 
-        D = jnp.hstack((jnp.vstack((jnp.eye(self.N_p), D_cross[::-1, ::-1].T)),
-                        jnp.vstack((D_cross[::-1, ::-1], jnp.eye(self.N_g)))))
+        D = jnp.hstack((jnp.vstack((self.eye_N_p       , D_cross[::-1, ::-1].T)),
+                        jnp.vstack((D_cross[::-1, ::-1], self.eye_N_g))
+                        ))
 
         return L, D
     
@@ -352,16 +380,10 @@ class MixFreqModel():
         """
 
         Lambda, U = self.eigh(L, D)
-         
-        D0 = jnp.zeros((self.N_p, D.shape[0]))
-
-        D1 = jnp.hstack((jnp.zeros((self.N_g, self.N_p)), jnp.eye(self.N_g)))
-
-        D_gamma = jnp.vstack((D0, D1))
-
+    
         new_omega2 = -Lambda
- 
-        zeta = jnp.diag(U.T @ D_gamma @ U)
+        
+        zeta = jnp.diag(U.T @ self.D_gamma @ U)
 
         sidx = jnp.argsort(new_omega2)
 
