@@ -359,7 +359,7 @@ def _StarClassSpectrum(self):
     # Full frame
     _baseSpectrum(ax[0], self.f, self.s)
     
-    ax[0].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
     ax[0].set_yscale('log')
     
@@ -374,7 +374,7 @@ def _StarClassSpectrum(self):
 
     _baseSpectrum(ax[1], self.f[sel], self.s[sel])
     
-    ax[1].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    ax[1].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
     
     ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
 
@@ -402,7 +402,7 @@ def _ModeIDClassPriorSpectrum(self, N=20):
 
     ax.plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
 
-    ax.set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
     ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
 
@@ -454,7 +454,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
     
     ax[0].legend(loc=3)
     
-    ax[0].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
     for nu in self.result['summary']['freq'][0]:
         ax[1].axvline(nu, c='k', linestyle='--')
@@ -463,7 +463,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
 
     ax[1].axvline(-100, c='k', linestyle='--', label='Median frequencies')
 
-    ax[1].set_ylabel(r'PSD [$ppm^2/\mu \rm Hz$]')
+    ax[1].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
     
     ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
 
