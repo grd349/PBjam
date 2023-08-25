@@ -5,17 +5,32 @@ import pbjam.distributions as dist
 from pbjam import jar
 from dynesty import utils as dyfunc
 import numpy as np
+from pbjam.plotting import plotting
 
-class peakbag():
+class peakbag(plotting):
     
-    def __init__(self, f, snr, modeIDres=None, addPriors={}, freq_limits=[], ell=None):
+    def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, dnu, d02, addPriors={}, freq_limits=[], **kwargs):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
         self.Nyquist = self.f[-1]
+
+        self.bkg = self.getBkg() #jar.jaxInterp1D(self.f, self.bkg)
+
+        self.snr = self.s / self.bkg(self.f)
+
+        idx = self.pickFreqs(self.ell, self.freq, self.dnu)
+
+        self.ell = self.ell[idx]
+
+        self.freq = self.freq[:, idx]
         
-        self._checkInputs()
+        self.height = self.height[:, idx]
         
+        self.width = self.width[:, idx]
+        
+        self.zeta = self.zeta[idx]
+
         self.Nmodes = len(self.ell)
         
         self.set_labels()
@@ -24,40 +39,96 @@ class peakbag():
               
         self.sel = self.setFreqRange()
         
-        self.zeta = self.modeIDres['zeta']
-
         self.ndims = len(self.labels)
-        
 
-    def setPriors(self):
-        """ Set the prior distributions.
+    def getBkg(self, a=0.66, b=0.88, skips=100):
+        """ Estimate the background
 
-        The prior distributions are constructed from the projection of the 
-        PCA sample onto the reduced dimensional space.
+        Takes an average of the power at linearly spaced points along the
+        log(frequency) axis, where the width of the averaging window increases
+        as a power law.
 
+        The mean power values are interpolated back onto the full linear
+        frequency axis to estimate the background noise level at all
+        frequencies.
+
+        Returns
+        -------
+        b : array
+            Array of psd values approximating the background.
         """
+
+        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+        m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
+
+        bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
+
+        return bkgModel
+
+    def pickFreqs(self, ell, freq, dnu, fac=1, all=False):
+        """
+        Pick frequency indices that fall within +/- fac * dnu of the lowest
+        and highest l=0 mode frequency in freq. 
+
+        Parameters
+        ----------
+        ell : numpy.ndarray
+            Array of angular degrees values.
+        freq : numpy.ndarray
+            Array of frequency values, contains all angular degrees.
+        dnu : float
+            Larage frequency spacing.
+        fac : float
+            Number of large separations away from lowest and highest l=0 freqs.
+        all : bool, optional
+            Flag to select all frequencies. Default is False.
+
+        Returns
+        -------
+        numpy.ndarray
+            Boolean array indicating selected frequency indices.
+
+        Notes
+        -----
+        - If 'all' is False, selects indices within the range of the lowest ell=0 frequency.
+        - If 'all' is True, selects all frequency indices.
+        """
+         
+        if not all:
+            idx_ell0 = ell == 0
+
+            nu0 = freq[0, idx_ell0]
+
+            idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
+        else:
+            idx = jnp.ones(len(freq), dtype=bool)
+
+        return idx
+    
+    def setPriors(self, freq_err=0.03):
+ 
 
         self.priors = {}
 
         self.priors.update((k, v) for k, v in self.addPriors.items())
         
-        
         for i in range(self.Nmodes):
             _key = f'freq{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=self.modeIDres['summary']['freq'][0, i],
-                                                scale=0.03 * self.modeIDres['summary']['dnu'][1])
+                self.priors[_key] = dist.normal(loc=self.freq[0,i], # self.modeIDres['summary']['freq'][0, i],
+                                                scale=freq_err * self.dnu[0])
         for i in range(self.Nmodes):
             _key = f'height{i}'
             if _key not in self.priors:
-                mode_snr = self.modeIDres['summary']['height'][0, i] / self.modeIDres['background'](self.modeIDres['summary']['freq'][0, i])
+                mode_snr = self.height[0, i] / self.bkg(self.freq[0, i])
                 self.priors[_key] = dist.normal(loc=jnp.log10(mode_snr), scale=0.1)
 
         for i in range(self.Nmodes):
             _key = f'width{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=jnp.log10(self.modeIDres['summary']['width'][0, i]),
-                                                scale=1.0)
+                self.priors[_key] = dist.normal(loc=jnp.log10(self.width[0, i]),
+                                                scale=0.5)
         
         # Envelope rotation prior
         if 'nurot_e' not in self.priors.keys():
@@ -71,20 +142,16 @@ class peakbag():
         if 'inc' not in self.priors.keys():
             self.priors['inc'] = dist.truncsine()
 
-        # The instrumental components are set based on the PSD, not Bayesian but...
         if 'shot' not in self.priors.keys():
-            #hi_idx = self.f > min([self.f[-1], self.Nyquist]) - 10
-            #shot_est = jnp.nanmean(self.s[hi_idx])
-            #self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.5)
             self.priors['shot'] = dist.normal(loc=0, scale=0.1)
 
         if not all([key in self.labels for key in self.priors.keys()]):
             raise ValueError('Length of labels doesnt match lenght of priors.')
 
-    def _checkInputs(self):
+    # def _checkInputs(self):
 
-        if (self.ell is None) and (self.modeIDres is not None):
-            self.ell = self.modeIDres['ell']
+    #     if (self.ell is None) and (self.modeIDres is not None):
+    #         self.ell = self.modeIDres['ell']
             
 #         reqs = [self.__dict__[key] is None for key in ['ell', 'modeIDres']]
 
@@ -244,6 +311,8 @@ class peakbag():
         mod = self.model(theta_u)
 
         lnlike = self.chi_sqr(mod)
+
+        lnlike += self.addAddObsLike(theta_u)
  
         return lnlike
 
@@ -302,11 +371,36 @@ class peakbag():
 
         self.runDynesty(**dynesty_kwargs)
 
-        # TODO output parsed result
+        self.result = self.parseSamples(self.samples)
+  
+        return self.samples, self.result
 
-        return self.sampler, self.samples
+    def parseSamples(self, samples, N=10000):
+    
+        theta_u = self.unpackSamples(samples)
+        
+        result = {'ell': np.array([self.ell]),
+                  'zeta': np.array([self.zeta]),
+                  'summary': {},
+                  'samples': {}
+                 }
+        
+        for key in self.variables:
+            arr = np.array([theta_u[_key] for _key in theta_u.keys() if key in _key])
+            
+            result['summary'][key] = np.array([np.mean(arr, axis=1), 
+                                            np.std(arr, axis=1)]).T 
+            
+            
+            result['samples'][key] = arr[:, :N]
+            
+            for field in ['summary', 'samples']:
+                if result[field][key].shape[0] == 1:
+                    result[field][key] = result[field][key].flatten()
+    
+        return result
 
-    def runDynesty(self, dynamic=False, progress=True, nlive=200):
+    def runDynesty(self, dynamic=False, progress=True, nlive=200, **dynesty_kwargs):
         """ Start nested sampling
 
         Initializes and runs the nested sampling with Dynesty. We use the 
@@ -338,8 +432,7 @@ class peakbag():
             sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
                                                    self.ptform, 
                                                    self.ndims, 
-                                                   nlive=nlive, 
-                                                   sample='rwalk'
+                                                   **dynesty_kwargs
                                                    )
             
             sampler.run_nested(print_progress=progress, 
@@ -352,7 +445,7 @@ class peakbag():
                                             self.ptform, 
                                             self.ndims, 
                                             nlive=nlive, 
-                                            sample='rwalk'
+                                            **dynesty_kwargs
                                             )
             
             sampler.run_nested(print_progress=progress)
@@ -380,55 +473,41 @@ class peakbag():
     
         return S
 
+    def setAddObs(self):
+        """ Set attribute containing additional observational data
 
+        Additional observational data other than the power spectrum goes here. 
 
-    # @partial(jax.jit, static_argnums=(0,))
-    # def ell1(self, emm, inc):
+        Can be Teff or bp_rp color, but may also be additional constraints on
+        e.g., numax, dnu. 
+        """
+        
+        self.addObs = {}
 
-    #     y = jax.lax.cond(emm == 0, 
-    #                      lambda : jnp.cos(inc)**2,
-    #                      lambda : 0.5*jnp.sin(inc)**2
-    #                     )
-    #     return y
+        self.addObs['d02'] = dist.normal(loc=self.d02[0], 
+                                         scale=10 * self.d02[1])
+ 
+    @partial(jax.jit, static_argnums=(0,))
+    def addAddObsLike(self, theta_u):
+        """ Add the additional probabilities to likelihood
+        
+        Adds the additional observational data likelihoods to the PSD likelihood.
 
-    # @partial(jax.jit, static_argnums=(0,))
-    # def ell2(self, emm, inc):
+        Parameters
+        ----------
+        p : list
+            Sampling parameters.
 
-    #     y = jax.lax.cond(emm == 0, 
-    #                      lambda : (3*jnp.cos(inc)**2-1)**2/4,
-    #                      lambda : jax.lax.cond(emm == 1,
-    #                                            lambda : jnp.sin(2*inc)**2*3/8,
-    #                                            lambda : jnp.sin(inc)**4*3/8))
-    #     return y
+        Returns
+        -------
+        lnp : float
+            The likelihood of a sample given the parameter PDFs.
+        """
+        delta = theta_u['freq'][self.ell==0] - theta_u['freq'][self.ell==2]
 
-    # @partial(jax.jit, static_argnums=(0,))
-    # def ell3(self, emm, inc):
+        lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
 
-    #     y = jax.lax.cond(emm == 0, 
-    #                      lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
-    #                      lambda : jax.lax.cond(emm == 1,
-    #                                            lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
-    #                                            lambda : jax.lax.cond(emm == 2,
-    #                                                                  lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
-    #                                                                  lambda : jnp.sin(inc)**6*5/16)))
-    #     return y
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def visibility(self, ell, m, inc):
-
-    #     emm = abs(m)
-
-    #     y = jax.lax.cond(ell == 0, 
-    #                      lambda : 1.,
-    #                      lambda : jax.lax.cond(ell == 1,
-    #                                            lambda : self.ell1(emm, inc),
-    #                                            lambda : jax.lax.cond(ell == 2,
-    #                                                                  lambda : self.ell2(emm, inc),
-    #                                                                  lambda : jax.lax.cond(ell == 3,
-    #                                                                                        lambda : self.ell3(emm, inc),
-    #                                                                                        lambda : jnp.nan))))
-    #     return y
-
+        return lnp
 
 # """
 
