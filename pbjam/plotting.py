@@ -455,7 +455,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
 
     ax[0].set_xscale('log')
  
-    ax[0].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+    ax[0].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
     
     ax[0].legend(loc=3)
     
@@ -464,7 +464,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
     for nu in self.result['summary']['freq'][0]:
         ax[1].axvline(nu, c='k', linestyle='--')
     
-    ax[1].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+    ax[1].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
 
     ax[1].axvline(-100, c='k', linestyle='--', label='Median frequencies')
 
@@ -476,15 +476,63 @@ def _ModeIDClassPostSpectrum(self, N=20):
 
     return fig, ax
 
-def _PeakbagClassPriorSpectrum(self):
+def _PeakbagClassPriorSpectrum(self, N=20):
     
-    fig, ax = _baseSpectrum(self.f, self.snr)
+    fig, ax = plt.subplots(figsize=(16,9))
+
+    _baseSpectrum(ax, self.f, self.snr, smoothness=0.5)
+
+    for i in range(N):
+ 
+        u = np.random.uniform(0, 1, size=self.ndims)
+
+        theta = self.ptform(u)
+        
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u)
+        
+        ax.plot(self.f[self.sel], m, alpha=0.2, color='C3')
+
+    ax.plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+
+    ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+
+    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+
+    ax.set_xlim(self.f[self.sel].min(), self.f[self.sel].max())
+
+    ax.legend(loc=1)
 
     return fig, ax
 
-def _PeakbagClassPostSpectrum(self):
+def _PeakbagClassPostSpectrum(self, N=20):
+
+    rint = np.random.randint(0, self.samples.shape[0], size=N)
+
+    fig, ax = plt.subplots(figsize=(16,9))
+
+    _baseSpectrum(ax, self.f, self.snr, smoothness=0.5)
+
+    for k in rint:
     
-    fig, ax = _baseSpectrum(self.f, self.snr)
+        theta = self.samples[k, :]
+
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u)
+        
+        ax.plot(self.f[self.sel], m, color='C3', alpha=0.2)
+
+    ax.plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
+
+    ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+    
+    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+
+    ax.set_xlim(self.f[self.sel].min(), self.f[self.sel].max())
+
+    ax.legend(loc=1)
 
     return fig, ax
 
@@ -603,10 +651,10 @@ class plotting():
         elif self.__class__.__name__ == 'peakbag': 
 
             if stage=='prior':
-                fig, ax = _PeakbagClassPriorSpectrum(**kwargs)
+                fig, ax = _PeakbagClassPriorSpectrum(self, **kwargs)
                 
             elif stage=='posterior':
-                fig, ax = _PeakbagClassPostSpectrum(**kwargs)
+                fig, ax = _PeakbagClassPostSpectrum(self, **kwargs)
         
         else:
             raise ValueError('Unrecognized class type')
