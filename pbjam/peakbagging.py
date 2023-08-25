@@ -41,6 +41,8 @@ class peakbag(plotting):
         
         self.ndims = len(self.labels)
 
+        self.setAddObs()
+
     def getBkg(self, a=0.66, b=0.88, skips=100):
         """ Estimate the background
 
