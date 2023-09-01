@@ -317,6 +317,7 @@ def _PeakbagClassPriorEchelle():
 def _PeakbagClassPostEchelle():
     pass 
 
+
 def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
  
     ax.plot(f, s, 'k-', label='Data', alpha=0.2)
@@ -537,8 +538,65 @@ def _PeakbagClassPostSpectrum(self, N=20):
     return fig, ax
 
 
+def _baseCorner(samples, labels):
+     
+    fig = corner.corner(samples, hist_kwargs={'density': True}, labels=labels)
+    
+    return fig
 
- 
+def _setSampleToPlot(self, samples, unpacked):
+
+    if unpacked:
+        _samples = self.unpackSamples(samples)
+
+    else:
+        _samples = {key: samples[:, i] for i, key in enumerate(self.priors.keys())}
+
+    return _samples
+
+
+def _ModeIDClassPriorCorner(self, samples, labels, unpacked):
+
+    _samples = _setSampleToPlot(self, samples, unpacked)
+
+    if labels == None:
+        labels = list(_samples.keys())
+        
+    fig = _baseCorner(_samples, labels)    
+
+    axes = np.array(fig.get_axes()).reshape((len(labels), len(labels)))
+
+    if not unpacked:
+        for i, key in enumerate(labels):
+        
+            if key in self.priors.keys():
+            
+                x = np.linspace(self.priors[key].ppf(1e-6), 
+                                self.priors[key].ppf(1-1e-6), 100)
+
+                pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+
+                axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5)
+        
+    return fig, axes
+
+
+def _ModeIDClassPostCorner(self, samples, unpacked):
+    _samples = _setSampleToPlot(self, samples, unpacked)
+
+    return fig, axes
+
+def _PeakbagClassPriorCorner(self, samples, unpacked):
+    _samples = _setSampleToPlot(self, samples, unpacked)
+
+    return fig, axes
+
+def _PeakbagClassPostCorner(self, samples, unpacked):
+    _samples = _setSampleToPlot(self, samples, unpacked)
+
+    return fig, axes
+
+
 class plotting():
     """ Class inherited by PBjam modules to plot results
     
@@ -579,7 +637,6 @@ class plotting():
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
 
- 
     def echelle(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
 
         if not 'colors' in kwargs:
@@ -630,7 +687,6 @@ class plotting():
 
         return fig, ax
 
-
     def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
 
         if self.__class__.__name__ == 'star': 
@@ -669,9 +725,34 @@ class plotting():
 
         return fig, ax
 
-    def corner(self, unpacked=False, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
+    def corner(self, stage='posterior', ID=None, labels=None, savepath=None, unpacked=False, kwargs={}, save_kwargs={}, N=10000):
 
-        pass
+        if self.__class__.__name__ == 'star': 
+            
+            _StarClassCorner(self, **kwargs)
+
+        elif self.__class__.__name__ == 'modeIDsampler':
+            if stage=='prior':
+
+                samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
+
+                fig, ax = _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs)
+            
+            elif stage=='posterior': 
+                fig, ax = _ModeIDClassPostCorner(self, samples, unpacked, **kwargs)
+            
+        elif self.__class__.__name__ == 'peakbag': 
+
+            if stage=='prior':
+                fig, ax = _PeakbagClassPriorCorner(self, unpacked, **kwargs)
+                
+            elif stage=='posterior':
+                fig, ax = _PeakbagClassPostCorner(self, unpacked, **kwargs)
+        
+        else:
+            raise ValueError('Unrecognized class type')
+        
+        return fig, ax
 
     def plotLatentCorner(self, samples, labels=None):
     
@@ -779,6 +860,7 @@ class plotting():
         """
         
         N = int(np.sqrt(len(axes)))
+
         axs = np.array(axes).reshape((N,N)).T
         
         for i, j in enumerate(idxs):
@@ -788,6 +870,7 @@ class plotting():
                     continue
                     
                 v, ve = vals[i], vals_err[i]
+
                 w, we = vals[m], vals_err[m]
     
                 axs[j,k].errorbar(v, w, xerr=ve.reshape((2,1)), yerr=we.reshape((2,1)), fmt = 'o', ms = 10, color = 'C3')
@@ -880,27 +963,27 @@ class plotting():
 
         return crnr
     
-    def plot_start(self):
-        """ Plot starting point for peakbag
+    # def plot_start(self):
+    #     """ Plot starting point for peakbag
         
-        Plots the starting model to be used in peakbag as a diagnotstic.
+    #     Plots the starting model to be used in peakbag as a diagnotstic.
         
-        """
+    #     """
 
-        dnu = 10**np.median(self.start_samples, axis=0)[0]
-        xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
-        fig, ax = plt.subplots(figsize=[16,9])
-        ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-        smoo = dnu * 0.005 / (self.f[1] - self.f[0])
-        kernel = conv.Gaussian1DKernel(stddev=smoo)
-        smoothed = conv.convolve(self.s, kernel)
-        ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-        ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
-                'r-', label='Start model', alpha=0.7)
-        ax.set_ylim([0, smoothed.max()*1.5])
-        ax.set_xlim(xlim)
-        ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-        ax.set_ylabel(r'SNR')
-        ax.legend()
-        return fig
+    #     dnu = 10**np.median(self.start_samples, axis=0)[0]
+    #     xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
+    #     fig, ax = plt.subplots(figsize=[16,9])
+    #     ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
+    #     smoo = dnu * 0.005 / (self.f[1] - self.f[0])
+    #     kernel = conv.Gaussian1DKernel(stddev=smoo)
+    #     smoothed = conv.convolve(self.s, kernel)
+    #     ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
+    #     ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
+    #             'r-', label='Start model', alpha=0.7)
+    #     ax.set_ylim([0, smoothed.max()*1.5])
+    #     ax.set_xlim(xlim)
+    #     ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+    #     ax.set_ylabel(r'SNR')
+    #     ax.legend()
+    #     return fig
 
