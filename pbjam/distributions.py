@@ -743,3 +743,84 @@ class truncsine():
         x = jnp.arccos(1-y)
 
         return x
+    
+class randint():
+    def __init__(self, low, high):
+        self.low = low
+        
+        self.high = high
+        
+        self.diff = self.high - self.low
+
+        self.ints = jnp.arange(low, high, 1)
+
+        self._set_stdatt()
+
+    def rv(self):
+        """ Draw random variable from distribution
+
+        Returns
+        -------
+        x : float
+            Random variable drawn from the distribution
+        """
+
+        u = np.random.uniform(0, 1)
+        
+        x = self.ppf(u)
+        
+        return x
+
+    def _set_stdatt(self):
+        """ Set mean and median for the distribution
+        """
+        x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
+
+        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+
+        self.median = self.ppf(0.5)
+
+    @partial(jax.jit, static_argnums=(0,))    
+    def pdf(self, x):
+        """_summary_
+
+        Parameters
+        ----------
+        x : _type_
+            _description_
+
+        Returns
+        -------
+        _type_
+            _description_
+        """
+        T = jnp.sum(self.ints == x).astype(bool)
+        
+        y = jax.lax.cond(T, lambda : 1/self.diff, lambda : 0.)
+
+        return y
+    
+    @partial(jax.jit, static_argnums=(0,))    
+    def logpdf(self, x):
+        T = jnp.sum(self.ints == x).astype(bool)
+        
+        y = jax.lax.cond(T, lambda : -self.diff, lambda : -jnp.inf)
+
+        return y
+
+    @partial(jax.jit, static_argnums=(0,))    
+    def cdf(self, x):
+        
+        k = jnp.floor(x)
+        
+        return (k - self.low + 1.) / self.diff
+        
+    @partial(jax.jit, static_argnums=(0,))
+    def ppf(self, q):
+        vals = jnp.ceil(q * self.diff + self.low) - 1
+        
+        vals1 = (vals - 1).clip(self.low, self.high)
+        
+        temp = self.cdf(vals1)
+         
+        return jnp.floor(jnp.where(temp >= q, vals1, vals))
