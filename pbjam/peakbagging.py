@@ -9,7 +9,8 @@ from pbjam.plotting import plotting
 
 class peakbag(plotting):
     
-    def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, dnu, d02, addPriors={}, freq_limits=[], **kwargs):
+    def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, 
+                 dnu, d02, addPriors={}, freq_limits=[], **kwargs):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -22,6 +23,8 @@ class peakbag(plotting):
         idx = self.pickFreqs(self.ell, self.freq, self.dnu)
 
         self.ell = self.ell[idx]
+
+        self.N_p = len(self.ell[self.ell==0])
 
         self.freq = self.freq[:, idx]
         
@@ -486,6 +489,7 @@ class peakbag(plotting):
         
         self.addObs = {}
 
+        # TODO this should be changed to something that can't go below 0
         self.addObs['d02'] = dist.normal(loc=self.d02[0], 
                                          scale=10 * self.d02[1])
  

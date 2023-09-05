@@ -208,6 +208,7 @@ def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
     return fig, ax
 
 def _StarClassEchelle(self, obs, scale, **kwargs):
+
     dnu = obs['dnu'][0]
     
     numax = obs['numax'][0]
@@ -219,6 +220,7 @@ def _StarClassEchelle(self, obs, scale, **kwargs):
     return fig, ax
 
 def _ModeIDClassPriorEchelle(self, obs, scale, colors, DPi1=None, eps_g=None, alpha_g=None, **kwargs):
+
     dnu = obs['dnu'][0]
     
     numax = obs['numax'][0]
@@ -253,8 +255,7 @@ def _ModeIDClassPriorEchelle(self, obs, scale, colors, DPi1=None, eps_g=None, al
             if (ylims[0] < nu) & (nu < ylims[1]):
                 ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
 
-        ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{DPi1}s \n' r'$\epsilon_g=$'+f'{eps_g}')
-
+        ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{np.round(DPi1, decimals=0)}s \n' r'$\epsilon_g=$'+f'{np.round(eps_g, decimals=2)}')
 
     ax.legend(loc=1)
 
@@ -271,9 +272,9 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
     # Overplot mode frequency samples
     for l in np.unique(self.result['ell']).astype(int):
 
-        idx = self.result['ell'] == l
+        idx_ell = self.result['ell'] == l
 
-        freqs = self.result['samples']['freq'][:Nsamples, idx]
+        freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
@@ -295,27 +296,79 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
 
     #Overplot l=1 p-modes
     nu0_p, _ = self.AsyFreqModel.asymptotic_nu_p(numax, 
-                                              dnu,  
-                                              self.result['summary']['eps_p'][0], 
-                                              self.result['summary']['alpha_p'][0],)
+                                                dnu,  
+                                                self.result['summary']['eps_p'][0], 
+                                                self.result['summary']['alpha_p'][0],)
     
     nu1_p = nu0_p + self.result['summary']['d01'][0]
 
     nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
 
     ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
-
-    ax.legend(ncols=2)
     
     ax.set_xlim(0, dnu)
 
+    ax.legend(ncols=2)
+    
     return fig, ax
 
-def _PeakbagClassPriorEchelle():
-    raise ValueError('Echelles for the prior of the peakbag stage are currently on the TODO.')
+def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
-def _PeakbagClassPostEchelle():
-    pass 
+    dnu = self.dnu[0]
+    
+    numax = self.numax[0]
+
+    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
+
+    freqPriors = {key:val for key,val in self.priors.items() if 'freq' in key}
+
+    for l in np.unique(self.ell).astype(int):
+
+        idx_ell = self.ell == l
+
+        nu = np.array([freqPriors[key].mean for key in np.array(list(freqPriors.keys()))[idx_ell] if 'freq' in key])
+
+        nu_err = np.array([freqPriors[key].scale for key in np.array(list(freqPriors.keys()))[idx_ell] if 'freq' in key])
+
+        nu_x, nu_y = _echellify_freqs(nu, dnu)
+
+        ax.errorbar(nu_x, nu_y, xerr=nu_err, color=colors[l], fmt='o')
+
+        # Add to legend
+        ax.errorbar(-100, -100, xerr=1, color=colors[l], fmt='o', label=r'$\ell=$'+str(l))
+    
+    ax.set_xlim(0, dnu)
+
+    ax.legend(loc=1)
+
+    
+
+    return fig, ax
+
+def _PeakbagClassPostEchelle(self, Nsamples, obs, scale, colors):
+    
+    dnu = obs['dnu'][0]
+    
+    numax = obs['numax'][0]
+
+    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
+    
+    for l in np.unique(self.ell).astype(int):
+
+        idx_ell = self.ell == l
+
+        freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
+
+        smp_x, smp_y = _echellify_freqs(freqs, dnu) 
+
+        ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+
+        # Add to legend
+        ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
+    
+    ax.legend(loc=1)
+
+    return fig, ax 
 
 
 def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
@@ -568,7 +621,6 @@ def _ModeIDClassPriorCorner(self, samples, labels, unpacked):
 
     if not unpacked:
         for i, key in enumerate(labels):
-        
             if key in self.priors.keys():
             
                 x = np.linspace(self.priors[key].ppf(1e-6), 
@@ -580,9 +632,27 @@ def _ModeIDClassPriorCorner(self, samples, labels, unpacked):
         
     return fig, axes
 
+def _ModeIDClassPostCorner(self, samples, labels, unpacked):
 
-def _ModeIDClassPostCorner(self, samples, unpacked):
     _samples = _setSampleToPlot(self, samples, unpacked)
+
+    if labels == None:
+        labels = list(_samples.keys())
+
+    fig = _baseCorner(_samples, labels)  
+
+    axes = np.array(fig.get_axes()).reshape((len(labels), len(labels)))
+
+    if not unpacked:
+        for i, key in enumerate(labels):
+        
+            if key in self.priors.keys():
+            
+                x = np.linspace(self.priors[key].ppf(1e-6), self.priors[key].ppf(1-1e-6), 100)
+
+                pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+
+                axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5) 
 
     return fig, axes
 
@@ -669,7 +739,7 @@ class plotting():
         elif self.__class__.__name__ == 'peakbag':  
             
             if stage=='prior':
-                fig, ax = _PeakbagClassPriorEchelle(**kwargs)
+                fig, ax = _PeakbagClassPriorEchelle(self, **kwargs)
                 
             elif stage=='posterior':
                 fig, ax = _PeakbagClassPostEchelle(**kwargs)
@@ -739,7 +809,10 @@ class plotting():
                 fig, ax = _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs)
             
             elif stage=='posterior': 
-                fig, ax = _ModeIDClassPostCorner(self, samples, unpacked, **kwargs)
+                
+                samples = self.samples
+
+                fig, ax = _ModeIDClassPostCorner(self, samples, labels, unpacked, **kwargs)
             
         elif self.__class__.__name__ == 'peakbag': 
 
