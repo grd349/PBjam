@@ -163,10 +163,6 @@ class modeIDsampler(plotting):
 
         theta_u['p_D'] = jnp.array([(theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)])
 
-        # theta_u['p_L0'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
-
-        # theta_u['p_D0'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
-
         # theta_u['p_L'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_L' in key])
 
         # theta_u['p_D'] = jnp.array([theta_u[key] for key in theta_u.keys() if 'p_D' in key])
@@ -253,16 +249,6 @@ class modeIDsampler(plotting):
         Hs0 = self.envelope(nu0_p, **theta_u)
         
         modes = self.add20Pairs(nu, nu0_p, Hs0, **theta_u)
-        # modes = jnp.zeros_like(nu)
-
-        # for n in range(1, self.N_p-1):
-        #     #modes += self.pair(nu, nu0_p[n], Hs0[n], **theta_u)
-
-        #     modes += jar.lor(nu, nu0_p[n]                 , Hs0[n]                  , theta_u['mode_width']) 
-            
-        #     modes += jar.lor(nu, nu0_p[n] - theta_u['d02'], Hs0[n] * self.vis['V20'], theta_u['mode_width'])
-
-
         
         # l=1
         nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
@@ -385,40 +371,7 @@ class modeIDsampler(plotting):
         """
          
         return  fac * mode_width * jnp.maximum(0, 1. - zeta) 
-    
-    # @partial(jax.jit, static_argnums=(0,))
-    # def pair(self, nu, nu0, h0, mode_width, d02, **kwargs):
-    #     """Define a pair as the sum of two Lorentzians.
-
-    #     A pair is assumed to consist of an l=0 and an l=2 mode. The widths are
-    #     assumed to be identical, and the height of the l=2 mode is scaled
-    #     relative to that of the l=0 mode. The frequency of the l=2 mode is the
-    #     l=0 frequency minus the small separation.
-
-    #     Parameters
-    #     ----------
-    #     nu : jax device array
-    #         Frequency range to compute the pair on.
-    #     nu0 : float
-    #         Frequency of the l=0 (muHz).
-    #     h0 : float
-    #         Height of the l=0 (SNR).
-    #     w0 : float
-    #         The mode width (identical for l=2 and l=0) (log10(muHz)).
-    #     d02 : float
-    #         The small separation (muHz).
-
-    #     Returns
-    #     -------
-    #     pair_model : array
-    #         The SNR as a function of frequency of a mode pair.
-            
-    #     """
-        
-    #     pair_model = 
-
-    #     return pair_model
-    
+      
     def setAddObs(self):
         """ Set attribute containing additional observational data
 
@@ -661,8 +614,6 @@ class modeIDsampler(plotting):
         samples : jax device array
             Array of samples from the nested sampling with shape (Nsamples, Ndim)
         """
-
- 
 
         initLive = self.getInitLive(nlive)
 
@@ -982,7 +933,3 @@ class modeIDsampler(plotting):
         df = pd.DataFrame(df_data)
         
         df.to_csv(basefilename+'.csv', index=False)
-
-
-
-        
