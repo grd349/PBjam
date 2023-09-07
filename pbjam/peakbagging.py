@@ -109,11 +109,12 @@ class peakbag(plotting):
         else:
             idx = jnp.ones(len(freq), dtype=bool)
 
-        return idx
-    
-    def setPriors(self, freq_err=0.03):
- 
+        idxnot1 = ell != 1
 
+        return idx * idxnot1
+    
+    def setPriors(self, freq_err=0.02):
+ 
         self.priors = {}
 
         self.priors.update((k, v) for k, v in self.addPriors.items())
@@ -121,8 +122,9 @@ class peakbag(plotting):
         for i in range(self.Nmodes):
             _key = f'freq{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=self.freq[0,i], # self.modeIDres['summary']['freq'][0, i],
-                                                scale=freq_err * self.dnu[0])
+                freqScale = max([freq_err * self.dnu[0], self.freq[1, i]])
+                self.priors[_key] = dist.normal(loc=self.freq[0, i], # self.modeIDres['summary']['freq'][0, i],
+                                                scale=freqScale)
         for i in range(self.Nmodes):
             _key = f'height{i}'
             if _key not in self.priors:
@@ -514,6 +516,9 @@ class peakbag(plotting):
         lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
 
         return lnp
+
+
+
 
 # """
 
