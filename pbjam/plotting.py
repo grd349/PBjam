@@ -441,7 +441,7 @@ def _StarClassSpectrum(self):
 
     return fig, ax
 
-def _ModeIDClassPriorSpectrum(self, N=20):
+def _ModeIDClassPriorSpectrum(self, N):
     
     fig, ax = plt.subplots(figsize=(16,9))
 
@@ -473,7 +473,7 @@ def _ModeIDClassPriorSpectrum(self, N=20):
 
     return fig, ax
 
-def _ModeIDClassPostSpectrum(self, N=20):
+def _ModeIDClassPostSpectrum(self, N):
 
     rint = np.random.randint(0, self.samples.shape[0], size=N)
 
@@ -530,7 +530,7 @@ def _ModeIDClassPostSpectrum(self, N=20):
 
     return fig, ax
 
-def _PeakbagClassPriorSpectrum(self, N=20):
+def _PeakbagClassPriorSpectrum(self, N):
     
     fig, ax = plt.subplots(figsize=(16,9))
 
@@ -560,7 +560,7 @@ def _PeakbagClassPriorSpectrum(self, N=20):
 
     return fig, ax
 
-def _PeakbagClassPostSpectrum(self, N=20):
+def _PeakbagClassPostSpectrum(self, N):
 
     rint = np.random.randint(0, self.samples.shape[0], size=N)
 
@@ -757,7 +757,7 @@ class plotting():
 
         return fig, ax
 
-    def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
+    def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}, N=20):
 
         if self.__class__.__name__ == 'star': 
             
@@ -766,21 +766,21 @@ class plotting():
         elif self.__class__.__name__ == 'modeIDsampler':
             if stage=='prior':
 
-                fig, ax = _ModeIDClassPriorSpectrum(self, **kwargs)
+                fig, ax = _ModeIDClassPriorSpectrum(self, N, **kwargs)
 
             elif stage=='posterior': 
 
                 assert hasattr(self, 'result')
 
-                fig, ax = _ModeIDClassPostSpectrum(self, **kwargs)
+                fig, ax = _ModeIDClassPostSpectrum(self, N, **kwargs)
 
         elif self.__class__.__name__ == 'peakbag': 
 
             if stage=='prior':
-                fig, ax = _PeakbagClassPriorSpectrum(self, **kwargs)
+                fig, ax = _PeakbagClassPriorSpectrum(self, N, **kwargs)
                 
             elif stage=='posterior':
-                fig, ax = _PeakbagClassPostSpectrum(self, **kwargs)
+                fig, ax = _PeakbagClassPostSpectrum(self, N, **kwargs)
         
         else:
             raise ValueError('Unrecognized class type')
