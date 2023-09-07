@@ -71,7 +71,7 @@ class peakbag(plotting):
 
         return bkgModel
 
-    def pickFreqs(self, ell, freq, dnu, fac=1, all=False):
+    def pickFreqs(self, ell, freq, dnu, fac=1, modes='all'):
         """
         Pick frequency indices that fall within +/- fac * dnu of the lowest
         and highest l=0 mode frequency in freq. 
@@ -100,18 +100,20 @@ class peakbag(plotting):
         - If 'all' is True, selects all frequency indices.
         """
          
-        if not all:
+        if modes == 'all':
+            idx = jnp.ones(len(freq), dtype=bool)
+        
+        else:
             idx_ell0 = ell == 0
 
             nu0 = freq[0, idx_ell0]
 
             idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
-        else:
-            idx = jnp.ones(len(freq), dtype=bool)
 
-        idxnot1 = ell != 1
+        if modes == 'l20':
+            idx *= ell != 1
 
-        return idx * idxnot1
+        return idx
     
     def setPriors(self, freq_err=0.02):
  
