@@ -34,13 +34,15 @@ class modeIDsampler(plotting):
   
         self.setPriors()
  
-        self.ndims = len(self.latentLabels + self.addlabels)
-
         self.AsyFreqModel = AsyFreqModel(self.N_p)
 
-        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
+        self.ndims = len(self.latentLabels + self.addlabels)
 
+        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
+        
         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
+
+        self.N_g = self.MixFreqModel.N_g
 
         self.background = bkgModel(self.Nyquist)
 
@@ -48,7 +50,16 @@ class modeIDsampler(plotting):
 
         self.setAddObs()
 
+        self.trimVariables()
+
+    def trimVariables(self):
     
+        for i in range(self.N_g + self.N_p, 100, 1):
+            del self.addlabels[self.addlabels.index(f'freqError{i}')]
+            del self.labels[self.labels.index(f'freqError{i}')]
+            del self.priors[f'freqError{i}']
+            
+        self.ndims = len(self.priors)   
  
     def _makeTmpSample(self, keys, N=1000):
         """
@@ -120,12 +131,15 @@ class modeIDsampler(plotting):
         
         # If key appears in priors dict, override default and move it to add.
         for key in self.variables.keys():
-            
             if self.variables[key]['pca'] and (key not in priors.keys()):
                 self.pcalabels.append(key)
 
             else:
-                self.addlabels.append(key)
+                if key == 'freqError':
+                    for i in range(100):
+                        self.addlabels.append(f'freqError{i}')
+                else:
+                    self.addlabels.append(key)
   
         self.labels = self.pcalabels + self.addlabels
 
@@ -192,9 +206,9 @@ class modeIDsampler(plotting):
         self.priors.update({key : self.addPriors[key] for key in orderedAddKeys})
         
         # Core rotation prior
-        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=1.)
+        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
 
-        self.priors['nurot_e'] = dist.uniform(loc=0., scale=1.5)
+        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
 
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()
@@ -216,12 +230,17 @@ class modeIDsampler(plotting):
  
         self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
 
+        for i in range(100):
+            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/20 * self.obs['dnu'][0])
+
 
 
     @partial(jax.jit, static_argnums=(0,))
-    def add20Pairs(self, nu, nu0_p, Hs0, d02, mode_width, nurot_e, inc, **kwargs):
-        
-        modes = jnp.zeros_like(nu)
+    def add20Pairs(self, modes, nu, d02, mode_width, nurot_e, inc, **kwargs):
+ 
+        nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**kwargs)
+
+        Hs0 = self.envelope(nu0_p, **kwargs)
 
         for n in range(self.N_p):
 
@@ -235,38 +254,46 @@ class modeIDsampler(plotting):
 
                 modes += jar.lor(nu, f, H, mode_width)
 
+        return modes, nu0_p, n_p
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def addl1(self, modes, nu, nu0_p, n_p, nurot_c, nurot_e, inc,  **kwargs):
+        
+        nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **kwargs)
+ 
+        Hs1 = self.envelope(nu1s, **kwargs)
+        
+        modewidth1s = self.l1_modewidths(zeta, **kwargs)
+         
+        nurot = zeta * nurot_c + (1 - zeta) * nurot_e
+        
+        for i in range(len(nu1s)):
+            
+            nul1 = nu1s[i] + kwargs[f'freqError{i}']
+
+            modes += jar.lor(nu, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(inc)**2
+        
+            modes += jar.lor(nu, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(inc)**2 / 2
+        
+            modes += jar.lor(nu, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(inc)**2 / 2
+
         return modes
 
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u, nu):
-
+        
         # Background
         bkg = self.background(theta_u, nu)
  
-        # l=2,0
-        nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**theta_u)
+        modes = jnp.ones_like(nu)
 
-        Hs0 = self.envelope(nu0_p, **theta_u)
-        
-        modes = self.add20Pairs(nu, nu0_p, Hs0, **theta_u)
+        # l=2,0
+        modes, nu0_p, n_p = self.add20Pairs(modes, nu, **theta_u)
         
         # l=1
-        nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **theta_u)
-        
-        Hs1 = self.envelope(nu1s, **theta_u)
-        
-        modewidth1s = self.l1_modewidths(zeta, **theta_u)
+        modes = self.addl1(modes, nu, nu0_p, n_p, **theta_u)
          
-        nurot = zeta * theta_u['nurot_c'] + (1 - zeta) * theta_u['nurot_e']
-
-        for i in range(len(nu1s)):
-            modes += jar.lor(nu, nu1s[i]                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
-        
-            modes += jar.lor(nu, nu1s[i] - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
-        
-            modes += jar.lor(nu, nu1s[i] + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
- 
-        return (1 + modes) * bkg
+        return modes * bkg
 
     def setupDR(self):
         """ Setup the latent parameters and projection functions
@@ -637,7 +664,7 @@ class modeIDsampler(plotting):
                                             self.ndims, 
                                             nlive=nlive, 
                                             sample='rwalk',
-                                            live_points = initLive,
+                                            live_points=initLive,
                                             logl_args=[self.f[self.sel]])
             
             sampler.run_nested(print_progress=progress)
@@ -785,7 +812,8 @@ class modeIDsampler(plotting):
                  'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'}, 
                  'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False, 'unit': 'muHz'},
                  'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False, 'unit': 'None'},
-                 'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'}}
+                 'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'},
+                 'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'}}
 
     def _modeUpdoot(self, result, sample, key, Nmodes):
         
@@ -808,7 +836,7 @@ class modeIDsampler(plotting):
                               'height': np.array([]).reshape((2, 0)), 
                               'width': np.array([]).reshape((2, 0))
                              },
-                  'samples': {'freq': np.array([]).reshape((N, 0)), 
+                  'samples': {'freq': np.array([]).reshape((N, 0)),
                               'height': np.array([]).reshape((N, 0)), 
                               'width': np.array([]).reshape((N, 0))
                              },
@@ -822,7 +850,9 @@ class modeIDsampler(plotting):
         n_p = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
         
         result['ell'] = np.append(result['ell'], np.zeros(self.N_p))
+
         result['enn'] = np.append(result['enn'], n_p)
+
         result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
 
         # # Frequencies
@@ -847,8 +877,6 @@ class modeIDsampler(plotting):
                                                   jnp.array([smp['p_D'][i]]), 
                                                   smp['eps_g'][i], 
                                                   smp['alpha_g'][i]) for i in range(N)])
-        
-         
         
         N_pg = self.MixFreqModel.N_p + self.MixFreqModel.N_g
         
@@ -895,10 +923,8 @@ class modeIDsampler(plotting):
         W2_samps = np.tile(smp['mode_width'], np.shape(nu2_samps)[1]).reshape((nu2_samps.shape[1], nu2_samps.shape[0])).T
         self._modeUpdoot(result, W2_samps, 'width', self.N_p)
 
-
         # Background
-        #muBkg = self.meanBkg(self.f, smp)
-        result['background'] = self.meanBkg(self.f, smp) # self.meanBkg(self.f, smp) #jar.jaxInterp1D(self.f, muBkg)
+        result['background'] = self.meanBkg(self.f, smp)  
 
         return result
     
@@ -933,3 +959,104 @@ class modeIDsampler(plotting):
         df = pd.DataFrame(df_data)
         
         df.to_csv(basefilename+'.csv', index=False)
+
+
+    def testLikelihood(self):
+    
+        u = np.random.uniform(0, 1, self.ndims)
+        
+        theta = self.ptform(u)
+        
+        return self.lnlikelihood(theta, self.f[self.sel])
+
+    def testModel(self):
+        
+        u = np.random.uniform(0, 1, self.ndims)
+        
+        theta = self.ptform(u)
+        
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u, self.f[self.sel])
+        
+        return self.f[self.sel], m
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def add20Pairs(self, nu, modes, d02, mode_width, nurot_e, inc, **kwargs):
+
+    #     nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**kwargs)
+
+    #     Hs0 = self.envelope(nu0_p, **kwargs)
+
+    #     for n in range(self.N_p):
+
+    #         modes += jar.lor(nu, nu0_p[n], Hs0[n], mode_width) 
+            
+    #         for m in [-2, -1, 0, 1, 2]:
+                
+    #             H = Hs0[n] * self.vis['V20'] * jar.visell2(abs(m), inc)
+                
+    #             f = nu0_p[n] - d02 + m * nurot_e
+
+    #             modes += jar.lor(nu, f, H, mode_width)
+
+    #     return modes, nu0_p, n_p
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def addl1modes(self, nu, modes, nu0_p, n_p, nurot_c, nurot_e, inc, **kwargs):
+
+    #     nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **kwargs)
+        
+    #     Hs1 = self.envelope(nu1s, **kwargs)
+
+    #     modewidth1s = self.l1_modewidths(zeta, **kwargs)
+         
+    #     nurot = zeta * nurot_c + (1 - zeta) * nurot_e
+
+    #     for i in range(len(nu1s)):
+    #         modes += jar.lor(nu, nu1s[i]                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(inc)**2
+        
+    #         modes += jar.lor(nu, nu1s[i] - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(inc)**2 / 2
+        
+    #         modes += jar.lor(nu, nu1s[i] + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(inc)**2 / 2
+         
+    #     return modes
+    
+    # @partial(jax.jit, static_argnums=(0,))
+    # def modelFull(self, theta_u, nu):
+
+    #     # Background
+    #     bkg = self.background(theta_u, nu)
+ 
+    #     modes = jnp.ones_like(nu)
+
+    #     # l=2,0
+    #     modes, nu0_p, n_p = self.add20Pairs(nu, modes, **theta_u)
+        
+    #     # l=1
+    #     modes = self.addl1modes(nu, modes, nu0_p, n_p, **theta_u)
+ 
+    #     return modes * bkg
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def model20(self, theta_u, nu):
+
+    #     # Background
+    #     bkg = self.background(theta_u, nu)
+ 
+    #     modes = jnp.ones_like(nu)
+
+    #     # l=2,0
+    #     modes, nu0_p, n_p = self.add20Pairs(nu, modes, **theta_u)
+        
+    #     return modes * bkg
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def model1(self, theta_u, nu):
+
+    #     modes = jnp.ones_like(nu)
+
+    #     # l=1
+    #     modes, self.addl1modes(nu, modes, self.nu0_p, self.n_p, **theta_u)
+ 
+    #     return modes
