@@ -13,6 +13,7 @@ import numpy as np
 import astropy.units as u
 import pandas as pd
 
+ellColors = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
 
 def smooth_power(freq, power, smooth_filter_width):
     """Smooths the input power array with a Box1DKernel from astropy
@@ -269,12 +270,17 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
 
+    l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
+
     # Overplot mode frequency samples
     for l in np.unique(self.result['ell']).astype(int):
 
         idx_ell = self.result['ell'] == l
 
         freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
+
+        if l==1:
+            freqs += l1error[:Nsamples, :]
 
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
@@ -289,7 +295,13 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
                                           self.result['summary']['eps_g'][0], 
                                           self.result['summary']['alpha_g'][0], )
     
-    for nu in nu_g:
+    ylims = ax.get_ylim()
+
+    for i, nu in enumerate(nu_g):
+
+        if (ylims[0] < nu) & (nu < ylims[1]):
+            ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
+
         ax.axhline(nu, color='k', ls='dashed')
 
     ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
@@ -326,13 +338,13 @@ def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
         idx_ell = self.ell == l
 
-        nu = np.array([freqPriors[key].mean for key in np.array(list(freqPriors.keys()))[idx_ell] if 'freq' in key])
-
-        nu_err = np.array([freqPriors[key].scale for key in np.array(list(freqPriors.keys()))[idx_ell] if 'freq' in key])
+        nu = np.array([freqPriors[key].ppf(0.5) for key in np.array(list(freqPriors.keys()))[idx_ell]])
+        
+        nu_err = np.array([[freqPriors[key].ppf(0.5)-freqPriors[key].ppf(0.16), freqPriors[key].ppf(0.84)-freqPriors[key].ppf(0.5)] for key in np.array(list(freqPriors.keys()))[idx_ell]])
 
         nu_x, nu_y = _echellify_freqs(nu, dnu)
 
-        ax.errorbar(nu_x, nu_y, xerr=nu_err, color=colors[l], fmt='o')
+        ax.errorbar(nu_x, nu_y, xerr=nu_err.T, color=colors[l], fmt='o')
 
         # Add to legend
         ax.errorbar(-100, -100, xerr=1, color=colors[l], fmt='o', label=r'$\ell=$'+str(l))
@@ -341,15 +353,13 @@ def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
     ax.legend(loc=1)
 
-    
-
     return fig, ax
 
-def _PeakbagClassPostEchelle(self, Nsamples, obs, scale, colors):
+def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, **kwargs):
     
-    dnu = obs['dnu'][0]
+    dnu = self.dnu[0]
     
-    numax = obs['numax'][0]
+    numax = self.numax[0]
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
@@ -357,7 +367,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, obs, scale, colors):
 
         idx_ell = self.ell == l
 
-        freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
+        freqs = self.result['samples']['freq'][idx_ell, :Nsamples]
 
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
@@ -597,18 +607,17 @@ def _baseCorner(samples, labels):
     
     return fig
 
-def _setSampleToPlot(self, samples, unpacked):
+def _setSampleToPlot(self, samples, unpacked, labels=None):
 
     if unpacked:
         _samples = self.unpackSamples(samples)
 
     else:
-        _samples = {key: samples[:, i] for i, key in enumerate(self.priors.keys())}
+        _samples = {label: samples[:, i] for i, label in enumerate(self.priors.keys())}
 
     return _samples
 
-
-def _ModeIDClassPriorCorner(self, samples, labels, unpacked):
+def _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs):
 
     _samples = _setSampleToPlot(self, samples, unpacked)
 
@@ -632,7 +641,7 @@ def _ModeIDClassPriorCorner(self, samples, labels, unpacked):
         
     return fig, axes
 
-def _ModeIDClassPostCorner(self, samples, labels, unpacked):
+def _ModeIDClassPostCorner(self, samples, labels, unpacked, **kwargs):
 
     _samples = _setSampleToPlot(self, samples, unpacked)
 
@@ -656,13 +665,68 @@ def _ModeIDClassPostCorner(self, samples, labels, unpacked):
 
     return fig, axes
 
-def _PeakbagClassPriorCorner(self, samples, unpacked):
-    _samples = _setSampleToPlot(self, samples, unpacked)
+def _PeakbagClassPriorCorner(self, samples, labelType, **kwargs):
+     
+    _samples = self.unpackSamples(samples)
+
+    subSamples = {key: v for key, v in _samples.items() if any([l in key for l in labelType])}
+
+    plotLabels = list(subSamples.keys())
+
+    fig = _baseCorner(subSamples, plotLabels)    
+
+    axes = np.array(fig.get_axes()).reshape((len(plotLabels), len(plotLabels)))
+     
+    for i, key in enumerate(subSamples.keys()):
+         
+        x = np.linspace(self.priors[key].ppf(1e-6), 
+                        self.priors[key].ppf(1-1e-6), 100)
+
+        pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+        
+        isLog10 = [self.variables[varKey]['log10'] for varKey in self.variables if key.startswith(varKey)][0]
+
+        if isLog10:
+            axes[i, i].plot(10**x, pdf/10**x/np.log(10.0), color='C2', alpha=0.5, lw=5)
+        else:
+            axes[i, i].plot(x, pdf, color='C2', alpha=0.5, lw=5)
+
+        if  any([key.startswith(l) for l in ['height', 'freq', 'width']]):
+            axes[i,i].patch.set_facecolor(self.ell[i])
+            axes[i,i].patch.set_alpha(0.25)
 
     return fig, axes
 
-def _PeakbagClassPostCorner(self, samples, unpacked):
-    _samples = _setSampleToPlot(self, samples, unpacked)
+
+def _PeakbagClassPostCorner(self, samples, labelType, colors, **kwargs):
+
+    _samples = self.unpackSamples(samples)
+
+    subSamples = {key: v for key, v in _samples.items() if any([l in key for l in labelType])}
+    
+    plotLabels = list(subSamples.keys())
+
+    fig = _baseCorner(subSamples, plotLabels)    
+
+    axes = np.array(fig.get_axes()).reshape((len(plotLabels), len(plotLabels)))
+     
+    for i, key in enumerate(subSamples.keys()):
+         
+        x = np.linspace(self.priors[key].ppf(1e-6), 
+                        self.priors[key].ppf(1-1e-6), 100)
+
+        pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+        
+        isLog10 = [self.variables[varKey]['log10'] for varKey in self.variables if key.startswith(varKey)][0]
+        
+        if isLog10:
+            axes[i, i].plot(10**x, pdf/10**x/np.log(10.0), color='C2', alpha=0.5, lw=5)
+        else:
+            axes[i, i].plot(x, pdf, color='C2', alpha=0.5, lw=5)
+
+        if any([key.startswith(l) for l in ['height', 'freq', 'width']]):
+            axes[i,i].patch.set_facecolor(colors[int(self.ell[i])])
+            axes[i,i].patch.set_alpha(0.25)
 
     return fig, axes
 
@@ -710,7 +774,7 @@ class plotting():
     def echelle(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
 
         if not 'colors' in kwargs:
-            kwargs['colors'] = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
+            kwargs['colors'] = ellColors
 
         if not 'scale' in kwargs:
             kwargs['scale'] = 1/350
@@ -742,7 +806,7 @@ class plotting():
                 fig, ax = _PeakbagClassPriorEchelle(self, **kwargs)
                 
             elif stage=='posterior':
-                fig, ax = _PeakbagClassPostEchelle(**kwargs)
+                fig, ax = _PeakbagClassPostEchelle(self, **kwargs)
 
         else:
             raise ValueError('Unrecognized class type')
@@ -795,7 +859,10 @@ class plotting():
 
         return fig, ax
 
-    def corner(self, stage='posterior', ID=None, labels=None, savepath=None, unpacked=False, kwargs={}, save_kwargs={}, N=10000):
+    def corner(self, stage='posterior', ID=None, labels=None, savepath=None, unpacked=False, kwargs={}, save_kwargs={}, N=5000):
+
+        if not 'colors' in kwargs:
+            kwargs['colors'] = ellColors
 
         if self.__class__.__name__ == 'star': 
             
@@ -817,10 +884,16 @@ class plotting():
         elif self.__class__.__name__ == 'peakbag': 
 
             if stage=='prior':
-                fig, ax = _PeakbagClassPriorCorner(self, unpacked, **kwargs)
+
+                samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
+
+                fig, ax = _PeakbagClassPriorCorner(self, samples, labels, **kwargs)
                 
             elif stage=='posterior':
-                fig, ax = _PeakbagClassPostCorner(self, unpacked, **kwargs)
+
+                samples = self.samples
+
+                fig, ax = _PeakbagClassPostCorner(self, samples, labels, **kwargs)
         
         else:
             raise ValueError('Unrecognized class type')
