@@ -115,7 +115,7 @@ class MixFreqModel():
             Frequencies of the notionally pure g-modes of degree l.
         """
          
-        P0 = 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
+        P0 = 0 # DPi1*1e-6 # 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
 
         #DPi0 = DPi1 / jnp.sqrt(2)  
         DPi1 *= 1e-6 # DPi1 in s to Ms.  
@@ -388,7 +388,7 @@ class MixFreqModel():
         sidx = jnp.argsort(new_omega2)
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
-
+    
     # @partial(jax.jit, static_argnums=(0,))
     # def symmetrize(self, x):
     #     """ Symmetrize matrix.
