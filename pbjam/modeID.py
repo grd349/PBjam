@@ -903,6 +903,8 @@ class modeIDsampler(plotting):
                                                 smp['mode_width'][i]) for i in range(N)]) 
         self._modeUpdoot(result, W1_samps, 'width', N_pg)
         
+
+        
         # l=2
         result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 2)
         result['enn'] = np.append(result['enn'], n_p-1)
@@ -980,83 +982,3 @@ class modeIDsampler(plotting):
         m = self.model(theta_u, self.f[self.sel])
         
         return self.f[self.sel], m
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def add20Pairs(self, nu, modes, d02, mode_width, nurot_e, inc, **kwargs):
-
-    #     nu0_p, n_p = self.AsyFreqModel.asymptotic_nu_p(**kwargs)
-
-    #     Hs0 = self.envelope(nu0_p, **kwargs)
-
-    #     for n in range(self.N_p):
-
-    #         modes += jar.lor(nu, nu0_p[n], Hs0[n], mode_width) 
-            
-    #         for m in [-2, -1, 0, 1, 2]:
-                
-    #             H = Hs0[n] * self.vis['V20'] * jar.visell2(abs(m), inc)
-                
-    #             f = nu0_p[n] - d02 + m * nurot_e
-
-    #             modes += jar.lor(nu, f, H, mode_width)
-
-    #     return modes, nu0_p, n_p
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def addl1modes(self, nu, modes, nu0_p, n_p, nurot_c, nurot_e, inc, **kwargs):
-
-    #     nu1s, zeta = self.MixFreqModel.mixed_nu1(nu0_p, n_p, **kwargs)
-        
-    #     Hs1 = self.envelope(nu1s, **kwargs)
-
-    #     modewidth1s = self.l1_modewidths(zeta, **kwargs)
-         
-    #     nurot = zeta * nurot_c + (1 - zeta) * nurot_e
-
-    #     for i in range(len(nu1s)):
-    #         modes += jar.lor(nu, nu1s[i]                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(inc)**2
-        
-    #         modes += jar.lor(nu, nu1s[i] - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(inc)**2 / 2
-        
-    #         modes += jar.lor(nu, nu1s[i] + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(inc)**2 / 2
-         
-    #     return modes
-    
-    # @partial(jax.jit, static_argnums=(0,))
-    # def modelFull(self, theta_u, nu):
-
-    #     # Background
-    #     bkg = self.background(theta_u, nu)
- 
-    #     modes = jnp.ones_like(nu)
-
-    #     # l=2,0
-    #     modes, nu0_p, n_p = self.add20Pairs(nu, modes, **theta_u)
-        
-    #     # l=1
-    #     modes = self.addl1modes(nu, modes, nu0_p, n_p, **theta_u)
- 
-    #     return modes * bkg
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def model20(self, theta_u, nu):
-
-    #     # Background
-    #     bkg = self.background(theta_u, nu)
- 
-    #     modes = jnp.ones_like(nu)
-
-    #     # l=2,0
-    #     modes, nu0_p, n_p = self.add20Pairs(nu, modes, **theta_u)
-        
-    #     return modes * bkg
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def model1(self, theta_u, nu):
-
-    #     modes = jnp.ones_like(nu)
-
-    #     # l=1
-    #     modes, self.addl1modes(nu, modes, self.nu0_p, self.n_p, **theta_u)
- 
-    #     return modes

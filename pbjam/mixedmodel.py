@@ -388,23 +388,7 @@ class MixFreqModel():
         sidx = jnp.argsort(new_omega2)
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
-    
-    # @partial(jax.jit, static_argnums=(0,))
-    # def symmetrize(self, x):
-    #     """ Symmetrize matrix.
-
-    #     Parameters
-    #     ----------
-    #     x : jax device array
-    #         A square matrix.
-
-    #     Returns
-    #     -------
-    #     w : jax device array
-    #         Symmetrized matrix.
-    #     """
-    #     return (x + jnp.conj(jnp.swapaxes(x, -1, -2))) / 2
-
+ 
     @partial(jax.jit, static_argnums=(0,))
     def standardize_angle(self, w, b):
         """ Helper for eigh solver
@@ -469,10 +453,6 @@ class MixFreqModel():
             Eigenvectors of the generalized problem, normalized such that
             w.H @ b @ w = I.
         """
-
-        #a = self.symmetrize(a)
-
-        #b = self.symmetrize(b)
         
         b_inv_a = jax.scipy.linalg.cho_solve(jax.scipy.linalg.cho_factor(b), a)
 
@@ -498,4 +478,13 @@ class MixFreqModel():
 
         return v, w
 
-    
+# variables = {
+#                  'u1'        : {'info': 'Sum of p_L0 and p_D0'                     , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+#                  'u2'        : {'info': 'Difference between p_L0 and p_D0'         , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+#                  'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
+#                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
+#                  'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
+#                  'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True, 'unit': 'muHz'},
+#                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+#                  'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+   
