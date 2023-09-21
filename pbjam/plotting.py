@@ -220,11 +220,13 @@ def _StarClassEchelle(self, obs, scale, **kwargs):
 
     return fig, ax
 
-def _ModeIDClassPriorEchelle(self, obs, scale, colors, DPi1=None, eps_g=None, alpha_g=None, **kwargs):
+def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None, 
+                             DPi1=None, eps_g=None, alpha_g=None, **kwargs):
 
-    dnu = obs['dnu'][0]
-    
-    numax = obs['numax'][0]
+    if dnu is None:
+        dnu = self.obs['dnu'][0]
+    if numax is None:
+        numax = self.obs['numax'][0]
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
      
@@ -697,7 +699,6 @@ def _PeakbagClassPriorCorner(self, samples, labelType, **kwargs):
 
     return fig, axes
 
-
 def _PeakbagClassPostCorner(self, samples, labelType, colors, **kwargs):
 
     _samples = self.unpackSamples(samples)
@@ -791,7 +792,7 @@ class plotting():
         elif self.__class__.__name__ == 'modeIDsampler':
 
             if stage=='prior':
-                fig, ax = _ModeIDClassPriorEchelle(self, self.obs, **kwargs)
+                fig, ax = _ModeIDClassPriorEchelle(self, **kwargs)
 
             elif stage=='posterior': 
                 
