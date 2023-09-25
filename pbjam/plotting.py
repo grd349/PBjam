@@ -828,6 +828,8 @@ class plotting():
                 
             elif stage=='posterior':
                 fig, ax = _PeakbagClassPostEchelle(self, **kwargs)
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
 
         else:
             raise ValueError('Unrecognized class type')
@@ -859,6 +861,8 @@ class plotting():
                 assert hasattr(self, 'result')
 
                 fig, ax = _ModeIDClassPostSpectrum(self, N, **kwargs)
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
 
         elif self.__class__.__name__ == 'peakbag': 
 
@@ -867,6 +871,8 @@ class plotting():
                 
             elif stage=='posterior':
                 fig, ax = _PeakbagClassPostSpectrum(self, N, **kwargs)
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
         
         else:
             raise ValueError('Unrecognized class type')
@@ -882,7 +888,7 @@ class plotting():
         return fig, ax
 
     def corner(self, stage='posterior', ID=None, labels=None, savepath=None, unpacked=False, kwargs={}, save_kwargs={}, N=5000):
-
+         
         if not 'colors' in kwargs:
             kwargs['colors'] = ellColors
 
@@ -891,20 +897,23 @@ class plotting():
             _StarClassCorner(self, **kwargs)
 
         elif self.__class__.__name__ == 'modeIDsampler':
+             
             if stage=='prior':
-
+                print('bla')
                 samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
 
                 fig, ax = _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs)
             
             elif stage=='posterior': 
-                
+                 
                 samples = self.samples
 
                 fig, ax = _ModeIDClassPostCorner(self, samples, labels, unpacked, **kwargs)
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
             
         elif self.__class__.__name__ == 'peakbag': 
-
+             
             if stage=='prior':
 
                 samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
@@ -916,7 +925,9 @@ class plotting():
                 samples = self.samples
 
                 fig, ax = _PeakbagClassPostCorner(self, samples, labels, **kwargs)
-        
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
+            
         else:
             raise ValueError('Unrecognized class type')
         
