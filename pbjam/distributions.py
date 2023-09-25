@@ -7,7 +7,7 @@ from pbjam import jar
 import statsmodels.api as sm
 
 
-def getQuantileFuncs(data):
+def getQuantileFuncs(data, cut=5, densityScale=30):
     """ Compute distribution methods for arbitrary distributions.
 
     All distributions are treated as separable.
@@ -41,15 +41,17 @@ def getQuantileFuncs(data):
 
         kde = sm.nonparametric.KDEUnivariate(np.array(data[:, i]).real)
 
-        kde.fit(cut=5)
+        kde.fit(cut=cut)
 
-        # TODO currently sampling the unit interval at 5120 points, is this enough? Increasing doesn't seem to impact evaluation time of the ppf.
-        A = jnp.linspace(0, 1, 30*len(kde.cdf))
+        # TODO currently sampling the unit interval at 5120 points, is this 
+        # enough? Increasing doesn't seem to impact evaluation time of the ppf.
+        A = jnp.linspace(0, 1, densityScale*len(kde.cdf))
 
         cdfs.append(kde.cdf)
         
         # The icdf from statsmodels is only evaluated on the input values,
-        # not the complete support of the pdf which may be wider. 
+        # not the complete support of the kde-pdf which may be wider because
+        # of the kernel bandwidth. 
         x = np.linspace(kde.support[0], kde.support[-1], len(A))
         Q = jar.getCurvePercentiles(x, 
                                     kde.evaluate(x),
@@ -631,7 +633,6 @@ class normal():
         x = self.loc + self.scale*jnp.sqrt(2)*jsp.erfinv(2*y-1)
 
         return x
-    
 
 class truncsine():
     def __init__(self,):

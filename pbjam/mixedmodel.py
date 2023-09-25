@@ -408,7 +408,6 @@ class MixFreqModel():
 
         return w * jnp.sign(w[0, :])
 
-
     @partial(jax.jit, static_argnums=(0,))
     def eigh(self, a, b):
         """ Jaxxable replacement for numpy.eigh.

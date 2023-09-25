@@ -233,8 +233,6 @@ class modeIDsampler(plotting):
         for i in range(100):
             self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/20 * self.obs['dnu'][0])
 
-
-
     @partial(jax.jit, static_argnums=(0,))
     def add20Pairs(self, modes, nu, d02, mode_width, nurot_e, inc, **kwargs):
  
@@ -885,7 +883,10 @@ class modeIDsampler(plotting):
 
         # # Frequencies 
         nu1_samps = A[:, 0, :]
-        self._modeUpdoot(result, nu1_samps, 'freq', N_pg)
+
+        sigma_nul1 = np.array([smp[key] for key in smp.keys() if key.startswith('freqError')]).T
+ 
+        self._modeUpdoot(result, nu1_samps + sigma_nul1, 'freq', N_pg)
 
         zeta_samps = A[:, 1, :]
 
@@ -961,7 +962,6 @@ class modeIDsampler(plotting):
         df = pd.DataFrame(df_data)
         
         df.to_csv(basefilename+'.csv', index=False)
-
 
     def testLikelihood(self):
     

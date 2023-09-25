@@ -229,6 +229,8 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
         numax = self.obs['numax'][0]
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
+
+
      
     if DPi1 is None:
         DPi1 = self.priors['DPi1'].ppf(0.5)
@@ -264,13 +266,29 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
 
     return fig, ax
 
-def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
+def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwargs):
 
-    dnu = self.result['summary']['dnu'][0]
-
-    numax = self.result['summary']['numax'][0]
+    if dnu is None:
+        dnu = self.result['summary']['dnu'][0]
+    
+    if numax is None:
+        numax = self.result['summary']['numax'][0]
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
+
+    rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.782])   
+    rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
+    rect_ax.set_yticks([])
+    rect_ax.set_ylim(ax.get_ylim())
+    rect_ax.fill_betweenx(ax.get_ylim(), 
+                  x1=self.priors['freqError0'].mean - self.priors['freqError0'].scale,
+                  x2=self.priors['freqError0'].mean + self.priors['freqError0'].scale, color='k', alpha=0.1)
+    rect_ax.fill_betweenx(ax.get_ylim(), 
+                  x1=self.priors['freqError0'].mean - 2*self.priors['freqError0'].scale,
+                  x2=self.priors['freqError0'].mean + 2*self.priors['freqError0'].scale, color='k', alpha=0.1)
+    rect_ax.set_xlim(self.priors['freqError0'].mean - 3*self.priors['freqError0'].scale,
+                     self.priors['freqError0'].mean + 3*self.priors['freqError0'].scale)
+    rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
     l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
 
@@ -283,6 +301,8 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, **kwargs):
 
         if l==1:
             freqs += l1error[:Nsamples, :]
+
+            rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
 
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
@@ -814,7 +834,8 @@ class plotting():
 
         if ID is not None:
             ax.set_title(ID)
-                        
+
+                       
         fig.tight_layout()
 
         if (savepath is not None):

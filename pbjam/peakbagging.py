@@ -126,7 +126,7 @@ class peakbag(plotting):
             _key = f'freq{i}'
             if _key not in self.priors:
                 freqScale = max([freq_err * self.dnu[0], self.freq[1, i]])
-                self.priors[_key] = dist.normal(loc=self.freq[0, i], # self.modeIDres['summary']['freq'][0, i],
+                self.priors[_key] = dist.normal(loc=self.freq[0, i],  
                                                 scale=freqScale)
         for i in range(self.Nmodes):
             _key = f'height{i}'
@@ -159,20 +159,6 @@ class peakbag(plotting):
 
         if not all([key in self.labels for key in self.priors.keys()]):
             raise ValueError('Length of labels doesnt match lenght of priors.')
-
-    # def _checkInputs(self):
-
-    #     if (self.ell is None) and (self.modeIDres is not None):
-    #         self.ell = self.modeIDres['ell']
-            
-#         reqs = [self.__dict__[key] is None for key in ['ell', 'modeIDres']]
-
-#         for key in ['freqs', 'heights', 'widths', 'ell']:
-#             if (self.__dict__[key] is None) and (self.modeIDres is not None):
-#                 if key == 'ell':
-#                     self.ell = self.modeIDres[key]
-#                 else:
-#                     self.__dict__[key] = self.modeIDres['summary'][key]
      
     def set_labels(self):
  
@@ -502,16 +488,26 @@ class peakbag(plotting):
 
         # TODO this should be changed to something that can't go below 0
         self.addObs['d02'] = dist.normal(loc=self.d02[0], 
-                                        scale=10 * self.d02[1])
+                                         scale=10 * self.d02[1])
 
         # Correlated Noise Regularisation for width
-        wGPtheta={'amp': 0.1, 'scale': self.dnu[0]}
+        wGPtheta={'amp': 1, 'scale': self.dnu[0]}
 
         wGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.width[0, :]/(1-self.zeta)))
     
         wGP = self.build_gp(wGPtheta, self.freq[0, :], wGPmuFunc)
 
         self.addObs['widthGP'] = wGP.log_probability
+
+
+        # Correlated Noise Regularisation for amplitude
+        hGPtheta={'amp': 1, 'scale': self.dnu[0]}
+
+        hGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.height[0, :]))
+    
+        hGP = self.build_gp(hGPtheta, self.freq[0, :], hGPmuFunc)
+
+        self.addObs['heightGP'] = hGP.log_probability
  
     @partial(jax.jit, static_argnums=(0,))
     def AddLikeTerms(self, theta, theta_u):
@@ -532,6 +528,8 @@ class peakbag(plotting):
         delta = theta_u['freq'][self.ell==0] - theta_u['freq'][self.ell==2]
 
         lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
+        
+        lnp += self.addObs['heightGP'](theta[self.Nmodes: 2 * self.Nmodes])
 
         lnp += self.addObs['widthGP'](theta[2 * self.Nmodes: 3 * self.Nmodes])
 

@@ -742,7 +742,7 @@ def isvalid(number):
     else:
         return True
                             
-def getDistPercentiles(X, nsigma=2, **kwargs):
+def getNormalPercentiles(X, nsigma=2, **kwargs):
     """ Get percentiles of an distribution
     
     Compute the percentiles corresponding to sigma=1,2,3.. including the 
@@ -823,6 +823,6 @@ def gaussian(x, A, mu, sigma):
     return A*jnp.exp(-(x-mu)**2/(2*sigma**2))
 
 def makeUneven(n):
-        if n % 2 == 0:
-            n += 1
-        return n
+    if n % 2 == 0:
+        n += 1
+    return n
