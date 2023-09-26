@@ -390,8 +390,6 @@ class timeSeries():
         
         self.constants['kplr_lc_nyquist'] = nyquist(self.constants['kplr_lc_exptime'])
 
-        self.constants['kplr_sc_nyquist'] = nyquist(self.constants['kplr_sc_exptime'])
-
         self.ID = self._set_ID(ID)
 
         self.downloadDir = downloadDir
@@ -520,7 +518,7 @@ class timeSeries():
             wlen += 1
         
         try:
-            LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=10*365)  
+            LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=30)  
         except:
             LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=0)
               
@@ -660,7 +658,7 @@ class timeSeries():
 
         return ID
 
-    def check_sr_cache(self, ID, use_cached, cache_expire=30):
+    def check_sr_cache(self, ID, use_cached, cache_expire):
         """ check search results cache
         
         Preferentially accesses cached search results, otherwise searches the 
@@ -744,7 +742,9 @@ class timeSeries():
             
         if self.downloadDir is None:
             download_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve', 'cache'])
-        
+        else:
+            download_dir = self.downloadDir
+            
         files_in_cache = []
 
         for i, row in enumerate(search.table):
