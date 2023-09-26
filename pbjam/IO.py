@@ -511,7 +511,10 @@ class timeSeries():
         flux : DeviceArray
             The flux values of the time series.
         """
- 
+        # Waiting a short amount of time prevents multiple rapid requests from 
+        # being rejected.
+        time.sleep(np.random.uniform(1, 5))
+
         # TODO this should be set depending on numax.
         wlen = int(4e6/self.lk_kwargs['exptime'])-1
         if wlen % 2 == 0:
