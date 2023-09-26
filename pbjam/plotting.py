@@ -623,7 +623,7 @@ def _PeakbagClassPostSpectrum(self, N):
 
 def _baseCorner(samples, labels):
      
-    fig = corner.corner(samples, hist_kwargs={'density': True}, labels=labels)
+    fig = corner.corner(np.array(samples), hist_kwargs={'density': True}, labels=labels)
     
     return fig
 
