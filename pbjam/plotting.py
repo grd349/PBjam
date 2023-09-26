@@ -300,8 +300,6 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
         freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
         if l==1:
-            freqs += l1error[:Nsamples, :]
-
             rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
 
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
