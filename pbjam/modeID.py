@@ -43,7 +43,7 @@ class modeIDsampler(plotting):
         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
 
         self.N_g = self.MixFreqModel.N_g
-
+        
         self.background = bkgModel(self.Nyquist)
 
         self.sel = self.setFreqRange()
@@ -230,7 +230,7 @@ class modeIDsampler(plotting):
  
         self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
 
-        for i in range(100):
+        for i in range(200):
             self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/20 * self.obs['dnu'][0])
 
     @partial(jax.jit, static_argnums=(0,))
