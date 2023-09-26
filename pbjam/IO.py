@@ -17,7 +17,8 @@ from astropy import units
 class psd(scalingRelations):
     
     def __init__(self, ID, lk_kwargs={}, time=None, flux=None, flux_err=None, 
-                 downloadDir=None, fit_mean=False, timeConversion=86400,):
+                 downloadDir=None, fit_mean=False, timeConversion=86400, 
+                 use_cached=False):
     
         """ Asteroseismology wrapper for Astropy Lomb-Scargle
 
@@ -96,7 +97,7 @@ class psd(scalingRelations):
 
         if (time is None) and (flux is None):
             
-            time, flux = self.TS._getTS()
+            time, flux = self.TS._getTS(use_cached=use_cached)
 
             flux = (flux/np.nanmedian(flux) - 1) * 1e6
          
@@ -496,7 +497,7 @@ class timeSeries():
                     return fname 
         return ID
  
-    def _getTS(self, use_cached=True):
+    def _getTS(self, use_cached):
         """Get time series with lightkurve
 
         Parameters
@@ -585,9 +586,11 @@ class timeSeries():
         """
         
         current_date = datetime.now().isoformat()
+
         store_date = current_date[:current_date.index('T')].replace('-','')
 
-        search = lk.search_lightcurve(ID, exptime=self.lk_kwargs['exptime'], 
+        search = lk.search_lightcurve(ID, 
+                                      exptime=self.lk_kwargs['exptime'], 
                                       mission=self.lk_kwargs['mission'], 
                                       author=self.lk_kwargs['author'])
         
@@ -696,7 +699,7 @@ class timeSeries():
             os.makedirs(cachepath)
 
         filepath = os.path.join(*[cachepath, f"{ID}_{self.lk_kwargs['exptime']}.lksearchresult"])
-
+         
         if os.path.exists(filepath) and use_cached:  
             
             resultDict = pickle.load(open(filepath, "rb"))
@@ -763,7 +766,7 @@ class timeSeries():
             elif len(files_in_cache) > 0:
                 print('Search result did not match cached fits files, downloading.')  
                 
-            search.download_all(download_dir = download_dir)
+            search.download_all(download_dir=download_dir)
             
             files_in_cache = [os.path.join(*[download_dir, 'mastDownload', self.lk_kwargs['mission'], row['obs_id'], row['productFilename']]) for row in search.table]
         
