@@ -53,8 +53,8 @@ class modeIDsampler(plotting):
         self.trimVariables()
 
     def trimVariables(self):
-    
-        for i in range(self.N_g + self.N_p, 100, 1):
+ 
+        for i in range(self.N_g + self.N_p, 200, 1):
             del self.addlabels[self.addlabels.index(f'freqError{i}')]
             del self.labels[self.labels.index(f'freqError{i}')]
             del self.priors[f'freqError{i}']
@@ -136,7 +136,7 @@ class modeIDsampler(plotting):
 
             else:
                 if key == 'freqError':
-                    for i in range(100):
+                    for i in range(200):
                         self.addlabels.append(f'freqError{i}')
                 else:
                     self.addlabels.append(key)
