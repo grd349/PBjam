@@ -9,7 +9,7 @@ class AsyFreqModel():
         
         self.N_p = N_p
 
-        self.V20 = V20
+        #self.V20 = V20
 
     @partial(jax.jit, static_argnums=(0,))
     def _get_n_p_max(self, dnu, numax, eps):
