@@ -90,9 +90,13 @@ class beta():
         # Turn init args into attributes
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
-        self.fac = jnp.exp(jsp.gammaln(self.a + self.b)) / (jnp.exp(jsp.gammaln(self.a)) * jnp.exp(jsp.gammaln(self.b))) / self.scale
+#        self.fac = jnp.exp(jsp.gammaln(self.a + self.b)) / (jnp.exp(jsp.gammaln(self.a)) * jnp.exp(jsp.gammaln(self.b))) / self.scale
 
-        self.logfac = jnp.log(self.fac)
+#        self.logfac = jnp.log(self.fac)
+
+        self.logfac = jsp.gammaln(self.a + self.b) - jsp.gammaln(self.a) - jsp.gammaln(self.b) - jnp.log(self.scale) 
+
+        self.fac = jnp.exp(self.logfac)
 
         self.am1 = self.a - 1
 
