@@ -1,21 +1,44 @@
 import jax.numpy as jnp
+import numpy as np
 import jax, warnings
 from pbjam import jar
 from functools import partial
 from pbjam.jar import constants as c
+from pbjam.DR import PCA
+import pbjam.distributions as dist
+
 jax.config.update('jax_enable_x64', True)
  
-class MixFreqModel():
+class MixFreqModel(jar.DynestySamplingTools):
 
-    def __init__(self,  N_p, obs, n_g_ppf):
+    def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
+                 vis={'V10': 1.22}, priorpath=None):
    
-        self.N_p = N_p
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+ 
+        self.modelVars = {}
 
-        self.obs = obs
+        self.modelVars.update(self.variables['l1'])
+        
+        self.modelVars.update(self.variables['common'])
+
+        self.set_labels(self.addPriors) 
+
+        self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
+
+        self.setupDR()
+  
+        self.setPriors()
+
+        self.ndims = len(self.priors)
+
+        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
  
         self.n_g = self.select_n_g(n_g_ppf)
 
         self.N_g = len(self.n_g)
+
+        self.trimVariables()
 
         self.ones_block = jnp.ones((self.N_p, self.N_g))
 
@@ -27,7 +50,319 @@ class MixFreqModel():
  
         self.D_gamma = jnp.vstack((jnp.zeros((self.N_p, self.N_p + self.N_g)), 
                                    jnp.hstack((self.zeros_block.T, self.eye_N_g))))
+ 
+         
+            
+    def setupDR(self):
+        """ Setup the latent parameters and projection functions
 
+        Parameters
+        ----------
+        prior_file : str
+            Full path name for the file containing the prior samples.
+ 
+        """
+ 
+        _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}
+         
+        for key in ['bp_rp']:
+            _obs[key] = self.obs[key]
+         
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectlabels=['numax', 'dnu', 'teff', 'bp_rp']) 
+
+        self.DR.fit_weightedPCA(self.PCAdims)
+
+        _Y = self.DR.transform(self.DR.data_F)
+
+        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
+        
+        if len(self.pcalabels) > 0:
+            self.latentLabels = ['theta_%i' % (i) for i in range(self.PCAdims)]
+        else:
+            self.latentLabels = []
+            self.DR.inverse_transform = lambda x: []
+            self.DR.dims_R = 0
+
+    
+
+    def _makeTmpSample(self, keys, N=1000):
+        """
+        Draw samples for specified keys.
+
+        Parameters
+        ----------
+        keys : list
+            List of parameter keys to be sampled.
+        N : int, optional
+            Number of samples to generate. Default is 1000.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the quantile function, probability density 
+            function, log probability density function, and cumulative 
+            distribution function of the generated samples.
+
+        Notes
+        -----
+        - Generates N random samples.
+        - Transforms the samples using `ptform` and `unpackParams`.
+        - Constructs arrays for specified keys.
+        - Computes quantile function, probability density function,
+        log probability density function, and cumulative distribution function.
+        """
+
+        K = np.zeros((len(keys), N))
+
+        for i in range(N):
+            u = np.random.uniform(0, 1, size=self.ndims)
+        
+            theta = self.ptform(u)
+
+            theta_u = self.unpackParams(theta)
+
+            K[:, i] = np.array([theta_u[key] for key in keys]) 
+        
+        ppf, pdf, logpdf, cdf = dist.getQuantileFuncs(K.T)
+        
+        return ppf, pdf, logpdf, cdf
+
+    def trimVariables(self):
+ 
+        for i in range(self.N_g + self.N_p, 200, 1):
+            del self.addlabels[self.addlabels.index(f'freqError{i}')]
+            del self.labels[self.labels.index(f'freqError{i}')]
+            del self.priors[f'freqError{i}']
+            
+        self.ndims = len(self.priors)    
+
+    def set_labels(self, addPriors):
+        """
+        Set parameter labels and categorize them based on priors.
+
+        Parameters
+        ----------
+        priors : dict
+            Dictionary containing prior information for specific parameters.
+
+        Notes
+        -----
+        - Initializes default PCA and additional parameter lists.
+        - Checks if parameters are marked for PCA and not in priors; if so, 
+          adds to PCA list.
+        - Otherwise, adds parameters to the additional list.
+        - Combines PCA and additional lists to create the final labels list.
+        - Identifies parameters that use a logarithmic scale and adds them to 
+          logpars list.
+        """
+
+        # Default PCA parameters       
+        self.pcalabels = []
+        
+        # Default additional parameters
+        self.addlabels = []
+        
+        # If key appears in priors dict, override default and move it to add. 
+        for key in self.modelVars.keys():
+                
+            if self.modelVars[key]['pca'] and (key not in addPriors.keys()):
+                self.pcalabels.append(key)
+
+            else:
+                if key == 'freqError':
+                    for i in range(200):
+                        self.addlabels.append(f'freqError{i}')
+                else:
+                    self.addlabels.append(key)
+
+        self.labels = self.pcalabels + self.addlabels
+
+        # Parameters that are in log10
+        self.logpars = []
+        for key in self.modelVars.keys():
+            if self.modelVars[key]['log10']:
+                self.logpars.append(key)
+
+    def setPriors(self,):
+        """ Set the prior distributions.
+
+        The prior distributions are constructed from the projection of the 
+        PCA sample onto the reduced dimensional space.
+
+        """
+
+        self.priors = {}
+
+        for i, key in enumerate(self.latentLabels):
+            self.priors[key] = dist.distribution(self.DR.ppf[i], 
+                                                 self.DR.pdf[i], 
+                                                 self.DR.logpdf[i], 
+                                                 self.DR.cdf[i])
+
+        AddKeys = [k for k in self.modelVars if k in self.addPriors.keys()]
+
+        self.priors.update({key : self.addPriors[key] for key in AddKeys})
+ 
+        for i in range(200):
+            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/20 * self.obs['dnu'][0])
+  
+        # Core rotation prior
+        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
+
+        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
+
+        # The inclination prior is a sine truncated between 0, and pi/2.
+        self.priors['inc'] = dist.truncsine()            
+ 
+    @partial(jax.jit, static_argnums=(0,))
+    def chi_sqr(self, mod):
+        """ Chi^2 2 dof likelihood
+
+        Evaulates the likelihood of observing the data given the model.
+
+        Parameters
+        ----------
+        mod : jax device array
+            Spectrum model.
+
+        Returns
+        -------
+        L : float
+            Likelihood of the data given the model
+        """
+
+        L = -jnp.sum(jnp.log(mod) + self.s / mod)
+
+        return L      
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def lnlikelihood(self, theta, nu):
+        """
+        Calculate the log likelihood of the model given parameters and data.
+        
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            Parameter values.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        float :
+            Log-likelihood value.
+        """
+    
+        theta_u = self.unpackParams(theta)
+           
+        # Constraint from the periodogram 
+        mod = self.model(theta_u, nu)
+        
+        lnlike = self.chi_sqr(mod)
+         
+        return lnlike
+
+    @partial(jax.jit, static_argnums=(0,))
+    def l1_modewidths(self, zeta, fac=1, **kwargs):
+        """ Compute linewidths for mixed l1 modes
+
+        Parameters
+        ----------
+        modewidth0 : jax device array
+            Mode widths of l=0 modes.
+        zeta : jax device array
+            The mixing degree
+
+        Returns
+        -------
+        modewidths : jax device array
+            Mode widths of l1 modes.
+        """
+         
+        return  fac * self.obs['mode_width'][0] * jnp.maximum(0, 1. - zeta) 
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def envelope(self, nu,):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+ 
+        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def model(self, theta_u, nu,):
+
+        theta_u['p_L'] = jnp.array([(theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)])
+
+        theta_u['p_D'] = jnp.array([(theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)])
+
+        nu1s, zeta = self.mixed_nu1(self.obs['nu0_p'], self.obs['n_p'], **theta_u)
+         
+        Hs1 = self.envelope(nu1s, )
+        
+        modewidth1s = self.l1_modewidths(zeta,)
+         
+        nurot = zeta * theta_u['nurot_c'] + (1 - zeta) * theta_u['nurot_e']
+        
+        modes = jnp.ones_like(nu)
+
+        for i in range(len(nu1s)):
+            
+            nul1 = nu1s[i] + theta_u[f'freqError{i}']
+
+            modes += jar.lor(nu, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+        
+            modes += jar.lor(nu, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+        
+            modes += jar.lor(nu, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+
+        return modes
+
+    @partial(jax.jit, static_argnums=(0,))
+    def unpackParams(self, theta): 
+        """ Cast the parameters in a dictionary
+
+        Parameters
+        ----------
+        theta : array
+            Array of parameters drawn from the posterior distribution.
+
+        Returns
+        -------
+        theta_u : dict
+            The unpacked parameters.
+
+        """
+         
+        # theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
+         
+        # theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
+         
+        theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
+ 
+        for key in self.logpars:
+            theta_u[key] = 10**theta_u[key]
+ 
+        return theta_u
+ 
     def select_n_g(self, n_g_ppf, fac=2):
         """ Select and initial range for n_g
 
@@ -477,13 +812,87 @@ class MixFreqModel():
 
         return v, w
 
-# variables = {
-#                  'u1'        : {'info': 'Sum of p_L0 and p_D0'                     , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-#                  'u2'        : {'info': 'Difference between p_L0 and p_D0'         , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-#                  'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
-#                  'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-#                  'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-#                  'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False, 'pca': True, 'unit': 'muHz'},
-#                  'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-#                  'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-   
+    def unpackSamples(self, samples=None):
+        """
+        Unpack a set of parameter samples into a dictionary of arrays.
+
+        Parameters
+        ----------
+        samples : array-like
+            A 2D array of shape (n, m), where n is the number of samples and 
+            m is the number of parameters.
+
+        Returns
+        -------
+        S : dict
+            A dictionary containing the parameter values for each parameter 
+            label.
+
+        Notes
+        -----
+        This method takes a 2D numpy array of parameter samples and unpacks each
+        sample into a dictionary of parameter values. The keys of the dictionary 
+        are the parameter labels and the values are 1D numpy arrays containing 
+        the parameter values for each sample.
+
+        Examples
+        --------
+        >>> class MyModel:
+        ...     def __init__(self):
+        ...         self.labels = ['a', 'b', 'c']
+        ...     def unpackParams(self, theta):
+        ...         return {'a': theta[0], 'b': theta[1], 'c': theta[2]}
+        ...     def unpackSamples(self, samples):
+        ...         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        ...         for i, theta in enumerate(samples):
+        ...             theta_u = self.unpackParams(theta)
+        ...             for key in self.labels:
+        ...                 S[key][i] = theta_u[key]
+        ...         return S
+        ...
+        >>> model = MyModel()
+        >>> samples = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        >>> S = model.unpackSamples(samples)
+        >>> print(S)
+        {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
+        """
+
+        if samples is None:
+            samples = self.samples
+
+        S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        
+        for i, theta in enumerate(samples):
+        
+            theta_u = self.unpackParams(theta)
+             
+            for key in theta_u.keys():
+                
+                S[key][i] = theta_u[key]
+            
+        return S
+    
+    def testModel(self):
+        
+        u = np.random.uniform(0, 1, self.ndims)
+        
+        theta = self.ptform(u)
+        
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u, self.f)
+        
+        return self.f, m
+    
+    variables = {'l1': {'u1'        : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'        , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+                       'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+                       'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
+                       'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
+                       'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
+                       'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False,  'pca': True, 'unit': 'muHz'},
+                       'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
+                       },
+                'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                           'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                           'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
+                }

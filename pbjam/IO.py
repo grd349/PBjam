@@ -765,7 +765,7 @@ class timeSeries():
             
             elif len(files_in_cache) > 0:
                 print('Search result did not match cached fits files, downloading.')  
-                
+             
             search.download_all(download_dir=download_dir)
             
             files_in_cache = [os.path.join(*[download_dir, 'mastDownload', self.lk_kwargs['mission'], row['obs_id'], row['productFilename']]) for row in search.table]

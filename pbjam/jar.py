@@ -76,18 +76,15 @@ class DynestySamplingTools():
         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
 
         return theta
-    
-    
-
-
-    def getInitLive(self, nlive, nliveMult=4, logl_kwargs={}, **kwargs):
+ 
+    def getInitLive(self, ndims, nlive, nliveMult=4, logl_kwargs={}, **kwargs):
         
         # TODO put in a check for output dims consistent with nlive.
-
-        u = np.random.uniform(0, 1, size=(nliveMult * nlive, self.ndims))
+         
+        u = np.random.uniform(0, 1, size=(nliveMult * nlive, ndims))
 
         v = np.array([self.ptform(u[i, :]) for i in range(u.shape[0])])
-        
+         
         L = np.array([self.lnlikelihood(v[i, :], **logl_kwargs) for i in range(u.shape[0])])
 
         idx = np.isfinite(L)
@@ -99,7 +96,7 @@ class DynestySamplingTools():
         u = jnp.zeros(self.ndims) + 0.5
         
         theta = self.ptform(u)
-        
+                
         logL = self.lnlikelihood(theta, **logl_kwargs)
         
         assert jnp.isreal(logL)
@@ -110,55 +107,65 @@ class DynestySamplingTools():
                    sampler_kwargs={}):
         
         
-        if not hasattr(self, 'ndims'):
-            self.ndims = len(self.priors)
+        #if not hasattr(self, 'ndims'):
+        ndims = len(self.priors)
         
         self.testLikelihoood(logl_kwargs=logl_kwargs)
 
+        skwargs = sampler_kwargs.copy()
+
         # According to the Dynesty docs 50 * ndims is a good estimate of nlive
-        if 'nlive' not in sampler_kwargs.keys():
-            sampler_kwargs['nlive'] = 50*self.ndims
+        if 'nlive' not in skwargs.keys():
+            skwargs['nlive'] = 50*self.ndims
 
         # rwalk seems to perform best out of all the sampling methods...
-        if 'sample' not in sampler_kwargs.keys():
-            sampler_kwargs['sample'] = 'rwalk'
+        if 'sample' not in skwargs.keys():
+            skwargs['sample'] = 'rwalk'
 
         # Set the initial locations of live points based on the prior.
-        if 'live_points' not in sampler_kwargs.keys():
-            sampler_kwargs['live_points'] = self.getInitLive(logl_kwargs=logl_kwargs, **sampler_kwargs)
- 
+        if 'live_points' not in skwargs.keys():
+            skwargs['live_points'] = self.getInitLive(ndims, logl_kwargs=logl_kwargs, **skwargs)
+         
         if dynamic:
             sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
                                                    self.ptform, 
-                                                   self.ndims,  
-                                                   **sampler_kwargs,
+                                                   ndims,  
+                                                   **skwargs,
                                                    logl_kwargs=logl_kwargs,
                                                    )
             
             sampler.run_nested(print_progress=progress, 
                                wt_kwargs={'pfrac': 1.0}, 
-                               dlogz_init=1e-3 * (sampler_kwargs['nlive'] - 1) + 0.01, 
-                               nlive_init=sampler_kwargs['nlive'])  
+                               dlogz_init=1e-3 * (skwargs['nlive'] - 1) + 0.01, 
+                               nlive_init=skwargs['nlive'])  
             
         else:           
             sampler = dynesty.NestedSampler(self.lnlikelihood, 
                                             self.ptform, 
-                                            self.ndims,  
-                                            **sampler_kwargs,
+                                            ndims,  
+                                            **skwargs,
                                             logl_kwargs=logl_kwargs,
                                             )
             
-            sampler.run_nested(print_progress=progress)
+            sampler.run_nested(print_progress=progress, save_bounds=False,)
  
-        self.sampler = sampler
+        sampler = sampler
 
-        result = self.sampler.results
+        result = sampler.results
 
         unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
 
-        self.samples = dyfunc.resample_equal(unweighted_samples, weights)
+        samples = dyfunc.resample_equal(unweighted_samples, weights)
 
-        return self.sampler, self.samples
+        sampler.reset()
+
+        del sampler
+
+        self.nsamples = samples.shape[0]
+
+        self.samples = samples
+
+        return self.samples
 
 @jax.jit
 def visell1(emm, inc):

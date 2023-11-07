@@ -233,11 +233,11 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
 
      
     if DPi1 is None:
-        DPi1 = self.priors['DPi1'].ppf(0.5)
+        DPi1 = self.MixFreqModel.priors['DPi1'].ppf(0.5)
     if eps_g is None:
-        eps_g = self.priors['eps_g'].ppf(0.5)
+        eps_g = self.MixFreqModel.priors['eps_g'].ppf(0.5)
     if alpha_g is None:
-        alpha_g = 10**self.priors['alpha_g'].ppf(0.5)
+        alpha_g = 10**self.MixFreqModel.priors['alpha_g'].ppf(0.5)
      
     # Overplot gmode frequencies
     nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, DPi1, eps_g, 
@@ -281,13 +281,13 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     rect_ax.set_yticks([])
     rect_ax.set_ylim(ax.get_ylim())
     rect_ax.fill_betweenx(ax.get_ylim(), 
-                  x1=self.priors['freqError0'].mean - self.priors['freqError0'].scale,
-                  x2=self.priors['freqError0'].mean + self.priors['freqError0'].scale, color='k', alpha=0.1)
+                  x1=self.MixFreqModel.priors['freqError0'].mean - self.MixFreqModel.priors['freqError0'].scale,
+                  x2=self.MixFreqModel.priors['freqError0'].mean + self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
     rect_ax.fill_betweenx(ax.get_ylim(), 
-                  x1=self.priors['freqError0'].mean - 2*self.priors['freqError0'].scale,
-                  x2=self.priors['freqError0'].mean + 2*self.priors['freqError0'].scale, color='k', alpha=0.1)
-    rect_ax.set_xlim(self.priors['freqError0'].mean - 3*self.priors['freqError0'].scale,
-                     self.priors['freqError0'].mean + 3*self.priors['freqError0'].scale)
+                  x1=self.MixFreqModel.priors['freqError0'].mean - 2*self.MixFreqModel.priors['freqError0'].scale,
+                  x2=self.MixFreqModel.priors['freqError0'].mean + 2*self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
+    rect_ax.set_xlim(self.MixFreqModel.priors['freqError0'].mean - 3*self.MixFreqModel.priors['freqError0'].scale,
+                     self.MixFreqModel.priors['freqError0'].mean + 3*self.MixFreqModel.priors['freqError0'].scale)
     rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
     l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
@@ -328,9 +328,9 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
     #Overplot l=1 p-modes
     nu0_p, _ = self.AsyFreqModel.asymptotic_nu_p(numax, 
-                                                dnu,  
-                                                self.result['summary']['eps_p'][0], 
-                                                self.result['summary']['alpha_p'][0],)
+                                                 dnu,  
+                                                 self.result['summary']['eps_p'][0], 
+                                                 self.result['summary']['alpha_p'][0],)
     
     nu1_p = nu0_p + self.result['summary']['d01'][0]
 
@@ -352,7 +352,7 @@ def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
 
-    freqPriors = {key:val for key,val in self.priors.items() if 'freq' in key}
+    freqPriors = {key:val for key,val in self.MixFreqModel.priors.items() if 'freq' in key}
 
     for l in np.unique(self.ell).astype(int):
 
@@ -478,14 +478,24 @@ def _ModeIDClassPriorSpectrum(self, N):
     _baseSpectrum(ax, self.f, self.s, smoothness=0.5)
  
     for i in range(N):
- 
-        u = np.random.uniform(0, 1, size=self.ndims)
 
-        theta = self.ptform(u)
+        m = np.ones(len(self.f))
+
+        l20u = np.random.uniform(0, 1, size=self.AsyFreqModel.ndims)
+        l20theta = self.AsyFreqModel.ptform(l20u)
+        l20theta_u = self.AsyFreqModel.unpackParams(l20theta)
+        m *= self.AsyFreqModel.model(l20theta_u, self.f)
         
-        theta_u = self.unpackParams(theta)
+        l1u = np.random.uniform(0, 1, size=self.MixFreqModel.ndims)
+        l1theta = self.MixFreqModel.ptform(l1u)
+        l1theta_u = self.MixFreqModel.unpackParams(l1theta)
+        m *= self.MixFreqModel.model(l1theta_u, self.f)
+
+        # theta = self.ptform(u)
         
-        m = self.model(theta_u, self.f)
+        # theta_u = self.unpackParams(theta)
+        
+        # m = self.model(theta_u, self.f)
         
         ax.plot(self.f, m, alpha=0.2, color='C3')
 
@@ -505,7 +515,9 @@ def _ModeIDClassPriorSpectrum(self, N):
 
 def _ModeIDClassPostSpectrum(self, N):
 
-    rint = np.random.randint(0, self.samples.shape[0], size=N)
+    Nmax = min([self.l20samples.shape[0], self.l1samples.shape[0]])
+
+    rint = np.random.randint(0, Nmax, size=N)
 
     numax = self.obs['numax'][0]
 
@@ -516,21 +528,25 @@ def _ModeIDClassPostSpectrum(self, N):
     
     _baseSpectrum(ax[0], self.f, self.s)
 
-    xlim = [max([min(self.f), numax - (self.N_p + 2) * dnu]), 
-            min([max(self.f), numax + ((self.N_p+2)/2) * dnu])]
+    xlim = [max([min(self.f), numax -  (self.N_p + 2) * dnu]), 
+            min([max(self.f), numax +  (self.N_p + 2) * dnu])]
      
     sel = (xlim[0] <= self.f) & (self.f <= xlim[1])
 
     _baseSpectrum(ax[1], self.f[sel], self.s[sel], ylim=[0, None])
 
     for k in rint:
-    
-        theta = self.samples[k, :]
+        
+        m = np.ones(len(self.f))
 
-        theta_u = self.unpackParams(theta)
+        l20theta_u = self.AsyFreqModel.unpackParams(self.l20samples[k, :])
         
-        m = self.model(theta_u, self.f)
+        m *= self.AsyFreqModel.model(l20theta_u, self.f)
         
+        l1theta_u = self.MixFreqModel.unpackParams(self.l1samples[k, :])
+        
+        m *= self.MixFreqModel.model(l1theta_u, self.f)
+
         ax[0].plot(self.f, m, color='C3', alpha=0.2)
 
         ax[1].plot(self.f[sel], m[sel], color='C3', alpha=0.2)
@@ -622,18 +638,18 @@ def _PeakbagClassPostSpectrum(self, N):
 
 
 def _baseCorner(samples, labels):
-     
-    fig = corner.corner(np.array(samples), hist_kwargs={'density': True}, labels=labels)
+ 
+    fig = corner.corner(samples, hist_kwargs={'density': True}, labels=labels)
     
     return fig
 
-def _setSampleToPlot(self, samples, unpacked, labels=None):
+def _setSampleToPlot(self, unpacked, labels=None):
 
     if unpacked:
-        _samples = self.unpackSamples(samples)
+        _samples = self.unpackSamples(self.samples)
 
     else:
-        _samples = {label: samples[:, i] for i, label in enumerate(self.priors.keys())}
+        _samples = {label: self.samples[:, i] for i, label in enumerate(self.priors.keys())}
 
     return _samples
 
@@ -661,12 +677,11 @@ def _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs):
         
     return fig, axes
 
-def _ModeIDClassPostCorner(self, samples, labels, unpacked, **kwargs):
+def _ModeIDClassPostCorner(self, modObj, unpacked, **kwargs):
 
-    _samples = _setSampleToPlot(self, samples, unpacked)
-
-    if labels == None:
-        labels = list(_samples.keys())
+    _samples = _setSampleToPlot(modObj, unpacked)
+    
+    labels = list(_samples.keys())
 
     fig = _baseCorner(_samples, labels)  
 
@@ -675,11 +690,11 @@ def _ModeIDClassPostCorner(self, samples, labels, unpacked, **kwargs):
     if not unpacked:
         for i, key in enumerate(labels):
         
-            if key in self.priors.keys():
+            if key in modObj.priors.keys():
             
-                x = np.linspace(self.priors[key].ppf(1e-6), self.priors[key].ppf(1-1e-6), 100)
+                x = np.linspace(modObj.priors[key].ppf(1e-6), modObj.priors[key].ppf(1-1e-6), 100)
 
-                pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+                pdf = np.array([modObj.priors[key].pdf(x[j]) for j in range(len(x))])
 
                 axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5) 
 
@@ -897,16 +912,21 @@ class plotting():
         elif self.__class__.__name__ == 'modeIDsampler':
              
             if stage=='prior':
-                print('bla')
+                 
                 samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
 
                 fig, ax = _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs)
             
             elif stage=='posterior': 
-                 
-                samples = self.samples
 
-                fig, ax = _ModeIDClassPostCorner(self, samples, labels, unpacked, **kwargs)
+                figA, axA = _ModeIDClassPostCorner(self, self.AsyFreqModel, unpacked, **kwargs)
+
+                figM, axM = _ModeIDClassPostCorner(self, self.MixFreqModel, unpacked, **kwargs)
+
+                fig = [figA, figM]
+
+                ax = [axA, axM]
+
             else:
                 raise ValueError('Set stage optional argument to either prior or posterior')
             
