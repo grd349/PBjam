@@ -114,11 +114,29 @@ class modeIDsampler(plotting, ):
 
         l1samples_u = self.MixFreqModel.unpackSamples(self.l1samples)
 
-        # Get results from both
-        #self.result = self.parseSamples(l20samples_u, l1samples_u)
+        l1res = self.MixFreqModel.parseSamples(l1samples_u)
 
+        self.result = self.mergeResults(l20res, l1res)
+
+    def mergeResults(self, l20res, l1res):
     
-    
+        R = {'summary': {},
+             'samples': {}}
+
+        for key in ['ell', 'enn', 'zeta']:
+            R[key] = np.append(l20res[key], l1res[key])
+
+        
+        for rootkey in ['summary', 'samples']:
+            for D in [l20res, l1res]:
+                for subkey in list(D[rootkey].keys()):
+                    if subkey not in ['freq', 'height', 'width']:
+                        R[rootkey][subkey] = D[rootkey][subkey]
+
+            for subkey in ['freq', 'height', 'width']:        
+                R[rootkey][subkey] = np.hstack((l20res[rootkey][subkey], l1res[rootkey][subkey]))
+        
+        return R
 
     def storeResult(self, resultDict, ID=None):
 
