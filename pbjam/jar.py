@@ -18,6 +18,13 @@ import dynesty
 from dynesty import utils as dyfunc
 
 
+def modeUpdoot(result, sample, key, Nmodes):
+    
+    result['summary'][key] = np.hstack((result['summary'][key], np.array([smryStats(sample[:, j]) for j in range(Nmodes)]).T))
+
+    result['samples'][key] = np.hstack((result['samples'][key], sample))
+
+
 class DynestySamplingTools():
     
     def __init__(self):

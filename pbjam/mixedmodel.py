@@ -884,6 +884,72 @@ class MixFreqModel(jar.DynestySamplingTools):
         
         return self.f, m
     
+    def parseSamples(self, smp, Nmax=10000):
+
+        N = min([len(list(smp.values())[0]),
+                 Nmax])
+        
+        for key in smp.keys():
+            smp[key] = smp[key][:N]
+        
+        result = {'ell': np.array([]),
+                  'enn': np.array([]),
+                  'zeta': np.array([]),
+                  'summary': {'freq'  : np.array([]).reshape((2, 0)), 
+                              'height': np.array([]).reshape((2, 0)), 
+                              'width' : np.array([]).reshape((2, 0))
+                             },
+                  'samples': {'freq'  : np.array([]).reshape((N, 0)),
+                              'height': np.array([]).reshape((N, 0)), 
+                              'width' : np.array([]).reshape((N, 0))
+                             },
+                }
+        
+        result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
+        result['samples'].update(smp)
+         
+        # l=1
+        smp['p_L'] = (smp['u1'] + smp['u2'])/jnp.sqrt(2)
+
+        smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
+
+         
+        A = np.array([self.mixed_nu1(self.obs['nu0_p'], 
+                                     self.obs['n_p'], 
+                                     smp['d01'][i], 
+                                     smp['DPi1'][i], 
+                                     smp['p_L'][i],  
+                                     smp['p_D'][i], 
+                                     smp['eps_g'][i], 
+                                     smp['alpha_g'][i]) for i in range(N)])
+        
+        N_pg = self.N_p + self.N_g
+        
+        result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
+        result['enn'] = np.append(result['enn'], np.zeros(N_pg) - 1)
+
+        # # Frequencies 
+        nu1_samps = A[:, 0, :]
+
+        sigma_nul1 = np.array([smp[key] for key in smp.keys() if key.startswith('freqError')]).T
+ 
+        jar.modeUpdoot(result, nu1_samps + sigma_nul1, 'freq', N_pg)
+
+        zeta_samps = A[:, 1, :]
+
+        result['zeta'] = np.append(result['zeta'], np.median(zeta_samps, axis=0))
+        
+        # # Heights
+        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :]) for i in range(N)]) 
+        jar.modeUpdoot(result, H1_samps, 'height', N_pg)
+        
+        # # Widths
+        W1_samps = np.array([self.l1_modewidths(zeta_samps[i, :], 
+                                                self.obs['mode_width'][0]) for i in range(N)]) 
+        jar.modeUpdoot(result, W1_samps, 'width', N_pg)
+
+        return result
+
     variables = {'l1': {'u1'        : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'        , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
                        'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
                        'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
@@ -896,3 +962,4 @@ class MixFreqModel(jar.DynestySamplingTools):
                            'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
                            'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
                 }
+    

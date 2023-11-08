@@ -517,6 +517,77 @@ class AsyFreqModel(jar.DynestySamplingTools):
         # Compute the median background model across samples
         return np.median(mod, axis=1)
     
+    def parseSamples(self, smp, Nmax=10000):
+
+        N = min([len(list(smp.values())[0]), 
+                 Nmax])
+        
+        for key in smp.keys():
+            smp[key] = smp[key][:N]
+        
+        result = {'ell': np.array([]),
+                  'enn': np.array([]),
+                  'zeta': np.array([]),
+                  'summary': {'freq'  : np.array([]).reshape((2, 0)), 
+                              'height': np.array([]).reshape((2, 0)), 
+                              'width' : np.array([]).reshape((2, 0))
+                             },
+                  'samples': {'freq'  : np.array([]).reshape((N, 0)),
+                              'height': np.array([]).reshape((N, 0)), 
+                              'width' : np.array([]).reshape((N, 0))
+                             },
+                }
+        
+        result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
+        result['samples'].update(smp)
+  
+        # l=0
+        asymptotic_samps = np.array([self.asymptotic_nu_p(smp['numax'][i], smp['dnu'][i], smp['eps_p'][i], smp['alpha_p'][i]) for i in range(N)])
+        n_p = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
+        
+        result['ell'] = np.append(result['ell'], np.zeros(self.N_p))
+
+        result['enn'] = np.append(result['enn'], n_p)
+
+        result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
+
+        # # Frequencies
+        nu0_samps = asymptotic_samps[:, 0, :]
+        jar.modeUpdoot(result, nu0_samps, 'freq', self.N_p)
+
+        # # Heights
+        H0_samps = np.array([self.envelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
+        jar.modeUpdoot(result, H0_samps, 'height', self.N_p)
+
+        # # Widths
+        W0_samps = np.tile(smp['mode_width'], self.N_p).reshape((self.N_p, N)).T
+        jar.modeUpdoot(result, W0_samps, 'width', self.N_p)
+        
+        # l=2
+        result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 2)
+        result['enn'] = np.append(result['enn'], n_p-1)
+        result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
+
+        # # Frequencies
+        nu2_samps = np.array([nu0_samps[i, :] - smp['d02'][i] for i in range(N)])
+        jar.modeUpdoot(result, nu2_samps, 'freq', self.N_p)
+
+        # # Heights
+        H2_samps = self.vis['V20'] * np.array([self.envelope(nu2_samps[i, :],  
+                                                            smp['env_height'][i], 
+                                                            smp['numax'][i], 
+                                                            smp['env_width'][i]) for i in range(N)])
+        jar.modeUpdoot(result, H2_samps, 'height', self.N_p)
+        
+        # # Widths
+        W2_samps = np.tile(smp['mode_width'], np.shape(nu2_samps)[1]).reshape((nu2_samps.shape[1], nu2_samps.shape[0])).T
+        jar.modeUpdoot(result, W2_samps, 'width', self.N_p)
+
+        #Background
+        #result['background'] = self.meanBkg(self.f, smp)  
+  
+        return result
+
     variables = {'l20':{'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
                         'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
                         'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
