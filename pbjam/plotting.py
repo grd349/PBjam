@@ -221,7 +221,7 @@ def _StarClassEchelle(self, obs, scale, **kwargs):
     return fig, ax
 
 def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None, 
-                             DPi1=None, eps_g=None, alpha_g=None, **kwargs):
+                             DPi1=None, eps_g=None, **kwargs):
 
     if dnu is None:
         dnu = self.obs['dnu'][0]
@@ -236,12 +236,11 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
         DPi1 = self.MixFreqModel.priors['DPi1'].ppf(0.5)
     if eps_g is None:
         eps_g = self.MixFreqModel.priors['eps_g'].ppf(0.5)
-    if alpha_g is None:
-        alpha_g = 10**self.MixFreqModel.priors['alpha_g'].ppf(0.5)
+    #if alpha_g is None:
+    #    alpha_g = 10**self.MixFreqModel.priors['alpha_g'].ppf(0.5)
      
     # Overplot gmode frequencies
     nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, DPi1, eps_g, 
-                                             alpha_g, 
                                              )
    
     curlyN = dnu / (DPi1 *1e-6 * numax**2)
@@ -313,7 +312,8 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
                                           self.result['summary']['DPi1'][0], 
                                           self.result['summary']['eps_g'][0], 
-                                          self.result['summary']['alpha_g'][0], )
+                                          )
+                                        # self.result['summary']['alpha_g'][0], 
     
     ylims = ax.get_ylim()
 

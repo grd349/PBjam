@@ -314,7 +314,7 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         theta_u['p_D'] = jnp.array([(theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)])
 
-        nu1s, zeta = self.mixed_nu1(self.obs['nu0_p'], self.obs['n_p'], **theta_u)
+        nu1s, zeta = self.mixed_nu1(self.obs['nu0_p'], **theta_u)
          
         Hs1 = self.envelope(nu1s, )
         
@@ -400,22 +400,24 @@ class MixFreqModel(jar.DynestySamplingTools):
         max_n_g = init_n_g.min()
 
         # Loop over combinations of DPi1 and eps_g as drawn from the respective PDFs.       
-        for DPi1 in jnp.linspace(n_g_ppf[0](1e-3), n_g_ppf[0](1-1e-3), 3):
+        for DPi1 in jnp.linspace(n_g_ppf[0](0.05), n_g_ppf[0](0.95), 3):
             
-            for eps_g in jnp.linspace(n_g_ppf[1](1e-3), n_g_ppf[1](1-1e-3), 3):
+            for eps_g in jnp.linspace(n_g_ppf[1](0.05), n_g_ppf[1](0.95), 3):
                 
-                nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g, 1e-4)
+                nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g)
                 
                 idx = (freq_lims[0] < nu_g) & (nu_g < freq_lims[1])
                  
                 t = jnp.where(idx, init_n_g, 0 * init_n_g + jnp.inf).min()
                  
                 min_n_g = jnp.minimum(min_n_g, t)
-                 
+                
                 t = jnp.where(idx, init_n_g, 0 * init_n_g - 1).max()
                  
                 max_n_g = jnp.maximum(max_n_g, t)
 
+        print(min_n_g, max_n_g)
+        
         n_g = jnp.arange(min_n_g, max_n_g, dtype=int)[::-1]
         
         if len(n_g) > 100:
@@ -424,7 +426,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         return n_g
  
     @partial(jax.jit, static_argnums=(0,))
-    def asymptotic_nu_g(self, n_g, DPi1, eps_g, alpha_g, max_N2=jnp.inf):
+    def asymptotic_nu_g(self, n_g, DPi1, eps_g):
         """Asymptotic relation for g-modes
 
         Asymptotic relation for the g-mode frequencies in terms of a fundamental
@@ -450,21 +452,21 @@ class MixFreqModel(jar.DynestySamplingTools):
             Frequencies of the notionally pure g-modes of degree l.
         """
          
-        P0 = 0 # DPi1*1e-6 # 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
+        #P0 = 0 # DPi1*1e-6 # 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
 
         #DPi0 = DPi1 / jnp.sqrt(2)  
         DPi1 *= 1e-6 # DPi1 in s to Ms.  
 
-        P_max = 1/self.obs['numax'][0]
+        #P_max = 1/self.obs['numax'][0]
 
-        n_gmax = (P_max - P0) / DPi1 - eps_g
+        #n_gmax = (P_max - P0) / DPi1 - eps_g
 
-        P = P0 + DPi1 * (n_g + eps_g + alpha_g * (n_g - n_gmax)**2)
-
+        #P = P0 + DPi1 * (n_g + eps_g)  + alpha_g * (n_g - n_gmax)**2)
+        P = DPi1 * (n_g + eps_g)
         return 1/P
 
     @partial(jax.jit, static_argnums=(0,))
-    def mixed_nu1(self, nu0_p, n_p, d01, DPi1, p_L, p_D, eps_g, alpha_g, **kwargs):
+    def mixed_nu1(self, nu0_p, d01, DPi1, p_L, p_D, eps_g, **kwargs):
         """
         Calculate mixed nu1 values and associated zeta values.
         
@@ -499,12 +501,12 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         nu1_p = nu0_p + d01  
     
-        nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g, alpha_g)
-        
-        L, D = self.generate_matrices(n_p, self.n_g, nu1_p, nu_g, p_L, p_D)
+        nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g)
+
+        L, D = self.generate_matrices(nu1_p, nu_g, p_L, p_D)
          
         nu, zeta = self.new_modes(L, D)
-
+         
         return nu, zeta 
 
     @partial(jax.jit, static_argnums=(0,))
@@ -640,7 +642,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         return jnp.sum(X[:, :, None] * Y[:, None, :]*P, axis=(2, 1))
 
     @partial(jax.jit, static_argnums=(0,))
-    def generate_matrices(self, n_p, n_g, nu_p, nu_g, p_L, p_D):
+    def generate_matrices(self, nu_p, nu_g, p_L, p_D):
         """Generate coupling strength matrices
 
         Computes the coupling strength matrices based on the asymptotic p- and
@@ -688,6 +690,8 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         return L, D
     
+
+
     @partial(jax.jit, static_argnums=(0,))
     def new_modes(self, L, D):
         """ Solve for mixed mode frequencies
@@ -714,7 +718,7 @@ class MixFreqModel(jar.DynestySamplingTools):
             The mixing degree for each of the mixed modes.
         """
 
-        Lambda, U = self.eigh(L, D)
+        Lambda, U = self.generalized_eigh(L, D)
     
         new_omega2 = -Lambda
         
@@ -723,7 +727,17 @@ class MixFreqModel(jar.DynestySamplingTools):
         sidx = jnp.argsort(new_omega2)
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
- 
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def generalized_eigh(self, A, B):
+        L = jnp.linalg.cholesky(B)
+        L_inv = jnp.linalg.inv(L)
+        C = L_inv @ A @ L_inv.T
+        eigenvalues, eigenvectors_transformed = jnp.linalg.eigh(C)
+        eigenvectors_original = L_inv.T @ eigenvectors_transformed
+        return eigenvalues, eigenvectors_original
+
+
     @partial(jax.jit, static_argnums=(0,))
     def standardize_angle(self, w, b):
         """ Helper for eigh solver
@@ -914,15 +928,15 @@ class MixFreqModel(jar.DynestySamplingTools):
         smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
 
          
-        A = np.array([self.mixed_nu1(self.obs['nu0_p'], 
-                                     self.obs['n_p'], 
+        A = np.array([self.mixed_nu1(self.obs['nu0_p'],                                       
                                      smp['d01'][i], 
                                      smp['DPi1'][i], 
                                      smp['p_L'][i],  
                                      smp['p_D'][i], 
                                      smp['eps_g'][i], 
-                                     smp['alpha_g'][i]) for i in range(N)])
-        
+                                     ) for i in range(N)])
+                                    #self.obs['n_p'],
+                                    #smp['alpha_g'][i],
         N_pg = self.N_p + self.N_g
         
         result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
@@ -954,7 +968,7 @@ class MixFreqModel(jar.DynestySamplingTools):
                        'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
                        'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
                        'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-                       'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
+                       #'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
                        'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False,  'pca': True, 'unit': 'muHz'},
                        'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
                        },
