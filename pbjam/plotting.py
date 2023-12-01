@@ -352,19 +352,19 @@ def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
 
-    freqPriors = {key:val for key,val in self.MixFreqModel.priors.items() if 'freq' in key}
-
+    freqPriors = {key:val for key,val in self.priors.items() if 'freq' in key}
+     
     for l in np.unique(self.ell).astype(int):
 
         idx_ell = self.ell == l
 
-        nu = np.array([freqPriors[key].ppf(0.5) for key in np.array(list(freqPriors.keys()))[idx_ell]])
+        nu = np.array([freqPriors[key].loc for key in np.array(list(freqPriors.keys()))[idx_ell]])
         
-        nu_err = np.array([[freqPriors[key].ppf(0.5)-freqPriors[key].ppf(0.16), freqPriors[key].ppf(0.84)-freqPriors[key].ppf(0.5)] for key in np.array(list(freqPriors.keys()))[idx_ell]])
-
+        nu_err = np.array([freqPriors[key].scale for key in np.array(list(freqPriors.keys()))[idx_ell]])
+       
         nu_x, nu_y = _echellify_freqs(nu, dnu)
 
-        ax.errorbar(nu_x, nu_y, xerr=nu_err.T, color=colors[l], fmt='o')
+        ax.errorbar(nu_x, nu_y, xerr=nu_err, color=colors[l], fmt='o')
 
         # Add to legend
         ax.errorbar(-100, -100, xerr=1, color=colors[l], fmt='o', label=r'$\ell=$'+str(l))
