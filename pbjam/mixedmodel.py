@@ -51,9 +51,7 @@ class MixFreqModel(jar.DynestySamplingTools):
  
         self.D_gamma = jnp.vstack((jnp.zeros((self.N_p, self.N_p + self.N_g)), 
                                    jnp.hstack((self.zeros_block.T, self.eye_N_g))))
- 
-         
-            
+     
     def setupDR(self):
         """ Setup the latent parameters and projection functions
 
@@ -83,8 +81,6 @@ class MixFreqModel(jar.DynestySamplingTools):
             self.latentLabels = []
             self.DR.inverse_transform = lambda x: []
             self.DR.dims_R = 0
-
-    
 
     def _makeTmpSample(self, keys, N=1000):
         """
@@ -215,155 +211,6 @@ class MixFreqModel(jar.DynestySamplingTools):
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()            
  
-    @partial(jax.jit, static_argnums=(0,))
-    def chi_sqr(self, mod):
-        """ Chi^2 2 dof likelihood
-
-        Evaulates the likelihood of observing the data given the model.
-
-        Parameters
-        ----------
-        mod : jax device array
-            Spectrum model.
-
-        Returns
-        -------
-        L : float
-            Likelihood of the data given the model
-        """
-
-        L = -jnp.sum(jnp.log(mod) + self.s / mod)
-
-        return L      
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def lnlikelihood(self, theta, nu):
-        """
-        Calculate the log likelihood of the model given parameters and data.
-        
-        Parameters
-        ----------
-        theta : numpy.ndarray
-            Parameter values.
-        nu : numpy.ndarray
-            Array of frequency values.
-
-        Returns
-        -------
-        float :
-            Log-likelihood value.
-        """
-    
-        theta_u = self.unpackParams(theta)
-           
-        # Constraint from the periodogram 
-        mod = self.model(theta_u, nu)
-        
-        lnlike = self.chi_sqr(mod)
-         
-        return lnlike
-
-    @partial(jax.jit, static_argnums=(0,))
-    def l1_modewidths(self, zeta, fac=1, **kwargs):
-        """ Compute linewidths for mixed l1 modes
-
-        Parameters
-        ----------
-        modewidth0 : jax device array
-            Mode widths of l=0 modes.
-        zeta : jax device array
-            The mixing degree
-
-        Returns
-        -------
-        modewidths : jax device array
-            Mode widths of l1 modes.
-        """
-         
-        return  fac * self.obs['mode_width'][0] * jnp.maximum(0, 1. - zeta) 
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def envelope(self, nu,):
-        """ Power of the seismic p-mode envelope
-    
-        Computes the power at frequency nu in the oscillation envelope from a 
-        Gaussian distribution. Used for computing mode heights.
-    
-        Parameters
-        ----------
-        nu : float
-            Frequency (in muHz).
-        hmax : float
-            Height of p-mode envelope (in SNR).
-        numax : float
-            Frequency of maximum power of the p-mode envelope (in muHz).
-        width : float
-            Width of the p-mode envelope (in muHz).
-    
-        Returns
-        -------
-        h : float
-            Power at frequency nu (in SNR)   
-        """
- 
-        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def model(self, theta_u, nu,):
-
-        theta_u['p_L'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
-
-        theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
-
-        nu1s, zeta = self.mixed_nu1(self.obs['nu0_p'], **theta_u)
-         
-        Hs1 = self.envelope(nu1s, )
-        
-        modewidth1s = self.l1_modewidths(zeta,)
-         
-        nurot = zeta * theta_u['nurot_c'] + (1 - zeta) * theta_u['nurot_e']
-        
-        modes = jnp.ones_like(nu)
-
-        for i in range(len(nu1s)):
-            
-            nul1 = nu1s[i] + theta_u[f'freqError{i}']
-
-            modes += jar.lor(nu, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
-        
-            modes += jar.lor(nu, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
-        
-            modes += jar.lor(nu, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
-
-        return modes
-
-    @partial(jax.jit, static_argnums=(0,))
-    def unpackParams(self, theta): 
-        """ Cast the parameters in a dictionary
-
-        Parameters
-        ----------
-        theta : array
-            Array of parameters drawn from the posterior distribution.
-
-        Returns
-        -------
-        theta_u : dict
-            The unpacked parameters.
-
-        """
-         
-        # theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
-         
-        # theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
-         
-        theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
- 
-        for key in self.logpars:
-            theta_u[key] = 10**theta_u[key]
- 
-        return theta_u
- 
     def select_n_g(self, n_g_ppf, fac=1):
         """ Select and initial range for n_g
 
@@ -461,6 +308,155 @@ class MixFreqModel(jar.DynestySamplingTools):
             warnings.warn(f'{len(n_g)} g-modes in the p-mode envelope area.')
 
         return n_g
+
+    @partial(jax.jit, static_argnums=(0,))
+    def chi_sqr(self, mod):
+        """ Chi^2 2 dof likelihood
+
+        Evaulates the likelihood of observing the data given the model.
+
+        Parameters
+        ----------
+        mod : jax device array
+            Spectrum model.
+
+        Returns
+        -------
+        L : float
+            Likelihood of the data given the model
+        """
+
+        L = -jnp.sum(jnp.log(mod) + self.s / mod)
+
+        return L      
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def lnlikelihood(self, theta, nu):
+        """
+        Calculate the log likelihood of the model given parameters and data.
+        
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            Parameter values.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        float :
+            Log-likelihood value.
+        """
+    
+        theta_u = self.unpackParams(theta)
+           
+        # Constraint from the periodogram 
+        mod = self.model(theta_u, nu)
+        
+        lnlike = self.chi_sqr(mod)
+         
+        return lnlike
+
+    @partial(jax.jit, static_argnums=(0,))
+    def l1_modewidths(self, zeta, fac=1, **kwargs):
+        """ Compute linewidths for mixed l1 modes
+
+        Parameters
+        ----------
+        modewidth0 : jax device array
+            Mode widths of l=0 modes.
+        zeta : jax device array
+            The mixing degree
+
+        Returns
+        -------
+        modewidths : jax device array
+            Mode widths of l1 modes.
+        """
+         
+        return  fac * self.obs['mode_width'][0] * jnp.maximum(1e-6, 1. - zeta) 
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def envelope(self, nu,):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+ 
+        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def model(self, theta_u, nu,):
+
+        theta_u['p_L'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
+
+        theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
+
+        nu1s, zeta = self.mixed_nu1(self.obs['nu0_p'], **theta_u)
+         
+        Hs1 = self.envelope(nu1s, )
+        
+        modewidth1s = self.l1_modewidths(zeta,)
+         
+        nurot = zeta * theta_u['nurot_c'] + (1 - zeta) * theta_u['nurot_e']
+        
+        modes = jnp.ones_like(nu)
+
+        for i in range(len(nu1s)):
+            
+            nul1 = nu1s[i] + theta_u[f'freqError{i}']
+
+            modes += jar.lor(nu, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+        
+            modes += jar.lor(nu, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+        
+            modes += jar.lor(nu, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+
+        return modes
+
+    @partial(jax.jit, static_argnums=(0,))
+    def unpackParams(self, theta): 
+        """ Cast the parameters in a dictionary
+
+        Parameters
+        ----------
+        theta : array
+            Array of parameters drawn from the posterior distribution.
+
+        Returns
+        -------
+        theta_u : dict
+            The unpacked parameters.
+
+        """
+         
+        # theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
+         
+        # theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
+         
+        theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
+ 
+        for key in self.logpars:
+            theta_u[key] = 10**theta_u[key]
+ 
+        return theta_u
  
     @partial(jax.jit, static_argnums=(0,))
     def asymptotic_nu_g(self, n_g, DPi1, eps_g):
@@ -595,7 +591,7 @@ class MixFreqModel(jar.DynestySamplingTools):
                         ))
 
         return L, D
- 
+     
     @partial(jax.jit, static_argnums=(0,))
     def new_modes(self, L, D):
         """ Solve for mixed mode frequencies
@@ -631,19 +627,28 @@ class MixFreqModel(jar.DynestySamplingTools):
         sidx = jnp.argsort(new_omega2)
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
-    
+
     @partial(jax.jit, static_argnums=(0,))
     def generalized_eig(self, A, B):
- 
-        B_inv = jnp.linalg.inv(B)
-            
-        U, Vprime = jnp.linalg.eig(A @ B_inv)
-
-        V = B_inv @ Vprime
-    
-        Vnorm = V / jnp.linalg.norm(V, axis=0)
         
-        return U.real, Vnorm.real
+        B_inv = jnp.linalg.inv(B)
+        
+        U, V = jnp.linalg.eig(B_inv @ A)
+        
+        return U.real, V.real
+
+    # @partial(jax.jit, static_argnums=(0,))
+    # def generalized_eig(self, A, B):
+ 
+    #     B_inv = jnp.linalg.inv(B)
+            
+    #     U, Vprime = jnp.linalg.eig(A @ B_inv)
+
+    #     V = B_inv @ Vprime
+    
+    #     Vnorm = V / jnp.linalg.norm(V, axis=0)
+        
+    #     return U.real, Vnorm.real
     
     @partial(jax.jit, static_argnums=(0,))
     def generalized_eigh(self, A, B):
