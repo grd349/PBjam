@@ -636,6 +636,11 @@ class MixFreqModel(jar.DynestySamplingTools):
         U, V = jnp.linalg.eig(B_inv @ A)
         
         return U.real, V.real
+    
+    # @partial(jax.jit, static_argnums=(0,))
+    # def _generalized_eig(self, A, B):
+    #     B_inv_A = jnp.linalg.solve(B, A)
+    #     return jnp.linalg.eig(B_inv_A)
 
     # @partial(jax.jit, static_argnums=(0,))
     # def generalized_eig(self, A, B):
