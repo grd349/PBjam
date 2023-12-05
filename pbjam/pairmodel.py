@@ -6,7 +6,6 @@ from pbjam import jar
 from pbjam.background import bkgModel
 from pbjam.DR import PCA
 import pbjam.distributions as dist
-
 jax.config.update('jax_enable_x64', True)
 
 class AsyFreqModel(jar.DynestySamplingTools):
@@ -34,27 +33,17 @@ class AsyFreqModel(jar.DynestySamplingTools):
   
         self.setPriors()
  
-        self.background = bkgModel(self.Nyquist)
+        self.background = bkgModel(self.f, self.Nyquist)
  
         self.ndims = len(self.latentLabels + self.addlabels)
  
         self.setAddObs()
 
-    def setFreqRange(self,):
-        """ Get frequency range around numax for model 
+        self.N_p_range = jnp.arange(self.N_p)
+        self.N_p_mid = jnp.floor(self.N_p/2)
+        self.ones = jnp.ones_like(self.f)
 
-        Returns
-        -------
-        idx : jax device array
-            Array of boolean values defining the interval of the frequency axis
-            where the oscillation modes present.
-        """
- 
-        lfreq = self.freq_limits[0]
-        
-        ufreq = self.freq_limits[1]
-
-        return (lfreq < self.f) & (self.f < ufreq) 
+    
       
     def setAddObs(self, ):
         """ Set attribute containing additional observational data
@@ -229,7 +218,7 @@ class AsyFreqModel(jar.DynestySamplingTools):
         return L      
     
     @partial(jax.jit, static_argnums=(0,))
-    def lnlikelihood(self, theta, nu):
+    def lnlikelihood(self, theta):
         """
         Calculate the log likelihood of the model given parameters and data.
         
@@ -252,27 +241,25 @@ class AsyFreqModel(jar.DynestySamplingTools):
         lnlike = self.addAddObsLike(theta_u)
          
         # Constraint from the periodogram 
-        mod = self.model(theta_u, nu)
+        mod = self.model(theta_u)
          
         lnlike += self.chi_sqr(mod)
          
         return lnlike
 
     @partial(jax.jit, static_argnums=(0,))
-    def model(self, theta_u, nu):
+    def model(self, theta_u):
         
-        modes = jnp.ones_like(nu)
- 
         # l=2,0
-        modes, _, _ = self.add20Pairs(modes, nu, **theta_u)
+        modes, _, _ = self.add20Pairs(self.ones, **theta_u)
         
         # Background
-        bkg = self.background(theta_u, nu)
+        bkg = self.background(theta_u)
          
         return modes * bkg
 
     @partial(jax.jit, static_argnums=(0,))
-    def add20Pairs(self, modes, nu, d02, mode_width, nurot_e, inc, **kwargs):
+    def add20Pairs(self, modes, d02, mode_width, nurot_e, inc, **kwargs):
          
         nu0_p, n_p = self.asymptotic_nu_p(**kwargs)
 
@@ -281,7 +268,7 @@ class AsyFreqModel(jar.DynestySamplingTools):
         for n in range(self.N_p):
 
             # Adding l=0
-            modes += jar.lor(nu, nu0_p[n], Hs0[n], mode_width) 
+            modes += jar.lor(self.f, nu0_p[n], Hs0[n], mode_width) 
             
             # Adding l=2 multiplet
             for m in [-2, -1, 0, 1, 2]:
@@ -290,7 +277,7 @@ class AsyFreqModel(jar.DynestySamplingTools):
                 
                 f = nu0_p[n] - d02 + m * nurot_e
 
-                modes += jar.lor(nu, f, H, mode_width)
+                modes += jar.lor(self.f, f, H, mode_width)
 
         return modes, nu0_p, n_p
 
@@ -389,9 +376,9 @@ class AsyFreqModel(jar.DynestySamplingTools):
             Array of norders radial orders (integers) around nu_max (nmax).
         """
 
-        below = jnp.floor(nmax - jnp.floor(self.N_p/2)).astype(int)
+        below = jnp.floor(nmax - self.N_p_mid).astype(int)
          
-        enns = jnp.arange(self.N_p) + below
+        enns = self.N_p_range + below
 
         return enns 
 
@@ -492,13 +479,13 @@ class AsyFreqModel(jar.DynestySamplingTools):
         
         theta_u = self.unpackParams(theta)
         
-        m = self.model(theta_u, self.f)
+        m = self.model(theta_u)
         
         return self.f, m
     
-    def getMedianModel(self, nu, samples_u, N=30):
+    def getMedianModel(self, samples_u, N=30):
  
-        mod = np.zeros((len(nu), N))
+        mod = np.zeros((len(self.f), N))
         
         # Generate random indices for selecting samples
         rkey = np.random.choice(list(samples_u.keys()))
@@ -512,7 +499,7 @@ class AsyFreqModel(jar.DynestySamplingTools):
             theta_u = {k: v[j] for k, v in samples_u.items()}
             
             # Compute the background model for the selected sample
-            mod[:, i] = self.model(theta_u, nu)
+            mod[:, i] = self.model(theta_u)
         
         # Compute the median background model across samples
         return np.median(mod, axis=1)
@@ -616,6 +603,20 @@ class AsyFreqModel(jar.DynestySamplingTools):
 
 
 
+ # def setFreqRange(self,):
+    #     """ Get frequency range around numax for model 
+
+    #     Returns
+    #     -------
+    #     idx : jax device array
+    #         Array of boolean values defining the interval of the frequency axis
+    #         where the oscillation modes present.
+    #     """
  
+    #     lfreq = self.freq_limits[0]
+        
+    #     ufreq = self.freq_limits[1]
+
+    #     return (lfreq < self.f) & (self.f < ufreq) 
     
 

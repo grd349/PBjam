@@ -1,5 +1,4 @@
-from functools import partial
-import jax, warnings, os
+import warnings, os
 import jax.numpy as jnp
 import numpy as np
 from pbjam import jar
@@ -64,7 +63,7 @@ class modeIDsampler(plotting, ):
         - Unpacks and parses the generated samples.
         - Stores the parsed result and returns both the samples and the result.
         """
-        logl_kwargs['nu'] = self.f[self.sel]    
+        
         
         self.AsyFreqModel = AsyFreqModel(self.f[self.sel], 
                                          self.s[self.sel], 
@@ -96,12 +95,14 @@ class modeIDsampler(plotting, ):
         for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
             self.summary[key] = jar.smryStats(l20samples_u[key])
 
-        l20model = self.AsyFreqModel.getMedianModel(self.f, l20samples_u)
+        l20model = self.AsyFreqModel.getMedianModel(l20samples_u)
 
-        self.l20residual = self.s/l20model
+        self.l20residual = self.s[self.sel]/l20model
+        
+        
 
         self.MixFreqModel = MixFreqModel(self.f[self.sel], 
-                                         self.l20residual[self.sel], 
+                                         self.l20residual, 
                                          self.summary, 
                                          self.addPriors,
                                          self.N_p, 
@@ -109,7 +110,7 @@ class modeIDsampler(plotting, ):
                                          self.PCAdims,
                                          priorpath=self.priorpath)
 
-        self.l1samples = self.MixFreqModel.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
+        self.l1samples = self.MixFreqModel.runDynesty(progress=progress, logl_kwargs={'nu': self.f[self.sel]}, 
                                                       sampler_kwargs=sampler_kwargs)
 
         l1samples_u = self.MixFreqModel.unpackSamples(self.l1samples)

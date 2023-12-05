@@ -484,12 +484,12 @@ def _ModeIDClassPriorSpectrum(self, N):
         l20u = np.random.uniform(0, 1, size=self.AsyFreqModel.ndims)
         l20theta = self.AsyFreqModel.ptform(l20u)
         l20theta_u = self.AsyFreqModel.unpackParams(l20theta)
-        m *= self.AsyFreqModel.model(l20theta_u, self.f)
+        m *= self.AsyFreqModel.model(l20theta_u)
         
         l1u = np.random.uniform(0, 1, size=self.MixFreqModel.ndims)
         l1theta = self.MixFreqModel.ptform(l1u)
         l1theta_u = self.MixFreqModel.unpackParams(l1theta)
-        m *= self.MixFreqModel.model(l1theta_u, self.f)
+        m *= self.MixFreqModel.model(l1theta_u)
 
         # theta = self.ptform(u)
         
@@ -497,7 +497,7 @@ def _ModeIDClassPriorSpectrum(self, N):
         
         # m = self.model(theta_u, self.f)
         
-        ax.plot(self.f, m, alpha=0.2, color='C3')
+        ax.plot(self.f[self.sel], m, alpha=0.2, color='C3')
 
     ax.plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
 
@@ -537,19 +537,19 @@ def _ModeIDClassPostSpectrum(self, N):
 
     for k in rint:
         
-        m = np.ones(len(self.f))
+        m = np.ones(len(self.f[self.sel]))
 
         l20theta_u = self.AsyFreqModel.unpackParams(self.l20samples[k, :])
         
-        m *= self.AsyFreqModel.model(l20theta_u, self.f)
+        m *= self.AsyFreqModel.model(l20theta_u)
         
         l1theta_u = self.MixFreqModel.unpackParams(self.l1samples[k, :])
         
-        m *= self.MixFreqModel.model(l1theta_u, self.f)
+        m *= self.MixFreqModel.model(l1theta_u, self.f[self.sel])
 
-        ax[0].plot(self.f, m, color='C3', alpha=0.2)
+        ax[0].plot(self.f[self.sel], m, color='C3', alpha=0.2)
 
-        ax[1].plot(self.f[sel], m[sel], color='C3', alpha=0.2)
+        ax[1].plot(self.f[self.sel], m, color='C3', alpha=0.2)
 
     ax[0].set_yscale('log')
 

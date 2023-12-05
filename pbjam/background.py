@@ -3,7 +3,7 @@ from functools import partial
 import jax
 
 class bkgModel():
-    def __init__(self, Nyquist):
+    def __init__(self, nu, Nyquist):
         """
         Initialize the background model calculator.
 
@@ -12,8 +12,12 @@ class bkgModel():
         Nyquist : float
             Nyquist frequency.
         """
-        
+        self.nu = nu
+
         self.Nyquist = Nyquist
+
+        self.eta = jar.attenuation(self.nu, self.Nyquist)**2
+
 
     @partial(jax.jit, static_argnums=(0,))
     def harvey(self, nu, a, b, c):
@@ -41,7 +45,7 @@ class bkgModel():
         return H
 
     @partial(jax.jit, static_argnums=(0,))
-    def __call__(self, theta_u, nu):
+    def __call__(self, theta_u,):
         """
         Calculate the background model.
 
@@ -65,15 +69,14 @@ class bkgModel():
           compute the background model.
         """
 
-        H1 = self.harvey(nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
+        H1 = self.harvey(self.nu, theta_u['H_power'], theta_u['H1_nu'], theta_u['H1_exp'],)
 
-        H2 = self.harvey(nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
+        H2 = self.harvey(self.nu, theta_u['H_power'], theta_u['H2_nu'], theta_u['H2_exp'],)
 
-        H3 = self.harvey(nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
+        H3 = self.harvey(self.nu, theta_u['H3_power'], theta_u['H3_nu'], theta_u['H3_exp'],)
             
-        eta = jar.attenuation(nu, self.Nyquist)**2
 
-        bkg = (H1 + H2 + H3) * eta + theta_u['shot']
+        bkg = (H1 + H2 + H3) * self.eta + theta_u['shot']
 
         return bkg
 
