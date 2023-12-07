@@ -41,6 +41,25 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         self.trimVariables()
 
+        self.makeEmpties()
+
+        self.setl1FreqMakers()
+
+    def setl1FreqMakers(self):
+
+        if self.N_g == 0:
+            self.nu1_frequencies = self.asymptotic_nu_p
+            
+            self.getnu1s = self._l1FreqNoFudge
+        else:
+            self.nu1_frequencies = self.mixed_nu1
+             
+            self.getnu1s = self._l1FreqAddFudge 
+
+    def makeEmpties(self):
+        """ Make a bunch of static matrices so we don't need to make them during
+        sampling
+        """
         self.ones_block = jnp.ones((self.N_p, self.N_g))
 
         self.zeros_block = jnp.zeros((self.N_p, self.N_g))
@@ -48,19 +67,10 @@ class MixFreqModel(jar.DynestySamplingTools):
         self.eye_N_p = jnp.eye(self.N_p)
 
         self.eye_N_g = jnp.eye(self.N_g)
- 
-        self.D_gamma = jnp.vstack((jnp.zeros((self.N_p, self.N_p + self.N_g)), 
-                                   jnp.hstack((self.zeros_block.T, self.eye_N_g))))
-        
-        if self.N_g == 0:
-            self.nu1_frequencies = self.asymptotic_nu_p
-            
-            self.getnu1s = self._l1FreqNoFudge
-        else:
-            self.nu1_frequencies = self.mixed_nu1
-            #self.asymptotic_p_nu1 = self.dummy_p_nu1
-            self.getnu1s = self._l1FreqAddFudge 
 
+        self.D_gamma = jnp.vstack((jnp.zeros((self.N_p, self.N_p + self.N_g)), 
+                                jnp.hstack((self.zeros_block.T, self.eye_N_g))))
+        
     def setupDR(self):
         """ Setup the latent parameters and projection functions
 
@@ -133,15 +143,6 @@ class MixFreqModel(jar.DynestySamplingTools):
         
         return ppf, pdf, logpdf, cdf
 
-    # def trimVariables(self):
- 
-    #     for i in range(self.mixed_to_fit, 200, 1):
-    #         del self.addlabels[self.addlabels.index(f'freqError{i}')]
-    #         del self.labels[self.labels.index(f'freqError{i}')]
-    #         del self.priors[f'freqError{i}']
-            
-    #     self.ndims = len(self.priors)  
-          
     def trimVariables(self):
         
         if self.N_g == 0:
@@ -155,7 +156,6 @@ class MixFreqModel(jar.DynestySamplingTools):
             del self.priors[f'freqError{i}']
             
         self.ndims = len(self.priors)    
-
    
     def set_labels(self, addPriors):
         """
