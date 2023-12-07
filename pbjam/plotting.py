@@ -275,19 +275,20 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
 
-    rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.782])   
-    rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
-    rect_ax.set_yticks([])
-    rect_ax.set_ylim(ax.get_ylim())
-    rect_ax.fill_betweenx(ax.get_ylim(), 
-                  x1=self.MixFreqModel.priors['freqError0'].mean - self.MixFreqModel.priors['freqError0'].scale,
-                  x2=self.MixFreqModel.priors['freqError0'].mean + self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
-    rect_ax.fill_betweenx(ax.get_ylim(), 
-                  x1=self.MixFreqModel.priors['freqError0'].mean - 2*self.MixFreqModel.priors['freqError0'].scale,
-                  x2=self.MixFreqModel.priors['freqError0'].mean + 2*self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
-    rect_ax.set_xlim(self.MixFreqModel.priors['freqError0'].mean - 3*self.MixFreqModel.priors['freqError0'].scale,
-                     self.MixFreqModel.priors['freqError0'].mean + 3*self.MixFreqModel.priors['freqError0'].scale)
-    rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
+    if 'freqError0' in self.MixFreqModel.priors.keys(): 
+        rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.782])   
+        rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
+        rect_ax.set_yticks([])
+        rect_ax.set_ylim(ax.get_ylim())
+        rect_ax.fill_betweenx(ax.get_ylim(), 
+                    x1=self.MixFreqModel.priors['freqError0'].mean - self.MixFreqModel.priors['freqError0'].scale,
+                    x2=self.MixFreqModel.priors['freqError0'].mean + self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
+        rect_ax.fill_betweenx(ax.get_ylim(), 
+                    x1=self.MixFreqModel.priors['freqError0'].mean - 2*self.MixFreqModel.priors['freqError0'].scale,
+                    x2=self.MixFreqModel.priors['freqError0'].mean + 2*self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
+        rect_ax.set_xlim(self.MixFreqModel.priors['freqError0'].mean - 3*self.MixFreqModel.priors['freqError0'].scale,
+                        self.MixFreqModel.priors['freqError0'].mean + 3*self.MixFreqModel.priors['freqError0'].scale)
+        rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
     l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
 
@@ -298,7 +299,7 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
         freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
-        if l==1:
+        if (l==1) and ('freqError0' in self.MixFreqModel.priors.keys()):
             rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
 
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
@@ -691,8 +692,8 @@ def _ModeIDClassPostCorner(self, modObj, unpacked, **kwargs):
         for i, key in enumerate(labels):
         
             if key in modObj.priors.keys():
-            
-                x = np.linspace(modObj.priors[key].ppf(1e-6), modObj.priors[key].ppf(1-1e-6), 100)
+                 
+                x = np.linspace(modObj.priors[key].ppf(1e-9), modObj.priors[key].ppf(1-1e-9), 100)
 
                 pdf = np.array([modObj.priors[key].pdf(x[j]) for j in range(len(x))])
 

@@ -51,7 +51,16 @@ class MixFreqModel(jar.DynestySamplingTools):
  
         self.D_gamma = jnp.vstack((jnp.zeros((self.N_p, self.N_p + self.N_g)), 
                                    jnp.hstack((self.zeros_block.T, self.eye_N_g))))
-     
+        
+        if self.N_g == 0:
+            self.nu1_frequencies = self.asymptotic_nu_p
+            
+            self.getnu1s = self._l1FreqNoFudge
+        else:
+            self.nu1_frequencies = self.mixed_nu1
+            #self.asymptotic_p_nu1 = self.dummy_p_nu1
+            self.getnu1s = self._l1FreqAddFudge 
+
     def setupDR(self):
         """ Setup the latent parameters and projection functions
 
@@ -124,15 +133,30 @@ class MixFreqModel(jar.DynestySamplingTools):
         
         return ppf, pdf, logpdf, cdf
 
-    def trimVariables(self):
+    # def trimVariables(self):
  
-        for i in range(self.mixed_to_fit, 200, 1):
+    #     for i in range(self.mixed_to_fit, 200, 1):
+    #         del self.addlabels[self.addlabels.index(f'freqError{i}')]
+    #         del self.labels[self.labels.index(f'freqError{i}')]
+    #         del self.priors[f'freqError{i}']
+            
+    #     self.ndims = len(self.priors)  
+          
+    def trimVariables(self):
+        
+        if self.N_g == 0:
+            N = 0
+        else:
+            N = self.mixed_to_fit
+
+        for i in range(N, 200, 1):
             del self.addlabels[self.addlabels.index(f'freqError{i}')]
             del self.labels[self.labels.index(f'freqError{i}')]
             del self.priors[f'freqError{i}']
             
         self.ndims = len(self.priors)    
 
+   
     def set_labels(self, addPriors):
         """
         Set parameter labels and categorize them based on priors.
@@ -402,14 +426,15 @@ class MixFreqModel(jar.DynestySamplingTools):
  
         return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
     
+        
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u, nu,):
 
         theta_u['p_L'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
 
         theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
-
-        nu1s, zeta = self.mixed_nu1(self.obs['nu0_p'], **theta_u)
+        
+        nu1s, zeta = self.nu1_frequencies(theta_u)
          
         Hs1 = self.envelope(nu1s, )
         
@@ -420,8 +445,8 @@ class MixFreqModel(jar.DynestySamplingTools):
         modes = jnp.ones_like(nu)
 
         for i in range(len(nu1s)):
-            
-            nul1 = nu1s[i] + theta_u[f'freqError{i}']
+             
+            nul1 = self.getnu1s(nu1s, i, theta_u) 
 
             modes += jar.lor(nu, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
@@ -430,6 +455,15 @@ class MixFreqModel(jar.DynestySamplingTools):
             modes += jar.lor(nu, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
 
         return modes
+    
+    #@partial(jax.jit, static_argnums=(0,))
+    def _l1FreqAddFudge(self, nu, i, theta_u):
+         
+        return nu[i] + theta_u[f'freqError{i}']
+    
+    #@partial(jax.jit, static_argnums=(0,))
+    def _l1FreqNoFudge(self, nu, i, theta_u):
+        return nu[i]
 
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
@@ -484,23 +518,15 @@ class MixFreqModel(jar.DynestySamplingTools):
         jax device array
             Frequencies of the notionally pure g-modes of degree l.
         """
-         
-        #P0 = 0 # DPi1*1e-6 # 1 / (jnp.sqrt(max_N2) / c.nu_to_omega)
-
-        #DPi0 = DPi1 / jnp.sqrt(2)  
+ 
         DPi1 *= 1e-6 # DPi1 in s to Ms.  
-
-        #P_max = 1/self.obs['numax'][0]
-
-        #n_gmax = (P_max - P0) / DPi1 - eps_g
-
-        #P = P0 + DPi1 * (n_g + eps_g)  + alpha_g * (n_g - n_gmax)**2)
+ 
         P = DPi1 * (n_g + eps_g)
         
         return 1/P
 
     @partial(jax.jit, static_argnums=(0,))
-    def mixed_nu1(self, nu0_p, d01, DPi1, p_L, p_D, eps_g, **kwargs):
+    def mixed_nu1(self, theta_u):
         """
         Calculate mixed nu1 values and associated zeta values.
         
@@ -533,18 +559,22 @@ class MixFreqModel(jar.DynestySamplingTools):
             Array of mixing degrees for the modes.
         """
 
-        nu1_p = nu0_p + d01  
-    
-        nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g)
+        nu1_p = self.obs['nu0_p'] + theta_u['d01'] 
+        
+        nu_g = self.asymptotic_nu_g(self.n_g, theta_u['DPi1'], theta_u['eps_g'])
 
-        L, D = self.generate_matrices(nu1_p, nu_g, p_L, p_D)
+        L, D = self.generate_matrices(nu1_p, nu_g, theta_u['p_L'], theta_u['p_D'])
          
         nu, zeta = self.new_modes(L, D)
 
         idx = jnp.argpartition(abs(nu-self.obs['numax'][0]), self.mixed_to_fit-1)
  
         return nu[idx[:self.mixed_to_fit]], zeta[idx[:self.mixed_to_fit]] 
-
+ 
+    @partial(jax.jit, static_argnums=(0,))
+    def asymptotic_nu_p(self, theta_u):
+        return self.obs['nu0_p'] + theta_u['d01'], jnp.zeros_like(self.obs['nu0_p'])
+   
     @partial(jax.jit, static_argnums=(0,))
     def generate_matrices(self, nu_p, nu_g, p_L, p_D):
         """Generate coupling strength matrices
@@ -637,41 +667,15 @@ class MixFreqModel(jar.DynestySamplingTools):
         
         return U.real, V.real
     
-    # @partial(jax.jit, static_argnums=(0,))
-    # def _generalized_eig(self, A, B):
-    #     B_inv_A = jnp.linalg.solve(B, A)
-    #     return jnp.linalg.eig(B_inv_A)
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def generalized_eig(self, A, B):
- 
-    #     B_inv = jnp.linalg.inv(B)
-            
-    #     U, Vprime = jnp.linalg.eig(A @ B_inv)
-
-    #     V = B_inv @ Vprime
-    
-    #     Vnorm = V / jnp.linalg.norm(V, axis=0)
-        
-    #     return U.real, Vnorm.real
-    
     @partial(jax.jit, static_argnums=(0,))
     def generalized_eigh(self, A, B):
-
-        L = jnp.linalg.cholesky(B)
-
-        L_inv = jnp.linalg.inv(L)
-
-        C = L_inv @ A @ L_inv.T
-
-        eigenvalues, eigenvectors_transformed = jnp.linalg.eigh(C)
-
-        eigenvectors_transformed = L_inv.T @ eigenvectors_transformed
-
-        eigenvectors = eigenvectors_transformed / jnp.linalg.norm(eigenvectors_transformed, axis=0)
-
-        return eigenvalues, eigenvectors
- 
+        
+        B_inv = jnp.linalg.inv(B)
+        
+        U, V = jnp.linalg.eigh(B_inv @ A)
+        
+        return U.real, V.real
+  
     def unpackSamples(self, samples=None):
         """
         Unpack a set of parameter samples into a dictionary of arrays.
@@ -773,14 +777,9 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
 
-         
-        A = np.array([self.mixed_nu1(self.obs['nu0_p'],                                       
-                                     smp['d01'][i], 
-                                     smp['DPi1'][i], 
-                                     smp['p_L'][i],  
-                                     smp['p_D'][i], 
-                                     smp['eps_g'][i], 
-                                     ) for i in range(N)])
+ 
+
+        A = np.array([self.nu1_frequencies({key: smp[key][0] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g']}) for i in range(N)])
                                     #self.obs['n_p'],
                                     #smp['alpha_g'][i],
 
@@ -793,8 +792,11 @@ class MixFreqModel(jar.DynestySamplingTools):
         nu1_samps = A[:, 0, :]
 
         sigma_nul1 = np.array([smp[key] for key in smp.keys() if key.startswith('freqError')]).T
- 
-        jar.modeUpdoot(result, nu1_samps + sigma_nul1, 'freq', N_pg)
+
+        if len(sigma_nul1) == 0:        
+            jar.modeUpdoot(result, nu1_samps, 'freq', N_pg)
+        else:
+            jar.modeUpdoot(result, nu1_samps + sigma_nul1, 'freq', N_pg)
 
         zeta_samps = A[:, 1, :]
 
@@ -825,236 +827,60 @@ class MixFreqModel(jar.DynestySamplingTools):
                 }
 
 
-# @partial(jax.jit, static_argnums=(0,))
-    # def _wrap_polyval2d(self, x, y, p):
-    #     """Evaluate 2D polynomial
-
-    #     Evaluates 2D polynomial for the the top right or bottom left blocks of 
-    #     the L and D matrices. 
-
-    #     Parameters
-    #     ----------
-    #     x : jax device array
-    #         Array of radial orders for the pi modes.
-    #     y : jax device array
-    #         Array of radial orders for the gamma modes.
-    #     p : jax device array
-    #         Polynomial coeffecients.
-
-    #     Returns
-    #     -------
-    #     jax device array
-    #         Block of shape (len(x), len(y) to be inserted in L or D coupling 
-    #         strength matrices.
-        
-    #     Notes
-    #     -----
-    #     This is legacy code which is not currently in use. May be used in the 
-    #     future if it's necessary to compute more complicated 2D poly's.
-
-    #     """
-      
-    #     xx = (x + 0 * y)
-
-    #     yy = (y + 0 * x)
-
-    #     shape = xx.shape
-
-    #     P = self.poly_params_2d(p)
-
-    #     block = self.polyval2d(xx.flatten(), yy.flatten(), P)
-
-    #     return block.reshape(shape)
 
     # @partial(jax.jit, static_argnums=(0,))
-    # def poly_params_2d(self, p):
-    #     """Reshape polynomial coefficients
-
-    #     Turn a parameter vector into an upper triangular coefficient matrix.
-
-    #     For a list of polynomial coefficients [1,2,3] the result is of the
-    #     form 
-    #     [1 3 0]
-    #     [2 0 0]
-    #     [0 0 0]
-
-    #     Parameters
-    #     ----------
-    #     p : jax device array
-    #         Array of polynomial coefficients
-
-    #     Returns
-    #     -------
-    #     jax device array
-    #         Square matrix of reshaped polynomial coefficients.
+    # def nu1_frequencies(self, theta_u):
+    #     nu1s, zeta = jax.lax.cond(self.N_g==0, 
+    #                               self.asymptotic_p_nu1, 
+    #                               self.mixed_nu1, 
+    #                               self.obs['nu0_p'], 
+    #                               theta_u,)
         
-    #     Notes
-    #     -----
-    #     This is legacy code which is not currently in use. May be used in the 
-    #     future if it's necessary to compute more complicated 2D poly's.
+    #     return nu1s, zeta
 
+ # @partial(jax.jit, static_argnums=(0,))
+    # def mixed_nu1(self, nu0_p, d01, DPi1, p_L, p_D, eps_g, **kwargs):
     #     """
- 
-    #     # Check that len(p) a triangular number
-    #     if len(p) == 1:
-    #         n = 1
-    #     elif len(p) == 3:
-    #         n = 2
-    #     elif len(p) == 6:
-    #         n = 3
-    #     else:
-    #         raise ValueError('The length of p must be 1, 3, or 6.')
-
-    #     P = jnp.zeros((n, n))
-
-    #     # TODO: I think this part is slow in jax, can be speeded up?
-    #     for i in range(n):
-    #         # ith triangular number as offset
-    #         n_i = i * (i + 1) // 2
-
-    #         for j in range(i + 1):
-
-    #             P = P.at[i - j, j].set(p[n_i + j])
-
-    #     return P
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def polyval2d(self, x, y, P, increasing=True):
-    #     """Evaluate a 2D polynomial
-
-    #     Jaxxable replacement for Numpy's polyval2d. Doesn't seem to exist in 
-    #     jax.numpy yet.
-
-    #     Parameters
-    #     ----------
-    #     x : jax device array
-    #         x-coordinates to evaluate the polynomial at. In this case n_g or 
-    #         n_p
-    #     y : jax device array
-    #         y-coordinates to evaluate the polynomial at. In this case n_g or 
-    #         n_p
-    #     P : jax device array
-    #         Upper triangular matrix of polynomial coefficients.
-    #     increasing : bool, optional
-    #         Ordering of the powers of the columns of the Vandermonde matrices. 
-    #         If True, the powers increase from left to right, if False 
-    #         (the default) they are reversed.
-
-    #     Returns
-    #     -------
-    #     jax device array
-    #         Matrix of the polymial values.
-
-    #     Notes
-    #     -----
-    #     This is legacy code which is not currently in use. May be used in the 
-    #     future if it's necessary to compute more complicated 2D poly's.
-    #     """
-
-    #     X = jnp.vander(x, P.shape[0], increasing=increasing)
-
-    #     Y = jnp.vander(y, P.shape[1], increasing=increasing)
-
-    #     return jnp.sum(X[:, :, None] * Y[:, None, :]*P, axis=(2, 1))
-
-# def generalized_eig(A, B=None):
- 
-    #     B_inv = jnp.linalg.inv(B)
-
-    #     eigenvalues, eigenvectors = jnp.linalg.eig(B_inv @ A)
-
-    
-    #     eigenvectors = B_inv @ eigenvectors
-    
-    #     #for i in range(eigenvectors.shape[1]):
-    #     #    eigenvectors[:, i] /= jnp.linalg.norm(eigenvectors[:, i])
-    
-    #     return eigenvalues, eigenvectors
-    #     
-# @partial(jax.jit, static_argnums=(0,))
-    # def standardize_angle(self, w, b):
-    #     """ Helper for eigh solver
-
-    #     Parameters
-    #     ----------
-    #     w : jax device array
-    #         Matrix
-    #     b : jax device array
-    #         Matrix
-
-    #     Returns
-    #     -------
-    #     w : jax device array
-    #         Modified w.
-    #     """
-
-    #     return w * jnp.sign(w[0, :])
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def eigh(self, a, b):
-        # """ Jaxxable replacement for numpy.eigh.
-
-        # From https://jackd.github.io/posts/generalized-eig-jvp/
-
-        # Compute the solution to the symmetrized generalized eigenvalue problem.
-
-        # a_s @ w = b_s @ w @ np.diag(v)
-
-        # where a_s = (a + a.H) / 2, b_s = (b + b.H) / 2 are the symmetrized 
-        # versions of the inputs and H is the Hermitian (conjugate transpose) 
-        # operator.
-
-        # For self-adjoint inputs the solution should be consistent with 
-        # `scipy.linalg.eigh` i.e.
-
-        # v, w = eigh(a, b)
-        # v_sp, w_sp = scipy.linalg.eigh(a, b)
-
-        # np.testing.assert_allclose(v, v_sp)
-        # np.testing.assert_allclose(w, standardize_angle(w_sp))
-
-        # Note this currently uses `jax.linalg.eig(jax.linalg.solve(b, a))`, which
-        # will be slow because there is no GPU implementation of `eig` and it's 
-        # just a generally inefficient way of doing it. Future implementations 
-        # should wrap cuda primitives. This implementation is provided primarily 
-        # as a means to test `eigh_jvp_rule`.
-
-        # Parameters
-        # ----------
-        # a : jax device array
-        #     [n, n] float self-adjoint matrix (i.e. conj(transpose(a)) == a)
-        # b : jax device array
-        #     [n, n] float self-adjoint matrix (i.e. conj(transpose(b)) == b)
-
-        # Returns
-        # -------
-        # v : jax device array
-        #     Eigenvalues of the generalized problem in ascending order.
-        # w : jax device array
-        #     Eigenvectors of the generalized problem, normalized such that
-        #     w.H @ b @ w = I.
-        # """
+    #     Calculate mixed nu1 values and associated zeta values.
         
-        # b_inv_a = jax.scipy.linalg.cho_solve(jax.scipy.linalg.cho_factor(b), a)
+    #     Parameters
+    #     ----------
+    #     nu0_p : float
+    #         Initial nu0 value.
+    #     n_p : int
+    #         Number of n values.
+    #     d01 : float
+    #         The d01 frequency separation
+    #     DPi1 : float
+    #         Period spacing for l=1.
+    #     p_L : jax device array
+    #         Polynomial coefficients for the L coupling strength matrix.
+    #     p_D : jax device array
+    #         Polynomial coefficients for the D coupling strength matrix.
+    #     eps_g : float
+    #         Phase offset of the g-modes.
+    #     alpha_g : float
+    #         Curvature scale of the g-modes.
+    #     **kwargs : dict
+    #         Additional keyword arguments.
 
-        # v, w = jax.jit(jax.numpy.linalg.eig, backend="cpu")(b_inv_a)
+    #     Returns
+    #     -------
+    #     nu : jax device array
+    #         Array of frequencies of the mixed l=1 modes. 
+    #     zeta : jax device array
+    #         Array of mixing degrees for the modes.
+    #     """
 
-        # v = v.real
+    #     nu1_p = nu0_p + d01  
+    
+    #     nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g)
+
+    #     L, D = self.generate_matrices(nu1_p, nu_g, p_L, p_D)
+         
+    #     nu, zeta = self.new_modes(L, D)
+
+    #     idx = jnp.argpartition(abs(nu-self.obs['numax'][0]), self.mixed_to_fit-1)
  
-        # w = w.real
-
-        # # reorder as ascending in w
-        # order = jnp.argsort(v)
-
-        # v = v.take(order, axis=0)
-
-        # w = w.take(order, axis=1)
-
-        # # renormalize so v.H @ b @ H == 1
-        # norm2 = jax.vmap(lambda wi: (wi.conj() @ b @ wi).real, in_axes=1)(w)
-
-        # w = w / jnp.sqrt(norm2)
-
-        # w = self.standardize_angle(w, b)
-
-        # return v, w
+    #     return nu[idx[:self.mixed_to_fit]], zeta[idx[:self.mixed_to_fit]] 
+ 

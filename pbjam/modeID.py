@@ -124,9 +124,10 @@ class modeIDsampler(plotting, ):
         R = {'summary': {},
              'samples': {}}
 
+        N = min([l20res['samples']['freq'].shape[0], l1res['samples']['freq'].shape[0]])
+
         for key in ['ell', 'enn', 'zeta']:
             R[key] = np.append(l20res[key], l1res[key])
-
         
         for rootkey in ['summary', 'samples']:
             for D in [l20res, l1res]:
@@ -134,8 +135,11 @@ class modeIDsampler(plotting, ):
                     if subkey not in ['freq', 'height', 'width']:
                         R[rootkey][subkey] = D[rootkey][subkey]
 
-            for subkey in ['freq', 'height', 'width']:        
-                R[rootkey][subkey] = np.hstack((l20res[rootkey][subkey], l1res[rootkey][subkey]))
+            for subkey in ['freq', 'height', 'width']:
+
+                
+
+                R[rootkey][subkey] = np.hstack((l20res[rootkey][subkey][:N, :], l1res[rootkey][subkey][:N, :]))
         
         return R
 
