@@ -39,11 +39,19 @@ class AsyFreqModel(jar.DynestySamplingTools):
  
         self.setAddObs()
 
-        self.N_p_range = jnp.arange(self.N_p)
-        self.N_p_mid = jnp.floor(self.N_p/2)
-        self.ones = jnp.ones_like(self.f)
+        self.makeEmpties()
 
-    
+    def makeEmpties(self):
+        """ Make a bunch of static matrices so we don't need to make them during
+        sampling
+        """
+        
+        self.N_p_range = jnp.arange(self.N_p)
+ 
+        self.N_p_mid = jnp.floor(self.N_p/2)
+ 
+        self.ones_nu = jnp.ones_like(self.f)
+ 
       
     def setAddObs(self, ):
         """ Set attribute containing additional observational data
@@ -251,7 +259,7 @@ class AsyFreqModel(jar.DynestySamplingTools):
     def model(self, theta_u):
         
         # l=2,0
-        modes, _, _ = self.add20Pairs(self.ones, **theta_u)
+        modes, _, _ = self.add20Pairs(self.ones_nu, **theta_u)
         
         # Background
         bkg = self.background(theta_u)

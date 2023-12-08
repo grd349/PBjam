@@ -525,33 +525,37 @@ def _ModeIDClassPostSpectrum(self, N):
     dnu = self.obs['dnu'][0]
 
 
-    fig, ax = plt.subplots(2, 1, figsize=(16,18))
+    fig, ax = plt.subplots(3, 1, figsize=(16,18))
     
     _baseSpectrum(ax[0], self.f, self.s)
-
-    xlim = [max([min(self.f), numax -  (self.N_p + 2) * dnu]), 
-            min([max(self.f), numax +  (self.N_p + 2) * dnu])]
-     
-    sel = (xlim[0] <= self.f) & (self.f <= xlim[1])
-
-    _baseSpectrum(ax[1], self.f[sel], self.s[sel], ylim=[0, None])
+    ax[0].set_xlim(self.f.min(), self.f.max())
+    
+    _baseSpectrum(ax[1], self.f[self.l20sel], self.s[self.l20sel])
+    ax[1].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
+   
+    _baseSpectrum(ax[2], self.f[self.l20sel][self.l1sel], self.l20residual[self.l1sel], ylim=[0, None])
+    ax[2].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
 
     for k in rint:
         
-        m = np.ones(len(self.f[self.sel]))
+        l20m = np.ones(len(self.f[self.l20sel]))
 
         l20theta_u = self.AsyFreqModel.unpackParams(self.l20samples[k, :])
         
-        m *= self.AsyFreqModel.model(l20theta_u)
+        l20m *= self.AsyFreqModel.model(l20theta_u)
+
+        ax[0].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
+        ax[1].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
+
+        l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
         
         l1theta_u = self.MixFreqModel.unpackParams(self.l1samples[k, :])
         
-        m *= self.MixFreqModel.model(l1theta_u, self.f[self.sel])
+        l1m *= self.MixFreqModel.model(l1theta_u,)
 
-        ax[0].plot(self.f[self.sel], m, color='C3', alpha=0.2)
+        ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
 
-        ax[1].plot(self.f[self.sel], m, color='C3', alpha=0.2)
-
+     
     ax[0].set_yscale('log')
 
     ax[0].set_xscale('log')
@@ -562,19 +566,20 @@ def _ModeIDClassPostSpectrum(self, N):
     
     ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
-    for nu in self.result['summary']['freq'][0]:
-        ax[1].axvline(nu, c='k', linestyle='--')
-    
-    ax[1].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
+    for i in range(1,3):
+        for nu in self.result['summary']['freq'][0]:
+            ax[i].axvline(nu, c='k', linestyle='--')
+        
+        ax[i].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
 
-    ax[1].axvline(-100, c='k', linestyle='--', label='Median frequencies')
+        ax[i].axvline(-100, c='k', linestyle='--', label='Median frequencies')
 
-    ax[1].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-    
-    ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+        ax[i].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+        
+        ax[i].set_xlabel(r'Frequency ($\mu \rm Hz$)')
 
-    ax[1].legend(loc=2)
-
+        ax[i].legend(loc=2)
+ 
     return fig, ax
 
 def _PeakbagClassPriorSpectrum(self, N):

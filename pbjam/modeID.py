@@ -10,7 +10,7 @@ import pandas as pd
 
 class modeIDsampler(plotting, ):
 
-    def __init__(self, f, s, obs, addPriors={}, N_p=7, freq_limits=[1, 5000], 
+    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=[1, 5000], 
                  vis={'V20': 0.71, 'V10': 1.22}, Npca=50, PCAdims=8, 
                  priorpath=None):
 
@@ -21,24 +21,75 @@ class modeIDsampler(plotting, ):
         self.s = jnp.array(self.s)
       
         self.Nyquist = self.f[-1]
-
-        self.sel = self.setFreqRange()
-
-    def setFreqRange(self, ):
-        """ Get frequency range around numax for model 
-
-        Returns
-        -------
-        idx : jax device array
-            Array of boolean values defining the interval of the frequency axis
-            where the oscillation modes present.
-        """
  
-        lfreq = self.freq_limits[0]
-        
-        ufreq = self.freq_limits[1]
 
-        return (lfreq < self.f) & (self.f < ufreq)        
+    def runl20Model(self, progress, logl_kwargs, sampler_kwargs):
+
+            self.l20sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   # self.setFreqRange(*self.freqLimits)
+
+            self.AsyFreqModel = AsyFreqModel(self.f[self.l20sel], 
+                                             self.s[self.l20sel], 
+                                             self.obs, 
+                                             self.addPriors, 
+                                             self.N_p, 
+                                             self.Npca, 
+                                             self.PCAdims,
+                                             priorpath=self.priorpath)
+            
+            self.l20samples = self.AsyFreqModel.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
+                                                        sampler_kwargs=sampler_kwargs)
+            
+            l20samples_u = self.AsyFreqModel.unpackSamples(self.l20samples)
+
+            self.l20res = self.AsyFreqModel.parseSamples(l20samples_u)
+        
+
+            asymptotic_samps = np.array([self.AsyFreqModel.asymptotic_nu_p(l20samples_u['numax'][i], 
+                                                                           l20samples_u['dnu'][i], 
+                                                                           l20samples_u['eps_p'][i], 
+                                                                           l20samples_u['alpha_p'][i]) for i in range(50)])
+            self.summary = {}
+
+            self.summary['n_p'] = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
+
+            self.summary['nu0_p'] = np.median(asymptotic_samps[:, 0, :], axis=0)
+
+            for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
+                self.summary[key] = jar.smryStats(l20samples_u[key])
+
+            l20model = self.AsyFreqModel.getMedianModel(l20samples_u)
+
+            self.l20residual = self.s[self.l20sel]/l20model
+
+            return self.l20res
+
+    def runl1Model(self, progress, logl_kwargs, sampler_kwargs, freqLimits=None):
+
+            if freqLimits is None:
+                                
+                 freqLimits = [self.obs['numax'][0] - self.obs['dnu'][0]*(self.AsyFreqModel.N_p//2+1), 
+                               self.obs['numax'][0] + self.obs['dnu'][0]*(self.AsyFreqModel.N_p//2+1),]
+
+            self.l1sel = (np.array(freqLimits).min() < self.f[self.l20sel]) & (self.f[self.l20sel] < np.array(freqLimits).max())
+            
+            self.MixFreqModel = MixFreqModel(self.f[self.l20sel][self.l1sel], 
+                                             self.l20residual[self.l1sel], 
+                                             self.summary, 
+                                             self.addPriors,
+                                             self.N_p, 
+                                             self.Npca, 
+                                             self.PCAdims,
+                                             priorpath=self.priorpath)
+
+            self.l1samples = self.MixFreqModel.runDynesty(progress=progress, 
+                                                          logl_kwargs=logl_kwargs, 
+                                                          sampler_kwargs=sampler_kwargs)
+
+            l1samples_u = self.MixFreqModel.unpackSamples(self.l1samples)
+
+            self.l1res = self.MixFreqModel.parseSamples(l1samples_u)
+
+            return self.l1res
 
     def __call__(self, progress=True, sampler_kwargs={}, logl_kwargs={}):
         """
@@ -64,60 +115,11 @@ class modeIDsampler(plotting, ):
         - Stores the parsed result and returns both the samples and the result.
         """
         
+        self.runl20Model(progress, sampler_kwargs, logl_kwargs)
         
-        self.AsyFreqModel = AsyFreqModel(self.f[self.sel], 
-                                         self.s[self.sel], 
-                                         self.obs, 
-                                         self.addPriors, 
-                                         self.N_p, 
-                                         self.Npca, 
-                                         self.PCAdims,
-                                         priorpath=self.priorpath)
-        
-        self.l20samples = self.AsyFreqModel.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
-                                                       sampler_kwargs=sampler_kwargs)
-        
-        l20samples_u = self.AsyFreqModel.unpackSamples(self.l20samples)
+        self.runl1Model(progress, sampler_kwargs, logl_kwargs)
 
-        l20res = self.AsyFreqModel.parseSamples(l20samples_u)
-        
-
-        asymptotic_samps = np.array([self.AsyFreqModel.asymptotic_nu_p(l20samples_u['numax'][i], 
-                                                                       l20samples_u['dnu'][i], 
-                                                                       l20samples_u['eps_p'][i], 
-                                                                       l20samples_u['alpha_p'][i]) for i in range(50)])
-        self.summary = {}
-
-        self.summary['n_p'] = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
-
-        self.summary['nu0_p'] = np.median(asymptotic_samps[:, 0, :], axis=0)
-
-        for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
-            self.summary[key] = jar.smryStats(l20samples_u[key])
-
-        l20model = self.AsyFreqModel.getMedianModel(l20samples_u)
-
-        self.l20residual = self.s[self.sel]/l20model
-        
-        
-
-        self.MixFreqModel = MixFreqModel(self.f[self.sel], 
-                                         self.l20residual, 
-                                         self.summary, 
-                                         self.addPriors,
-                                         self.N_p, 
-                                         self.Npca, 
-                                         self.PCAdims,
-                                         priorpath=self.priorpath)
-
-        self.l1samples = self.MixFreqModel.runDynesty(progress=progress, logl_kwargs={'nu': self.f[self.sel]}, 
-                                                      sampler_kwargs=sampler_kwargs)
-
-        l1samples_u = self.MixFreqModel.unpackSamples(self.l1samples)
-
-        l1res = self.MixFreqModel.parseSamples(l1samples_u)
-
-        self.result = self.mergeResults(l20res, l1res)
+        self.result = self.mergeResults(self.l20res, self.l1res)
 
     def mergeResults(self, l20res, l1res):
     

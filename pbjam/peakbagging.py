@@ -17,7 +17,7 @@ class peakbag(plotting):
         
         self.Nyquist = self.f[-1]
 
-        self.bkg = self.getBkg() #jar.jaxInterp1D(self.f, self.bkg)
+        self.bkg = self.getBkg() 
 
         self.snr = self.s / self.bkg(self.f)
 
@@ -125,14 +125,19 @@ class peakbag(plotting):
         for i in range(self.Nmodes):
             _key = f'freq{i}'
             if _key not in self.priors:
-                freqScale = max([freq_err * self.dnu[0], self.freq[1, i]])
+                freqScale = freq_err * self.dnu[0] # min([freq_err * self.dnu[0], self.freq[1, i]])
+                # self.priors[_key] = dist.normal(loc=self.freq[0, i],  
+                #                                 scale=freqScale)
+                 
                 self.priors[_key] = dist.normal(loc=self.freq[0, i],  
                                                 scale=freqScale)
+                 
+
         for i in range(self.Nmodes):
             _key = f'height{i}'
             if _key not in self.priors:
                 mode_snr = self.height[0, i] / self.bkg(self.freq[0, i])
-                self.priors[_key] = dist.normal(loc=jnp.log10(mode_snr), scale=0.5)
+                self.priors[_key] = dist.normal(loc=jnp.log10(mode_snr), scale=0.1)
 
         
         # The GP expects a smooth function, so divide by 1-zeta and add it in later in unpack.
@@ -140,7 +145,7 @@ class peakbag(plotting):
             _key = f'width{i}'
             if _key not in self.priors:
                 self.priors[_key] = dist.normal(loc=jnp.log10(self.width[0, i]/(1-self.zeta[i])),
-                                                scale=0.3)
+                                                scale=0.1)
         
         # Envelope rotation prior
         if 'nurot_e' not in self.priors.keys():
@@ -155,7 +160,7 @@ class peakbag(plotting):
             self.priors['inc'] = dist.truncsine()
 
         if 'shot' not in self.priors.keys():
-            self.priors['shot'] = dist.normal(loc=0, scale=0.3)
+            self.priors['shot'] = dist.normal(loc=0, scale=0.01)
 
         if not all([key in self.labels for key in self.priors.keys()]):
             raise ValueError('Length of labels doesnt match lenght of priors.')
@@ -310,7 +315,7 @@ class peakbag(plotting):
 
         lnlike = self.chi_sqr(mod)
 
-        #lnlike += self.AddLikeTerms(theta, theta_u)
+        lnlike += self.AddLikeTerms(theta, theta_u)
         
         return lnlike
 
@@ -500,14 +505,14 @@ class peakbag(plotting):
         self.addObs['widthGP'] = wGP.log_probability
 
 
-        # Correlated Noise Regularisation for amplitude
-        hGPtheta={'amp': 1, 'scale': self.dnu[0]}
+        # # Correlated Noise Regularisation for amplitude
+        # hGPtheta={'amp': 1, 'scale': self.dnu[0]}
 
-        hGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.height[0, :]))
+        # hGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.height[0, :]))
     
-        hGP = self.build_gp(hGPtheta, self.freq[0, :], hGPmuFunc)
+        # hGP = self.build_gp(hGPtheta, self.freq[0, :], hGPmuFunc)
 
-        self.addObs['heightGP'] = hGP.log_probability
+        # self.addObs['heightGP'] = hGP.log_probability
  
     @partial(jax.jit, static_argnums=(0,))
     def AddLikeTerms(self, theta, theta_u):
@@ -529,7 +534,7 @@ class peakbag(plotting):
 
         lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
         
-        lnp += self.addObs['heightGP'](theta[self.Nmodes: 2 * self.Nmodes])
+        #lnp += self.addObs['heightGP'](theta[self.Nmodes: 2 * self.Nmodes])
 
         lnp += self.addObs['widthGP'](theta[2 * self.Nmodes: 3 * self.Nmodes])
 

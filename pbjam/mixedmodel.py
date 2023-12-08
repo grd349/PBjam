@@ -6,7 +6,6 @@ from functools import partial
 from pbjam.jar import constants as c
 from pbjam.DR import PCA
 import pbjam.distributions as dist
-import jax.scipy.linalg as jsl
 
 jax.config.update('jax_enable_x64', True)
  
@@ -43,9 +42,9 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         self.makeEmpties()
 
-        self.setl1FreqMakers()
+        self.setl1FreqFuncs()
 
-    def setl1FreqMakers(self):
+    def setl1FreqFuncs(self):
 
         if self.N_g == 0:
             self.nu1_frequencies = self.asymptotic_nu_p
@@ -60,6 +59,9 @@ class MixFreqModel(jar.DynestySamplingTools):
         """ Make a bunch of static matrices so we don't need to make them during
         sampling
         """
+
+        self.ones_nu = jnp.ones_like(self.f)
+
         self.ones_block = jnp.ones((self.N_p, self.N_g))
 
         self.zeros_block = jnp.zeros((self.N_p, self.N_g))
@@ -225,7 +227,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         self.priors.update({key : self.addPriors[key] for key in AddKeys})
  
         for i in range(200):
-            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/20 * self.obs['dnu'][0])
+            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/50 * self.obs['dnu'][0])
   
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
@@ -355,7 +357,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         return L      
     
     @partial(jax.jit, static_argnums=(0,))
-    def lnlikelihood(self, theta, nu):
+    def lnlikelihood(self, theta):
         """
         Calculate the log likelihood of the model given parameters and data.
         
@@ -375,7 +377,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         theta_u = self.unpackParams(theta)
            
         # Constraint from the periodogram 
-        mod = self.model(theta_u, nu)
+        mod = self.model(theta_u)
         
         lnlike = self.chi_sqr(mod)
          
@@ -426,9 +428,8 @@ class MixFreqModel(jar.DynestySamplingTools):
  
         return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
     
-        
     @partial(jax.jit, static_argnums=(0,))
-    def model(self, theta_u, nu,):
+    def model(self, theta_u,):
 
         theta_u['p_L'] = (theta_u['u1'] + theta_u['u2'])/jnp.sqrt(2)
 
@@ -442,26 +443,23 @@ class MixFreqModel(jar.DynestySamplingTools):
          
         nurot = zeta * theta_u['nurot_c'] + (1 - zeta) * theta_u['nurot_e']
         
-        modes = jnp.ones_like(nu)
+        modes = self.ones_nu
 
         for i in range(len(nu1s)):
              
             nul1 = self.getnu1s(nu1s, i, theta_u) 
 
-            modes += jar.lor(nu, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
+            modes += jar.lor(self.f, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
-            modes += jar.lor(nu, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(self.f, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
-            modes += jar.lor(nu, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(self.f, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
 
         return modes
     
-    #@partial(jax.jit, static_argnums=(0,))
-    def _l1FreqAddFudge(self, nu, i, theta_u):
-         
+    def _l1FreqAddFudge(self, nu, i, theta_u):     
         return nu[i] + theta_u[f'freqError{i}']
     
-    #@partial(jax.jit, static_argnums=(0,))
     def _l1FreqNoFudge(self, nu, i, theta_u):
         return nu[i]
 
@@ -744,7 +742,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         
         theta_u = self.unpackParams(theta)
         
-        m = self.model(theta_u, self.f)
+        m = self.model(theta_u,)
         
         return self.f, m
     
@@ -826,61 +824,4 @@ class MixFreqModel(jar.DynestySamplingTools):
                            'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
                 }
 
-
-
-    # @partial(jax.jit, static_argnums=(0,))
-    # def nu1_frequencies(self, theta_u):
-    #     nu1s, zeta = jax.lax.cond(self.N_g==0, 
-    #                               self.asymptotic_p_nu1, 
-    #                               self.mixed_nu1, 
-    #                               self.obs['nu0_p'], 
-    #                               theta_u,)
-        
-    #     return nu1s, zeta
-
- # @partial(jax.jit, static_argnums=(0,))
-    # def mixed_nu1(self, nu0_p, d01, DPi1, p_L, p_D, eps_g, **kwargs):
-    #     """
-    #     Calculate mixed nu1 values and associated zeta values.
-        
-    #     Parameters
-    #     ----------
-    #     nu0_p : float
-    #         Initial nu0 value.
-    #     n_p : int
-    #         Number of n values.
-    #     d01 : float
-    #         The d01 frequency separation
-    #     DPi1 : float
-    #         Period spacing for l=1.
-    #     p_L : jax device array
-    #         Polynomial coefficients for the L coupling strength matrix.
-    #     p_D : jax device array
-    #         Polynomial coefficients for the D coupling strength matrix.
-    #     eps_g : float
-    #         Phase offset of the g-modes.
-    #     alpha_g : float
-    #         Curvature scale of the g-modes.
-    #     **kwargs : dict
-    #         Additional keyword arguments.
-
-    #     Returns
-    #     -------
-    #     nu : jax device array
-    #         Array of frequencies of the mixed l=1 modes. 
-    #     zeta : jax device array
-    #         Array of mixing degrees for the modes.
-    #     """
-
-    #     nu1_p = nu0_p + d01  
-    
-    #     nu_g = self.asymptotic_nu_g(self.n_g, DPi1, eps_g)
-
-    #     L, D = self.generate_matrices(nu1_p, nu_g, p_L, p_D)
-         
-    #     nu, zeta = self.new_modes(L, D)
-
-    #     idx = jnp.argpartition(abs(nu-self.obs['numax'][0]), self.mixed_to_fit-1)
- 
-    #     return nu[idx[:self.mixed_to_fit]], zeta[idx[:self.mixed_to_fit]] 
- 
+   
