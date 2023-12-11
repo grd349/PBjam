@@ -78,7 +78,7 @@ class modeIDsampler(plotting, ):
                                              self.addPriors,
                                              self.N_p, 
                                              self.Npca, 
-                                             self.PCAdims,
+                                             5,
                                              priorpath=self.priorpath)
 
             self.l1samples = self.MixFreqModel.runDynesty(progress=progress, 

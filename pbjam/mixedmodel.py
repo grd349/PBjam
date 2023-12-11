@@ -23,7 +23,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         self.modelVars.update(self.variables['common'])
 
         self.set_labels(self.addPriors) 
-
+         
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
         self.setupDR()
@@ -95,7 +95,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         _Y = self.DR.transform(self.DR.data_F)
 
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
-        
+         
         if len(self.pcalabels) > 0:
             self.latentLabels = ['theta_%i' % (i) for i in range(self.PCAdims)]
         else:
@@ -478,13 +478,15 @@ class MixFreqModel(jar.DynestySamplingTools):
             The unpacked parameters.
 
         """
-         
-        # theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
-         
-        # theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
-         
-        theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
+  
+        theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
+
+        theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
  
+        #theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
+        
+        theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
+
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]
  
@@ -811,13 +813,13 @@ class MixFreqModel(jar.DynestySamplingTools):
 
         return result
 
-    variables = {'l1': {'u1'        : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'        , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-                       'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-                       'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
-                       'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
+    variables = {'l1': {'u1'       : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'         , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+                        'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+                        'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
+                        'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
                        #'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-                       'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False,  'pca': True, 'unit': 'muHz'},
-                       'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
+                        'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},
+                        'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
                        },
                 'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
                            'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
