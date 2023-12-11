@@ -121,6 +121,7 @@ class modeIDsampler(plotting, ):
 
         self.result = self.mergeResults(self.l20res, self.l1res)
 
+
     def mergeResults(self, l20res, l1res):
     
         R = {'summary': {},
