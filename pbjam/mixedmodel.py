@@ -297,7 +297,7 @@ class MixFreqModel(jar.DynestySamplingTools):
             return limit
                 
         # Loop over combinations of DPi1 and eps_g as drawn from the respective PDFs.       
-        for DPi1 in jnp.linspace(n_g_ppf[0](0.05), n_g_ppf[0](0.95), 3):
+        for DPi1 in jnp.linspace(n_g_ppf[0](0.40), n_g_ppf[0](0.60), 3):
             
             for eps_g in jnp.linspace(n_g_ppf[1](0.05), n_g_ppf[1](0.95), 3):
                 

@@ -530,9 +530,11 @@ def _ModeIDClassPostSpectrum(self, N):
     _baseSpectrum(ax[0], self.f, self.s)
     ax[0].set_xlim(self.f.min(), self.f.max())
     
-    _baseSpectrum(ax[1], self.f[self.l20sel], self.s[self.l20sel])
-    ax[1].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
-   
+    _baseSpectrum(ax[1], 
+                  self.f[self.l20sel][self.l1sel], 
+                  self.s[self.l20sel][self.l1sel],
+                  )
+     
     _baseSpectrum(ax[2], self.f[self.l20sel][self.l1sel], self.l20residual[self.l1sel], ylim=[0, None])
     ax[2].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
 
