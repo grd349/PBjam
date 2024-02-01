@@ -21,7 +21,24 @@ class modeIDsampler(plotting, ):
         self.s = jnp.array(self.s)
       
         self.Nyquist = self.f[-1]
- 
+
+        if np.isscalar(self.Npca):
+            self.Npca_pair = self.Npca
+            self.Npca_mix = self.Npca
+        elif np.size(self.Npca) == 2:
+            self.Npca_pair = self.Npca[0]
+            self.Npca_mix = self.Npca[1]
+        else:
+            raise ValueError('Npca is wrong')
+        
+        if np.isscalar(self.PCAdims):
+            self.PCAdims_pair = self.PCAdims
+            self.PCAdims_mix = self.PCAdims
+        elif np.size(self.PCAdims) == 2:
+            self.PCAdims_pair = self.PCAdims[0]
+            self.PCAdims_mix = self.PCAdims[1]
+        else:
+            raise ValueError('PCAdims is wrong')
 
     def runl20Model(self, progress, logl_kwargs, sampler_kwargs):
 
@@ -32,8 +49,8 @@ class modeIDsampler(plotting, ):
                                              self.obs, 
                                              self.addPriors, 
                                              self.N_p, 
-                                             self.Npca, 
-                                             self.PCAdims,
+                                             self.Npca_pair, 
+                                             self.PCAdims_pair,
                                              priorpath=self.priorpath)
             
             self.l20samples = self.AsyFreqModel.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
@@ -77,8 +94,8 @@ class modeIDsampler(plotting, ):
                                              self.summary, 
                                              self.addPriors,
                                              self.N_p, 
-                                             self.Npca, 
-                                             5,
+                                             self.Npca_mix, 
+                                             self.PCAdims_mix,
                                              priorpath=self.priorpath)
 
             self.l1samples = self.MixFreqModel.runDynesty(progress=progress, 
