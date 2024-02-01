@@ -227,7 +227,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         self.priors.update({key : self.addPriors[key] for key in AddKeys})
  
         for i in range(200):
-            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=1/50 * self.obs['dnu'][0])
+            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=0.03 * self.obs['dnu'][0])
   
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
@@ -259,16 +259,15 @@ class MixFreqModel(jar.DynestySamplingTools):
             to perform eigendecomposition.
         """
   
-        n = self.N_p // 2 + 1
+        #n = self.N_p // 2 + 1
  
-        width = max((n + 1) * self.obs['dnu'][0], fac * jar.scalingRelations.envWidth(self.obs['numax'][0]))
         #width = max((n + 1) * self.obs['dnu'][0], fac * jar.scalingRelations.envWidth(self.obs['numax'][0]))
 
         # freq_lims = (self.obs['numax'][0] - width, 
         #              self.obs['numax'][0] + width)
 
-        freq_lims = {'coupling': (min(self.obs['nu0_p']) - 2*self.obs['dnu'][0], 
-                                  max(self.obs['nu0_p']) + 2*self.obs['dnu'][0]),
+        freq_lims = {'coupling': (min(self.obs['nu0_p']) - 5*self.obs['dnu'][0], 
+                                  max(self.obs['nu0_p']) + 5*self.obs['dnu'][0]),
                      'fit':      (min(self.obs['nu0_p']) - 0.5*self.obs['dnu'][0], 
                                   max(self.obs['nu0_p']) + 0.5*self.obs['dnu'][0])
                     }
@@ -284,6 +283,15 @@ class MixFreqModel(jar.DynestySamplingTools):
 
 
         def update_limit(limit, idx, init_n_g, crit):
+            """ Update min/max frequency limits
+
+            Revise the frequency range min/max g-mode radial order, based on the
+            previous min/max frequency limits for the g-modes to include, and 
+            the current set of frequencies that fall near the
+            envelope.
+            
+            """
+
             if crit == 'min':
                 t = jnp.where(idx, init_n_g, 0 * init_n_g + jnp.inf).min()
                  
@@ -325,13 +333,13 @@ class MixFreqModel(jar.DynestySamplingTools):
         n_g = jnp.arange(min_n_g_c, max_n_g_c, dtype=int)[::-1]
         n_g_to_fit = jnp.arange(min_n_g_f, max_n_g_f, dtype=int)[::-1]
         
-        print(min_n_g_c, len(n_g))
-        print(min_n_g_f, len(n_g_to_fit))
+        print(min_n_g_c, max_n_g_c, len(n_g))
+        print(min_n_g_f, max_n_g_f, len(n_g_to_fit))
         
         self.mixed_to_fit = self.N_p + len(n_g_to_fit)
 
         if len(n_g) > 100:
-            warnings.warn(f'{len(n_g)} g-modes in the p-mode envelope area.')
+            warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
 
         return n_g
 
