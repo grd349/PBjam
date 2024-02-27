@@ -8,7 +8,7 @@ from pbjam.DR import PCA
 import pbjam.distributions as dist
 jax.config.update('jax_enable_x64', True)
 
-class AsyFreqModel(jar.DynestySamplingTools):
+class Asyl20Model(jar.DynestySamplingTools):
 
     def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
                  vis={'V20': 0.71}, priorpath=None):
