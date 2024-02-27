@@ -2,9 +2,9 @@ import warnings, os
 import jax.numpy as jnp
 import numpy as np
 from pbjam import jar
-import pbjam.distributions as dist
-from pbjam.mixedmodel import MixFreqModel
-from pbjam.pairmodel import AsyFreqModel
+from pbjam.l1models import Asyl1Model
+from pbjam.l1models import Mixl1Model
+from pbjam.pairmodel import Asyl20Model
 from pbjam.plotting import plotting
 import pandas as pd
 
@@ -44,7 +44,7 @@ class modeIDsampler(plotting, ):
 
             self.l20sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   # self.setFreqRange(*self.freqLimits)
 
-            self.AsyFreqModel = AsyFreqModel(self.f[self.l20sel], 
+            self.Asyl20Model = Asyl20Model(self.f[self.l20sel], 
                                              self.s[self.l20sel], 
                                              self.obs, 
                                              self.addPriors, 
@@ -53,15 +53,15 @@ class modeIDsampler(plotting, ):
                                              self.PCAdims_pair,
                                              priorpath=self.priorpath)
             
-            self.l20samples = self.AsyFreqModel.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
+            self.l20samples = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
                                                         sampler_kwargs=sampler_kwargs)
             
-            l20samples_u = self.AsyFreqModel.unpackSamples(self.l20samples)
+            l20samples_u = self.Asyl20Model.unpackSamples(self.l20samples)
 
-            self.l20res = self.AsyFreqModel.parseSamples(l20samples_u)
+            self.l20res = self.Asyl20Model.parseSamples(l20samples_u)
         
 
-            asymptotic_samps = np.array([self.AsyFreqModel.asymptotic_nu_p(l20samples_u['numax'][i], 
+            asymptotic_samps = np.array([self.Asyl20Model.asymptotic_nu_p(l20samples_u['numax'][i], 
                                                                            l20samples_u['dnu'][i], 
                                                                            l20samples_u['eps_p'][i], 
                                                                            l20samples_u['alpha_p'][i]) for i in range(50)])
@@ -74,7 +74,7 @@ class modeIDsampler(plotting, ):
             for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
                 self.summary[key] = jar.smryStats(l20samples_u[key])
 
-            l20model = self.AsyFreqModel.getMedianModel(l20samples_u)
+            l20model = self.Asyl20Model.getMedianModel(l20samples_u)
 
             self.l20residual = self.s[self.l20sel]/l20model
 
@@ -84,12 +84,21 @@ class modeIDsampler(plotting, ):
 
             if freqLimits is None:
                                 
-                 freqLimits = [self.obs['numax'][0] - self.obs['dnu'][0]*(self.AsyFreqModel.N_p//2+1), 
-                               self.obs['numax'][0] + self.obs['dnu'][0]*(self.AsyFreqModel.N_p//2+1),]
+                 freqLimits = [self.obs['numax'][0] - self.obs['dnu'][0]*(self.Asyl20Model.N_p//2+1), 
+                               self.obs['numax'][0] + self.obs['dnu'][0]*(self.Asyl20Model.N_p//2+1),]
 
             self.l1sel = (np.array(freqLimits).min() < self.f[self.l20sel]) & (self.f[self.l20sel] < np.array(freqLimits).max())
             
-            self.MixFreqModel = MixFreqModel(self.f[self.l20sel][self.l1sel], 
+            self.Asyl1Model = Asyl1Model(self.f[self.l20sel][self.l1sel], 
+                                             self.l20residual[self.l1sel], 
+                                             self.summary, 
+                                             {},
+                                             self.N_p, 
+                                             self.Npca_pair, 
+                                             priorpath=self.priorpath)
+            
+                        
+            self.Mixl1Model = Mixl1Model(self.f[self.l20sel][self.l1sel], 
                                              self.l20residual[self.l1sel], 
                                              self.summary, 
                                              self.addPriors,
@@ -98,13 +107,13 @@ class modeIDsampler(plotting, ):
                                              self.PCAdims_mix,
                                              priorpath=self.priorpath)
 
-            self.l1samples = self.MixFreqModel.runDynesty(progress=progress, 
+            self.l1samples = self.Mixl1Model.runDynesty(progress=progress, 
                                                           logl_kwargs=logl_kwargs, 
                                                           sampler_kwargs=sampler_kwargs)
 
-            l1samples_u = self.MixFreqModel.unpackSamples(self.l1samples)
+            l1samples_u = self.Mixl1Model.unpackSamples(self.l1samples)
 
-            self.l1res = self.MixFreqModel.parseSamples(l1samples_u)
+            self.l1res = self.Mixl1Model.parseSamples(l1samples_u)
 
             return self.l1res
 
