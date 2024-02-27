@@ -6,7 +6,7 @@ from functools import partial
 jax.config.update('jax_enable_x64', True)
 
 class PCA():
-    def __init__(self, obs, pcalabels, fname, nsamples, selectlabels, 
+    def __init__(self, obs, varlabels, fname, nsamples, selectlabels, 
                  weights=None, weight_args={}):
         """ Class for handling PCA-based dimensionality reduction
 
@@ -16,7 +16,7 @@ class PCA():
             List of observational parameters, e.g., numax, dnu, teff, bp_rp. To 
             be used to find local covariance. Must be in the same units as in 
             the prior sample file.
-        pcalabels : list
+        varlabels : list
             List of labels to be used for the PCA. Should probably correspond to
             columns in csv file or you won't get very far.
         fname : str
@@ -30,25 +30,18 @@ class PCA():
             Dictionary of arguments if weights is a callable function, empty by 
             default.
         """
-
-        self.pcalabels = pcalabels
-
-        self.selectlabels = selectlabels
-
-        self.obs = obs
-
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+ 
         if nsamples > 5000:
             warnings.warn('The requested PCA sample is very large, you may run in to memory issues.')
 
-        self.data_F, self.dims_F, self.nsamples = self.getPCAsample(fname, 
-                                                                    nsamples)
+        self.data_F, self.dims_F, self.nsamples = self.getSample(fname, nsamples)
          
         self.setWeights(weights, weight_args)
 
         self.mu  = jnp.average(self.data_F, axis=0, weights=self.weights)
 
-        self.var = jnp.average((self.data_F - self.mu)**2, axis=0, 
-                               weights=self.weights)
+        self.var = jnp.average((self.data_F - self.mu)**2, axis=0, weights=self.weights)
 
         self.std = jnp.sqrt(self.var)
 
@@ -107,16 +100,16 @@ class PCA():
         """
 
         pdata = pd.read_csv(fname, usecols=labels)
-
+        
         pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
- 
+        
         pdata.dropna(axis=0, how="any", inplace=True)
-
+        
         pdata.reset_index(inplace=True)
-
+        
         return pdata
 
-    def getPCAsample(self, fname, nsamples):
+    def getSample(self, fname, nsamples):
         """_summary_
 
         Parameters
@@ -134,19 +127,19 @@ class PCA():
             point in the prior sample file.
         _ndim : int
             Number of dimensions of the output. Should be the same length as
-            pcalabels.
+            varlabels.
         _nsamples : int
             Number of samples in the output. Might be less than the requested
             if the prior sample file is small in comparison.
         """
          
-        readlabels = self.pcalabels + [key for key in self.selectlabels if key not in self.pcalabels]
-         
+        readlabels = self.varlabels + [key for key in self.selectlabels if key not in self.varlabels]
+        
         priorData = self.readPriorData(fname, readlabels)
          
         nearestSubset = self.findNearest(priorData, nsamples)
          
-        selectedSubset = nearestSubset[self.pcalabels]
+        selectedSubset = nearestSubset[self.varlabels]
          
         _nsamples, _ndim = selectedSubset.shape
         
@@ -205,7 +198,7 @@ class PCA():
         return scaledData
 
     @partial(jax.jit, static_argnums=(0,))
-    def invert_scale(self, scaledData):
+    def inverse_scale(self, scaledData):
         """
         Invert the scaling of the data.
 
@@ -262,7 +255,7 @@ class PCA():
 
         _X = jnp.dot(Y, self.eigvectors[:, self.sortidx].T)
 
-        return self.invert_scale(_X).real
+        return self.inverse_scale(_X).real
 
     def fit_weightedPCA(self, dim):
         """ Compute PCAs and transform
@@ -278,7 +271,8 @@ class PCA():
             only dim are used in the projection into the latent space.
         """
 
-        self.dims_R = dim
+        
+        self.dims_R = min([dim, len(self.varlabels)])
 
         _X = self.scale(self.data_F)
          
