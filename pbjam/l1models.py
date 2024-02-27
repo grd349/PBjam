@@ -8,8 +8,286 @@ from pbjam.DR import PCA
 import pbjam.distributions as dist
 
 jax.config.update('jax_enable_x64', True)
+
+
+class Asyl1Model(jar.DynestySamplingTools):
+    def __init__(self, f, s, obs, addPriors, N_p, NPriorSamples, vis={'V10': 1.22}, priorpath=None):
+
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
-class MixFreqModel(jar.DynestySamplingTools):
+        self.modelVars = {'d01': self.variables['l1']['d01'],
+                          'nurot_e': self.variables['common']['nurot_e'],
+                          'inc': self.variables['common']['inc'],
+                          }
+        
+        self.setLabels()
+
+        self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
+
+        self.setPriors()
+
+        self.ndims = len(self.priors)
+
+        self.ones_nu = jnp.ones_like(self.f)
+
+
+    def setLabels(self, ):
+        """
+        Set parameter labels and categorize them based on priors.
+
+        Parameters
+        ----------
+        priors : dict
+            Dictionary containing prior information for specific parameters.
+
+        Notes
+        -----
+        - Initializes default PCA and additional parameter lists.
+        - Checks if parameters are marked for PCA and not in priors; if so, 
+          adds to PCA list.
+        - Otherwise, adds parameters to the additional list.
+        - Combines PCA and additional lists to create the final labels list.
+        - Identifies parameters that use a logarithmic scale and adds them to 
+          logpars list.
+        """
+ 
+        self.labels = list(self.modelVars.keys())
+
+        # Parameters that are in log10
+        self.logpars = []
+        for key in self.modelVars.keys():
+            if self.modelVars[key]['log10']:
+                self.logpars.append(key)
+
+    def setPriors(self,):
+        """ Set the prior distributions.
+
+        The prior distributions are constructed from the projection of the 
+        PCA sample onto the reduced dimensional space.
+
+        """
+
+        self.priors = {}
+
+        _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}
+         
+        for key in ['bp_rp']:
+            _obs[key] = self.obs[key]
+
+        self.DR = PCA(_obs, ['d01'], self.priorpath, self.NPriorSamples, selectlabels=['numax', 'dnu', 'teff']) 
+        
+        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.data_F)
+ 
+        self.priors['d01'] = dist.distribution(self.DR.ppf[0], 
+                                               self.DR.pdf[0], 
+                                               self.DR.logpdf[0], 
+                                               self.DR.cdf[0])
+
+        # Core rotation prior
+        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
+
+        # The inclination prior is a sine truncated between 0, and pi/2.
+        self.priors['inc'] = dist.truncsine()            
+ 
+    @partial(jax.jit, static_argnums=(0,))
+    def chi_sqr(self, mod):
+        """ Chi^2 2 dof likelihood
+
+        Evaulates the likelihood of observing the data given the model.
+
+        Parameters
+        ----------
+        mod : jax device array
+            Spectrum model.
+
+        Returns
+        -------
+        L : float
+            Likelihood of the data given the model
+        """
+
+        L = -jnp.sum(jnp.log(mod) + self.s / mod)
+
+        return L      
+
+    @partial(jax.jit, static_argnums=(0,))
+    def lnlikelihood(self, theta):
+        """
+        Calculate the log likelihood of the model given parameters and data.
+        
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            Parameter values.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        float :
+            Log-likelihood value.
+        """
+    
+        theta_u = self.unpackParams(theta)
+           
+        # Constraint from the periodogram 
+        mod = self.model(theta_u)
+        
+        lnlike = self.chi_sqr(mod)
+         
+        return lnlike
+
+    @partial(jax.jit, static_argnums=(0,))
+    def unpackParams(self, theta): 
+        """ Cast the parameters in a dictionary
+
+        Parameters
+        ----------
+        theta : array
+            Array of parameters drawn from the posterior distribution.
+
+        Returns
+        -------
+        theta_u : dict
+            The unpacked parameters.
+
+        """
+
+        theta_u = {key: theta[i] for i, key in enumerate(self.labels)}
+ 
+        for key in self.logpars:
+            theta_u[key] = 10**theta_u[key]
+ 
+        return theta_u
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def model(self, theta_u,):
+        
+        nu1s = self.obs['nu0_p'] + theta_u['d01']
+         
+        Hs1 = self.envelope(nu1s, )
+        
+        modewidth1s = self.obs['mode_width'][0] 
+         
+        nurot = theta_u['nurot_e']
+        
+        modes = self.ones_nu
+
+        for i in range(len(nu1s)):
+ 
+            modes += jar.lor(self.f, nu1s[i]        , Hs1[i] * self.vis['V10'], modewidth1s) * jnp.cos(theta_u['inc'])**2
+        
+            modes += jar.lor(self.f, nu1s[i] - nurot, Hs1[i] * self.vis['V10'], modewidth1s) * jnp.sin(theta_u['inc'])**2 / 2
+        
+            modes += jar.lor(self.f, nu1s[i] + nurot, Hs1[i] * self.vis['V10'], modewidth1s) * jnp.sin(theta_u['inc'])**2 / 2
+
+        return modes
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def envelope(self, nu,):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+ 
+        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+
+    def unpackSamples(self, samples=None):
+        """
+        Unpack a set of parameter samples into a dictionary of arrays.
+
+        Parameters
+        ----------
+        samples : array-like
+            A 2D array of shape (n, m), where n is the number of samples and 
+            m is the number of parameters.
+
+        Returns
+        -------
+        S : dict
+            A dictionary containing the parameter values for each parameter 
+            label.
+
+        Notes
+        -----
+        This method takes a 2D numpy array of parameter samples and unpacks each
+        sample into a dictionary of parameter values. The keys of the dictionary 
+        are the parameter labels and the values are 1D numpy arrays containing 
+        the parameter values for each sample.
+
+        Examples
+        --------
+        >>> class MyModel:
+        ...     def __init__(self):
+        ...         self.labels = ['a', 'b', 'c']
+        ...     def unpackParams(self, theta):
+        ...         return {'a': theta[0], 'b': theta[1], 'c': theta[2]}
+        ...     def unpackSamples(self, samples):
+        ...         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        ...         for i, theta in enumerate(samples):
+        ...             theta_u = self.unpackParams(theta)
+        ...             for key in self.labels:
+        ...                 S[key][i] = theta_u[key]
+        ...         return S
+        ...
+        >>> model = MyModel()
+        >>> samples = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        >>> S = model.unpackSamples(samples)
+        >>> print(S)
+        {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
+        """
+         
+        if samples is None:
+            samples = self.samples
+
+        S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        
+        for i, theta in enumerate(samples):
+        
+            theta_u = self.unpackParams(theta)
+             
+            for key in theta_u.keys():
+                
+                S[key][i] = theta_u[key]
+            
+        return S
+
+    def testModel(self):
+        
+        u = np.random.uniform(0, 1, self.ndims)
+        
+        theta = self.ptform(u)
+        
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u,)
+        
+        return self.f, m
+
+    variables = {'l1'    : {'d01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},},
+                 'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                           'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                           'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
+                }
+
+class Mixl1Model(jar.DynestySamplingTools):
 
     def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
                  vis={'V10': 1.22}, priorpath=None):
@@ -87,8 +365,9 @@ class MixFreqModel(jar.DynestySamplingTools):
          
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
-         
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectlabels=['numax', 'dnu', 'teff', 'bp_rp']) 
+        
+        # TODO maybe in future put bp_rp back in, when we aren't using models anymore
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectlabels=['numax', 'dnu', 'teff']) 
 
         self.DR.fit_weightedPCA(self.PCAdims)
 
@@ -150,7 +429,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         if self.N_g == 0:
             N = 0
         else:
-            N = self.mixed_to_fit
+            N = self.N_p+self.N_g #self.mixed_to_fit
 
         for i in range(N, 200, 1):
             del self.addlabels[self.addlabels.index(f'freqError{i}')]
@@ -336,7 +615,7 @@ class MixFreqModel(jar.DynestySamplingTools):
         print(min_n_g_c, max_n_g_c, len(n_g))
         print(min_n_g_f, max_n_g_f, len(n_g_to_fit))
         
-        self.mixed_to_fit = self.N_p + len(n_g_to_fit)
+        #self.mixed_to_fit = self.N_p + len(n_g_to_fit)
 
         if len(n_g) > 100:
             warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
@@ -575,9 +854,11 @@ class MixFreqModel(jar.DynestySamplingTools):
          
         nu, zeta = self.new_modes(L, D)
 
-        idx = jnp.argpartition(abs(nu-self.obs['numax'][0]), self.mixed_to_fit-1)
+        #idx = jnp.argpartition(abs(nu-self.obs['numax'][0]), self.mixed_to_fit-1)
  
-        return nu[idx[:self.mixed_to_fit]], zeta[idx[:self.mixed_to_fit]] 
+        #return nu[idx[:self.mixed_to_fit]] , zeta[idx[:self.mixed_to_fit]] 
+    
+        return nu, zeta 
  
     @partial(jax.jit, static_argnums=(0,))
     def asymptotic_nu_p(self, theta_u):
@@ -791,7 +1072,8 @@ class MixFreqModel(jar.DynestySamplingTools):
                                     #self.obs['n_p'],
                                     #smp['alpha_g'][i],
 
-        N_pg = self.mixed_to_fit #self.N_p + self.N_g
+        #N_pg = self.mixed_to_fit #self.N_p + self.N_g
+        N_pg = self.N_p + self.N_g
         
         result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
         result['enn'] = np.append(result['enn'], np.zeros(N_pg) - 1)
