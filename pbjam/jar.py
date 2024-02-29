@@ -166,13 +166,15 @@ class DynestySamplingTools():
 
         sampler.reset()
 
-        del sampler
-
         self.nsamples = samples.shape[0]
 
         self.samples = samples
 
-        return self.samples
+        self.logz = result.logz
+
+        del sampler
+
+        return self.samples, self.logz 
 
 @jax.jit
 def visell1(emm, inc):

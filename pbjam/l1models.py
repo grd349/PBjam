@@ -320,18 +320,18 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         self.makeEmpties()
 
-        self.setl1FreqFuncs()
+        #self.setl1FreqFuncs()
 
-    def setl1FreqFuncs(self):
+    #def setl1FreqFuncs(self):
 
-        if self.N_g == 0:
-            self.nu1_frequencies = self.asymptotic_nu_p
+        # if self.N_g == 0:
+        #     self.nu1_frequencies = self.asymptotic_nu_p
             
-            self.getnu1s = self._l1FreqNoFudge
-        else:
-            self.nu1_frequencies = self.mixed_nu1
+        #     self.getnu1s = self._l1FreqNoFudge
+        # else:
+        #self.nu1_frequencies = self.mixed_nu1
              
-            self.getnu1s = self._l1FreqAddFudge 
+        #self.getnu1s = self._l1FreqAddFudge 
 
     def makeEmpties(self):
         """ Make a bunch of static matrices so we don't need to make them during
@@ -426,10 +426,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
     def trimVariables(self):
         
-        if self.N_g == 0:
-            N = 0
-        else:
-            N = self.N_p+self.N_g #self.mixed_to_fit
+        N = self.N_p+self.N_g #self.mixed_to_fit
 
         for i in range(N, 200, 1):
             del self.addlabels[self.addlabels.index(f'freqError{i}')]
@@ -612,14 +609,18 @@ class Mixl1Model(jar.DynestySamplingTools):
         n_g = jnp.arange(min_n_g_c, max_n_g_c, dtype=int)[::-1]
         n_g_to_fit = jnp.arange(min_n_g_f, max_n_g_f, dtype=int)[::-1]
         
-        print(min_n_g_c, max_n_g_c, len(n_g))
-        print(min_n_g_f, max_n_g_f, len(n_g_to_fit))
+        print('g-modes within 5 dnu of min/max l=0', min_n_g_c, max_n_g_c, len(n_g))
+        print('g-modes within 0.5 dnu of min/max l=0', min_n_g_f, max_n_g_f, len(n_g_to_fit))
         
         #self.mixed_to_fit = self.N_p + len(n_g_to_fit)
 
         if len(n_g) > 100:
             warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
 
+        # Force a minimum of 1 g-mode to be included as a test
+        if len(n_g) == 0:
+            n_g = jnp.array([1])
+            
         return n_g
 
     @partial(jax.jit, static_argnums=(0,))
@@ -722,7 +723,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
         
-        nu1s, zeta = self.nu1_frequencies(theta_u)
+        nu1s, zeta = self.mixed_nu1(theta_u)
          
         Hs1 = self.envelope(nu1s, )
         
@@ -734,7 +735,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         for i in range(len(nu1s)):
              
-            nul1 = self.getnu1s(nu1s, i, theta_u) 
+            nul1 = nu1s[i] + theta_u[f'freqError{i}'] #self.getnu1s(nu1s, i, theta_u) 
 
             modes += jar.lor(self.f, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
@@ -744,11 +745,11 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         return modes
     
-    def _l1FreqAddFudge(self, nu, i, theta_u):     
-        return nu[i] + theta_u[f'freqError{i}']
+    # def _l1FreqAddFudge(self, nu, i, theta_u):     
+    #     return 
     
-    def _l1FreqNoFudge(self, nu, i, theta_u):
-        return nu[i]
+    # def _l1FreqNoFudge(self, nu, i, theta_u):
+    #     return nu[i]
 
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 

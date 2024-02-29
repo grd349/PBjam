@@ -53,10 +53,10 @@ class modeIDsampler(plotting, ):
                                              self.PCAdims_pair,
                                              priorpath=self.priorpath)
             
-            self.l20samples = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
-                                                        sampler_kwargs=sampler_kwargs)
+            self.Asyl20samples, self.Asyl20logz = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
+                                                                             sampler_kwargs=sampler_kwargs)
             
-            l20samples_u = self.Asyl20Model.unpackSamples(self.l20samples)
+            l20samples_u = self.Asyl20Model.unpackSamples(self.Asyl20samples)
 
             self.l20res = self.Asyl20Model.parseSamples(l20samples_u)
         
@@ -90,13 +90,16 @@ class modeIDsampler(plotting, ):
             self.l1sel = (np.array(freqLimits).min() < self.f[self.l20sel]) & (self.f[self.l20sel] < np.array(freqLimits).max())
             
             self.Asyl1Model = Asyl1Model(self.f[self.l20sel][self.l1sel], 
-                                             self.l20residual[self.l1sel], 
-                                             self.summary, 
-                                             {},
-                                             self.N_p, 
-                                             self.Npca_pair, 
-                                             priorpath=self.priorpath)
+                                         self.l20residual[self.l1sel], 
+                                         self.summary, 
+                                         {},
+                                         self.N_p, 
+                                         self.Npca_pair, 
+                                         priorpath=self.priorpath)
             
+            self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
+                                                                               logl_kwargs=logl_kwargs, 
+                                                                               sampler_kwargs=sampler_kwargs)
                         
             self.Mixl1Model = Mixl1Model(self.f[self.l20sel][self.l1sel], 
                                              self.l20residual[self.l1sel], 
@@ -107,11 +110,11 @@ class modeIDsampler(plotting, ):
                                              self.PCAdims_mix,
                                              priorpath=self.priorpath)
 
-            self.l1samples = self.Mixl1Model.runDynesty(progress=progress, 
-                                                          logl_kwargs=logl_kwargs, 
-                                                          sampler_kwargs=sampler_kwargs)
+            self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
+                                                                               logl_kwargs=logl_kwargs, 
+                                                                               sampler_kwargs=sampler_kwargs)
 
-            l1samples_u = self.Mixl1Model.unpackSamples(self.l1samples)
+            l1samples_u = self.Mixl1Model.unpackSamples(self.Mixl1Samples)
 
             self.l1res = self.Mixl1Model.parseSamples(l1samples_u)
 
