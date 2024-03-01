@@ -128,11 +128,11 @@ class Asyl20Model(jar.DynestySamplingTools):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
          
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectlabels=['numax', 'dnu', 'teff', 'bp_rp']) 
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff', 'bp_rp']) 
 
         self.DR.fit_weightedPCA(self.PCAdims)
 
-        _Y = self.DR.transform(self.DR.data_F)
+        _Y = self.DR.transform(self.DR.dataF)
 
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
         
@@ -331,11 +331,11 @@ class Asyl20Model(jar.DynestySamplingTools):
 
         """
          
-        theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
+        theta_inv = self.DR.inverse_transform(theta[:self.DR.dimsR])
          
         theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
          
-        theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
+        theta_u.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)})
  
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]

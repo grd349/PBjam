@@ -7,8 +7,165 @@ from dynesty import utils as dyfunc
 import numpy as np
 from pbjam.plotting import plotting
 from tinygp import GaussianProcess, kernels
+import numpyro
+import numpyro.distributions as pyrodist
+from numpyro.infer import MCMC, NUTS, init_to_median
 
-class peakbag(plotting):
+
+class NumPyroPeakbag(plotting):
+
+    def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, 
+                 dnu, d02, addPriors={}, freq_limits=[], **kwargs):
+    
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+        
+        self.Nyquist = self.f[-1]
+
+        self.bkg = self.getBkg() 
+
+        self.snr = self.s / self.bkg(self.f)
+
+        idxModes = self.pickFreqs(self.ell, self.freq, self.dnu)
+
+        self.ell = self.ell[idxModes]
+
+        self.N_p = len(self.ell[self.ell==0])
+
+        self.freq = self.freq[:, idxModes]
+        
+        self.height = self.height[:, idxModes]
+        self.mode_snr = self.height[0, :] / self.bkg(self.freq[0, :])
+         
+        self.width = self.width[:, idxModes]
+        self.widths = jnp.log10(self.width[0, :]/(1-self.zeta))
+         
+        self.zeta = self.zeta[idxModes]
+
+        self.Nmodes = len(self.ell)
+   
+    @partial(jax.jit, static_argnums=(0,))
+    def model(self, f, ell, freq, height, width, split, inc, shot):
+         
+        modes = jnp.zeros_like(f) + shot
+         
+        for i, l in enumerate(ell):
+            
+            for m in jnp.arange(2 * l + 1) - l:
+                
+                E = jar.visibility(l, m, inc)
+                
+                nu_nlm = freq[i] + split * m
+
+                H = E * height[i]
+
+                modes += jar.lor(f, nu_nlm, H, width[i])
+        
+        return modes
+
+    def PyroModel(self, obs=None, freq_err=0.03):
+    
+        freq = numpyro.sample('freq', pyrodist.Normal(loc=self.freq[0, :], scale=freq_err * self.dnu[0]))
+        
+        height_s = numpyro.sample('height_s', pyrodist.Normal(loc=jnp.log10(self.mode_snr), scale=0.1))
+        height = numpyro.deterministic('height', jnp.power(10., height_s))
+        
+        width_s = numpyro.sample('width_s', pyrodist.Normal(self.widths, 0.1))
+        width = numpyro.deterministic('width', jnp.power(10., width_s))
+        
+        split = numpyro.sample('split', pyrodist.HalfNormal(1.0))
+
+        cosinc_s = numpyro.sample('cosinc', pyrodist.Uniform(loc=0, scale=1.0))
+        inc = numpyro.deterministic('inc', jnp.arccos(cosinc_s)
+                                    )
+        model = self.model(self.f[self.sel], self.ell, freq, height, width, split, inc)
+    
+        if obs is not None:
+            numpyro.sample('obs', pyrodist.Gamma(2.0, 2.0/model), obs=obs)
+
+    def RunNUTS(self, warmup=4000, Nsamples=1000, Nchains=4, acceptance=0.8):
+
+        nuts = NUTS(self.PyroModel, target_accept_prob=acceptance, init_strategy=init_to_median, find_heuristic_step_size=True)
+
+        mcmc = MCMC(nuts, num_warmup=warmup, num_samples=Nsamples, num_chains=Nchains)
+        
+        rng = jax.random.PRNGKey(0)
+
+        rng, key = jax.random.split(rng)
+
+        mcmc.run(key, obs=self.snr)
+
+        return mcmc
+
+    def getBkg(self, a=0.66, b=0.88, skips=100):
+        """ Estimate the background
+
+        Takes an average of the power at linearly spaced points along the
+        log(frequency) axis, where the width of the averaging window increases
+        as a power law.
+
+        The mean power values are interpolated back onto the full linear
+        frequency axis to estimate the background noise level at all
+        frequencies.
+
+        Returns
+        -------
+        b : array
+            Array of psd values approximating the background.
+        """
+
+        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+        m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
+
+        bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
+
+        return bkgModel
+
+    def pickFreqs(self, ell, freq, dnu, fac=1, modes='l201'):
+        """
+        Pick mode frequency indices that fall within +/- fac * dnu of the lowest
+        and highest l=0 mode frequency in freq. 
+
+        Parameters
+        ----------
+        ell : numpy.ndarray
+            Array of angular degrees values.
+        freq : numpy.ndarray
+            Array of frequency values, contains all angular degrees.
+        dnu : float
+            Larage frequency spacing.
+        fac : float
+            Number of large separations away from lowest and highest l=0 freqs.
+        all : bool, optional
+            Flag to select all frequencies. Default is False.
+
+        Returns
+        -------
+        numpy.ndarray
+            Boolean array indicating selected frequency indices.
+
+        Notes
+        -----
+        - If 'all' is False, selects indices within the range of the lowest ell=0 frequency.
+        - If 'all' is True, selects all frequency indices.
+        """
+         
+        if modes == 'all':
+            idx = jnp.ones(freq.shape[1], dtype=bool)
+        
+        else:
+            idx_ell0 = ell == 0
+
+            nu0 = freq[0, idx_ell0]
+
+            idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
+
+            if modes == 'l20':
+                idx *= ell != 1
+
+        return idx
+
+class DynestyPeakbag(plotting):
     
     def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, 
                  dnu, d02, addPriors={}, freq_limits=[], **kwargs):

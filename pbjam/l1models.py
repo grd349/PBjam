@@ -74,9 +74,9 @@ class Asyl1Model(jar.DynestySamplingTools):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
 
-        self.DR = PCA(_obs, ['d01'], self.priorpath, self.NPriorSamples, selectlabels=['numax', 'dnu', 'teff']) 
+        self.DR = PCA(_obs, ['d01'], self.priorpath, self.NPriorSamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
         
-        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.data_F)
+        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
         self.priors['d01'] = dist.distribution(self.DR.ppf[0], 
                                                self.DR.pdf[0], 
@@ -367,11 +367,11 @@ class Mixl1Model(jar.DynestySamplingTools):
             _obs[key] = self.obs[key]
         
         # TODO maybe in future put bp_rp back in, when we aren't using models anymore
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectlabels=['numax', 'dnu', 'teff']) 
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
 
         self.DR.fit_weightedPCA(self.PCAdims)
 
-        _Y = self.DR.transform(self.DR.data_F)
+        _Y = self.DR.transform(self.DR.dataF)
 
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
          
@@ -380,7 +380,7 @@ class Mixl1Model(jar.DynestySamplingTools):
         else:
             self.latentLabels = []
             self.DR.inverse_transform = lambda x: []
-            self.DR.dims_R = 0
+            self.DR.dimsR = 0
 
     def _makeTmpSample(self, keys, N=1000):
         """
@@ -620,7 +620,7 @@ class Mixl1Model(jar.DynestySamplingTools):
         # Force a minimum of 1 g-mode to be included as a test
         if len(n_g) == 0:
             n_g = jnp.array([1])
-            
+
         return n_g
 
     @partial(jax.jit, static_argnums=(0,))
@@ -767,13 +767,13 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         """
   
-        theta_inv = self.DR.inverse_transform(theta[:self.DR.dims_R])
+        theta_inv = self.DR.inverse_transform(theta[:self.DR.dimsR])
 
         theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
  
         #theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
         
-        theta_u.update({key: theta[self.DR.dims_R:][i] for i, key in enumerate(self.addlabels)})
+        theta_u.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)})
 
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]

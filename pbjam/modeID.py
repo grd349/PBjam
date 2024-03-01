@@ -97,22 +97,44 @@ class modeIDsampler(plotting, ):
                                          self.Npca_pair, 
                                          priorpath=self.priorpath)
             
-            self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
-                                                                               logl_kwargs=logl_kwargs, 
-                                                                               sampler_kwargs=sampler_kwargs)
-                        
             self.Mixl1Model = Mixl1Model(self.f[self.l20sel][self.l1sel], 
-                                             self.l20residual[self.l1sel], 
-                                             self.summary, 
-                                             self.addPriors,
-                                             self.N_p, 
-                                             self.Npca_mix, 
-                                             self.PCAdims_mix,
-                                             priorpath=self.priorpath)
+                                         self.l20residual[self.l1sel], 
+                                         self.summary, 
+                                         self.addPriors,
+                                         self.N_p, 
+                                         self.Npca_mix, 
+                                         self.PCAdims_mix,
+                                         priorpath=self.priorpath)
 
-            self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
+            assert False
+            
+            if self.Mixl1Model.DR.nanfraction <= 0.05 & (0.05 < self.Mixl1Model.DR.nanfraction):
+                self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
+                self.useMixResult = False
+                
+            elif (0.05 < self.Mixl1Model.DR.nanfraction <= 0.95) & (0.05 < self.Mixl1Model.DR.nanfraction):
+ 
+                self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
+                                                                               logl_kwargs=logl_kwargs, 
+                                                                               sampler_kwargs=sampler_kwargs)
+                
+                self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
+                                                                               logl_kwargs=logl_kwargs, 
+                                                                               sampler_kwargs=sampler_kwargs)
+                
+                # evidence check
+                BayesFactor = self.Asyl1logz.max() - self.Mixl1logz.max()
+
+                self.useMixResult = BayesFactor < 1/2
+                 
+            elif 0.95 < self.Mixl1Model.DR.nanfraction:
+                self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
+                                                                               logl_kwargs=logl_kwargs, 
+                                                                               sampler_kwargs=sampler_kwargs)
+                
+                self.useMixResult == True
 
             l1samples_u = self.Mixl1Model.unpackSamples(self.Mixl1Samples)
 

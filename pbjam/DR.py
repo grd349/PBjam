@@ -6,8 +6,7 @@ from functools import partial
 jax.config.update('jax_enable_x64', True)
 
 class PCA():
-    def __init__(self, obs, varlabels, fname, nsamples, selectlabels, 
-                 weights=None, weight_args={}):
+    def __init__(self, obs, varLabels, fName, nSamples, selectLabels, weights=None, weightArgs={}, dropNansIn='all'):
         """ Class for handling PCA-based dimensionality reduction
 
         Parameters
@@ -16,34 +15,35 @@ class PCA():
             List of observational parameters, e.g., numax, dnu, teff, bp_rp. To 
             be used to find local covariance. Must be in the same units as in 
             the prior sample file.
-        varlabels : list
+        varLabels : list
             List of labels to be used for the PCA. Should probably correspond to
             columns in csv file or you won't get very far.
-        fname : str
+        fName : str
             Full pathname of the csv file containing the prior sample
         nsamples : int
             Number of neightbors to use.
         weights : object, optional
             Array corresponding to N or callable function to get a list of 
             weights to apply to the data sample, by default None
-        weight_args : dict, optional
+        weightArgs : dict, optional
             Dictionary of arguments if weights is a callable function, empty by 
             default.
         """
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
- 
-        if nsamples > 5000:
+         
+        if self.nSamples > 5000:
             warnings.warn('The requested PCA sample is very large, you may run in to memory issues.')
 
-        self.data_F, self.dims_F, self.nsamples = self.getSample(fname, nsamples)
+        self.dataF, self.dimsF, self.nSamples = self.getSample(self.fName, self.nSamples)
          
-        self.setWeights(weights, weight_args)
+        self.setWeights(self.weights, self.weightArgs)
 
-        self.mu  = jnp.average(self.data_F, axis=0, weights=self.weights)
+        self.mu  = jnp.average(self.dataF, axis=0, weights=self.weights)
 
-        self.var = jnp.average((self.data_F - self.mu)**2, axis=0, weights=self.weights)
+        self.var = jnp.average((self.dataF - self.mu)**2, axis=0, weights=self.weights)
 
         self.std = jnp.sqrt(self.var)
+ 
 
     def setWeights(self, w, kwargs):
         """
@@ -58,7 +58,7 @@ class PCA():
         """
          
         if w is None:
-            self.weights = jnp.ones(self.nsamples)
+            self.weights = jnp.ones(self.nSamples)
 
         elif callable(w):
             self.weights = w(self, **kwargs)
@@ -67,13 +67,13 @@ class PCA():
             self.weights = w
 
 
-    def readPriorData(self, fname, labels):
+    def readPriorData(self, fName, labels):
         """
         Read and preprocess prior data from a CSV file.
         
         Parameters
         ----------
-        fname : str 
+        fName : str 
             The file name or path of the CSV file to be read.
         labels : list: 
             A list of column labels to be extracted from the CSV file.
@@ -86,12 +86,12 @@ class PCA():
         
         Raises
         ------
-            FileNotFoundError: If the specified file `fname` does not exist.
+            FileNotFoundError: If the specified file `fName` does not exist.
             ValueError: If the `labels` parameter is empty or contains invalid column labels.
         
         Notes
         -----
-            - The function reads the CSV file specified by `fname` and extracts the columns
+            - The function reads the CSV file specified by `fName` and extracts the columns
             specified by the `labels` parameter.
             - It performs preprocessing on the extracted data, including replacing infinite
             values with NaN, dropping rows with any NaN values, and resetting the DataFrame
@@ -99,53 +99,59 @@ class PCA():
             - The resulting preprocessed DataFrame is returned.
         """
 
-        pdata = pd.read_csv(fname, usecols=labels)
+        self.priorData = pd.read_csv(fName, usecols=labels)
+         
+        self.priorData.replace([np.inf, -np.inf], np.nan, inplace=True)
         
-        pdata.replace([np.inf, -np.inf], np.nan, inplace=True)
-        
-        pdata.dropna(axis=0, how="any", inplace=True)
-        
-        pdata.reset_index(inplace=True)
-        
-        return pdata
+        # TODO: set this to only drop in self.selectLabels
+        if self.dropNansIn == 'all':
+            self.dropNanLabels = self.varLabels + self.selectLabels
+        else:
+            self.dropNanLabels = self.selectLabels
 
-    def getSample(self, fname, nsamples):
+        self.priorData.dropna(axis=0, how="any", inplace=True, subset=self.dropNanLabels)
+         
+        self.priorData.reset_index(inplace=True)
+         
+        return self.priorData
+
+    def getSample(self, fName, nSamples):
         """_summary_
 
         Parameters
         ----------
-        fname : str
+        fName : str
             File name where prior samples are stored.
-        nsamples : int
+        nSamples : int
             Number of samples from the prior to draw around the target in terms 
             of numax.
 
         Returns
         -------
         pdata : jax device array
-            The nsamples drawn from the nearest region around the required 
+            The nSamples drawn from the nearest region around the required 
             point in the prior sample file.
         _ndim : int
             Number of dimensions of the output. Should be the same length as
-            varlabels.
-        _nsamples : int
+            varLabels.
+        _nSamples : int
             Number of samples in the output. Might be less than the requested
             if the prior sample file is small in comparison.
         """
          
-        readlabels = self.varlabels + [key for key in self.selectlabels if key not in self.varlabels]
+        readlabels = self.varLabels + [key for key in self.selectLabels if key not in self.varLabels]
+         
+        priorData = self.readPriorData(fName, readlabels)
         
-        priorData = self.readPriorData(fname, readlabels)
+        nearestSubset = self.findNearest(priorData, nSamples)
          
-        nearestSubset = self.findNearest(priorData, nsamples)
+        self.selectedSubset = nearestSubset[self.varLabels]
          
-        selectedSubset = nearestSubset[self.varlabels]
-         
-        _nsamples, _ndim = selectedSubset.shape
+        _nSamples, _ndim = self.selectedSubset.shape
         
-        return jnp.array(selectedSubset.to_numpy()), _ndim, _nsamples
+        return jnp.array(self.selectedSubset.to_numpy()), _ndim, _nSamples
 
-    def findNearest(self, pdata, N):
+    def findNearest(self, priorData, N):
         """ Find nearest neighbours.
         
         Uses Euclidean distance to find the N nearest neighbors to a set of 
@@ -164,17 +170,22 @@ class PCA():
             Subset of pdata that contains only the N nearest neightbors.
         """
 
-        mu = np.mean(pdata[self.selectlabels].values, axis=0)
+        mu = np.mean(priorData[self.selectLabels].values, axis=0)
     
-        std = np.std(pdata[self.selectlabels].values, axis=0)
-        
-        deltas = np.array([(pdata[key].values-mu[i]) / std[i] - (self.obs[key][0] - mu[i]) / std[i] for i, key in enumerate(self.selectlabels)])
-
-        sortidx = np.argsort(np.sqrt(np.sum(deltas**2, axis=0)))
+        std = np.std(priorData[self.selectLabels].values, axis=0)
          
-        out = pdata.loc[sortidx, :][:N]
-        
-        return out
+        deltas = np.array([(priorData[key].values - mu[i]) / std[i] - (self.obs[key][0] - mu[i]) / std[i] for i, key in enumerate(self.selectLabels)])
+         
+        sortidx = np.argsort(np.sqrt(np.sum(deltas**2, axis=0)))
+        selectedSubset = priorData.loc[sortidx, :][:N]
+        print(selectedSubset)
+        print(len(selectedSubset))
+        self.nanFraction = np.max(np.sum(np.isnan(selectedSubset).values, axis=0)/len(selectedSubset))
+         
+        selectedSubset.dropna(axis=0, how="any", inplace=True)
+        print(selectedSubset)
+        print(len(selectedSubset))
+        return selectedSubset
 
     @partial(jax.jit, static_argnums=(0,))
     def scale(self, data):
@@ -272,21 +283,21 @@ class PCA():
         """
 
         
-        self.dims_R = min([dim, len(self.varlabels)])
+        self.dimsR = min([dim, len(self.varLabels)])
 
-        _X = self.scale(self.data_F)
+        _X = self.scale(self.dataF)
          
         self.covariance = self.covarianceMatrix(_X)
         
         self.eigvals, self.eigvectors = jnp.linalg.eig(self.covariance)
 
-        self.sortidx = sorted(range(len(self.eigvals)), key=lambda i: self.eigvals[i], reverse=True)[:self.dims_R]
+        self.sortidx = sorted(range(len(self.eigvals)), key=lambda i: self.eigvals[i], reverse=True)[:self.dimsR]
 
         self.explained_variance_ratio = sorted(self.eigvals / jnp.sum(self.eigvals), reverse=True)
 
         self.erank = jnp.exp(-jnp.sum(self.explained_variance_ratio * np.log(self.explained_variance_ratio))).real
 
-        self.data_R = self.transform(self.data_F)
+        self.dataR = self.transform(self.dataF)
 
     def covarianceMatrix(self, _X):
         """ Compute the weighted covariance matrix
