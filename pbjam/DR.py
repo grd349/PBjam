@@ -33,7 +33,7 @@ class PCA():
          
         if self.nSamples > 5000:
             warnings.warn('The requested PCA sample is very large, you may run in to memory issues.')
-
+        
         self.dataF, self.dimsF, self.nSamples = self.getSample(self.fName, self.nSamples)
          
         self.setWeights(self.weights, self.weightArgs)
@@ -103,7 +103,6 @@ class PCA():
          
         self.priorData.replace([np.inf, -np.inf], np.nan, inplace=True)
         
-        # TODO: set this to only drop in self.selectLabels
         if self.dropNansIn == 'all':
             self.dropNanLabels = self.varLabels + self.selectLabels
         else:
@@ -153,7 +152,7 @@ class PCA():
 
     def findNearest(self, priorData, N):
         """ Find nearest neighbours.
-        
+
         Uses Euclidean distance to find the N nearest neighbors to a set of 
         observational parameters.
 
@@ -170,21 +169,31 @@ class PCA():
             Subset of pdata that contains only the N nearest neightbors.
         """
 
-        mu = np.mean(priorData[self.selectLabels].values, axis=0)
+        priorSampleMean = np.mean(priorData[self.selectLabels].values, axis=0)
+
+        priorSampleStd = np.std(priorData[self.selectLabels].values, axis=0)
     
-        std = np.std(priorData[self.selectLabels].values, axis=0)
-         
-        deltas = np.array([(priorData[key].values - mu[i]) / std[i] - (self.obs[key][0] - mu[i]) / std[i] for i, key in enumerate(self.selectLabels)])
-         
-        sortidx = np.argsort(np.sqrt(np.sum(deltas**2, axis=0)))
+        delta_i = np.array([(priorData[key].values - priorSampleMean[i]) / priorSampleStd[i] - (self.obs[key][0] - priorSampleMean[i]) / priorSampleStd[i] for i, key in enumerate(self.selectLabels)])
+            
+        euclDist = np.sqrt(np.average(delta_i**2, axis=0))
+            
+        sortidx = np.argsort(euclDist)
+        
         selectedSubset = priorData.loc[sortidx, :][:N]
-        print(selectedSubset)
-        print(len(selectedSubset))
+
         self.nanFraction = np.max(np.sum(np.isnan(selectedSubset).values, axis=0)/len(selectedSubset))
-         
+
         selectedSubset.dropna(axis=0, how="any", inplace=True)
-        print(selectedSubset)
-        print(len(selectedSubset))
+        
+        for i, key in enumerate(self.selectLabels):
+            
+            S = selectedSubset[key].values
+            
+            muS = np.mean(selectedSubset[key].values)
+            
+            if abs(max(abs(S-muS)) < self.obs[key][0]-muS):
+                warnings.warn(f'Target {key} beyond limits of the selected prior sample. Prior may not be reliable.')
+        
         return selectedSubset
 
     @partial(jax.jit, static_argnums=(0,))
