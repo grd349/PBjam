@@ -9,7 +9,6 @@ import pbjam.distributions as dist
 
 jax.config.update('jax_enable_x64', True)
 
-
 class Asyl1Model(jar.DynestySamplingTools):
     def __init__(self, f, s, obs, addPriors, N_p, NPriorSamples, vis={'V10': 1.22}, priorpath=None):
 
@@ -29,7 +28,6 @@ class Asyl1Model(jar.DynestySamplingTools):
         self.ndims = len(self.priors)
 
         self.ones_nu = jnp.ones_like(self.f)
-
 
     def setLabels(self, ):
         """
@@ -161,9 +159,13 @@ class Asyl1Model(jar.DynestySamplingTools):
         return theta_u
     
     @partial(jax.jit, static_argnums=(0,))
+    def nu1_frequencies(self, theta_u):
+        return self.obs['nu0_p'] + theta_u['d01']
+    
+    @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u,):
         
-        nu1s = self.obs['nu0_p'] + theta_u['d01']
+        nu1s = self.nu1_frequencies(theta_u)
          
         Hs1 = self.envelope(nu1s, )
         
@@ -280,7 +282,51 @@ class Asyl1Model(jar.DynestySamplingTools):
         m = self.model(theta_u,)
         
         return self.f, m
+    
+    def parseSamples(self, smp, Nmax=10000):
 
+        N = min([len(list(smp.values())[0]), Nmax])
+
+        for key in smp.keys():
+            smp[key] = smp[key][:N]
+
+        result = {'ell': np.array([]),
+                'enn': np.array([]),
+                'zeta': np.array([]),
+                'summary': {'freq'  : np.array([]).reshape((2, 0)), 
+                            'height': np.array([]).reshape((2, 0)), 
+                            'width' : np.array([]).reshape((2, 0))
+                            },
+                'samples': {'freq'  : np.array([]).reshape((N, 0)),
+                            'height': np.array([]).reshape((N, 0)), 
+                            'width' : np.array([]).reshape((N, 0))
+                            },
+                }
+
+        result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
+        result['samples'].update(smp)
+
+        # l=1
+        nu1_samps = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01']}) for i in range(N)])
+
+        result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 1)
+        result['enn'] = np.append(result['enn'], np.zeros(self.N_p) - 1)
+            
+        jar.modeUpdoot(result, nu1_samps, 'freq', self.N_p)
+    
+        result['zeta'] = np.append(result['zeta'], np.zeros(result['summary']['freq'].shape[1]))
+
+        # # Heights
+        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :]) for i in range(N)]) 
+        jar.modeUpdoot(result, H1_samps, 'height', self.N_p)
+
+        # # Widths
+        W1_samps = np.array([self.obs['mode_width'][0]*np.ones(result['summary']['freq'].shape[1]) for i in range(N)]) 
+        jar.modeUpdoot(result, W1_samps, 'width', self.N_p)
+        result['summary']['width'][1, :] = self.obs['mode_width'][1]*np.ones(result['summary']['freq'].shape[1])
+
+        return result
+    
     variables = {'l1'    : {'d01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},},
                  'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
                            'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
@@ -319,19 +365,6 @@ class Mixl1Model(jar.DynestySamplingTools):
         self.trimVariables()
 
         self.makeEmpties()
-
-        #self.setl1FreqFuncs()
-
-    #def setl1FreqFuncs(self):
-
-        # if self.N_g == 0:
-        #     self.nu1_frequencies = self.asymptotic_nu_p
-            
-        #     self.getnu1s = self._l1FreqNoFudge
-        # else:
-        #self.nu1_frequencies = self.mixed_nu1
-             
-        #self.getnu1s = self._l1FreqAddFudge 
 
     def makeEmpties(self):
         """ Make a bunch of static matrices so we don't need to make them during
@@ -426,7 +459,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
     def trimVariables(self):
         
-        N = self.N_p+self.N_g #self.mixed_to_fit
+        N = self.N_p + self.N_g  
 
         for i in range(N, 200, 1):
             del self.addlabels[self.addlabels.index(f'freqError{i}')]
@@ -723,7 +756,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         theta_u['p_D'] = (theta_u['u1'] - theta_u['u2'])/jnp.sqrt(2)
         
-        nu1s, zeta = self.mixed_nu1(theta_u)
+        nu1s, zeta = self.nu1_frequencies(theta_u)
          
         Hs1 = self.envelope(nu1s, )
         
@@ -735,7 +768,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         for i in range(len(nu1s)):
              
-            nul1 = nu1s[i] + theta_u[f'freqError{i}'] #self.getnu1s(nu1s, i, theta_u) 
+            nul1 = nu1s[i] + theta_u[f'freqError{i}']  
 
             modes += jar.lor(self.f, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
@@ -745,12 +778,6 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         return modes
     
-    # def _l1FreqAddFudge(self, nu, i, theta_u):     
-    #     return 
-    
-    # def _l1FreqNoFudge(self, nu, i, theta_u):
-    #     return nu[i]
-
     @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
@@ -814,7 +841,7 @@ class Mixl1Model(jar.DynestySamplingTools):
         return 1/P
 
     @partial(jax.jit, static_argnums=(0,))
-    def mixed_nu1(self, theta_u):
+    def nu1_frequencies(self, theta_u):
         """
         Calculate mixed nu1 values and associated zeta values.
         
@@ -1060,30 +1087,27 @@ class Mixl1Model(jar.DynestySamplingTools):
                 }
         
         result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
-        result['samples'].update(smp)
-         
-        # l=1
+
+ 
         smp['p_L'] = (smp['u1'] + smp['u2'])/jnp.sqrt(2)
 
         smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
 
+        result['samples'].update(smp)
+
+
+        A = np.array([self.mix_nu1_freqs({key: smp[key][i] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g']}) for i in range(N)])
  
-
-        A = np.array([self.nu1_frequencies({key: smp[key][0] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g']}) for i in range(N)])
-                                    #self.obs['n_p'],
-                                    #smp['alpha_g'][i],
-
-        #N_pg = self.mixed_to_fit #self.N_p + self.N_g
         N_pg = self.N_p + self.N_g
         
         result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
         result['enn'] = np.append(result['enn'], np.zeros(N_pg) - 1)
 
-        # # Frequencies 
+        # Frequencies 
         nu1_samps = A[:, 0, :]
-
+        
         sigma_nul1 = np.array([smp[key] for key in smp.keys() if key.startswith('freqError')]).T
-
+        
         if len(sigma_nul1) == 0:        
             jar.modeUpdoot(result, nu1_samps, 'freq', N_pg)
         else:
@@ -1093,13 +1117,12 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         result['zeta'] = np.append(result['zeta'], np.median(zeta_samps, axis=0))
         
-        # # Heights
+        # Heights
         H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :]) for i in range(N)]) 
         jar.modeUpdoot(result, H1_samps, 'height', N_pg)
         
-        # # Widths
-        W1_samps = np.array([self.l1_modewidths(zeta_samps[i, :], 
-                                                self.obs['mode_width'][0]) for i in range(N)]) 
+        # Widths
+        W1_samps = np.array([self.l1_modewidths(zeta_samps[i, :], ) for i in range(N)]) 
         jar.modeUpdoot(result, W1_samps, 'width', N_pg)
 
         return result

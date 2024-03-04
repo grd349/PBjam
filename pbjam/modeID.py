@@ -89,6 +89,7 @@ class modeIDsampler(plotting, ):
 
             self.l1sel = (np.array(freqLimits).min() < self.f[self.l20sel]) & (self.f[self.l20sel] < np.array(freqLimits).max())
             
+            print('Initializing asymptotic l=1 model')
             self.Asyl1Model = Asyl1Model(self.f[self.l20sel][self.l1sel], 
                                          self.l20residual[self.l1sel], 
                                          self.summary, 
@@ -97,6 +98,7 @@ class modeIDsampler(plotting, ):
                                          self.Npca_pair, 
                                          priorpath=self.priorpath)
             
+            print('Initializing mixed mode l=1 model')
             self.Mixl1Model = Mixl1Model(self.f[self.l20sel][self.l1sel], 
                                          self.l20residual[self.l1sel], 
                                          self.summary, 
@@ -106,16 +108,17 @@ class modeIDsampler(plotting, ):
                                          self.PCAdims_mix,
                                          priorpath=self.priorpath)
 
-            assert False
-            
-            if self.Mixl1Model.DR.nanfraction <= 0.05 & (0.05 < self.Mixl1Model.DR.nanfraction):
+            if (self.Mixl1Model.DR.nanFraction <= 0.05 ) & (0.05 < self.Asyl1Model.DR.nanFraction):
+                print('Not enough prior samples for mixed model. Using asymptotic.')
+                
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
                 self.useMixResult = False
                 
-            elif (0.05 < self.Mixl1Model.DR.nanfraction <= 0.95) & (0.05 < self.Mixl1Model.DR.nanfraction):
- 
+            elif (0.05 < self.Mixl1Model.DR.nanFraction <= 0.95):
+                print('Testing both models.')
+                
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
@@ -125,20 +128,30 @@ class modeIDsampler(plotting, ):
                                                                                sampler_kwargs=sampler_kwargs)
                 
                 # evidence check
-                BayesFactor = self.Asyl1logz.max() - self.Mixl1logz.max()
+                self.AsyMixBayesFactor = self.Asyl1logz.max() - self.Mixl1logz.max()
 
-                self.useMixResult = BayesFactor < 1/2
+                self.useMixResult = self.AsyMixBayesFactor  < 1/2                
                  
-            elif 0.95 < self.Mixl1Model.DR.nanfraction:
+            elif 0.95 < self.Mixl1Model.DR.nanFraction <= 1.0:
+                print('Using the mixed model.')
+                
                 self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
                 
                 self.useMixResult == True
 
-            l1samples_u = self.Mixl1Model.unpackSamples(self.Mixl1Samples)
+            else:
+                raise ValueError('Somethings gone wrong when picking the asy/mix model')
 
-            self.l1res = self.Mixl1Model.parseSamples(l1samples_u)
+            if self.useMixResult:
+                l1samples_u = self.Mixl1Model.unpackSamples(self.Mixl1Samples)
+
+                self.l1res = self.Mixl1Model.parseSamples(l1samples_u)
+            else:
+                l1samples_u = self.Asyl1Model.unpackSamples(self.Asyl1Samples)
+
+                self.l1res = self.Asyl1Model.parseSamples(l1samples_u)
 
             return self.l1res
 
