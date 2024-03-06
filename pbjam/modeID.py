@@ -110,7 +110,7 @@ class modeIDsampler(plotting, ):
             print('Viable prior sample fraction of requested:', np.round(1-self.Mixl1Model.DR.nanFraction, 2))
 
             
-            if (self.Asyl1Model.DR.nanFraction < 0.05) & (0.95 < self.Mixl1Model.DR.nanFraction):#( >= 0.05 ) & (self.Asyl1Model.DR.nanFraction < 0.05):
+            if (0.05 < self.Asyl1Model.DR.nanFraction) & (0.95 <= self.Mixl1Model.DR.nanFraction):#( >= 0.05 ) & (self.Asyl1Model.DR.nanFraction < 0.05):
                 print('Not enough prior samples for mixed model. Using asymptotic.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
@@ -118,7 +118,7 @@ class modeIDsampler(plotting, ):
                                                                                sampler_kwargs=sampler_kwargs)
                 self.useMixResult = False
                 
-            elif 0.05 < self.Mixl1Model.DR.nanFraction <= 0.95:
+            elif (0.05 < self.Mixl1Model.DR.nanFraction) & (self.Mixl1Model.DR.nanFraction <= 0.95):
                 print('Testing both models.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
