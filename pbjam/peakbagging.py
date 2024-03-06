@@ -9,12 +9,12 @@ from pbjam.plotting import plotting
 from tinygp import GaussianProcess, kernels
 import numpyro
 import numpyro.distributions as pyrodist
-from numpyro.infer import MCMC, NUTS, init_to_median
+from numpyro.infer import MCMC, NUTS, init_to_median, init_to_uniform 
 
 
 class NumPyroPeakbag(plotting):
 
-    def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, 
+    def __init__(self, f, s, ell, zeta, freq, height, width, numax, 
                  dnu, d02, addPriors={}, freq_limits=[], **kwargs):
     
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
@@ -42,13 +42,23 @@ class NumPyroPeakbag(plotting):
         self.zeta = self.zeta[idxModes]
 
         self.Nmodes = len(self.ell)
+
+        self.sel = self.setFreqRange()
+
+        self.freq_err = 0.03
+
+        self._f = self.f[self.sel]
+        self._snr = self.snr[self.sel]
+
+        self.zeros = jnp.zeros_like(self._f)
+
    
     @partial(jax.jit, static_argnums=(0,))
-    def model(self, f, ell, freq, height, width, split, inc, shot):
+    def model(self, freq, height, width, split, inc, shot):
          
-        modes = jnp.zeros_like(f) + shot
+        modes = self.zeros + shot
          
-        for i, l in enumerate(ell):
+        for i, l in enumerate(self.ell):
             
             for m in jnp.arange(2 * l + 1) - l:
                 
@@ -58,13 +68,13 @@ class NumPyroPeakbag(plotting):
 
                 H = E * height[i]
 
-                modes += jar.lor(f, nu_nlm, H, width[i])
+                modes += jar.lor(self._f, nu_nlm, H, width[i])
         
         return modes
 
-    def PyroModel(self, obs=None, freq_err=0.03):
+    def PyroModel(self, obs=None, ):
     
-        freq = numpyro.sample('freq', pyrodist.Normal(loc=self.freq[0, :], scale=freq_err * self.dnu[0]))
+        freq = numpyro.sample('freq', pyrodist.Normal(loc=self.freq[0, :], scale=self.freq_err * self.dnu[0]))
         
         height_s = numpyro.sample('height_s', pyrodist.Normal(loc=jnp.log10(self.mode_snr), scale=0.1))
         height = numpyro.deterministic('height', jnp.power(10., height_s))
@@ -74,17 +84,20 @@ class NumPyroPeakbag(plotting):
         
         split = numpyro.sample('split', pyrodist.HalfNormal(1.0))
 
-        cosinc_s = numpyro.sample('cosinc', pyrodist.Uniform(loc=0, scale=1.0))
-        inc = numpyro.deterministic('inc', jnp.arccos(cosinc_s)
-                                    )
-        model = self.model(self.f[self.sel], self.ell, freq, height, width, split, inc)
+        cosinc_s = numpyro.sample('cosinc', pyrodist.Uniform(low=0., high=1.0))
+        inc = numpyro.deterministic('inc', jnp.arccos(cosinc_s))
+
+        shot_s = numpyro.sample('shot_s', pyrodist.Normal(loc=0, scale=0.1))
+        shot = numpyro.deterministic('shot', jnp.power(10., shot_s))
+
+        model = self.model(freq, height, width, split, inc, shot)
     
         if obs is not None:
             numpyro.sample('obs', pyrodist.Gamma(2.0, 2.0/model), obs=obs)
 
-    def RunNUTS(self, warmup=4000, Nsamples=1000, Nchains=4, acceptance=0.8):
+    def runNUTS(self, warmup=4000, Nsamples=1000, Nchains=4, acceptance=0.8):
 
-        nuts = NUTS(self.PyroModel, target_accept_prob=acceptance, init_strategy=init_to_median, find_heuristic_step_size=True)
+        nuts = NUTS(self.PyroModel, target_accept_prob=acceptance, init_strategy=init_to_uniform, find_heuristic_step_size=True)
 
         mcmc = MCMC(nuts, num_warmup=warmup, num_samples=Nsamples, num_chains=Nchains)
         
@@ -92,7 +105,7 @@ class NumPyroPeakbag(plotting):
 
         rng, key = jax.random.split(rng)
 
-        mcmc.run(key, obs=self.snr)
+        mcmc.run(key, obs=self._snr)
 
         return mcmc
 
@@ -165,6 +178,34 @@ class NumPyroPeakbag(plotting):
 
         return idx
 
+    def setFreqRange(self,):
+        """ Get frequency range around numax for model 
+
+        Returns
+        -------
+        idx : jax device array
+            Array of boolean values defining the interval of the frequency axis
+            where the oscillation modes present.
+        """
+        
+        if len(self.freq_limits) == 2:
+            lfreq = self.freq_limits[0]
+            
+            ufreq = self.freq_limits[1]
+        
+        elif (self.modeIDres is not None) and (len(self.freq_limits) == 0):
+            pad = self.modeIDres['summary']['dnu'][0] / 2
+
+            muFreqs = jnp.array([self.priors[key].ppf(0.5) for key in self.labels if 'freq' in key])
+            
+            lfreq = muFreqs.min() - pad
+
+            ufreq = muFreqs.max() + pad
+        else:
+            raise ValueError('Supply a modeID result dictionary or freq_limits to set fit window.')
+
+        return (lfreq < self.f) & (self.f < ufreq)  
+    
 class DynestyPeakbag(plotting):
     
     def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, 
