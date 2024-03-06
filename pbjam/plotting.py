@@ -275,69 +275,97 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
 
-    if 'freqError0' in self.MixFreqModel.priors.keys(): 
-        rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.782])   
-        rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
-        rect_ax.set_yticks([])
-        rect_ax.set_ylim(ax.get_ylim())
-        rect_ax.fill_betweenx(ax.get_ylim(), 
-                    x1=self.MixFreqModel.priors['freqError0'].mean - self.MixFreqModel.priors['freqError0'].scale,
-                    x2=self.MixFreqModel.priors['freqError0'].mean + self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
-        rect_ax.fill_betweenx(ax.get_ylim(), 
-                    x1=self.MixFreqModel.priors['freqError0'].mean - 2*self.MixFreqModel.priors['freqError0'].scale,
-                    x2=self.MixFreqModel.priors['freqError0'].mean + 2*self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
-        rect_ax.set_xlim(self.MixFreqModel.priors['freqError0'].mean - 3*self.MixFreqModel.priors['freqError0'].scale,
-                        self.MixFreqModel.priors['freqError0'].mean + 3*self.MixFreqModel.priors['freqError0'].scale)
-        rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
-    l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
+    
 
-    # Overplot mode frequency samples
     for l in np.unique(self.result['ell']).astype(int):
 
         idx_ell = self.result['ell'] == l
 
         freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
-        if (l==1) and ('freqError0' in self.MixFreqModel.priors.keys()):
-            rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
-
         smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
         ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
 
+        med_freqs = self.result['summary']['freq'][0, :]
+
+        med_x, med_y = _echellify_freqs(med_freqs, dnu) 
+
+        ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
+
         # Add to legend
         ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
 
-    # Overplot gmode frequencies
-    nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
-                                          self.result['summary']['DPi1'][0], 
-                                          self.result['summary']['eps_g'][0], 
-                                          )
-                                        # self.result['summary']['alpha_g'][0], 
-    
     ylims = ax.get_ylim()
 
-    for i, nu in enumerate(nu_g):
+    if self.useMixResult:
+        rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.782])   
+        rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
+        rect_ax.set_yticks([])
+        rect_ax.set_ylim(ax.get_ylim())
+        rect_ax.fill_betweenx(ax.get_ylim(), 
+                              x1=self.MixFreqModel.priors['freqError0'].mean - self.MixFreqModel.priors['freqError0'].scale,
+                              x2=self.MixFreqModel.priors['freqError0'].mean + self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
+        rect_ax.fill_betweenx(ax.get_ylim(), 
+                              x1=self.MixFreqModel.priors['freqError0'].mean - 2*self.MixFreqModel.priors['freqError0'].scale,
+                              x2=self.MixFreqModel.priors['freqError0'].mean + 2*self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
+        rect_ax.set_xlim(self.MixFreqModel.priors['freqError0'].mean - 3*self.MixFreqModel.priors['freqError0'].scale,
+                         self.MixFreqModel.priors['freqError0'].mean + 3*self.MixFreqModel.priors['freqError0'].scale)
+        rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
-        if (ylims[0] < nu) & (nu < ylims[1]):
-            ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
+        l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
 
-        ax.axhline(nu, color='k', ls='dashed')
-
-    ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
-
-    #Overplot l=1 p-modes
-    nu0_p, _ = self.AsyFreqModel.asymptotic_nu_p(numax, 
-                                                 dnu,  
-                                                 self.result['summary']['eps_p'][0], 
-                                                 self.result['summary']['alpha_p'][0],)
+        for l in np.unique(self.result['ell']).astype(int):
+            rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
     
-    nu1_p = nu0_p + self.result['summary']['d01'][0]
+        # Overplot gmode frequencies
+        nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
+                                            self.result['summary']['DPi1'][0], 
+                                            self.result['summary']['eps_g'][0], 
+                                            )
+                                            # self.result['summary']['alpha_g'][0], 
+        
+        for i, nu in enumerate(nu_g):
 
-    nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+            if (ylims[0] < nu) & (nu < ylims[1]):
+                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
 
-    ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+            ax.axhline(nu, color='k', ls='dashed')
+
+            ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
+
+        #Overplot l=1 p-modes
+        nu0_p, _ = self.AsyFreqModel.asymptotic_nu_p(numax, 
+                                                     dnu,  
+                                                     self.result['summary']['eps_p'][0], 
+                                                     self.result['summary']['alpha_p'][0],)
+    
+        nu1_p = nu0_p + self.result['summary']['d01'][0]
+
+        nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+
+        ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+                
+    
+
+    # Overplot mode frequency samples
+    # for l in np.unique(self.result['ell']).astype(int):
+
+    #     idx_ell = self.result['ell'] == l
+
+    #     freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
+
+    #     if (l==1) and ('freqError0' in self.MixFreqModel.priors.keys()):
+    #         rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
+
+    #     smp_x, smp_y = _echellify_freqs(freqs, dnu) 
+
+    #     ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+
+    #     # Add to legend
+    #     ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
+ 
     
     ax.set_xlim(0, dnu)
 
@@ -516,13 +544,13 @@ def _ModeIDClassPriorSpectrum(self, N):
 
 def _ModeIDClassPostSpectrum(self, N):
 
-    Nmax = min([self.l20samples.shape[0], self.l1samples.shape[0]])
+    Nmax = len(self.result['samples']['d01']) #min([self.Asyl20samples.shape[0], self.Asyl1samples.shape[0], self.Mixl1samples.shape[0]])
 
     rint = np.random.randint(0, Nmax, size=N)
 
-    numax = self.obs['numax'][0]
+    #numax = self.obs['numax'][0]
 
-    dnu = self.obs['dnu'][0]
+    #dnu = self.obs['dnu'][0]
 
 
     fig, ax = plt.subplots(3, 1, figsize=(16,18))
@@ -538,26 +566,39 @@ def _ModeIDClassPostSpectrum(self, N):
     _baseSpectrum(ax[2], self.f[self.l20sel][self.l1sel], self.l20residual[self.l1sel], ylim=[0, None])
     ax[2].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
 
+     
     for k in rint:
         
         l20m = np.ones(len(self.f[self.l20sel]))
 
-        l20theta_u = self.AsyFreqModel.unpackParams(self.l20samples[k, :])
+        l20theta_u = self.Asyl20Model.unpackParams(self.Asyl20samples[k, :])
         
-        l20m *= self.AsyFreqModel.model(l20theta_u)
+        l20m *= self.Asyl20Model.model(l20theta_u)
 
         ax[0].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
         ax[1].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
 
-        l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
-        
-        l1theta_u = self.MixFreqModel.unpackParams(self.l1samples[k, :])
-        
-        l1m *= self.MixFreqModel.model(l1theta_u,)
 
-        ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
+        if self.useMixResult:
 
-     
+            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
+            
+            l1theta_u = self.Mixl1Model.unpackParams(self.Mixl1Samples[k, :])
+            
+            l1m *= self.Mixl1Model.model(l1theta_u,)
+
+            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
+
+        else:
+
+            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
+            
+            l1theta_u = self.Asyl1Model.unpackParams(self.Asyl1Samples[k, :])
+            
+            l1m *= self.Asyl1Model.model(l1theta_u,)
+
+            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
+ 
     ax[0].set_yscale('log')
 
     ax[0].set_xscale('log')
@@ -915,7 +956,8 @@ class plotting():
 
         if self.__class__.__name__ == 'star': 
             
-            _StarClassCorner(self, **kwargs)
+            #_StarClassCorner(self, **kwargs)
+            raise ValueError('Only the mode ID and peakbag classes have corner plotting functions.')
 
         elif self.__class__.__name__ == 'modeIDsampler':
              
@@ -926,14 +968,17 @@ class plotting():
                 fig, ax = _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs)
             
             elif stage=='posterior': 
+                
+                figl20, axl20 = _ModeIDClassPostCorner(self, self.Asyl20Model, unpacked, **kwargs)
+                
+                if self.useMixResult:
+                    figl1, axl1 = _ModeIDClassPostCorner(self, self.Mixl1Model, unpacked, **kwargs)
+                else:
+                    figl1, axl1 = _ModeIDClassPostCorner(self, self.Asyl1Model, unpacked, **kwargs)              
 
-                figA, axA = _ModeIDClassPostCorner(self, self.AsyFreqModel, unpacked, **kwargs)
+                fig = [figl20, figl1]
 
-                figM, axM = _ModeIDClassPostCorner(self, self.MixFreqModel, unpacked, **kwargs)
-
-                fig = [figA, figM]
-
-                ax = [axA, axM]
+                ax = [axl20, axl1]
 
             else:
                 raise ValueError('Set stage optional argument to either prior or posterior')
@@ -958,6 +1003,20 @@ class plotting():
             raise ValueError('Unrecognized class type')
         
         return fig, ax
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     def plotLatentCorner(self, samples, labels=None):
     

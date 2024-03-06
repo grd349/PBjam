@@ -53,10 +53,10 @@ class modeIDsampler(plotting, ):
                                              self.PCAdims_pair,
                                              priorpath=self.priorpath)
             
-            self.Asyl20samples, self.Asyl20logz = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
+            self.Asyl20Samples, self.Asyl20logz = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
                                                                              sampler_kwargs=sampler_kwargs)
             
-            l20samples_u = self.Asyl20Model.unpackSamples(self.Asyl20samples)
+            l20samples_u = self.Asyl20Model.unpackSamples(self.Asyl20Samples)
 
             self.l20res = self.Asyl20Model.parseSamples(l20samples_u)
         
@@ -97,7 +97,7 @@ class modeIDsampler(plotting, ):
                                          self.N_p, 
                                          self.Npca_pair, 
                                          priorpath=self.priorpath)
-            
+            print('Viable prior sample fraction of requested:', np.round(1-self.Asyl1Model.DR.nanFraction, 2))
             print('Initializing mixed mode l=1 model')
             self.Mixl1Model = Mixl1Model(self.f[self.l20sel][self.l1sel], 
                                          self.l20residual[self.l1sel], 
@@ -107,8 +107,10 @@ class modeIDsampler(plotting, ):
                                          self.Npca_mix, 
                                          self.PCAdims_mix,
                                          priorpath=self.priorpath)
+            print('Viable prior sample fraction of requested:', np.round(1-self.Mixl1Model.DR.nanFraction, 2))
 
-            if (self.Mixl1Model.DR.nanFraction <= 0.05 ) & (0.05 < self.Asyl1Model.DR.nanFraction):
+            
+            if (self.Asyl1Model.DR.nanFraction < 0.05) & (0.95 < self.Mixl1Model.DR.nanFraction):#( >= 0.05 ) & (self.Asyl1Model.DR.nanFraction < 0.05):
                 print('Not enough prior samples for mixed model. Using asymptotic.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
@@ -116,7 +118,7 @@ class modeIDsampler(plotting, ):
                                                                                sampler_kwargs=sampler_kwargs)
                 self.useMixResult = False
                 
-            elif (0.05 < self.Mixl1Model.DR.nanFraction <= 0.95):
+            elif 0.05 < self.Mixl1Model.DR.nanFraction <= 0.95:
                 print('Testing both models.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
@@ -132,7 +134,7 @@ class modeIDsampler(plotting, ):
 
                 self.useMixResult = self.AsyMixBayesFactor  < 1/2                
                  
-            elif 0.95 < self.Mixl1Model.DR.nanFraction <= 1.0:
+            elif self.Mixl1Model.DR.nanFraction <= 0.05:
                 print('Using the mixed model.')
                 
                 self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
@@ -142,6 +144,8 @@ class modeIDsampler(plotting, ):
                 self.useMixResult == True
 
             else:
+                print('Mixed model nan-fraction:', self.Mixl1Model.DR.nanFraction)
+                print('Asy model nan-fraction:', self.Asyl1Model.DR.nanFraction)
                 raise ValueError('Somethings gone wrong when picking the asy/mix model')
 
             if self.useMixResult:
@@ -243,198 +247,3 @@ class modeIDsampler(plotting, ):
         df.to_csv(basefilename+'.csv', index=False)
  
     
-
-    # def defineModel(self, spectrum=None, modelType='l20'):  
-         
-    #     if spectrum is None:
-    #         spectrum = self.s
-
-    #     self._spec = spectrum
-
-    #     self.modelVars = {}
-
-    #     self.modelVars.update(self.variables[modelType])
-        
-    #     if modelType == 'l20':
-    #         self.modelVars.update(self.variables['background'])
-        
-    #     self.modelVars.update(self.variables['common'])
-
-    #     self.set_labels(self.addPriors)
-
-    #     self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
-
-    #     self.setupDR()
-  
-    #     self.setPriors(modelType)
- 
-    #     self.background = bkgModel(self.Nyquist)
-
-    #     self.AsyFreqModel = AsyFreqModel(self.N_p)
-
-    #     self.ndims = len(self.latentLabels + self.addlabels)
-
-    #     if modelType == 'l1':
-    #         n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
-            
-    #         self.MixFreqModel = MixFreqModel(self.N_p, self.obs, n_g_ppf)
-
-    #         self.N_g = self.MixFreqModel.N_g
-            
-    #         self.trimVariables()
-
-    #     self.sel = self.setFreqRange()
-
-    #     self.setAddObs(modelType)
-
-    #     self.model = self._pickmodelFunc(modelType)
-
-      
-
-
-
-    # variables = {'l20':{'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-    #                     'd02'       : {'info': 'l=0,2 mean frequency difference'          , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'alpha_p'   : {'info': 'curvature of the p-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-    #                     'env_width' : {'info': 'envelope width'                           , 'log10': True , 'pca': True, 'unit': 'muHz'},
-    #                     'env_height': {'info': 'envelope height'                          , 'log10': True , 'pca': True, 'unit': 'ppm^2/muHz'}, 
-    #                     'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True, 'unit': 'K'}, 
-    #                     'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True, 'unit': 'mag'},
-    #                     },
-    #             'background' : {'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                             'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True, 'unit': 'None'},
-    #                             'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True, 'unit': 'ppm^2/muHz'}, 
-    #                             'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True, 'unit': 'muHz'},
-    #                             'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True, 'unit': 'None'},
-    #                             'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'}, 
-    #                             'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False, 'unit': 'muHz'},
-    #                             'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False, 'unit': 'None'},
-    #                             'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'},
-    #                             },
-    #             'l1': {'u1'        : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'        , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-    #                    'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-    #                    'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
-    #                    'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-    #                    'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-    #                    'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': False,  'pca': True, 'unit': 'muHz'},
-    #                    'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
-    #                    },
-    #             'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-    #                        'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-    #                        'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
-    #             }
-
-    
-
-        
-
-    # def getInitLive(self, nlive):
-    #     """
-    #     Generate initial live points for a Bayesian inference problem.
-
-    #     Parameters
-    #     ----------
-    #     nlive : int
-    #         The number of live points to generate.
-
-    #     Returns
-    #     -------
-    #     list : list
-    #         A list containing three arrays: [u, v, L].
-    #             - u : ndarray
-    #                 Initial live points in the unit hypercube [0, 1].
-    #                 Shape: (nlive, ndims).
-    #             - v : ndarray
-    #                 Transformed live points obtained by applying the ptform method to each point in u.
-    #                 Shape: (nlive, ndims).
-    #             - L : ndarray
-    #                 Log-likelihood values calculated for each point in v.
-    #                 Shape: (nlive,).
-
-    #     Notes
-    #     -----
-    #     This method generates initial live points for a Bayesian inference problem.
-    #     It follows the following steps:
-    #     1. Generate a 2D array u of shape (4*nlive, ndims) with values drawn from a uniform distribution in the range [0, 1].
-    #     2. Apply the ptform method to each row of u to obtain a new 2D array v of the same shape.
-    #     3. Calculate the log-likelihood values L for each point in v using the lnlikelihood method.
-    #     4. Filter out invalid values of L (NaN or infinite) using a boolean mask.
-    #     5. Select the first nlive rows from the filtered arrays to obtain the initial live points u, transformed points v, and log-likelihood values L.
-    #     6. Return the list [u, v, L].
-    #     """
-        
-    #     u = np.random.uniform(0, 1, size=(4*nlive, self.ndims))
-
-    #     v = np.array([self.ptform(u[i, :]) for i in range(u.shape[0])])
-        
-    #     L = np.array([self.lnlikelihood(v[i, :], self.f[self.sel]) for i in range(u.shape[0])])
-
-    #     idx = np.isfinite(L)
-
-    #     return [u[idx, :][:nlive, :], v[idx, :][:nlive, :], L[idx][:nlive]]
-    
-    # def runDynesty(self, dynamic=False, progress=True, nlive=100, logl_kwargs={}):
-    #     """ Start nested sampling
-
-    #     Initializes and runs the nested sampling with Dynesty. We use the 
-    #     default settings for stopping criteria as per the Dynesty documentation.
-
-    #     Parameters
-    #     ----------
-    #     dynamic : bool, optional
-    #         Use dynamic sampling as opposed to static. Dynamic sampling achieves
-    #         minutely higher likelihood levels compared to the static sampler. 
-    #         From experience this is not usually worth the extra runtime. By 
-    #         default False.
-    #     progress : bool, optional
-    #         Display the progress bar, turn off for commandline runs, by default 
-    #         True
-    #     nlive : int, optional
-    #         Number of live points to use in the sampling. Conceptually similar 
-    #         to MCMC walkers, by default 100.
-
-    #     Returns
-    #     -------
-    #     sampler : Dynesty sampler object
-    #         The sampler from the nested sampling run. Contains some diagnostics.
-    #     samples : jax device array
-    #         Array of samples from the nested sampling with shape (Nsamples, Ndim)
-    #     """
-
-    #     initLive = self.getInitLive(nlive)
-
-    #     if dynamic:
-    #         sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
-    #                                                self.ptform, 
-    #                                                self.ndims, 
-    #                                                nlive=nlive, 
-    #                                                sample='rwalk',
-    #                                                live_points=initLive,
-    #                                                logl_args=[self.f[self.sel]])
-            
-    #         sampler.run_nested(print_progress=progress, 
-    #                            wt_kwargs={'pfrac': 1.0}, 
-    #                            dlogz_init=1e-3 * (nlive - 1) + 0.01, 
-    #                            nlive_init=nlive)  
-            
-    #     else:           
-    #         sampler = dynesty.NestedSampler(self.lnlikelihood, 
-    #                                         self.ptform, 
-    #                                         self.ndims, 
-    #                                         nlive=nlive, 
-    #                                         sample='rwalk',
-    #                                         live_points=initLive,
-    #                                         logl_args=[self.f[self.sel]])
-            
-    #         sampler.run_nested(print_progress=progress)
- 
-    #     result = sampler.results
-
-    #     unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
-
-    #     samples = dyfunc.resample_equal(unweighted_samples, weights)
-
-    #     return sampler, samples

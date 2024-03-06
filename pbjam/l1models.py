@@ -642,8 +642,8 @@ class Mixl1Model(jar.DynestySamplingTools):
         n_g = jnp.arange(min_n_g_c, max_n_g_c, dtype=int)[::-1]
         n_g_to_fit = jnp.arange(min_n_g_f, max_n_g_f, dtype=int)[::-1]
         
-        print('g-modes within 5 dnu of min/max l=0', min_n_g_c, max_n_g_c, len(n_g))
-        print('g-modes within 0.5 dnu of min/max l=0', min_n_g_f, max_n_g_f, len(n_g_to_fit))
+        # print('g-modes within 5 dnu of min/max l=0', min_n_g_c, max_n_g_c, len(n_g))
+        # print('g-modes within 0.5 dnu of min/max l=0', min_n_g_f, max_n_g_f, len(n_g_to_fit))
         
         #self.mixed_to_fit = self.N_p + len(n_g_to_fit)
 
