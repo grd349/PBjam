@@ -9,7 +9,7 @@ from pbjam.plotting import plotting
 from tinygp import GaussianProcess, kernels
 import numpyro
 import numpyro.distributions as pyrodist
-from numpyro.infer import MCMC, NUTS, init_to_median, init_to_uniform 
+from numpyro.infer import MCMC, NUTS, init_to_median
 
 
 class NumPyroPeakbag(plotting):
@@ -28,19 +28,18 @@ class NumPyroPeakbag(plotting):
         idxModes = self.pickFreqs(self.ell, self.freq, self.dnu)
 
         self.ell = self.ell[idxModes]
-
-        self.N_p = len(self.ell[self.ell==0])
-
+ 
         self.freq = self.freq[:, idxModes]
         
         self.height = self.height[:, idxModes]
         self.mode_snr = self.height[0, :] / self.bkg(self.freq[0, :])
+
+        self.zeta = self.zeta[idxModes]
          
         self.width = self.width[:, idxModes]
         self.widths = jnp.log10(self.width[0, :]/(1-self.zeta))
          
-        self.zeta = self.zeta[idxModes]
-
+        
         self.Nmodes = len(self.ell)
 
         self.sel = self.setFreqRange()
@@ -52,29 +51,98 @@ class NumPyroPeakbag(plotting):
 
         self.zeros = jnp.zeros_like(self._f)
 
-   
+    @partial(jax.jit, static_argnums=(0,))
+    def visell1(self, emm, inc):
+
+        y = jax.lax.cond(emm == 0, 
+                            lambda : jnp.cos(inc)**2,
+                            lambda : 0.5*jnp.sin(inc)**2
+                        )
+        return y
+
+    @partial(jax.jit, static_argnums=(0,))
+    def visell2(self, emm, inc):
+
+        y = jax.lax.cond(emm == 0, 
+                            lambda : (3*jnp.cos(inc)**2-1)**2/4,
+                            lambda : jax.lax.cond(emm == 1,
+                                                lambda : jnp.sin(2*inc)**2*3/8,
+                                                lambda : jnp.sin(inc)**4*3/8))
+        return y
+
+    @partial(jax.jit, static_argnums=(0,))
+    def visell3(self, emm, inc):
+
+        y = jax.lax.cond(emm == 0, 
+                            lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
+                            lambda : jax.lax.cond(emm == 1,
+                                                lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
+                                                lambda : jax.lax.cond(emm == 2,
+                                                                        lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
+                                                                        lambda : jnp.sin(inc)**6*5/16)))
+        return y
+
+    @partial(jax.jit, static_argnums=(0,))
+    def visibility(self, ell, m, inc):
+
+        emm = abs(m)
+
+        y = jax.lax.cond(ell == 0, 
+                            lambda : 1.,
+                            lambda : jax.lax.cond(ell == 1,
+                                                lambda : self.visell1(emm, inc),
+                                                lambda : jax.lax.cond(ell == 2,
+                                                                        lambda : self.visell2(emm, inc),
+                                                                        lambda : jax.lax.cond(ell == 3,
+                                                                                            lambda : self.visell3(emm, inc),
+                                                                                            lambda : jnp.nan))))
+        return y 
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def lor(self, nu0, h, w):
+        """ Lorentzian to describe an oscillation mode.
+
+        Parameters
+        ----------
+        nu0 : float
+            Frequency of lorentzian (muHz).
+        h : float
+            Height of the lorentizan (SNR).
+        w : float
+            Full width of the lorentzian (muHz).
+
+        Returns
+        -------
+        mode : ndarray
+            The SNR as a function frequency for a lorentzian.
+        """
+
+        return h / (1.0 + 4.0/ w**2 * (self._f - nu0)**2)
+
     @partial(jax.jit, static_argnums=(0,))
     def model(self, freq, height, width, split, inc, shot):
-         
+
         modes = self.zeros + shot
          
         for i, l in enumerate(self.ell):
             
             for m in jnp.arange(2 * l + 1) - l:
                 
-                E = jar.visibility(l, m, inc)
+                E = self.visibility(l, m, inc)
                 
                 nu_nlm = freq[i] + split * m
-
+                 
                 H = E * height[i]
 
-                modes += jar.lor(self._f, nu_nlm, H, width[i])
+                w = width[i]
+                 
+                modes += self.lor(nu_nlm, H, width[i])
         
         return modes
-
+     
     def PyroModel(self, obs=None, ):
     
-        freq = numpyro.sample('freq', pyrodist.Normal(loc=self.freq[0, :], scale=self.freq_err * self.dnu[0]))
+        freq = numpyro.sample('freq', pyrodist.Normal(loc=self.freq[0, :], scale=self.freq_err * self.dnu[0]) )
         
         height_s = numpyro.sample('height_s', pyrodist.Normal(loc=jnp.log10(self.mode_snr), scale=0.1))
         height = numpyro.deterministic('height', jnp.power(10., height_s))
@@ -90,22 +158,24 @@ class NumPyroPeakbag(plotting):
         shot_s = numpyro.sample('shot_s', pyrodist.Normal(loc=0, scale=0.1))
         shot = numpyro.deterministic('shot', jnp.power(10., shot_s))
 
-        model = self.model(freq, height, width, split, inc, shot)
-    
+        mod = self.model(freq, height, width, split, inc, shot)
+         
         if obs is not None:
-            numpyro.sample('obs', pyrodist.Gamma(2.0, 2.0/model), obs=obs)
+            numpyro.sample('obs', pyrodist.Gamma(1.0, 1.0/mod), obs=obs)
 
-    def runNUTS(self, warmup=4000, Nsamples=1000, Nchains=4, acceptance=0.8):
+    def runNUTS(self, samplePrior=False, warmup=4000, Nsamples=1000, Nchains=1, acceptance=0.8):
 
-        nuts = NUTS(self.PyroModel, target_accept_prob=acceptance, init_strategy=init_to_uniform, find_heuristic_step_size=True)
-
+        nuts = NUTS(self.PyroModel, target_accept_prob=acceptance, init_strategy=init_to_median)
+        
         mcmc = MCMC(nuts, num_warmup=warmup, num_samples=Nsamples, num_chains=Nchains)
         
         rng = jax.random.PRNGKey(0)
 
         rng, key = jax.random.split(rng)
-
-        mcmc.run(key, obs=self._snr)
+        if samplePrior:
+            mcmc.run(key, obs=None)
+        else:
+            mcmc.run(key, obs=self._snr)
 
         return mcmc
 
@@ -134,7 +204,7 @@ class NumPyroPeakbag(plotting):
 
         return bkgModel
 
-    def pickFreqs(self, ell, freq, dnu, fac=1, modes='l201'):
+    def pickFreqs(self, ell, freq, dnu, fac=0.25, modes='l201'):
         """
         Pick mode frequency indices that fall within +/- fac * dnu of the lowest
         and highest l=0 mode frequency in freq. 
@@ -171,10 +241,10 @@ class NumPyroPeakbag(plotting):
 
             nu0 = freq[0, idx_ell0]
 
-            idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
-
-            if modes == 'l20':
-                idx *= ell != 1
+            #nuMin = 
+            #nuMax = 
+            idx = (self.freq_limits[0] - fac * dnu[0] < freq[0, :]) & (freq[0,:] < self.freq_limits[1] + fac * dnu[0])
+            #idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
 
         return idx
 
@@ -308,10 +378,7 @@ class DynestyPeakbag(plotting):
             nu0 = freq[0, idx_ell0]
 
             idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
-
-            if modes == 'l20':
-                idx *= ell != 1
-
+ 
         return idx
     
     def setPriors(self, freq_err=0.03):
@@ -665,7 +732,6 @@ class DynestyPeakbag(plotting):
 
         return self.sampler, self.samples
 
-
     def unpackSamples(self, samples):
         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
     
@@ -737,7 +803,6 @@ class DynestyPeakbag(plotting):
         lnp += self.addObs['widthGP'](theta[2 * self.Nmodes: 3 * self.Nmodes])
 
         return lnp
-
 
     def build_gp(self, theta, X, muFunc, muKwargs={}):
 

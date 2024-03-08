@@ -80,7 +80,7 @@ class modeIDsampler(plotting, ):
 
             return self.l20res
 
-    def runl1Model(self, progress, logl_kwargs, sampler_kwargs, freqLimits=None):
+    def runl1Model(self, progress, logl_kwargs, sampler_kwargs, freqLimits=None, BayesFactorLimit=1/2):
 
             if freqLimits is None:
                                 
@@ -132,7 +132,7 @@ class modeIDsampler(plotting, ):
                 # evidence check
                 self.AsyMixBayesFactor = self.Asyl1logz.max() - self.Mixl1logz.max()
 
-                self.useMixResult = self.AsyMixBayesFactor  < 1/2                
+                self.useMixResult = self.AsyMixBayesFactor < BayesFactorLimit              
                  
             elif self.Mixl1Model.DR.nanFraction <= 0.05:
                 print('Using the mixed model.')
@@ -141,7 +141,7 @@ class modeIDsampler(plotting, ):
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
                 
-                self.useMixResult == True
+                self.useMixResult = True
 
             else:
                 print('Mixed model nan-fraction:', self.Mixl1Model.DR.nanFraction)

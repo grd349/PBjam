@@ -110,7 +110,7 @@ class DynestySamplingTools():
 
         print('Likelihood OK')
     
-    def runDynesty(self, dynamic=False, progress=True, logl_kwargs={}, 
+    def runDynesty(self, dynamic=False, progress=True, minSamples=100, logl_kwargs={}, 
                    sampler_kwargs={}):
         
         
@@ -146,6 +146,8 @@ class DynestySamplingTools():
                                dlogz_init=1e-3 * (skwargs['nlive'] - 1) + 0.01, 
                                nlive_init=skwargs['nlive'])  
             
+            # TODO: CHECK MINIMUM SAMPLES
+            
         else:           
             sampler = dynesty.NestedSampler(self.lnlikelihood, 
                                             self.ptform, 
@@ -155,6 +157,8 @@ class DynestySamplingTools():
                                             )
             
             sampler.run_nested(print_progress=progress, save_bounds=False,)
+
+            # TODO: CHECK MINIMUM SAMPLES
  
         sampler = sampler
 

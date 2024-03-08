@@ -1096,7 +1096,7 @@ class Mixl1Model(jar.DynestySamplingTools):
         result['samples'].update(smp)
 
 
-        A = np.array([self.mix_nu1_freqs({key: smp[key][i] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g']}) for i in range(N)])
+        A = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g']}) for i in range(N)])
  
         N_pg = self.N_p + self.N_g
         
