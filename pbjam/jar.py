@@ -108,12 +108,11 @@ class DynestySamplingTools():
         
         assert jnp.isreal(logL)
 
-        print('Likelihood OK')
+        #print('Likelihood OK')
     
-    def runDynesty(self, dynamic=False, progress=True, minSamples=100, logl_kwargs={}, 
+    def runDynesty(self, dynamic=False, progress=True, minSamples=5000, logl_kwargs={}, 
                    sampler_kwargs={}):
-        
-        
+         
         #if not hasattr(self, 'ndims'):
         ndims = len(self.priors)
         
@@ -130,7 +129,7 @@ class DynestySamplingTools():
             skwargs['sample'] = 'rwalk'
 
         # Set the initial locations of live points based on the prior.
-        if 'live_points' not in skwargs.keys():
+        if 'live_points' not in skwargs.keys() and not dynamic:
             skwargs['live_points'] = self.getInitLive(ndims, logl_kwargs=logl_kwargs, **skwargs)
          
         if dynamic:
@@ -146,8 +145,13 @@ class DynestySamplingTools():
                                dlogz_init=1e-3 * (skwargs['nlive'] - 1) + 0.01, 
                                nlive_init=skwargs['nlive'])  
             
-            # TODO: CHECK MINIMUM SAMPLES
-            
+            _nsamples = sampler.results.niter
+
+            if _nsamples < minSamples:     
+                missingSamples = minSamples-_nsamples
+
+                sampler.run_nested(dlogz=1e-9, print_progress=progress, save_bounds=False, maxiter=missingSamples)
+
         else:           
             sampler = dynesty.NestedSampler(self.lnlikelihood, 
                                             self.ptform, 
@@ -156,29 +160,33 @@ class DynestySamplingTools():
                                             logl_kwargs=logl_kwargs,
                                             )
             
-            sampler.run_nested(print_progress=progress, save_bounds=False,)
+            sampler.run_nested(print_progress=progress, 
+                               save_bounds=False,)
 
-            # TODO: CHECK MINIMUM SAMPLES
+            _nsamples = sampler.results.niter + sampler.results.nlive
+            
+            if _nsamples < minSamples:
+                missingSamples = minSamples-_nsamples
+
+                sampler.run_nested(dlogz=1e-9, print_progress=progress, save_bounds=False, maxiter=missingSamples)
  
-        sampler = sampler
-
         result = sampler.results
 
         unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
 
         samples = dyfunc.resample_equal(unweighted_samples, weights)
-
-        sampler.reset()
-
+ 
         self.nsamples = samples.shape[0]
 
         self.samples = samples
 
         self.logz = result.logz
 
-        del sampler
+        sampler.reset()
 
-        return self.samples, self.logz 
+        #del sampler
+
+        return self.samples, self.logz
 
 @jax.jit
 def visell1(emm, inc):
