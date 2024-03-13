@@ -1,17 +1,213 @@
 import jax.numpy as jnp
 from functools import partial
-import jax, dynesty
+import jax 
 import pbjam.distributions as dist
 from pbjam import jar
-from dynesty import utils as dyfunc
+
 import numpy as np
 from pbjam.plotting import plotting
 from tinygp import GaussianProcess, kernels
 import numpyro
 import numpyro.distributions as pyrodist
 from numpyro.infer import MCMC, NUTS, init_to_median
+import heapq
+from tqdm import tqdm
 
+class peakbag(plotting):
 
+    def __init__(self, f, s, ell, zeta, freq, height, width, numax, dnu, d02, freq_limits=[], slice=True, Nslices=0, **kwargs):
+
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+        
+        self.pbInstances = []
+
+        self.pickModes()
+ 
+        self.N_p = len(self.ell[self.ell==0])
+
+        self.Nmodes = len(self.freq[0, :])
+
+        self.bkg = self.getBkg()
+
+        self.snr = self.s / self.bkg(self.f)
+
+        self.height[0, :] = self.height[0, :] / self.bkg(self.freq[0, :])
+ 
+        self.width[0, :] = self.width[0, :] / (1-self.zeta)
+         
+        self.createPeakbagInstances()
+
+    def createPeakbagInstances(self):
+        if self.slice:
+    
+            if self.Nslices == 0:
+                self.Nslices = len(self.ell[self.ell==0])
+
+            sliceLimits = self.sliceSpectrum()
+
+            print('Creating spectrum slices')
+            for i in tqdm(range(len(sliceLimits) - 1)):
+                 
+                slcIdx = self.slc(self.freq[0, :], sliceLimits[i], sliceLimits[i + 1])
+                 
+                _ell = self.ell[slcIdx]
+                
+                _zeta = self.zeta[slcIdx]
+                
+                _freq = self.freq[:, slcIdx]
+                
+                _height = self.height[:, slcIdx]
+                
+                _width = self.width[:, slcIdx]
+                 
+                self.pbInstances.append(DynestyPeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.numax, self.dnu, self.d02, sliceLimits[i: i+2]))
+                                                       
+        else:
+            self.pbInstances.append(DynestyPeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.numax, self.dnu, self.d02, self.freq_limits))
+
+    def getBkg(self, a=0.66, b=0.88, skips=100):
+            """ Estimate the background
+
+            Takes an average of the power at linearly spaced points along the
+            log(frequency) axis, where the width of the averaging window increases
+            as a power law.
+
+            The mean power values are interpolated back onto the full linear
+            frequency axis to estimate the background noise level at all
+            frequencies.
+
+            Returns
+            -------
+            b : array
+                Array of psd values approximating the background.
+            """
+
+            freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+            m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
+
+            bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
+
+            return bkgModel
+    
+    def pickModes(self, fac=1):
+       
+        if len(self.freq_limits) == 0:
+            self.freq_limits = [min(self.freq[0, self.ell==0]) - fac * self.dnu[0],
+                                max(self.freq[0, self.ell==0]) + fac * self.dnu[0]]
+
+        idx = (min(self.freq_limits) < self.freq[0, :]) & (self.freq[0,:] < max(self.freq_limits))
+
+        self.ell = self.ell[idx]
+
+        self.freq = self.freq[:, idx]
+        
+        self.height = self.height[:, idx]
+        
+        self.width = self.width[:, idx]
+        
+        self.zeta = self.zeta[idx]
+
+        return idx
+
+    def slc(self, x, low, high):
+            return (low <= x) & (x <= high)
+    
+    def sliceSpectrum(self, fac=1):
+        """ Slicing up the envelope 
+
+        Sets a series of frequency limits which divide the detected modes into roughly 
+        equal number of modes per slice. 
+
+        Parameters
+        ----------
+        result : dict
+            Dictionary of results from the mode ID stage.
+        fac : int, optional
+            Factor scale dnu to include modes outside envelope, usually very mixed l=1 modes, by default 1
+
+        Returns
+        -------
+        limits : np.array
+            Frequencies delimiting the slices. 
+        """
+  
+        freqs = self.freq.copy()
+
+        # Sort modes because they might be ordered by angular degree
+        sortIdx = np.argsort(freqs[0, :])
+
+        sortedFreqs = freqs[:, sortIdx]
+
+        # Compute the differences between the mean freqs of all modes
+        modeDiffs = np.diff(sortedFreqs[0, :])
+
+        # Find the indices of the N largets differences so we slice furthest from any mode, a reasonable number here is N_p.
+        ind = [np.where(modeDiffs==x)[0][0] for x in heapq.nlargest(self.Nslices, modeDiffs)]
+
+        # Place the slice halfway between adjacent modes with the largest frequency differences
+        cuts = sortedFreqs[0, ind] + modeDiffs[ind] / 2
+
+        # Make list of 
+        limits = np.append(np.append(min(self.freq_limits), sorted(cuts)), max(self.freq_limits))
+
+        npercut = [len(freqs[0, self.slc(freqs[0, :], limits[i], limits[i+1])]) for i in range(len(limits)-1)]
+ 
+        return limits
+    
+    def __call__(self, dynamic=False, progress=True, sampler_kwargs={}):
+  
+        if self.slice:
+            print('Peakbagging mode slices')
+        else:
+            print('Peakbagging the whole envelope')
+
+        for i, inst in tqdm(enumerate(self.pbInstances)):
+             
+            inst(dynamic, progress, sampler_kwargs)
+ 
+        samplesSaved = min([10000, min([inst.nsamples for inst in self.pbInstances])])
+
+        mainResult = {'ell': np.array([]),
+                      'zeta': np.array([]),
+                      'summary': {'freq'  : np.empty(shape=(2, 0), dtype=float),
+                                'height': np.empty(shape=(2, 0), dtype=float),
+                                'width' : np.empty(shape=(2, 0), dtype=float),},     
+                      'samples': {'freq'  : np.empty(shape=(samplesSaved, 0), dtype=float),
+                                'height': np.empty(shape=(samplesSaved, 0), dtype=float),
+                                'width' : np.empty(shape=(samplesSaved, 0), dtype=float),},
+                      }
+        
+        for i, inst in enumerate(self.pbInstances):
+
+            mainResult = self.compileResults(mainResult, inst.result)
+
+        self.result = mainResult
+ 
+        return self.result
+    
+    def compileResults(self, mainResult, instResult):
+    
+        mainResult['ell'] = np.append(mainResult['ell'], instResult['ell'])
+        
+        mainResult['zeta'] = np.append(mainResult['zeta'], instResult['zeta'])
+        
+        n = mainResult['samples']['freq'].shape[0]
+        
+        m = instResult['samples']['freq'].shape[0]
+            
+        randInt = np.random.choice(np.arange(m), size=n, replace=False)
+        
+        for key in ['freq', 'height', 'width']:
+        
+            mainResult['summary'][key] = np.append(mainResult['summary'][key], instResult['summary'][key], axis=1)
+            
+            smpl = instResult['samples'][key][randInt, :]
+            
+            mainResult['samples'][key] = np.append(mainResult['samples'][key], smpl, axis=1)
+            
+        return mainResult
+    
 class NumPyroPeakbag(plotting):
 
     def __init__(self, f, s, ell, zeta, freq, height, width, numax, 
@@ -237,14 +433,7 @@ class NumPyroPeakbag(plotting):
             idx = jnp.ones(freq.shape[1], dtype=bool)
         
         else:
-            idx_ell0 = ell == 0
-
-            nu0 = freq[0, idx_ell0]
-
-            #nuMin = 
-            #nuMax = 
             idx = (self.freq_limits[0] - fac * dnu[0] < freq[0, :]) & (freq[0,:] < self.freq_limits[1] + fac * dnu[0])
-            #idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
 
         return idx
 
@@ -276,111 +465,26 @@ class NumPyroPeakbag(plotting):
 
         return (lfreq < self.f) & (self.f < ufreq)  
     
-class DynestyPeakbag(plotting):
+class DynestyPeakbag(jar.DynestySamplingTools, plotting):
     
-    def __init__(self, f, s, ell, zeta, background, freq, height, width, numax, 
-                 dnu, d02, addPriors={}, freq_limits=[], **kwargs):
+    def __init__(self, f, s, ell, freq, height, width, zeta, numax,  dnu, d02, freq_limits, addPriors={}, **kwargs):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
         self.Nyquist = self.f[-1]
-
-        self.bkg = self.getBkg() 
-
-        self.snr = self.s / self.bkg(self.f)
-
-        idx = self.pickFreqs(self.ell, self.freq, self.dnu)
-
-        self.ell = self.ell[idx]
-
-        self.N_p = len(self.ell[self.ell==0])
-
-        self.freq = self.freq[:, idx]
-        
-        self.height = self.height[:, idx]
-         
-        self.width = self.width[:, idx]
-         
-        self.zeta = self.zeta[idx]
-
+ 
         self.Nmodes = len(self.ell)
         
-        self.set_labels()
+        self.setLabels()
         
         self.setPriors()
               
         self.sel = self.setFreqRange()
         
-        self.ndims = len(self.labels)
+        self.ndims = len(self.priors.keys())
 
         self.setAddLikeTerms()
 
-    def getBkg(self, a=0.66, b=0.88, skips=100):
-        """ Estimate the background
-
-        Takes an average of the power at linearly spaced points along the
-        log(frequency) axis, where the width of the averaging window increases
-        as a power law.
-
-        The mean power values are interpolated back onto the full linear
-        frequency axis to estimate the background noise level at all
-        frequencies.
-
-        Returns
-        -------
-        b : array
-            Array of psd values approximating the background.
-        """
-
-        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
-
-        m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
-
-        bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
-
-        return bkgModel
-
-    def pickFreqs(self, ell, freq, dnu, fac=1, modes='l201'):
-        """
-        Pick frequency indices that fall within +/- fac * dnu of the lowest
-        and highest l=0 mode frequency in freq. 
-
-        Parameters
-        ----------
-        ell : numpy.ndarray
-            Array of angular degrees values.
-        freq : numpy.ndarray
-            Array of frequency values, contains all angular degrees.
-        dnu : float
-            Larage frequency spacing.
-        fac : float
-            Number of large separations away from lowest and highest l=0 freqs.
-        all : bool, optional
-            Flag to select all frequencies. Default is False.
-
-        Returns
-        -------
-        numpy.ndarray
-            Boolean array indicating selected frequency indices.
-
-        Notes
-        -----
-        - If 'all' is False, selects indices within the range of the lowest ell=0 frequency.
-        - If 'all' is True, selects all frequency indices.
-        """
-         
-        if modes == 'all':
-            idx = jnp.ones(freq.shape[1], dtype=bool)
-        
-        else:
-            idx_ell0 = ell == 0
-
-            nu0 = freq[0, idx_ell0]
-
-            idx = (nu0.min() - fac * dnu[0] < freq[0, :]) & (freq[0,:] < nu0.max() + fac * dnu[0])
- 
-        return idx
-    
     def setPriors(self, freq_err=0.03):
  
         self.priors = {}
@@ -390,27 +494,18 @@ class DynestyPeakbag(plotting):
         for i in range(self.Nmodes):
             _key = f'freq{i}'
             if _key not in self.priors:
-                freqScale = freq_err * self.dnu[0] # min([freq_err * self.dnu[0], self.freq[1, i]])
-                # self.priors[_key] = dist.normal(loc=self.freq[0, i],  
-                #                                 scale=freqScale)
+                self.priors[_key] = dist.normal(loc=self.freq[0, i],  scale=freq_err * self.dnu[0])
                  
-                self.priors[_key] = dist.normal(loc=self.freq[0, i],  
-                                                scale=freqScale)
-                 
-
         for i in range(self.Nmodes):
             _key = f'height{i}'
             if _key not in self.priors:
-                mode_snr = self.height[0, i] / self.bkg(self.freq[0, i])
-                self.priors[_key] = dist.normal(loc=jnp.log10(mode_snr), scale=0.1)
+                self.priors[_key] = dist.normal(loc=jnp.log10(self.height[0, i]), scale=0.1)
 
-        
         # The GP expects a smooth function, so divide by 1-zeta and add it in later in unpack.
         for i in range(self.Nmodes):
             _key = f'width{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=jnp.log10(self.width[0, i]/(1-self.zeta[i])),
-                                                scale=0.1)
+                self.priors[_key] = dist.normal(loc=jnp.log10(self.width[0, i]), scale=0.1)
         
         # Envelope rotation prior
         if 'nurot_e' not in self.priors.keys():
@@ -430,7 +525,7 @@ class DynestyPeakbag(plotting):
         if not all([key in self.labels for key in self.priors.keys()]):
             raise ValueError('Length of labels doesnt match lenght of priors.')
      
-    def set_labels(self):
+    def setLabels(self):
  
         # Default additional parameters
         self.labels = []
@@ -462,7 +557,7 @@ class DynestyPeakbag(plotting):
             ufreq = self.freq_limits[1]
         
         elif (self.modeIDres is not None) and (len(self.freq_limits) == 0):
-            pad = self.modeIDres['summary']['dnu'][0] / 2
+            pad = self.dnu[0] / 2
 
             muFreqs = jnp.array([self.priors[key].ppf(0.5) for key in self.labels if 'freq' in key])
             
@@ -491,7 +586,7 @@ class DynestyPeakbag(plotting):
             Likelihood of the data given the model
         """
 
-        L = -jnp.sum(jnp.log(mod) + self.snr[self.sel] / mod)
+        L = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
  
         return L 
         
@@ -502,55 +597,7 @@ class DynestyPeakbag(plotting):
                  'nurot_c': {'info': 'core otation rate'        , 'log10': True}, 
                  'inc'    : {'info': 'stellar inclination axis' , 'log10': False},
                  'shot'   : {'info': 'Shot noise level'         , 'log10': True }}
-    
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def ptform(self, u):
-        """
-        Transform a set of random variables from the unit hypercube to a set of 
-        random variables distributed according to specified prior distributions.
-
-        Parameters
-        ----------
-        u : jax device array
-            Set of pionts distributed randomly in the unit hypercube.
-
-        Returns
-        -------
-        theta : jax device array
-            Set of random variables distributed according to specified prior 
-            distributions.
-
-        Notes
-        -----
-        This method uses the inverse probability integral transform 
-        (also known as the quantile function or percent point function) to 
-        transform each element of `u` using the corresponding prior 
-        distribution. The resulting transformed variables are returned as a 
-        JAX device array.
-
-        Examples
-        --------
-        >>> from scipy.stats import uniform, norm
-        >>> import jax.numpy as jnp
-        >>> class MyModel:
-        ...     def __init__(self):
-        ...         self.priors = {'a': uniform(loc=0.0, scale=1.0), 'b': norm(loc=0.0, scale=1.0)}
-        ...     def ptform(self, u):
-        ...         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
-        ...         return theta
-        ...
-        >>> model = MyModel()
-        >>> u = jnp.array([0.5, 0.8])
-        >>> theta = model.ptform(u)
-        >>> print(theta)
-        [0.5        0.84162123]
-        """
-
-        theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
-
-        return theta
-    
+   
     @partial(jax.jit, static_argnums=(0,))
     def lnlikelihood(self, theta):
         """ Likelihood function for set of model parameters
@@ -608,13 +655,11 @@ class DynestyPeakbag(plotting):
                    'inc'    : theta[self.labels.index('inc')],
                    'shot'   : theta[self.labels.index('shot')],
                    }
-        
-        
-
+  
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]
 
-        theta_u['width'] = theta_u['width']*(1-self.zeta)
+        #theta_u['width'] = theta_u['width']*(1-self.zeta)
         
         return theta_u
  
@@ -639,13 +684,13 @@ class DynestyPeakbag(plotting):
         
         return modes
     
-    def __call__(self, dynesty_kwargs={}):
+    def __call__(self, dynamic=False, progress=True, sampler_kwargs={}):
 
-        self.runDynesty(**dynesty_kwargs)
+        self.runDynesty(dynamic, progress, sampler_kwargs=sampler_kwargs)
 
         self.result = self.parseSamples(self.samples)
   
-        return self.samples, self.result
+        return self.samples, self.result 
 
     def parseSamples(self, samples, N=10000):
     
@@ -660,78 +705,16 @@ class DynestyPeakbag(plotting):
         for key in self.variables:
             arr = np.array([theta_u[_key] for _key in theta_u.keys() if key in _key])
             
-            result['summary'][key] = np.array([np.mean(arr, axis=1), 
-                                            np.std(arr, axis=1)]).T 
+            result['summary'][key] = np.array([np.mean(arr, axis=1), np.std(arr, axis=1)]) 
             
+            result['samples'][key] = arr[:, :N].T
             
-            result['samples'][key] = arr[:, :N]
-            
-            for field in ['summary', 'samples']:
-                if result[field][key].shape[0] == 1:
-                    result[field][key] = result[field][key].flatten()
-    
-        return result
-
-    def runDynesty(self, dynamic=False, progress=True, nlive=200, **dynesty_kwargs):
-        """ Start nested sampling
-
-        Initializes and runs the nested sampling with Dynesty. We use the 
-        default settings for stopping criteria as per the Dynesty documentation.
-
-        Parameters
-        ----------
-        dynamic : bool, optional
-            Use dynamic sampling as opposed to static. Dynamic sampling achieves
-            minutely higher likelihood levels compared to the static sampler. 
-            From experience this is not usually worth the extra runtime. By 
-            default False.
-        progress : bool, optional
-            Display the progress bar, turn off for commandline runs, by default 
-            True
-        nlive : int, optional
-            Number of live points to use in the sampling. Conceptually similar 
-            to MCMC walkers, by default 100.
-
-        Returns
-        -------
-        sampler : Dynesty sampler object
-            The sampler from the nested sampling run. Contains some diagnostics.
-        samples : jax device array
-            Array of samples from the nested sampling with shape (Nsamples, Ndim)
-        """
-
-        if dynamic:
-            sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
-                                                   self.ptform, 
-                                                   self.ndims, 
-                                                   **dynesty_kwargs
-                                                   )
-            
-            sampler.run_nested(print_progress=progress, 
-                               wt_kwargs={'pfrac': 1.0}, 
-                               dlogz_init=1e-3 * (nlive - 1) + 0.01, 
-                               nlive_init=nlive)  
-            
-        else:           
-            sampler = dynesty.NestedSampler(self.lnlikelihood, 
-                                            self.ptform, 
-                                            self.ndims, 
-                                            nlive=nlive, 
-                                            **dynesty_kwargs
-                                            )
-            
-            sampler.run_nested(print_progress=progress)
+            # for field in ['summary', 'samples']:
+            #     if result[field][key].shape[0] == 1:
+            #         result[field][key] = result[field][key].flatten()
  
-        self.sampler = sampler
-
-        result = self.sampler.results
-
-        unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
-
-        self.samples = dyfunc.resample_equal(unweighted_samples, weights)
-
-        return self.sampler, self.samples
-
+        return result
+ 
     def unpackSamples(self, samples):
         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
     
@@ -760,13 +743,13 @@ class DynestyPeakbag(plotting):
                                          scale=10 * self.d02[1])
 
         # Correlated Noise Regularisation for width
-        wGPtheta={'amp': 1, 'scale': self.dnu[0]}
+        # wGPtheta={'amp': 1, 'scale': self.dnu[0]}
 
-        wGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.width[0, :]/(1-self.zeta)))
+        # wGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.width[0, :]/(1-self.zeta)))
     
-        wGP = self.build_gp(wGPtheta, self.freq[0, :], wGPmuFunc)
+        # wGP = self.build_gp(wGPtheta, self.freq[0, :], wGPmuFunc)
 
-        self.addObs['widthGP'] = wGP.log_probability
+        # self.addObs['widthGP'] = wGP.log_probability
 
 
         # # Correlated Noise Regularisation for amplitude
@@ -800,7 +783,7 @@ class DynestyPeakbag(plotting):
         
         #lnp += self.addObs['heightGP'](theta[self.Nmodes: 2 * self.Nmodes])
 
-        lnp += self.addObs['widthGP'](theta[2 * self.Nmodes: 3 * self.Nmodes])
+        #lnp += self.addObs['widthGP'](theta[2 * self.Nmodes: 3 * self.Nmodes])
 
         return lnp
 
@@ -812,3 +795,109 @@ class DynestyPeakbag(plotting):
 
         return GP
 
+# def runDynesty(self, dynamic=False, progress=True, nlive=200, **dynesty_kwargs):
+    #     """ Start nested sampling
+
+    #     Initializes and runs the nested sampling with Dynesty. We use the 
+    #     default settings for stopping criteria as per the Dynesty documentation.
+
+    #     Parameters
+    #     ----------
+    #     dynamic : bool, optional
+    #         Use dynamic sampling as opposed to static. Dynamic sampling achieves
+    #         minutely higher likelihood levels compared to the static sampler. 
+    #         From experience this is not usually worth the extra runtime. By 
+    #         default False.
+    #     progress : bool, optional
+    #         Display the progress bar, turn off for commandline runs, by default 
+    #         True
+    #     nlive : int, optional
+    #         Number of live points to use in the sampling. Conceptually similar 
+    #         to MCMC walkers, by default 100.
+
+    #     Returns
+    #     -------
+    #     sampler : Dynesty sampler object
+    #         The sampler from the nested sampling run. Contains some diagnostics.
+    #     samples : jax device array
+    #         Array of samples from the nested sampling with shape (Nsamples, Ndim)
+    #     """
+
+    #     if dynamic:
+    #         sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
+    #                                                self.ptform, 
+    #                                                self.ndims, 
+    #                                                **dynesty_kwargs
+    #                                                )
+            
+    #         sampler.run_nested(print_progress=progress, 
+    #                            wt_kwargs={'pfrac': 1.0}, 
+    #                            dlogz_init=1e-3 * (nlive - 1) + 0.01, 
+    #                            nlive_init=nlive)  
+            
+    #     else:           
+    #         sampler = dynesty.NestedSampler(self.lnlikelihood, 
+    #                                         self.ptform, 
+    #                                         self.ndims, 
+    #                                         nlive=nlive, 
+    #                                         **dynesty_kwargs
+    #                                         )
+            
+    #         sampler.run_nested(print_progress=progress)
+ 
+    #     self.sampler = sampler
+
+    #     result = self.sampler.results
+
+    #     unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
+
+    #     self.samples = dyfunc.resample_equal(unweighted_samples, weights)
+
+    #     return self.sampler, self.samples
+
+# @partial(jax.jit, static_argnums=(0,))
+    # def ptform(self, u):
+    #     """
+    #     Transform a set of random variables from the unit hypercube to a set of 
+    #     random variables distributed according to specified prior distributions.
+
+    #     Parameters
+    #     ----------
+    #     u : jax device array
+    #         Set of pionts distributed randomly in the unit hypercube.
+
+    #     Returns
+    #     -------
+    #     theta : jax device array
+    #         Set of random variables distributed according to specified prior 
+    #         distributions.
+
+    #     Notes
+    #     -----
+    #     This method uses the inverse probability integral transform 
+    #     (also known as the quantile function or percent point function) to 
+    #     transform each element of `u` using the corresponding prior 
+    #     distribution. The resulting transformed variables are returned as a 
+    #     JAX device array.
+
+    #     Examples
+    #     --------
+    #     >>> from scipy.stats import uniform, norm
+    #     >>> import jax.numpy as jnp
+    #     >>> class MyModel:
+    #     ...     def __init__(self):
+    #     ...         self.priors = {'a': uniform(loc=0.0, scale=1.0), 'b': norm(loc=0.0, scale=1.0)}
+    #     ...     def ptform(self, u):
+    #     ...         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
+    #     ...         return theta
+    #     ...
+    #     >>> model = MyModel()
+    #     >>> u = jnp.array([0.5, 0.8])
+    #     >>> theta = model.ptform(u)
+    #     >>> print(theta)
+    #     [0.5        0.84162123]
+    #     """
+
+    #     theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
+
+    #     return theta
