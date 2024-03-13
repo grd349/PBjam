@@ -381,23 +381,29 @@ def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
 
-    freqPriors = {key:val for key,val in self.priors.items() if 'freq' in key}
-     
-    for l in np.unique(self.ell).astype(int):
+    maxL = 0
 
-        idx_ell = self.ell == l
-
-        nu = np.array([freqPriors[key].loc for key in np.array(list(freqPriors.keys()))[idx_ell]])
+    for inst in self.pbInstances:
+        freqPriors = {key:val for key,val in inst.priors.items() if 'freq' in key}
         
-        nu_err = np.array([freqPriors[key].scale for key in np.array(list(freqPriors.keys()))[idx_ell]])
-       
-        nu_x, nu_y = _echellify_freqs(nu, dnu)
+        for l in np.unique(inst.ell).astype(int):
 
-        ax.errorbar(nu_x, nu_y, xerr=nu_err, color=colors[l], fmt='o')
+            idx_ell = inst.ell == l
 
-        # Add to legend
+            nu = np.array([freqPriors[key].loc for key in np.array(list(freqPriors.keys()))[idx_ell]])
+            
+            nu_err = np.array([freqPriors[key].scale for key in np.array(list(freqPriors.keys()))[idx_ell]])
+        
+            nu_x, nu_y = _echellify_freqs(nu, dnu)
+
+            ax.errorbar(nu_x, nu_y, xerr=nu_err, color=colors[l], fmt='o')
+
+            maxL = max([maxL, l])
+
+    # Add to legend
+    for l in range(maxL+1):
         ax.errorbar(-100, -100, xerr=1, color=colors[l], fmt='o', label=r'$\ell=$'+str(l))
-    
+        
     ax.set_xlim(0, dnu)
 
     ax.legend(loc=1)
@@ -412,17 +418,23 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, **kwargs):
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
-    for l in np.unique(self.ell).astype(int):
+    maxL = 0
 
-        idx_ell = self.ell == l
+    for inst in self.pbInstances:
+        for l in np.unique(inst.ell).astype(int):
 
-        freqs = self.result['samples']['freq'][idx_ell, :Nsamples]
+            idx_ell = inst.ell == l
 
-        smp_x, smp_y = _echellify_freqs(freqs, dnu) 
+            freqs = inst.result['samples']['freq'][:Nsamples, idx_ell]
 
-        ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+            smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
-        # Add to legend
+            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+
+            maxL = max([maxL, l])
+
+    # Add to legend
+    for l in range(maxL+1):
         ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
     
     ax.legend(loc=1)
@@ -891,7 +903,7 @@ class plotting():
             else:
                 raise ValueError('Set stage optional argument to either prior or posterior')
 
-        elif self.__class__.__name__ == 'DynestyPeakbag':  
+        elif self.__class__.__name__ == 'peakbag':  
             
             if stage=='prior':
                 fig, ax = _PeakbagClassPriorEchelle(self, **kwargs)
