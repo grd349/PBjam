@@ -172,19 +172,19 @@ class DynestySamplingTools():
  
         result = sampler.results
 
-        unweighted_samples, weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
+        self.unweighted_samples, self.weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
 
-        samples = dyfunc.resample_equal(unweighted_samples, weights)
+        self.samples = dyfunc.resample_equal(self.unweighted_samples, self.weights)
  
-        self.nsamples = samples.shape[0]
-
-        self.samples = samples
+        self.nsamples = self.samples.shape[0]
 
         self.logz = result.logz
+        
+        self.logwt = result.logwt
 
         sampler.reset()
 
-        #del sampler
+        del sampler
 
         return self.samples, self.logz
 
