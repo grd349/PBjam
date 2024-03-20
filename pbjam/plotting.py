@@ -444,7 +444,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, **kwargs):
 
 def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
  
-    #ax.plot(f, s, 'k-', label='Data', alpha=0.2)
+    ax.plot(f, s, 'k-', label='Data', alpha=0.2)
     
     smoo = smooth_power(f, s, smoothness)
     
