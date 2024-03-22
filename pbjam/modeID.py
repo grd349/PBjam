@@ -40,7 +40,7 @@ class modeIDsampler(plotting, ):
         else:
             raise ValueError('PCAdims is wrong')
 
-    def runl20Model(self, progress, logl_kwargs, sampler_kwargs):
+    def runl20Model(self, progress, sampler_kwargs, logl_kwargs):
 
             self.l20sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   # self.setFreqRange(*self.freqLimits)
 
@@ -80,7 +80,7 @@ class modeIDsampler(plotting, ):
 
             return self.l20res
 
-    def runl1Model(self, progress, logl_kwargs, sampler_kwargs, freqLimits=None, BayesFactorLimit=1/2):
+    def runl1Model(self, progress, sampler_kwargs, logl_kwargs, freqLimits=None, BayesFactorLimit=1/2):
 
             if freqLimits is None:
                                 
