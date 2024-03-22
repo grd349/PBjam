@@ -233,14 +233,14 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
 
      
     if DPi1 is None:
-        DPi1 = self.MixFreqModel.priors['DPi1'].ppf(0.5)
+        DPi1 = self.Mixl1Model.priors['DPi1'].ppf(0.5)
     if eps_g is None:
-        eps_g = self.MixFreqModel.priors['eps_g'].ppf(0.5)
+        eps_g = self.Mixl1Model.priors['eps_g'].ppf(0.5)
     #if alpha_g is None:
     #    alpha_g = 10**self.MixFreqModel.priors['alpha_g'].ppf(0.5)
      
     # Overplot gmode frequencies
-    nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, DPi1, eps_g, 
+    nu_g = self.Mixl1Model.asymptotic_nu_g(self.Mixl1Model.n_g, DPi1, eps_g, 
                                              )
    
     curlyN = dnu / (DPi1 *1e-6 * numax**2)
@@ -257,7 +257,7 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
             ax.axhline(nu, color='k', ls='dashed')
 
             if (ylims[0] < nu) & (nu < ylims[1]):
-                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
+                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.Mixl1Model.n_g[i]}', ha='right', fontsize=11)
 
         ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{np.round(DPi1, decimals=0)}s \n' r'$\epsilon_g=$'+f'{np.round(eps_g, decimals=2)}')
 
@@ -305,22 +305,21 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
         rect_ax.set_yticks([])
         rect_ax.set_ylim(ax.get_ylim())
         rect_ax.fill_betweenx(ax.get_ylim(), 
-                              x1=self.MixFreqModel.priors['freqError0'].mean - self.MixFreqModel.priors['freqError0'].scale,
-                              x2=self.MixFreqModel.priors['freqError0'].mean + self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
+                              x1=self.Mixl1Model.priors['freqError0'].mean - self.Mixl1Model.priors['freqError0'].scale,
+                              x2=self.Mixl1Model.priors['freqError0'].mean + self.Mixl1Model.priors['freqError0'].scale, color='k', alpha=0.1)
         rect_ax.fill_betweenx(ax.get_ylim(), 
-                              x1=self.MixFreqModel.priors['freqError0'].mean - 2*self.MixFreqModel.priors['freqError0'].scale,
-                              x2=self.MixFreqModel.priors['freqError0'].mean + 2*self.MixFreqModel.priors['freqError0'].scale, color='k', alpha=0.1)
-        rect_ax.set_xlim(self.MixFreqModel.priors['freqError0'].mean - 3*self.MixFreqModel.priors['freqError0'].scale,
-                         self.MixFreqModel.priors['freqError0'].mean + 3*self.MixFreqModel.priors['freqError0'].scale)
+                              x1=self.Mixl1Model.priors['freqError0'].mean - 2*self.Mixl1Model.priors['freqError0'].scale,
+                              x2=self.Mixl1Model.priors['freqError0'].mean + 2*self.Mixl1Model.priors['freqError0'].scale, color='k', alpha=0.1)
+        rect_ax.set_xlim(self.Mixl1Model.priors['freqError0'].mean - 3*self.Mixl1Model.priors['freqError0'].scale,
+                         self.Mixl1Model.priors['freqError0'].mean + 3*self.Mixl1Model.priors['freqError0'].scale)
         rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
         l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
-
-        for l in np.unique(self.result['ell']).astype(int):
-            rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
+         
+        rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, self.result['ell']==1], 'o', alpha=0.1, color='C4')
     
         # Overplot gmode frequencies
-        nu_g = self.MixFreqModel.asymptotic_nu_g(self.MixFreqModel.n_g, 
+        nu_g = self.Mixl1Model.asymptotic_nu_g(self.Mixl1Model.n_g, 
                                             self.result['summary']['DPi1'][0], 
                                             self.result['summary']['eps_g'][0], 
                                             )
@@ -329,23 +328,23 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
         for i, nu in enumerate(nu_g):
 
             if (ylims[0] < nu) & (nu < ylims[1]):
-                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.MixFreqModel.n_g[i]}', ha='right', fontsize=11)
+                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.Mixl1Model.n_g[i]}', ha='right', fontsize=11)
 
             ax.axhline(nu, color='k', ls='dashed')
 
-            ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
+        ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
 
         #Overplot l=1 p-modes
-        nu0_p, _ = self.AsyFreqModel.asymptotic_nu_p(numax, 
-                                                     dnu,  
-                                                     self.result['summary']['eps_p'][0], 
-                                                     self.result['summary']['alpha_p'][0],)
+        # nu0_p, _ = self.Asyl20Model.asymptotic_nu_p(numax, 
+        #                                              dnu,  
+        #                                              self.result['summary']['eps_p'][0], 
+        #                                              self.result['summary']['alpha_p'][0],)
     
-        nu1_p = nu0_p + self.result['summary']['d01'][0]
+        # nu1_p = nu0_p + self.result['summary']['d01'][0]
 
-        nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+        # nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
 
-        ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+        # ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
                 
     
 
@@ -522,15 +521,15 @@ def _ModeIDClassPriorSpectrum(self, N):
 
         m = np.ones(len(self.f))
 
-        l20u = np.random.uniform(0, 1, size=self.AsyFreqModel.ndims)
-        l20theta = self.AsyFreqModel.ptform(l20u)
-        l20theta_u = self.AsyFreqModel.unpackParams(l20theta)
-        m *= self.AsyFreqModel.model(l20theta_u)
+        l20u = np.random.uniform(0, 1, size=self.Asyl1Model.ndims)
+        l20theta = self.Asyl1Model.ptform(l20u)
+        l20theta_u = self.Asyl1Model.unpackParams(l20theta)
+        m *= self.Asyl1Model.model(l20theta_u)
         
-        l1u = np.random.uniform(0, 1, size=self.MixFreqModel.ndims)
-        l1theta = self.MixFreqModel.ptform(l1u)
-        l1theta_u = self.MixFreqModel.unpackParams(l1theta)
-        m *= self.MixFreqModel.model(l1theta_u)
+        l1u = np.random.uniform(0, 1, size=self.Mixl1Model.ndims)
+        l1theta = self.Mixl1Model.ptform(l1u)
+        l1theta_u = self.Mixl1Model.unpackParams(l1theta)
+        m *= self.Mixl1Model.model(l1theta_u)
 
         # theta = self.ptform(u)
         
@@ -583,7 +582,7 @@ def _ModeIDClassPostSpectrum(self, N):
         
         l20m = np.ones(len(self.f[self.l20sel]))
 
-        l20theta_u = self.Asyl20Model.unpackParams(self.Asyl20samples[k, :])
+        l20theta_u = self.Asyl20Model.unpackParams(self.Asyl20Samples[k, :])
         
         l20m *= self.Asyl20Model.model(l20theta_u)
 
