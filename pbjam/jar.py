@@ -188,35 +188,46 @@ class DynestySamplingTools():
 
         return self.samples, self.logz
 
+
+
 @jax.jit
 def visell1(emm, inc):
-
+    """ l=1, m=0, 1"""
     y = jax.lax.cond(emm == 0, 
-                        lambda : jnp.cos(inc)**2,
-                        lambda : 0.5*jnp.sin(inc)**2
-                    )
+                     lambda : jnp.cos(inc)**2, # m = 0
+                     lambda : jax.lax.cond(emm == 1, 
+                                           lambda : 0.5*jnp.sin(inc)**2, # m = 1
+                                           lambda : jnp.nan # m > 1
+                                           ))
+                    
     return y
 
 @jax.jit
 def visell2(emm, inc):
-
+    """ l=1, m=0, 1, 2"""
     y = jax.lax.cond(emm == 0, 
-                        lambda : (3*jnp.cos(inc)**2-1)**2/4,
-                        lambda : jax.lax.cond(emm == 1,
-                                            lambda : jnp.sin(2*inc)**2*3/8,
-                                            lambda : jnp.sin(inc)**4*3/8))
+                     lambda : 1/4 * (3 * jnp.cos(inc)**2 - 1)**2, # m = 0
+                     lambda : jax.lax.cond(emm == 1,
+                                           lambda : 3/8 * jnp.sin(2 * inc)**2, # m = 1
+                                           lambda : jax.lax.cond(emm == 2, 
+                                                                 lambda : 3/8 * jnp.sin(inc)**4, # m = 2
+                                                                 lambda : jnp.nan # m > 2
+                                                                 )))
     return y
 
 @jax.jit
 def visell3(emm, inc):
-
+    """ l=1, m = 0, 1, 2, 3"""
     y = jax.lax.cond(emm == 0, 
-                        lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
-                        lambda : jax.lax.cond(emm == 1,
-                                            lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
-                                            lambda : jax.lax.cond(emm == 2,
-                                                                    lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
-                                                                    lambda : jnp.sin(inc)**6*5/16)))
+                     lambda : 1/64 * (5 * jnp.cos(3 * inc) + 3 * jnp.cos(inc))**2, # m = 0
+                     lambda : jax.lax.cond(emm == 1,
+                                           lambda : 3/64 * (5 * jnp.cos(2 * inc) + 3)**2 * jnp.sin(inc)**2, # m =1
+                                           lambda : jax.lax.cond(emm == 2,
+                                                                 lambda : 15/8 * jnp.cos(inc)**2 * jnp.sin(inc)**4, # m = 2
+                                                                 lambda : jax.lax.cond(emm == 3, 
+                                                                                       lambda : 5/16 * jnp.sin(inc)**6, # m = 3
+                                                                                       lambda : np.nan # m > 3
+                                                                                       ))))
     return y
 
 @jax.jit
@@ -225,14 +236,14 @@ def visibility(ell, m, inc):
     emm = abs(m)
 
     y = jax.lax.cond(ell == 0, 
-                        lambda : 1.,
-                        lambda : jax.lax.cond(ell == 1,
-                                            lambda : visell1(emm, inc),
-                                            lambda : jax.lax.cond(ell == 2,
-                                                                    lambda : visell2(emm, inc),
-                                                                    lambda : jax.lax.cond(ell == 3,
-                                                                                        lambda : visell3(emm, inc),
-                                                                                        lambda : jnp.nan))))
+                     lambda : 1.,
+                     lambda : jax.lax.cond(ell == 1,
+                                           lambda : visell1(emm, inc),
+                                           lambda : jax.lax.cond(ell == 2,
+                                                                 lambda : visell2(emm, inc),
+                                                                 lambda : jax.lax.cond(ell == 3,
+                                                                                       lambda : visell3(emm, inc),
+                                                                                       lambda : jnp.nan))))
     return y 
 
 def updatePrior(ID, R, addObs):
@@ -274,7 +285,7 @@ class constants:
 def smryStats(y):
 
     p = np.array([0.5 - sc.erf(n/np.sqrt(2))/2 for n in range(-1, 2)])[::-1]*100
-
+     
     u = np.percentile(y, p)
     
     return np.array([u[1], np.mean(np.diff(u))])
