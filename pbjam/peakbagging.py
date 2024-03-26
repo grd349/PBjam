@@ -241,9 +241,8 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         for i in range(self.Nmodes):
             _key = f'height{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=jnp.log10(self.height[0, i]), scale=0.1)
+                self.priors[_key] = dist.normal(loc=jnp.log10(self.height[0, i]), scale=0.5)
 
-        # The GP expects a smooth function, so divide by 1-zeta and add it in later in unpack.
         for i in range(self.Nmodes):
             _key = f'width{i}'
             if _key not in self.priors:
@@ -252,14 +251,14 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         # Envelope rotation prior
         if 'nurot_e' not in self.priors.keys():
             #self.priors['nurot_e'] = dist.uniform(loc=-2, scale=2.)
-            self.priors['nurot_e'] = dist.uniform(loc=1e-4, scale=2.)
+            self.priors['nurot_e'] = dist.uniform(loc=1e-2, scale=2.)
 
         # Core rotation prior
         if 'nurot_c' not in self.priors.keys():
             #self.priors['nurot_c'] = dist.uniform(loc=-2, scale=2.)
-            self.priors['nurot_c'] = dist.uniform(loc=1e-4, scale=2.)
+            self.priors['nurot_c'] = dist.uniform(loc=1e-2, scale=2.)
 
-        # The inclination prior is a sine truncated between 0, and pi/2.
+        # The inclination prior is a cos(i)~U(0,1)
         if 'inc' not in self.priors.keys():
             #self.priors['inc'] = dist.truncsine()
             self.priors['inc'] = dist.uniform(loc=0., scale=1.)
@@ -403,11 +402,12 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
   
         theta_u['inc'] = jnp.arccos(theta_u['inc'])
 
+        theta_u['nurot_e'] = theta_u['nurot_e']/jnp.sin(theta_u['inc'])
+        theta_u['nurot_c'] = theta_u['nurot_c']/jnp.sin(theta_u['inc'])
+
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]
-
-        #theta_u['width'] = theta_u['width']*(1-self.zeta)
-        
+  
         return theta_u
  
     @partial(jax.jit, static_argnums=(0,))
