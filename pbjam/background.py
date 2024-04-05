@@ -19,7 +19,7 @@ class bkgModel():
         self.eta = jar.attenuation(self.nu, self.Nyquist)**2
 
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def harvey(self, nu, a, b, c):
         """ Harvey-profile
 
@@ -44,7 +44,7 @@ class bkgModel():
 
         return H
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def __call__(self, theta_u,):
         """
         Calculate the background model.
