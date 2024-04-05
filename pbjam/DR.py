@@ -110,7 +110,7 @@ class PCA():
 
         self.priorData.dropna(axis=0, how="any", inplace=True, subset=self.dropNanLabels)
          
-        self.priorData.reset_index(inplace=True)
+        self.priorData.reset_index(drop=True, inplace=True)
          
         return self.priorData
 
@@ -142,15 +142,13 @@ class PCA():
          
         priorData = self.readPriorData(fName, readlabels)
         
-        nearestSubset = self.findNearest(priorData, nSamples)
-         
-        self.selectedSubset = nearestSubset[self.varLabels]
-         
-        _nSamples, _ndim = self.selectedSubset.shape
+        self.selectedSubset = self.findNearest(priorData, nSamples)
         
-        return jnp.array(self.selectedSubset.to_numpy()), _ndim, _nSamples
+        _nSamples, _ndim = self.selectedSubset[self.varLabels].shape
+        
+        return jnp.array(self.selectedSubset[self.varLabels].to_numpy()), _ndim, _nSamples
 
-    def findNearest(self, priorData, N):
+    def findNearest(self, fullPriorData, N):
         """ Find nearest neighbours.
 
         Uses Euclidean distance to find the N nearest neighbors to a set of 
@@ -169,32 +167,46 @@ class PCA():
             Subset of pdata that contains only the N nearest neightbors.
         """
 
+        limits = {'numax': 0.2,
+                  'dnu': 0.2,
+                  'teff': 9999,
+                  'bp_rp': 9999}
+ 
+        idx = np.prod(np.array([abs(fullPriorData[key].values - self.obs[key][0]) < limits[key] for key in self.selectLabels], dtype=bool), axis=0).astype(bool)
+         
+        priorData = fullPriorData.loc[idx, :].reset_index(drop=True)
+         
         priorSampleMean = np.mean(priorData[self.selectLabels].values, axis=0)
 
         priorSampleStd = np.std(priorData[self.selectLabels].values, axis=0)
-    
-        delta_i = np.array([(priorData[key].values - priorSampleMean[i]) / priorSampleStd[i] - (self.obs[key][0] - priorSampleMean[i]) / priorSampleStd[i] for i, key in enumerate(self.selectLabels)])
+ 
+        normedObs = {key: (self.obs[key][0] - priorSampleMean[i]) / priorSampleStd[i] for i, key in enumerate(self.selectLabels)}
+ 
+        normedPrior = {key: (priorData[key].values - priorSampleMean[i]) / priorSampleStd[i] for i, key in enumerate(self.selectLabels)}
+
+        delta_i = np.array([normedPrior[key] - normedObs[key] for i, key in enumerate(self.selectLabels)])
             
         euclDist = np.sqrt(np.average(delta_i**2, axis=0))
-            
+         
         sortidx = np.argsort(euclDist)
         
         selectedSubset = priorData.loc[sortidx, :][:N]
 
         self.nanFraction = np.max(np.sum(np.isnan(selectedSubset).values, axis=0)/len(selectedSubset))
 
+        self.viableFraction = 1 - self.nanFraction
+
         selectedSubset.dropna(axis=0, how="any", inplace=True)
-        
+         
         for i, key in enumerate(self.selectLabels):
             
             S = selectedSubset[key].values
-            
-            muS = np.mean(selectedSubset[key].values)
-            
-            if abs(max(abs(S-muS)) < self.obs[key][0]-muS):
-                warnings.warn(f'Target {key} beyond limits of the selected prior sample. Prior may not be reliable.')
+ 
+            if (min(S) - self.obs[key][0] > 0.1) or (self.obs[key][0]- max(S) > 0.1):
+                self.badPrior = True
+                warnings.warn(f'Target {key} more than 10 percent beyond limits of the viable prior sample. Prior may not be reliable.', stacklevel=2)
         
-        return selectedSubset
+        return selectedSubset.reset_index(drop=True)
 
     @partial(jax.jit, static_argnums=(0,))
     def scale(self, data):

@@ -88,17 +88,15 @@ class modeIDsampler(plotting, ):
                                self.obs['numax'][0] + self.obs['dnu'][0]*(self.Asyl20Model.N_p//2+1),]
 
             self.l1sel = (np.array(freqLimits).min() < self.f[self.l20sel]) & (self.f[self.l20sel] < np.array(freqLimits).max())
-            
-            print('Initializing asymptotic l=1 model')
+             
             self.Asyl1Model = Asyl1Model(self.f[self.l20sel][self.l1sel], 
                                          self.l20residual[self.l1sel], 
                                          self.summary, 
-                                         {},
+                                         self.addPriors,
                                          self.N_p, 
                                          self.Npca_pair, 
                                          priorpath=self.priorpath)
-            print('Viable prior sample fraction of requested:', np.round(1-self.Asyl1Model.DR.nanFraction, 2))
-            print('Initializing mixed mode l=1 model')
+             
             self.Mixl1Model = Mixl1Model(self.f[self.l20sel][self.l1sel], 
                                          self.l20residual[self.l1sel], 
                                          self.summary, 
@@ -107,19 +105,17 @@ class modeIDsampler(plotting, ):
                                          self.Npca_mix, 
                                          self.PCAdims_mix,
                                          priorpath=self.priorpath)
-            print('Viable prior sample fraction of requested:', np.round(1-self.Mixl1Model.DR.nanFraction, 2))
-
-            
-            if (0.05 < self.Asyl1Model.DR.nanFraction) & (0.95 <= self.Mixl1Model.DR.nanFraction):#( >= 0.05 ) & (self.Asyl1Model.DR.nanFraction < 0.05):
-                print('Not enough prior samples for mixed model. Using asymptotic.')
+             
+            if (self.Mixl1Model.DR.viableFraction <= 0.1) or self.Mixl1Model.DR.badPrior:#( >= 0.05 ) & (self.Asyl1Model.DR.nanFraction < 0.05):
+                print('Not enough prior samples for mixed model. Using the asymptotic model.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
                 self.useMixResult = False
                 
-            elif (0.05 < self.Mixl1Model.DR.nanFraction) & (self.Mixl1Model.DR.nanFraction <= 0.95):
-                print('Testing both models.')
+            elif ((0.1 < self.Mixl1Model.DR.viableFraction) and (self.Mixl1Model.DR.viableFraction <= 0.90)) and not self.Mixl1Model.DR.badPrior:
+                print('Testing both asymptotic and mixed mode models.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
@@ -134,8 +130,8 @@ class modeIDsampler(plotting, ):
 
                 self.useMixResult = self.AsyMixBayesFactor < BayesFactorLimit              
                  
-            elif self.Mixl1Model.DR.nanFraction <= 0.05:
-                print('Using the mixed model.')
+            elif (0.9 <= self.Mixl1Model.DR.viableFraction) and not self.Mixl1Model.DR.badPrior:
+                print('Using the mixed mode model.')
                 
                 self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
