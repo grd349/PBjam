@@ -197,7 +197,8 @@ class PCA():
         self.viableFraction = 1 - self.nanFraction
 
         selectedSubset.dropna(axis=0, how="any", inplace=True)
-         
+        
+        self.badPrior = False
         for i, key in enumerate(self.selectLabels):
             
             S = selectedSubset[key].values
