@@ -274,10 +274,7 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
         numax = self.result['summary']['numax'][0]
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
-
-
-    
-
+ 
     for l in np.unique(self.result['ell']).astype(int):
 
         idx_ell = self.result['ell'] == l
@@ -555,14 +552,9 @@ def _ModeIDClassPriorSpectrum(self, N):
 
 def _ModeIDClassPostSpectrum(self, N):
 
-    Nmax = len(self.result['samples']['d01']) #min([self.Asyl20samples.shape[0], self.Asyl1samples.shape[0], self.Mixl1samples.shape[0]])
+    Nmax = min([len(self.result['samples']['d01']), len(self.result['samples']['dnu'])])  
 
     rint = np.random.randint(0, Nmax, size=N)
-
-    #numax = self.obs['numax'][0]
-
-    #dnu = self.obs['dnu'][0]
-
 
     fig, ax = plt.subplots(3, 1, figsize=(16,18))
     
@@ -926,7 +918,7 @@ class plotting():
 
         return fig, ax
 
-    def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}, N=20):
+    def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}, N=30):
          
         if self.__class__.__name__ == 'star': 
             
