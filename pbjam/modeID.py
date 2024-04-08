@@ -56,11 +56,6 @@ class modeIDsampler(plotting, ):
             self.Asyl20Samples, self.Asyl20logz = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
                                                                              sampler_kwargs=sampler_kwargs)
  
-            # asymptotic_samps = np.array([self.Asyl20Model.asymptotic_nu_p(l20samples_u['numax'][i], 
-            #                                                               l20samples_u['dnu'][i], 
-            #                                                               l20samples_u['eps_p'][i], 
-            #                                                               l20samples_u['alpha_p'][i]) for i in range(50)])
-            
             l20samples_u = self.Asyl20Model.unpackSamples(self.Asyl20Samples)
 
             self.l20res = self.Asyl20Model.parseSamples(l20samples_u)
@@ -209,9 +204,7 @@ class modeIDsampler(plotting, ):
                         R[rootkey][subkey] = D[rootkey][subkey]
 
             for subkey in ['freq', 'height', 'width']:
-
-                
-
+ 
                 R[rootkey][subkey] = np.hstack((l20res[rootkey][subkey][:N, :], l1res[rootkey][subkey][:N, :]))
         
         return R

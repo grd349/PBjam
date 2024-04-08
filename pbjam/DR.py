@@ -197,14 +197,6 @@ class PCA():
         self.viableFraction = 1 - self.nanFraction
 
         selectedSubset.dropna(axis=0, how="any", inplace=True)
- 
-        for i, key in enumerate(self.selectLabels):
-            
-            S = selectedSubset[key].values
-
-            if (len(S) > 0) and ((min(S) - self.obs[key][0] > 0.1) or (self.obs[key][0]- max(S) > 0.1)):
-                 
-                warnings.warn(f'Target {key} more than 10 percent beyond limits of the viable prior sample. Prior may not be reliable.', stacklevel=2)
          
         return selectedSubset.reset_index(drop=True)
 

@@ -180,7 +180,7 @@ class Asyl20Model(jar.DynestySamplingTools):
             if self.modelVars[key]['log10']:
                 self.logpars.append(key)
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def addAddObsLike(self, theta_u):
         """ Add the additional probabilities to likelihood
         
@@ -204,7 +204,7 @@ class Asyl20Model(jar.DynestySamplingTools):
  
         return lnp
     
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
@@ -255,7 +255,7 @@ class Asyl20Model(jar.DynestySamplingTools):
          
         return lnlike
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u):
         
         # l=2,0
@@ -266,7 +266,7 @@ class Asyl20Model(jar.DynestySamplingTools):
          
         return modes * bkg
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def add20Pairs(self, modes, d02, mode_width, nurot_e, inc, **kwargs):
          
         nu0_p, n_p = self.asymptotic_nu_p(**kwargs)
@@ -289,7 +289,7 @@ class Asyl20Model(jar.DynestySamplingTools):
 
         return modes, nu0_p, n_p
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def envelope(self, nu, env_height, numax, env_width, **kwargs):
         """ Power of the seismic p-mode envelope
     
@@ -342,7 +342,7 @@ class Asyl20Model(jar.DynestySamplingTools):
  
         return theta_u
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def _get_n_p_max(self, dnu, numax, eps):
         """Compute radial order at numax.
     
@@ -366,7 +366,7 @@ class Asyl20Model(jar.DynestySamplingTools):
     
         return numax / dnu - eps
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def _get_n_p(self, nmax):
         """Compute radial order numbers.
 
@@ -390,7 +390,7 @@ class Asyl20Model(jar.DynestySamplingTools):
 
         return enns 
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def asymptotic_nu_p(self, numax, dnu, eps_p, alpha_p, **kwargs):
         """ Compute the l=0 mode frequencies from the asymptotic relation for
         p-modes

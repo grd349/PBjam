@@ -87,7 +87,7 @@ class Asyl1Model(jar.DynestySamplingTools):
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()            
  
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
@@ -350,11 +350,12 @@ class Mixl1Model(jar.DynestySamplingTools):
          
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
+        self.badPrior = False
+
         self.setupDR()
 
-        if self.DR.dataF.shape[0] == 0:
-            self.badPrior = True
-        else: 
+        if not self.badPrior: 
+ 
             self.setPriors()
 
             self.ndims = len(self.priors)
@@ -404,12 +405,30 @@ class Mixl1Model(jar.DynestySamplingTools):
         
         # TODO maybe in future put bp_rp back in, when we aren't using models anymore
         self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
-         
-        self.DR.fit_weightedPCA(self.PCAdims)
 
-        _Y = self.DR.transform(self.DR.dataF)
+        self.badPrior = False
+        
+        # If no prior samples are returned, flag bad prior
+        if len(self.DR.selectedSubset) == 0:
+            self.badPrior = True
+        # Else cycle through the selection labels and compare with obs, if too far away the prior is also labeled as bad
+        else:
+            for i, key in enumerate(self.DR.selectLabels):
+                
+                S = self.DR.selectedSubset[key].values
+
+                if (min(S) - self.DR.obs[key][0] > 0.1) or (self.DR.obs[key][0]- max(S) > 0.1):
+                    
+                    self.badPrior = True
+                    
+                    warnings.warn(f'Target {key} more than 10 percent beyond limits of the viable prior sample. Prior is not reliable.', stacklevel=2)
  
-        if len(self.pcalabels) > 0 and self.DR.dataF.shape[0] > 0:
+        self.DR.fit_weightedPCA(self.PCAdims)
+ 
+        if len(self.pcalabels) > 0 and not self.badPrior:
+
+            _Y = self.DR.transform(self.DR.dataF)
+
             self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
 
             self.latentLabels = ['theta_%i' % (i) for i in range(self.PCAdims)]
