@@ -158,7 +158,7 @@ class Asyl1Model(jar.DynestySamplingTools):
  
         return theta_u
     
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def nu1_frequencies(self, theta_u):
         return self.obs['nu0_p'] + theta_u['d01']
     
@@ -327,8 +327,8 @@ class Asyl1Model(jar.DynestySamplingTools):
 
         return result
     
-    variables = {'l1'    : {'d01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},},
-                 'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+    variables = {'l1'    : {'d01'       : {'info': 'l=0,1 mean frequency difference'         , 'log10': True , 'pca': True, 'unit': 'muHz'},},
+                 'common': {'nurot_c'   : {'info': 'core rotation rate'                      , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
                            'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
                            'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
                 }
@@ -351,20 +351,23 @@ class Mixl1Model(jar.DynestySamplingTools):
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
         self.setupDR()
-  
-        self.setPriors()
 
-        self.ndims = len(self.priors)
+        if self.DR.dataF.shape[0] == 0:
+            self.badPrior = True
+        else: 
+            self.setPriors()
 
-        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
- 
-        self.n_g = self.select_n_g(n_g_ppf)
+            self.ndims = len(self.priors)
 
-        self.N_g = len(self.n_g)
+            n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
+    
+            self.n_g = self.select_n_g(n_g_ppf)
 
-        self.trimVariables()
+            self.N_g = len(self.n_g)
 
-        self.makeEmpties()
+            self.trimVariables()
+
+            self.makeEmpties()
 
     def makeEmpties(self):
         """ Make a bunch of static matrices so we don't need to make them during
@@ -401,18 +404,21 @@ class Mixl1Model(jar.DynestySamplingTools):
         
         # TODO maybe in future put bp_rp back in, when we aren't using models anymore
         self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
-
+         
         self.DR.fit_weightedPCA(self.PCAdims)
 
         _Y = self.DR.transform(self.DR.dataF)
+ 
+        if len(self.pcalabels) > 0 and self.DR.dataF.shape[0] > 0:
+            self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
 
-        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(_Y)
-         
-        if len(self.pcalabels) > 0:
             self.latentLabels = ['theta_%i' % (i) for i in range(self.PCAdims)]
+
         else:
             self.latentLabels = []
+
             self.DR.inverse_transform = lambda x: []
+
             self.DR.dimsR = 0
 
     def _makeTmpSample(self, keys, N=1000):
