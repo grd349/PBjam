@@ -197,16 +197,15 @@ class PCA():
         self.viableFraction = 1 - self.nanFraction
 
         selectedSubset.dropna(axis=0, how="any", inplace=True)
-        
-        self.badPrior = False
+ 
         for i, key in enumerate(self.selectLabels):
             
             S = selectedSubset[key].values
- 
-            if (min(S) - self.obs[key][0] > 0.1) or (self.obs[key][0]- max(S) > 0.1):
-                self.badPrior = True
+
+            if (len(S) > 0) and ((min(S) - self.obs[key][0] > 0.1) or (self.obs[key][0]- max(S) > 0.1)):
+                 
                 warnings.warn(f'Target {key} more than 10 percent beyond limits of the viable prior sample. Prior may not be reliable.', stacklevel=2)
-        
+         
         return selectedSubset.reset_index(drop=True)
 
     @partial(jax.jit, static_argnums=(0,))
