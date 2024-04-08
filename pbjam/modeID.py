@@ -55,24 +55,24 @@ class modeIDsampler(plotting, ):
             
             self.Asyl20Samples, self.Asyl20logz = self.Asyl20Model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
                                                                              sampler_kwargs=sampler_kwargs)
+ 
+            # asymptotic_samps = np.array([self.Asyl20Model.asymptotic_nu_p(l20samples_u['numax'][i], 
+            #                                                               l20samples_u['dnu'][i], 
+            #                                                               l20samples_u['eps_p'][i], 
+            #                                                               l20samples_u['alpha_p'][i]) for i in range(50)])
             
             l20samples_u = self.Asyl20Model.unpackSamples(self.Asyl20Samples)
 
             self.l20res = self.Asyl20Model.parseSamples(l20samples_u)
-        
 
-            asymptotic_samps = np.array([self.Asyl20Model.asymptotic_nu_p(l20samples_u['numax'][i], 
-                                                                           l20samples_u['dnu'][i], 
-                                                                           l20samples_u['eps_p'][i], 
-                                                                           l20samples_u['alpha_p'][i]) for i in range(50)])
             self.summary = {}
 
-            self.summary['n_p'] = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
+            self.summary['n_p'] = self.l20res['enn'][self.l20res['ell']==0]
 
-            self.summary['nu0_p'] = np.median(asymptotic_samps[:, 0, :], axis=0)
+            self.summary['nu0_p'] = self.l20res['summary']['freq'][0, self.l20res['ell']==0]
 
             for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
-                self.summary[key] = jar.smryStats(l20samples_u[key])
+                self.summary[key] = self.l20res['summary'][key]
 
             l20model = self.Asyl20Model.getMedianModel(l20samples_u)
 
@@ -106,7 +106,7 @@ class modeIDsampler(plotting, ):
                                          self.PCAdims_mix,
                                          priorpath=self.priorpath)
              
-            if (self.Mixl1Model.DR.viableFraction <= 0.1) or self.Mixl1Model.DR.badPrior: 
+            if (self.Mixl1Model.DR.viableFraction <= 0.1) or self.Mixl1Model.badPrior: 
                 print('Not enough prior samples for mixed model. Using the asymptotic model.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
@@ -114,7 +114,7 @@ class modeIDsampler(plotting, ):
                                                                                sampler_kwargs=sampler_kwargs)
                 self.useMixResult = False
                 
-            elif ((0.1 < self.Mixl1Model.DR.viableFraction) and (self.Mixl1Model.DR.viableFraction <= 0.90)) and not self.Mixl1Model.DR.badPrior:
+            elif ((0.1 < self.Mixl1Model.DR.viableFraction) and (self.Mixl1Model.DR.viableFraction <= 0.90)) and not self.Mixl1Model.badPrior:
                 print('Testing both asymptotic and mixed mode models.')
                 
                 if not 'nlive' in sampler_kwargs.keys():
@@ -133,7 +133,7 @@ class modeIDsampler(plotting, ):
 
                 self.useMixResult = self.AsyMixBayesFactor < BayesFactorLimit              
                  
-            elif (0.9 <= self.Mixl1Model.DR.viableFraction) and not self.Mixl1Model.DR.badPrior:
+            elif (0.9 <= self.Mixl1Model.DR.viableFraction) and not self.Mixl1Model.badPrior:
                 print('Using the mixed mode model.')
 
                 if not 'nlive' in sampler_kwargs.keys():
