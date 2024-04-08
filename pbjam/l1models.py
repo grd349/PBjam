@@ -807,7 +807,7 @@ class Mixl1Model(jar.DynestySamplingTools):
  
         return theta_u
  
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def asymptotic_nu_g(self, n_g, DPi1, eps_g):
         """Asymptotic relation for g-modes
 
@@ -881,18 +881,14 @@ class Mixl1Model(jar.DynestySamplingTools):
         L, D = self.generate_matrices(nu1_p, nu_g, theta_u['p_L'], theta_u['p_D'])
          
         nu, zeta = self.new_modes(L, D)
-
-        #idx = jnp.argpartition(abs(nu-self.obs['numax'][0]), self.mixed_to_fit-1)
  
-        #return nu[idx[:self.mixed_to_fit]] , zeta[idx[:self.mixed_to_fit]] 
-    
         return nu, zeta 
  
-    @partial(jax.jit, static_argnums=(0,))
-    def asymptotic_nu_p(self, theta_u):
-        return self.obs['nu0_p'] + theta_u['d01'], jnp.zeros_like(self.obs['nu0_p'])
+    #@partial(jax.jit, static_argnums=(0,))
+    # def asymptotic_nu_p(self, theta_u):
+    #     return self.obs['nu0_p'] + theta_u['d01'], jnp.zeros_like(self.obs['nu0_p'])
    
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def generate_matrices(self, nu_p, nu_g, p_L, p_D):
         """Generate coupling strength matrices
 
@@ -939,7 +935,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         return L, D
      
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def new_modes(self, L, D):
         """ Solve for mixed mode frequencies
 
@@ -975,7 +971,7 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
 
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def generalized_eig(self, A, B):
         
         B_inv = jnp.linalg.inv(B)
@@ -984,7 +980,7 @@ class Mixl1Model(jar.DynestySamplingTools):
         
         return U.real, V.real
     
-    @partial(jax.jit, static_argnums=(0,))
+    #@partial(jax.jit, static_argnums=(0,))
     def generalized_eigh(self, A, B):
         
         B_inv = jnp.linalg.inv(B)

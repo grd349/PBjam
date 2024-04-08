@@ -106,7 +106,7 @@ class modeIDsampler(plotting, ):
                                          self.PCAdims_mix,
                                          priorpath=self.priorpath)
              
-            if (self.Mixl1Model.DR.viableFraction <= 0.1) or self.Mixl1Model.DR.badPrior:#( >= 0.05 ) & (self.Asyl1Model.DR.nanFraction < 0.05):
+            if (self.Mixl1Model.DR.viableFraction <= 0.1) or self.Mixl1Model.DR.badPrior: 
                 print('Not enough prior samples for mixed model. Using the asymptotic model.')
                 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
@@ -117,6 +117,9 @@ class modeIDsampler(plotting, ):
             elif ((0.1 < self.Mixl1Model.DR.viableFraction) and (self.Mixl1Model.DR.viableFraction <= 0.90)) and not self.Mixl1Model.DR.badPrior:
                 print('Testing both asymptotic and mixed mode models.')
                 
+                if not 'nlive' in sampler_kwargs.keys():
+                    sampler_kwargs['nlive'] = 100*self.Mixl1Model.ndims
+
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
                                                                                sampler_kwargs=sampler_kwargs)
@@ -132,6 +135,9 @@ class modeIDsampler(plotting, ):
                  
             elif (0.9 <= self.Mixl1Model.DR.viableFraction) and not self.Mixl1Model.DR.badPrior:
                 print('Using the mixed mode model.')
+
+                if not 'nlive' in sampler_kwargs.keys():
+                    sampler_kwargs['nlive'] = 100*self.Mixl1Model.ndims
                 
                 self.Mixl1Samples, self.Mixl1logz  = self.Mixl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
