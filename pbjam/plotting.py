@@ -510,44 +510,82 @@ def _StarClassSpectrum(self):
 
 def _ModeIDClassPriorSpectrum(self, N):
     
-    fig, ax = plt.subplots(figsize=(16,9))
-
-    _baseSpectrum(ax, self.f, self.s, smoothness=0.5)
- 
-    for i in range(N):
-
-        m = np.ones(len(self.f))
-
-        l20u = np.random.uniform(0, 1, size=self.Asyl1Model.ndims)
-        l20theta = self.Asyl1Model.ptform(l20u)
-        l20theta_u = self.Asyl1Model.unpackParams(l20theta)
-        m *= self.Asyl1Model.model(l20theta_u)
-        
-        l1u = np.random.uniform(0, 1, size=self.Mixl1Model.ndims)
-        l1theta = self.Mixl1Model.ptform(l1u)
-        l1theta_u = self.Mixl1Model.unpackParams(l1theta)
-        m *= self.Mixl1Model.model(l1theta_u)
-
-        # theta = self.ptform(u)
-        
-        # theta_u = self.unpackParams(theta)
-        
-        # m = self.model(theta_u, self.f)
-        
-        ax.plot(self.f[self.sel], m, alpha=0.2, color='C3')
-
-    ax.plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
-
-    ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-
-    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-
-    ax.set_yscale('log')
+    fig, ax = plt.subplots(3, 1, figsize=(16,18))
     
-    ax.set_xscale('log')
+    _baseSpectrum(ax[0], self.f, self.s)
+    ax[0].set_xlim(self.f.min(), self.f.max())
+    
+    _baseSpectrum(ax[1], 
+                  self.f[self.l20sel][self.l1sel], 
+                  self.s[self.l20sel][self.l1sel],
+                  )
+     
+    _baseSpectrum(ax[2], self.f[self.l20sel][self.l1sel], self.l20residual[self.l1sel], ylim=[0, None])
+    ax[2].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
 
-    ax.legend(loc=3)
+    for i in range(N):
+    
+        l20m = np.ones(len(self.f[self.l20sel]))
 
+        l20u = np.random.uniform(0, 1, size=self.Asyl20Model.ndims)
+        
+        l20theta = self.Asyl20Model.ptform(l20u)
+        
+        l20theta_u = self.Asyl20Model.unpackParams(l20theta)
+        
+        l20m *= self.Asyl20Model.model(l20theta_u)
+ 
+        ax[0].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
+
+        ax[1].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
+        
+        if self.useMixResult:
+
+            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
+
+            l1u = np.random.uniform(0, 1, size=self.Mixl1Model.ndims)
+
+            l1theta = self.Mixl1Model.ptform(l1u)
+
+            l1theta_u = self.Mixl1Model.unpackParams(l1theta)
+            
+            l1m *= self.Mixl1Model.model(l1theta_u,)
+
+            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
+ 
+        else:
+            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
+
+            l1u = np.random.uniform(0, 1, size=self.Asyl1Model.ndims)
+
+            l1theta = self.Asyl1Model.ptform(l1u)
+
+            l1theta_u = self.Asyl1Model.unpackParams(l1theta)
+            
+            l1m *= self.Asyl1Model.model(l1theta_u,)
+
+            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
+
+    ax[0].set_yscale('log')
+
+    ax[0].set_xscale('log')
+ 
+    ax[0].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+    
+    ax[0].legend(loc=3)
+    
+    ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+
+    for i in range(1,3):
+         
+        ax[i].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+ 
+        ax[i].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+        
+        ax[i].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+
+        ax[i].legend(loc=2)
+ 
     return fig, ax
 
 def _ModeIDClassPostSpectrum(self, N):
@@ -579,6 +617,7 @@ def _ModeIDClassPostSpectrum(self, N):
         l20m *= self.Asyl20Model.model(l20theta_u)
 
         ax[0].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
+
         ax[1].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
 
 
