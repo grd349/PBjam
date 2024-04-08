@@ -652,8 +652,18 @@ def _ModeIDClassPostSpectrum(self, N):
     ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
     for i in range(1,3):
-        for nu in self.result['summary']['freq'][0]:
-            ax[i].axvline(nu, c='k', linestyle='--')
+        for j, nu in enumerate(self.result['summary']['freq'][0]):
+            
+            if i == 1 and self.result['ell'][j] == 1:
+                _alpha=0.35
+
+            elif i == 2 and self.result['ell'][j] != 1:
+                _alpha=0.35 
+
+            else:
+                _alpha=1.0
+
+            ax[i].axvline(nu, c='k', linestyle='--', alpha=_alpha, lw=3)
         
         ax[i].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
 
