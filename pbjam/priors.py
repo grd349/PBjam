@@ -150,7 +150,7 @@ class kde(plotting):
 
             if not flag_warn:
                 warnings.warn(f'Only {len(pdata[idx])} star(s) near provided numax. ' +
-                f'Trying to expand the range to include ~{KDEsize} stars.')
+                f'Trying to expand the range to include ~{KDEsize} stars.', stacklevel=2)
                 flag_warn = True
 
             if nsigma >= KDEsize:
@@ -164,7 +164,7 @@ class kde(plotting):
             raise ValueError('No prior targets found within range of target. This might mean no prior samples exist for stars like this, consider increasing the uncertainty on your numax input.')
 
         elif ntgts < KDEsize:
-            warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.')
+            warnings.warn(f'Sample for estimating KDE is less than the requested {KDEsize}.', stacklevel=2)
             KDEsize = ntgts
         
         return pdata.sample(KDEsize, weights=idx, replace=False)

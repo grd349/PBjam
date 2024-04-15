@@ -165,7 +165,7 @@ class plotting():
         """
 
         if not hasattr(self, 'samples'):
-            warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
+            warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.", stacklevel=2)
             return None
 
         fig = corner.corner(self.samples, labels=self.par_names,
