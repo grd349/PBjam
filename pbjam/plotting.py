@@ -262,7 +262,7 @@ class plotting():
             par_names = ['l0', 'l2', 'width0', 'width2', 'height0', 'height2',
                          'back']
             for i in range(n):
-                for j in range(-50, 0):
+                for j in range(0, 50):
                     if (i == 0) and (j==-1):
                         label='Model'
                     else:
