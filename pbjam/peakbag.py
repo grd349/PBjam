@@ -366,15 +366,7 @@ class peakbag(plotting):
         """
 
         self.init_model(model_type=model_type)
-               
-        # REMOVE THIS WHEN pymc3 v3.8 is a bit older. 
-        try:
-            rhatfunc = pm.diagnostics.gelman_rubin
-            warnings.warn('pymc3.diagnostics.gelman_rubin is depcrecated; upgrade pymc3 to v3.8 or newer.', DeprecationWarning, stacklevel=2)
-        except:
-            rhatfunc = pm.stats.rhat
-        
-
+                       
         if advi:
             with self.pm_model:
                 cb = pm.callbacks.CheckParametersConvergence(every=1000,
@@ -398,19 +390,28 @@ class peakbag(plotting):
                                              init=self.init_sampler,
                                              target_accept=self.target_accept,
                                              progressbar=False, return_inferencedata=True)
-                Rhat_max = np.max([v.max() for k, v in rhatfunc(self.traces).items()])
+                Rhat_max = np.max([v.max() for k, v in pm.stats.rhat(self.traces).items()])
                 niter += 1
         
-        # REMOVE THIS WHEN pymc3 v3.8 is a bit older
-        try:
-            self.summary = pm.summary(self.traces)
-        except:
-            self.summary = pm.stats.summary(self.traces)
+        self.summary = pm.summary(self.traces)
         
         self.par_names = self.summary.index
         
-        samps = np.array([self.traces[x] for x in self.traces.varnames if not x.endswith('_log__')])
-        self.samples = np.array([]).reshape((samps.shape[1], 0))
-        for i in range(samps.shape[0]):   
-            self.samples = np.concatenate((self.samples, samps[i, :, :]), axis =1)
+        # samps = np.array([self.traces[x] for x in self.traces.varnames if not x.endswith('_log__')])
+        # self.samples = np.array([]).reshape((samps.shape[1], 0))
+        # for i in range(samps.shape[0]):   
+        #     self.samples = np.concatenate((self.samples, samps[i, :, :]), axis =1)
+
+        self.traces = self.traces.to_dict()['posterior']
+
+
+        smplShape = self.traces['l0'].shape
+
+        self.samples = np.array([]).reshape((smplShape[0]*smplShape[1], 0))
+
+        for key in self.traces.keys():   
+
+            self.traces[key] = self.traces[key].reshape((-1, smplShape[-1]))
+            
+            self.samples = np.concatenate((self.samples, self.traces[key]), axis=1)
         
