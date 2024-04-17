@@ -558,7 +558,7 @@ class session():
                     print('Unrecognized type in dictlike. Must be able to convert to dataframe through pandas.DataFrame.from_records()')
 
             if any([ID, numax, dnu, teff, bp_rp]):
-                warnings.warn('Dictlike provided as input, ignoring other input fit parameters.')
+                warnings.warn('Dictlike provided as input, ignoring other input fit parameters.', stacklevel=2)
 
             _organize_sess_dataframe(vardf)
 
@@ -575,7 +575,7 @@ class session():
             raise TypeError('session.__init__ requires either ID or dictlike')
 
         if any(np.isnan(vardf['exptime'])) and any((vardf['timeseries'])) and any(vardf['spectrum']):
-            warnings.warn('If the target may have been observed at more than one cadence, it is recommended that you set exptime')
+            warnings.warn('If the target may have been observed at more than one cadence, it is recommended that you set exptime', stacklevel=2)
  
         for i in vardf.index:
             
@@ -604,7 +604,7 @@ class session():
             
         for i, st in enumerate(self.stars):
             if st.numax[0] > st.f[-1]:
-                warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID))
+                warnings.warn("Input numax is greater than Nyquist frequeny for %s" % (st.ID), stacklevel=2)
 
     def __call__(self, bw_fac=1, norders=8, model_type='simple', tune=1500, 
                  nthreads=1, verbose=False, make_plots=False, store_chains=False, 
