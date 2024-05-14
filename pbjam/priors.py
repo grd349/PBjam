@@ -198,7 +198,7 @@ class kde(plotting):
             
         """
 
-        self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+        self.par_names = ['dnu', 'numax', 'eps_p', 'd02', 'alpha_p', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
 
         self.select_prior_data(self._log_obs['numax'])
@@ -307,10 +307,10 @@ class kde(plotting):
             raise ValueError('Need to run the sampler first')
         
         dnu = 10**self.samples[:, 0]
-        eps = self.samples[:, 2]
-        nmax = 10**self.samples[:, 1] / dnu - eps
-        alpha = 10**self.samples[:, 4]
-        freq = np.array([(nn + eps + alpha/2.0 * (nn - nmax)**2) * dnu for nn in n])
+        eps_p = self.samples[:, 2]
+        nmax = 10**self.samples[:, 1] / dnu - eps_p
+        alpha_p = 10**self.samples[:, 4]
+        freq = np.array([(nn + eps_p + alpha_p/2.0 * (nn - nmax)**2) * dnu for nn in n])
         
         return freq.mean(axis=1), freq.std(axis=1)
 
@@ -345,9 +345,9 @@ class kde(plotting):
 
         x0 = [self._log_obs['dnu'][0],  # log10 dnu
               self._log_obs['numax'][0],  # log10 numax
-              1.0,  # eps
+              1.0,  # eps_p
               np.log10(0.1 * self._obs['dnu'][0]),  # log10 d02
-              -2.0,  # log10 alpha
+              -2.0,  # log10 alpha_p
               1.0,  # log10 env height
               1.0,  # log10 env width,
               -1.0,  # log10 mode width
