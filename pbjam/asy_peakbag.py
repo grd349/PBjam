@@ -40,7 +40,7 @@ class asymp_spec_model():
         self.f = np.array([f]).flatten()
         self.norders = int(norders)
 
-    def _get_nmax(self, dnu, numax, eps):
+    def _get_nmax(self, dnu, numax, eps_p):
         """Compute radial order at numax.
     
         Compute the radial order at numax, which in this implimentation of the
@@ -52,7 +52,7 @@ class asymp_spec_model():
             Frequency of maximum power of the p-mode envelope (muHz).
         dnu : float
             Large separation of l=0 modes (muHz).
-        eps : float
+        eps_p : float
             Epsilon phase term in asymptotic relation (muHz).
     
         Returns
@@ -62,7 +62,7 @@ class asymp_spec_model():
                 
         """
     
-        return numax / dnu - eps
+        return numax / dnu - eps_p
 
     def _get_enns(self, nmax, norders):
         """Compute radial order numbers.
@@ -96,7 +96,7 @@ class asymp_spec_model():
             out = np.concatenate([np.arange(x, y) for x, y in zip(below, above)])
             return out.reshape(-1, norders)
 
-    def _asymptotic_relation(self, numax, dnu, eps, alpha, norders):
+    def _asymptotic_relation(self, numax, dnu, eps_p, alpha_p, norders):
         """ Compute the l=0 mode frequencies from the asymptotic relation for
         p-modes
     
@@ -106,9 +106,9 @@ class asymp_spec_model():
             Frequency of maximum power of the p-mode envelope (muHz).
         dnu : float
             Large separation of l=0 modes (muHz).
-        eps : float
+        eps_p : float
             Epsilon phase term in asymptotic relation (unitless).
-        alpha : float
+        alpha_p : float
             Curvature factor of l=0 ridge (second order term, unitless).
         norders : int
             Number of desired radial orders to calculate frequncies for, 
@@ -121,9 +121,9 @@ class asymp_spec_model():
     
         """
         
-        nmax = self._get_nmax(dnu, numax, eps)
+        nmax = self._get_nmax(dnu, numax, eps_p)
         enns = self._get_enns(nmax, norders)
-        return (enns.T + eps + alpha/2*(enns.T - nmax)**2) * dnu
+        return (enns.T + eps_p + alpha_p/2*(enns.T - nmax)**2) * dnu
 
 
     def _P_envelope(self, nu, hmax, numax, width):
@@ -207,7 +207,7 @@ class asymp_spec_model():
         return pair_model
 
     
-    def model(self, dnu, numax, eps, d02, alpha, hmax, envwidth, modewidth,
+    def model(self, dnu, numax, eps_p, d02, alpha_p, hmax, envwidth, modewidth,
               *args):
         """ Constructs a spectrum model from the asymptotic relation.
 
@@ -226,9 +226,9 @@ class asymp_spec_model():
             Large separation log10(muHz)
         lognumax : float
             Frequency of maximum power of the p-mode envelope log10(muHz)
-        eps : float
+        eps_p : float
             Phase term of the asymptotic relation (unitless)
-        alpha : float
+        alpha_p : float
             Curvature of the asymptotic relation log10(unitless)
         d02 : float
             Small separation log10(muHz)
@@ -250,7 +250,7 @@ class asymp_spec_model():
             
         """
 
-        f0s = self._asymptotic_relation(10**numax, 10**dnu, eps, 10**alpha, self.norders)
+        f0s = self._asymptotic_relation(10**numax, 10**dnu, eps_p, 10**alpha_p, self.norders)
         Hs = self._P_envelope(f0s, 10**hmax, 10**numax, 10**envwidth)
         
         modewidth = 10**modewidth # widths are the same for all modes
@@ -337,7 +337,7 @@ class asymptotic_fit(plotting, asymp_spec_model):
         self._obs = st._obs
         self._log_obs = st._log_obs    
         
-        self.par_names = ['dnu', 'numax', 'eps', 'd02', 'alpha', 'env_height',
+        self.par_names = ['dnu', 'numax', 'eps_p', 'd02', 'alpha_p', 'env_height',
                           'env_width', 'mode_width', 'teff', 'bp_rp']
         
         self.prior_file = st.prior_file
@@ -573,15 +573,15 @@ class asymptotic_fit(plotting, asymp_spec_model):
         """ Get frequency range around numax for model 
         """
         
-        dnu, numax, eps = self.start[:3]
+        dnu, numax, eps_p = self.start[:3]
         
-        nmax = self._get_nmax(dnu, numax, eps)
+        nmax = self._get_nmax(dnu, numax, eps_p)
         enns = self._get_enns(nmax, self.norders)
 
         # The range is set +/- 25% of the upper and lower mode frequency 
         # estimate
-        lfreq = (min(enns) - 1.25 + eps) * dnu
-        ufreq = (max(enns) + 1.25 + eps) * dnu
+        lfreq = (min(enns) - 1.25 + eps_p) * dnu
+        ufreq = (max(enns) + 1.25 + eps_p) * dnu
         return lfreq, ufreq    
     
     
