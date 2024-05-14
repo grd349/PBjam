@@ -654,11 +654,8 @@ def _ModeIDClassPostSpectrum(self, N):
     for i in range(1,3):
         for j, nu in enumerate(self.result['summary']['freq'][0]):
             
-            if i == 1 and self.result['ell'][j] == 1:
+            if (i==1 and self.result['ell'][j]==1) or (i==2 and self.result['ell'][j]!=1):
                 _alpha=0.35
-
-            elif i == 2 and self.result['ell'][j] != 1:
-                _alpha=0.35 
 
             else:
                 _alpha=1.0

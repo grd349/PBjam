@@ -359,10 +359,8 @@ class Mixl1Model(jar.DynestySamplingTools):
             self.setPriors()
 
             self.ndims = len(self.priors)
-
-            n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
-    
-            self.n_g = self.select_n_g(n_g_ppf)
+ 
+            self.n_g = self.select_n_g()
 
             self.N_g = len(self.n_g)
 
@@ -599,6 +597,8 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         # freq_lims = (self.obs['numax'][0] - width, 
         #              self.obs['numax'][0] + width)
+
+        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
 
         freq_lims = {'coupling': (min(self.obs['nu0_p']) - 5*self.obs['dnu'][0], 
                                   max(self.obs['nu0_p']) + 5*self.obs['dnu'][0]),
@@ -909,10 +909,7 @@ class Mixl1Model(jar.DynestySamplingTools):
  
         return nu, zeta 
  
-    #@partial(jax.jit, static_argnums=(0,))
-    # def asymptotic_nu_p(self, theta_u):
-    #     return self.obs['nu0_p'] + theta_u['d01'], jnp.zeros_like(self.obs['nu0_p'])
-   
+
     #@partial(jax.jit, static_argnums=(0,))
     def generate_matrices(self, nu_p, nu_g, p_L, p_D):
         """Generate coupling strength matrices
@@ -1154,6 +1151,8 @@ class Mixl1Model(jar.DynestySamplingTools):
                         'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
                        #'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
                         'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},
+                        'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                        'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
                         'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
                        },
                 'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 

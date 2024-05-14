@@ -145,6 +145,8 @@ class PCA():
         self.selectedSubset = self.findNearest(priorData, nSamples)
         
         _nSamples, _ndim = self.selectedSubset[self.varLabels].shape
+
+        # TODO put in something that tries a bit harder if no nearby targets are found
         
         return jnp.array(self.selectedSubset[self.varLabels].to_numpy()), _ndim, _nSamples
 
@@ -172,6 +174,7 @@ class PCA():
                   'teff': 9999,
                   'bp_rp': 9999}
  
+        # Tgts within limits
         idx = np.prod(np.array([abs(fullPriorData[key].values - self.obs[key][0]) < limits[key] for key in self.selectLabels], dtype=bool), axis=0).astype(bool)
          
         priorData = fullPriorData.loc[idx, :].reset_index(drop=True)

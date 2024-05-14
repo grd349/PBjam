@@ -113,7 +113,7 @@ class modeIDsampler(plotting, ):
                 print('Testing both asymptotic and mixed mode models.')
                 
                 if not 'nlive' in sampler_kwargs.keys():
-                    sampler_kwargs['nlive'] = 100*self.Mixl1Model.ndims
+                    sampler_kwargs['nlive'] = 200*self.Mixl1Model.ndims
 
                 self.Asyl1Samples, self.Asyl1logz  = self.Asyl1Model.runDynesty(progress=progress, 
                                                                                logl_kwargs=logl_kwargs, 
