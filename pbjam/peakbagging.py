@@ -36,7 +36,93 @@ class peakbag(plotting):
          
         self.createPeakbagInstances()
 
+    def checkSmallDiffs(self, cuts, nu, Gamma):
+    
+        distances = np.abs(nu[:, np.newaxis] - cuts)
+    
+        diffs = np.array([distances[m, i] for i, m in enumerate(np.argmin(distances, axis=0))])
+    
+        goodCutIdx = diffs > 3*Gamma
+
+        return goodCutIdx
+
+    def checkNoSmallSep(self, C, nu, ells):
+
+        goodCutIdx = np.ones(len(C),dtype=bool)
+    
+        for i, c in enumerate(C):
+        
+            if i ==0 or i==len(C)-1:
+                continue
+        
+            bidx = nu < c
+            nub_idx = np.argmax(nu[bidx] - c)
+        
+            lb = ells[bidx][nub_idx]
+    
+            aidx = nu > c
+        
+            nua_idx = np.argmin(nu[aidx] - c)
+        
+            la = ells[aidx][nua_idx]
+        
+            if (int(lb)==2) and (int(la)==0):
+                goodCut = False
+            elif (int(lb)==3) and (int(la)==1):
+                goodCut = False
+            else:
+                goodCut = True
+    
+            goodCutIdx[i] *= goodCut
+
+        return goodCutIdx
+
+    def kmeans(self, nu, ells, centroids=None, max_iters=100):
+ 
+        if not centroids:
+            centroids = nu[ells==0]
+    
+        k = len(centroids)
+    
+        for _ in range(max_iters):
+        
+            # Assign each data point to the closest centroid
+            distances = np.abs(nu[:, np.newaxis] - centroids) # distance of each point to all the centroids
+
+            labels = np.argmin(distances, axis=1) # assign to closest centroid
+        
+            # Update centroids based on the mean of data points assigned to each cluster
+            new_centroids = np.array([nu[labels == i].mean() for i in range(k)])
+        
+            # Merge clusters with only one point into the nearest cluster
+            for i in range(k):
+            
+                if len(labels[labels == i]) == 1:
+                    closest_centroid_idx = np.argmin(np.abs(centroids - centroids[i]))
+            
+                    labels[labels == i] = closest_centroid_idx
+        
+            # If centroids have not changed significantly, stop
+            if np.allclose(centroids, new_centroids):
+                break
+        
+            centroids = new_centroids
+    
+        return centroids, labels, k
+
+    def determineCuts(self, dnu, nu, labels):
+    
+        x = np.where(np.diff(labels) == 1)[0]
+         
+        cuts = np.append(nu.min() - dnu / 3, # append lower limit 
+                         np.append(nu[x] + (nu[x+1] - nu[x])/2,  # append list of cuts
+                                   nu.max()+dnu/3)) # append upper limit
+
+        return cuts
+
+ 
     def createPeakbagInstances(self):
+
         if self.slice:
     
             if self.Nslices == 0:
@@ -112,7 +198,7 @@ class peakbag(plotting):
     def slc(self, x, low, high):
             return (low <= x) & (x <= high)
     
-    def sliceSpectrum(self, fac=1):
+    def sliceSpectrum(self):
         """ Slicing up the envelope 
 
         Sets a series of frequency limits which divide the detected modes into roughly 
@@ -131,26 +217,50 @@ class peakbag(plotting):
             Frequencies delimiting the slices. 
         """
   
-        freqs = self.freq.copy()
+        # freqs = self.freq.copy()
 
-        # Sort modes because they might be ordered by angular degree
-        sortIdx = np.argsort(freqs[0, :])
+        # # Sort modes because they might be ordered by angular degree
+        # sortIdx = np.argsort(freqs[0, :])
 
-        sortedFreqs = freqs[:, sortIdx]
+        # sortedFreqs = freqs[:, sortIdx]
 
-        # Compute the differences between the mean freqs of all modes
-        modeDiffs = np.diff(sortedFreqs[0, :])
+        # # Compute the differences between the mean freqs of all modes
+        # modeDiffs = np.diff(sortedFreqs[0, :])
 
-        # Find the indices of the N largets differences so we slice furthest from any mode, a reasonable number here is N_p.
-        ind = [np.where(modeDiffs==x)[0][0] for x in heapq.nlargest(self.Nslices, modeDiffs)]
+        # # Find the indices of the N largets differences so we slice furthest from any mode, a reasonable number here is N_p.
+        # ind = [np.where(modeDiffs==x)[0][0] for x in heapq.nlargest(self.Nslices, modeDiffs)]
 
-        # Place the slice halfway between adjacent modes with the largest frequency differences
-        cuts = sortedFreqs[0, ind] + modeDiffs[ind] / 2
+        # # Place the slice halfway between adjacent modes with the largest frequency differences
+        # cuts = sortedFreqs[0, ind] + modeDiffs[ind] / 2
 
-        # Make list of 
-        limits = np.append(np.append(min(self.freq_limits), sorted(cuts)), max(self.freq_limits))
+        # # Make list of 
+        # limits = np.append(np.append(min(self.freq_limits), sorted(cuts)), max(self.freq_limits))
 
-        npercut = [len(freqs[0, self.slc(freqs[0, :], limits[i], limits[i+1])]) for i in range(len(limits)-1)]
+        # clusters
+
+        freqs = np.sort(self.freq[0, :])
+         
+        _, labels, nclusters = self.kmeans(freqs, self.ell)
+         
+        # find cuts
+        cuts = self.determineCuts(self.dnu[0], freqs, labels)
+        # print(len(cuts))
+        # print(nclusters+1)
+        assert len(cuts) == nclusters + 1
+
+        # weed out small distances
+        goodCutIdx0 = self.checkSmallDiffs(cuts, freqs, np.median(self.width[0, :]))
+
+        # weed out 2, 0 and 3, 1 splitting cuts
+        goodCutIdx1 = self.checkNoSmallSep(cuts, freqs, self.ell)
+
+        goodCutIdx = goodCutIdx0 * goodCutIdx1
+
+        # len(cuts[goodCutIdx])
+
+        limits = cuts[goodCutIdx]
+
+        #npercut = [len(freqs[0, self.slc(freqs[0, :], limits[i], limits[i+1])]) for i in range(len(limits)-1)]
  
         return limits
     
