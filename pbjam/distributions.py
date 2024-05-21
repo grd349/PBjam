@@ -124,7 +124,7 @@ class beta():
         """
         x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
 
-        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+        self.mean = jnp.trapezoid(x * jnp.array([self.pdf(_x) for _x in x]), x)
 
         self.median = self.ppf(0.5)
 
@@ -365,7 +365,7 @@ class distribution():
         """
         x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
 
-        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+        self.mean = jnp.trapezoid(x * jnp.array([self.pdf(_x) for _x in x]), x)
 
         self.median = self.ppf(0.5)
 
@@ -420,7 +420,7 @@ class uniform():
         """
         x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
 
-        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+        self.mean = jnp.trapezoid(x * jnp.array([self.pdf(_x) for _x in x]), x)
 
         self.median = self.ppf(0.5)
 
@@ -553,7 +553,7 @@ class normal():
         """
         x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
 
-        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+        self.mean = jnp.trapezoid(x * jnp.array([self.pdf(_x) for _x in x]), x)
 
         self.median = self.ppf(0.5)
     
@@ -665,7 +665,7 @@ class truncsine():
         """
         x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
 
-        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+        self.mean = jnp.trapezoid(x * jnp.array([self.pdf(_x) for _x in x]), x)
 
         self.median = self.ppf(0.5)
  
@@ -781,7 +781,7 @@ class randint():
         """
         x = jnp.linspace(self.ppf(1e-6), self.ppf(1-1e-6), 1000)
 
-        self.mean = jnp.trapz(x * jnp.array([self.pdf(_x) for _x in x]), x)
+        self.mean = jnp.trapezoid(x * jnp.array([self.pdf(_x) for _x in x]), x)
 
         self.median = self.ppf(0.5)
 
