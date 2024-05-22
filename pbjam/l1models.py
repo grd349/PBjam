@@ -9,21 +9,140 @@ import pbjam.distributions as dist
 
 jax.config.update('jax_enable_x64', True)
 
-class Asyl1Model(jar.DynestySamplingTools):
+class generalFuncs():
+    def __init__(self):
+        pass
+
+    def chi_sqr(self, mod):
+        """ Chi^2 2 dof likelihood
+
+        Evaulates the likelihood of observing the data given the model.
+
+        Parameters
+        ----------
+        mod : jax device array
+            Spectrum model.
+
+        Returns
+        -------
+        L : float
+            Likelihood of the data given the model
+        """
+
+        L = -jnp.sum(jnp.log(mod) + self.s / mod)
+
+        return L 
+       
+    def envelope(self, nu,):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+ 
+        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def lnlikelihood(self, theta, scale=1):
+        """
+        Calculate the log likelihood of the model given parameters and data.
+        
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            Parameter values.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        float :
+            Log-likelihood value.
+        """
+
+        theta_u = self.unpackParams(theta)
+        
+        lnlike = self.addAddObsLike(theta_u)
+
+        # Constraint from the periodogram 
+        mod = self.model(theta_u)
+        
+        lnlike += self.chi_sqr(mod)
+         
+        return lnlike
+    
+    def addAddObsLike(self, theta_u):
+        """ Add the additional probabilities to likelihood
+        
+        Adds the additional observational data likelihoods to the PSD likelihood.
+
+        Parameters
+        ----------
+        p : list
+            Sampling parameters.
+
+        Returns
+        -------
+        lnp : float
+            The likelihood of a sample given the parameter PDFs.
+        """
+
+        lnp = 0
+
+        for key in self.addObs.keys():       
+            lnp += self.addObs[key].logpdf(theta_u[key]) 
+ 
+        return lnp
+    
+    def setAddObs(self, keys):
+        """ Set attribute containing additional observational data
+
+        Additional observational data other than the power spectrum goes here. 
+
+        Can be Teff or bp_rp color, but may also be additional constraints on
+        e.g., numax, dnu. 
+        """
+        
+        self.addObs = {}
+
+        for key in keys:
+            self.addObs[key] = dist.normal(loc=self.obs[key][0], 
+                                           scale=self.obs[key][1])
+ 
+
+class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
     def __init__(self, f, s, obs, addPriors, N_p, NPriorSamples, vis={'V10': 1.22}, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
-        self.modelVars = {'d01': self.variables['l1']['d01'],
-                          'nurot_e': self.variables['common']['nurot_e'],
-                          'inc': self.variables['common']['inc'],
-                          }
-        
+        # self.modelVars = {'d01': self.variables['l1']['d01'],
+        #                   'nurot_e': self.variables['common']['nurot_e'],
+        #                   'inc': self.variables['common']['inc'],
+        #                   }
+
         self.setLabels()
 
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
         self.setPriors()
+
+        self.setAddObs(keys=[])
 
         self.ndims = len(self.priors)
 
@@ -49,12 +168,12 @@ class Asyl1Model(jar.DynestySamplingTools):
           logpars list.
         """
  
-        self.labels = list(self.modelVars.keys())
+        self.labels = list(self.variables.keys())
 
         # Parameters that are in log10
         self.logpars = []
-        for key in self.modelVars.keys():
-            if self.modelVars[key]['log10']:
+        for key in self.variables.keys():
+            if self.variables[key]['log10']:
                 self.logpars.append(key)
 
     def setPriors(self,):
@@ -87,27 +206,6 @@ class Asyl1Model(jar.DynestySamplingTools):
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()            
  
-    #@partial(jax.jit, static_argnums=(0,))
-    def chi_sqr(self, mod):
-        """ Chi^2 2 dof likelihood
-
-        Evaulates the likelihood of observing the data given the model.
-
-        Parameters
-        ----------
-        mod : jax device array
-            Spectrum model.
-
-        Returns
-        -------
-        L : float
-            Likelihood of the data given the model
-        """
-
-        L = -jnp.sum(jnp.log(mod) + self.s / mod)
-
-        return L      
-
     @partial(jax.jit, static_argnums=(0,))
     def lnlikelihood(self, theta):
         """
@@ -158,7 +256,6 @@ class Asyl1Model(jar.DynestySamplingTools):
  
         return theta_u
     
-    #@partial(jax.jit, static_argnums=(0,))
     def nu1_frequencies(self, theta_u):
         return self.obs['nu0_p'] + theta_u['d01']
     
@@ -184,33 +281,7 @@ class Asyl1Model(jar.DynestySamplingTools):
             modes += jar.lor(self.f, nu1s[i] + nurot, Hs1[i] * self.vis['V10'], modewidth1s) * jnp.sin(theta_u['inc'])**2 / 2
 
         return modes
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def envelope(self, nu,):
-        """ Power of the seismic p-mode envelope
-    
-        Computes the power at frequency nu in the oscillation envelope from a 
-        Gaussian distribution. Used for computing mode heights.
-    
-        Parameters
-        ----------
-        nu : float
-            Frequency (in muHz).
-        hmax : float
-            Height of p-mode envelope (in SNR).
-        numax : float
-            Frequency of maximum power of the p-mode envelope (in muHz).
-        width : float
-            Width of the p-mode envelope (in muHz).
-    
-        Returns
-        -------
-        h : float
-            Power at frequency nu (in SNR)   
-        """
  
-        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
-
     def unpackSamples(self, samples=None):
         """
         Unpack a set of parameter samples into a dictionary of arrays.
@@ -327,26 +398,18 @@ class Asyl1Model(jar.DynestySamplingTools):
 
         return result
     
-    variables = {'l1'    : {'d01'       : {'info': 'l=0,1 mean frequency difference'         , 'log10': True , 'pca': True, 'unit': 'muHz'},},
-                 'common': {'nurot_c'   : {'info': 'core rotation rate'                      , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                           'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                           'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
-                }
-
-class Mixl1Model(jar.DynestySamplingTools):
+    variables = {'d01'       : {'info': 'l=0,1 mean frequency difference'         , 'log10': True , 'pca': True, 'unit': 'muHz'},
+                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
+ 
+class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
 
     def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
                  vis={'V10': 1.22}, priorpath=None):
    
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
- 
-        self.modelVars = {}
-
-        self.modelVars.update(self.variables['l1'])
         
-        self.modelVars.update(self.variables['common'])
-
-        self.set_labels(self.addPriors) 
+        self.setLabels(self.addPriors) 
          
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
@@ -354,13 +417,17 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         self.setupDR()
 
+        self.setAddObs(keys=['teff', 'dnu', 'numax'])
+
         if not self.badPrior: 
  
             self.setPriors()
 
             self.ndims = len(self.priors)
  
-            self.n_g = self.select_n_g()
+            n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
+
+            self.n_g = self.select_n_g(n_g_ppf)
 
             self.N_g = len(self.n_g)
 
@@ -491,7 +558,7 @@ class Mixl1Model(jar.DynestySamplingTools):
             
         self.ndims = len(self.priors)    
    
-    def set_labels(self, addPriors):
+    def setLabels(self, addPriors):
         """
         Set parameter labels and categorize them based on priors.
 
@@ -518,9 +585,9 @@ class Mixl1Model(jar.DynestySamplingTools):
         self.addlabels = []
         
         # If key appears in priors dict, override default and move it to add. 
-        for key in self.modelVars.keys():
+        for key in self.variables.keys():
                 
-            if self.modelVars[key]['pca'] and (key not in addPriors.keys()):
+            if self.variables[key]['pca'] and (key not in addPriors.keys()):
                 self.pcalabels.append(key)
 
             else:
@@ -534,8 +601,8 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         # Parameters that are in log10
         self.logpars = []
-        for key in self.modelVars.keys():
-            if self.modelVars[key]['log10']:
+        for key in self.variables.keys():
+            if self.variables[key]['log10']:
                 self.logpars.append(key)
 
     def setPriors(self,):
@@ -554,7 +621,7 @@ class Mixl1Model(jar.DynestySamplingTools):
                                                  self.DR.logpdf[i], 
                                                  self.DR.cdf[i])
 
-        AddKeys = [k for k in self.modelVars if k in self.addPriors.keys()]
+        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
 
         self.priors.update({key : self.addPriors[key] for key in AddKeys})
  
@@ -665,7 +732,6 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         
         n_g = jnp.arange(min_n_g_c, max_n_g_c, dtype=int)[::-1]
-        n_g_to_fit = jnp.arange(min_n_g_f, max_n_g_f, dtype=int)[::-1]
         
         # print('g-modes within 5 dnu of min/max l=0', min_n_g_c, max_n_g_c, len(n_g))
         # print('g-modes within 0.5 dnu of min/max l=0', min_n_g_f, max_n_g_f, len(n_g_to_fit))
@@ -680,55 +746,7 @@ class Mixl1Model(jar.DynestySamplingTools):
             n_g = jnp.array([1])
 
         return n_g
-
-    @partial(jax.jit, static_argnums=(0,))
-    def chi_sqr(self, mod):
-        """ Chi^2 2 dof likelihood
-
-        Evaulates the likelihood of observing the data given the model.
-
-        Parameters
-        ----------
-        mod : jax device array
-            Spectrum model.
-
-        Returns
-        -------
-        L : float
-            Likelihood of the data given the model
-        """
-
-        L = -jnp.sum(jnp.log(mod) + self.s / mod)
-
-        return L      
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def lnlikelihood(self, theta):
-        """
-        Calculate the log likelihood of the model given parameters and data.
-        
-        Parameters
-        ----------
-        theta : numpy.ndarray
-            Parameter values.
-        nu : numpy.ndarray
-            Array of frequency values.
-
-        Returns
-        -------
-        float :
-            Log-likelihood value.
-        """
-    
-        theta_u = self.unpackParams(theta)
-           
-        # Constraint from the periodogram 
-        mod = self.model(theta_u)
-        
-        lnlike = self.chi_sqr(mod)
-         
-        return lnlike
-
+ 
     @partial(jax.jit, static_argnums=(0,))
     def l1_modewidths(self, zeta, fac=1, **kwargs):
         """ Compute linewidths for mixed l1 modes
@@ -747,33 +765,7 @@ class Mixl1Model(jar.DynestySamplingTools):
         """
          
         return  fac * self.obs['mode_width'][0] * jnp.maximum(1e-6, 1. - zeta) 
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def envelope(self, nu,):
-        """ Power of the seismic p-mode envelope
-    
-        Computes the power at frequency nu in the oscillation envelope from a 
-        Gaussian distribution. Used for computing mode heights.
-    
-        Parameters
-        ----------
-        nu : float
-            Frequency (in muHz).
-        hmax : float
-            Height of p-mode envelope (in SNR).
-        numax : float
-            Frequency of maximum power of the p-mode envelope (in muHz).
-        width : float
-            Width of the p-mode envelope (in muHz).
-    
-        Returns
-        -------
-        h : float
-            Power at frequency nu (in SNR)   
-        """
  
-        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
-    
     @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u,):
 
@@ -797,9 +789,9 @@ class Mixl1Model(jar.DynestySamplingTools):
 
             modes += jar.lor(self.f, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(theta_u['inc'])**2
         
-            modes += jar.lor(self.f, nul1 - zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(self.f, nul1 - nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
         
-            modes += jar.lor(self.f, nul1 + zeta[i] * nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
+            modes += jar.lor(self.f, nul1 + nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(theta_u['inc'])**2 / 2
 
         return modes
     
@@ -1145,19 +1137,335 @@ class Mixl1Model(jar.DynestySamplingTools):
 
         return result
 
-    variables = {'l1': {'u1'       : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'         , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-                        'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-                        'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
-                        'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-                       #'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-                        'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},
-                        'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-                        'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-                        'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
-                       },
-                'common': {'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                           'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                           'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
-                }
+    variables = {'u1'       : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'         , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+                 'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
+                 'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
+                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
+                 #'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
+                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},
+                 'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
+                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},
+                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True, 'unit': 'K'}, 
+                 }
+                
 
-   
+class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
+
+    def __init__(self, f, s, obs, addPriors, N_g, NPriorSamples, maxiter=15, vis={'V10': 1.22}, priorpath=None):
+
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+  
+        self.setPriors()
+
+        self.setLabels() 
+
+        self.setAddObs(keys=['teff', 'dnu', 'numax'])
+
+        self.ndims = len(self.priors)
+
+        self.n_g_min = 1
+        
+        self.compileCouplingFunc()
+
+    def setLabels(self, ):
+        """
+        Set parameter labels and categorize them based on priors.
+
+        Parameters
+        ----------
+        priors : dict
+            Dictionary containing prior information for specific parameters.
+
+        Notes
+        -----
+        - Initializes default PCA and additional parameter lists.
+        - Checks if parameters are marked for PCA and not in priors; if so, 
+          adds to PCA list.
+        - Otherwise, adds parameters to the additional list.
+        - Combines PCA and additional lists to create the final labels list.
+        - Identifies parameters that use a logarithmic scale and adds them to 
+          logpars list.
+        """
+ 
+        self.labels = list(self.priors.keys())
+
+        # Parameters that are in log10
+        self.logpars = []
+        for key in self.priors.keys():
+            if self.variables[key]['log10']:
+                self.logpars.append(key)
+
+    def setPriors(self,):
+        """ Set the prior distributions.
+
+        The prior distributions are constructed from the projection of the 
+        PCA sample onto the reduced dimensional space.
+
+        """
+
+        self.priors = {}
+
+        _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}
+         
+        for key in ['bp_rp']:
+            _obs[key] = self.obs[key]
+
+        self.DR = PCA(_obs, ['d01', 'DPi1', 'teff', 'dnu', 'numax'], self.priorpath, self.NPriorSamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        
+        self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
+ 
+        for i, key in enumerate(['d01', 'DPi1', 'teff', 'dnu', 'numax']):
+
+            self.priors[key] = dist.distribution(self.DR.ppf[i], 
+                                                self.DR.pdf[i], 
+                                                self.DR.logpdf[i], 
+                                                self.DR.cdf[i])
+ 
+        self.priors['eps_g'] = dist.normal(loc=0.8, scale=0.1)
+
+        self.priors['q'] = dist.uniform(loc=0.01, scale=0.5)
+
+        # Core rotation prior
+        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
+
+        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
+
+        # The inclination prior is a sine truncated between 0, and pi/2.
+        self.priors['inc'] = dist.truncsine() 
+ 
+    def unpackParams(self, theta): 
+        """ Cast the parameters in a dictionary
+
+        Parameters
+        ----------
+        theta : array
+            Array of parameters drawn from the posterior distribution.
+
+        Returns
+        -------
+        theta_u : dict
+            The unpacked parameters.
+
+        """
+
+        theta_u = {key: theta[i] for i, key in enumerate(self.priors.keys())}
+ 
+        for key in self.logpars:
+            theta_u[key] = 10**theta_u[key]
+ 
+        return theta_u
+    
+    def compileCouplingFunc(self):
+        """ Compile the coupling function ahead of runtime
+        """
+        _nu_p = jnp.arange(len(self.obs['nu0_p']), dtype=np.float64)
+    
+        _nu_g = jnp.arange(self.N_g, dtype=np.float64)
+
+        # Also precompute some things
+        self.arange_nup = jnp.arange(len(_nu_p), dtype=np.float64)
+
+        self.arange_nug = jnp.arange(len(_nu_g), dtype=np.float64)
+
+        self.ones_nu = jnp.ones_like(self.f)
+
+        q_dummy = 0.1
+
+        DPi1_dummy = 100.
+ 
+        #self.couple = jax.jit(self.couple_halley).lower(_nu_p, _nu_g, q_dummy, q_dummy, DPi1_dummy).compile()
+ 
+    variables = {'d01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True , 'pca': True , 'unit': 'muHz'},
+                 'DPi1'      : {'info': 'period spacing of the l=1 modes'          , 'log10': False, 'pca': False, 'unit': 's'}, 
+                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True , 'unit': 'K'}, 
+                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': False, 'unit': 'None'}, 
+                 'q'         : {'info': 'coupling strength'                        , 'log10': False, 'pca': False, 'unit': 'None'},
+                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
+                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'}, 
+                 'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
+                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'},  
+                 }
+ 
+    def model(self, thetaU):
+ 
+        nu1_g = 1 / (thetaU['DPi1']/ 1e6 * (jnp.arange(self.n_g_min, self.n_g_min+self.N_g) + thetaU['eps_g']))[::-1]
+
+        nu1_p = self.obs['nu0_p'] + thetaU['d01'] 
+
+        num_p, num_g = self.couple_halley(nu1_p, nu1_g, thetaU['q'], thetaU['q'], thetaU['DPi1'] / 1e6)
+
+        nu1s = jnp.append(num_p, num_g) # TODO is this correct? Should all num_p and num_g be included in the model?
+
+        zeta = self.zeta_p(nu1s, thetaU['q'], thetaU['DPi1']/1e6, thetaU['dnu'], nu1_p) # jnp.zeros_like(nu1s) # TODO how should zeta be calculated?
+
+        Hs1 = self.envelope(nu1s, )
+        
+        modewidth1s = self.l1_modewidths(zeta,)
+         
+        nurot = zeta * thetaU['nurot_c'] + (1 - zeta) * thetaU['nurot_e']
+        
+        modes = self.ones_nu
+ 
+        for i in range(len(nu1s)):
+            
+            modes += jar.lor(self.f, nu1s[i]           , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(thetaU['inc'])**2
+        
+            modes += jar.lor(self.f, nu1s[i] - nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(thetaU['inc'])**2 / 2
+        
+            modes += jar.lor(self.f, nu1s[i] + nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(thetaU['inc'])**2 / 2
+
+        return modes
+     
+    def l1_modewidths(self, zeta, fac=1, **kwargs):
+        """ Compute linewidths for mixed l1 modes
+
+        Parameters
+        ----------
+        modewidth0 : jax device array
+            Mode widths of l=0 modes.
+        zeta : jax device array
+            The mixing degree
+
+        Returns
+        -------
+        modewidths : jax device array
+            Mode widths of l1 modes.
+        """
+         
+        return  fac * self.obs['mode_width'][0] * jnp.maximum(1e-6, 1. - zeta)   
+
+    
+    
+    def __call__(self):  
+        pass
+
+ 
+     
+        
+ 
+ 
+ 
+       
+    
+    
+
+    def nearest(self, nu, nu_target):
+        """
+        Utility function: given 1d arrays nu and nu_target, return a 1d array with the 
+        same shape as nu, containing the nearest elements of nu_target to each element of nu.
+        """
+ 
+        return nu_target[jnp.argmin(jnp.abs(nu[:, None] - nu_target[None, :]), axis=1)]
+
+    def Theta_p(self, nu, Dnu, nu_p):
+        """
+        p-mode phase function Theta_p. Provide a list of p-mode frequencies nu_p.
+        """
+        return jnp.pi * jnp.where((nu <= jnp.max(nu_p)) & (nu >= jnp.min(nu_p)),
+                                 jnp.interp(nu, nu_p, self.arange_nup),
+                                 (nu - self.nearest(nu, nu_p)) / Dnu + jnp.round((self.nearest(nu, nu_p) - nu_p[0]) / Dnu)
+                                )
+
+    def Theta_g(self, nu, DPi1, nu_g):
+        """
+        g-mode phase function Theta_g. Provide a list of g-mode frequencies nu_g.
+        """
+        return jnp.pi * jnp.where((nu <= jnp.max(nu_g)) & (nu >= jnp.min(nu_g)),
+                                  -jnp.interp(1 / nu, jnp.sort(1 / nu_g), self.arange_nug),
+                                  (1 / self.nearest(nu, nu_g) - 1 / nu) / DPi1
+                                 )
+
+    def zeta(self, nu, q, DPi1, Dnu, nu_p, nu_g):
+        """
+        zeta, the approximate local mixing fraction.
+        """
+        Theta_p = self.Theta_p(nu, Dnu, nu_p)
+        
+        Theta_g = self.Theta_g(nu, DPi1, nu_g)
+        
+        return 1 / (1 + DPi1 / Dnu * nu**2 / q * jnp.sin(Theta_g)**2 / jnp.cos(Theta_p)**2)
+
+    def zeta_p(self, nu, q, DPi1, Dnu, nu_p):
+        """
+        zeta as defined using only the p-mode phase function. Agrees with zeta only at the 
+        eigenvalues (i.e. roots of the characteristic equation F(nu) = 0).
+        """
+        Theta = self.Theta_p(nu, Dnu, nu_p)
+        
+        return 1 / (1 + DPi1 / Dnu * nu**2 / (q * jnp.cos(Theta)**2 + jnp.sin(Theta)**2/q))
+
+    def zeta_g(self, nu, q, DPi1, Dnu, nu_g):
+        """
+        zeta as defined using only the g-mode phase function. Agrees with zeta only at the
+        eigenvalues (i.e. roots of the characteristic equation F(nu) = 0).
+        """
+        Theta = self.Theta_g(nu, DPi1, nu_g)
+
+        return 1 / (1 + DPi1 / Dnu * nu**2 * (q * jnp.cos(Theta)**2 + jnp.sin(Theta)**2/q))
+
+    def F(self, nu, nu_p, nu_g, Dnu, DPi1, q):
+        """
+        Characteristic function F such that F(nu) = 0 yields eigenvalues.
+        """
+        return jnp.tan(self.Theta_p(nu, Dnu, nu_p)) * jnp.tan(self.Theta_g(nu, DPi1, nu_g)) - q
+
+    def Fp(self, nu, nu_p, nu_g, Dnu, DPi1, qp=0):
+        """
+        First derivative dF/dnu. Required for some numerical methods.
+        """
+        return (jnp.tan(self.Theta_g(nu, DPi1, nu_g)) / jnp.cos(self.Theta_p(nu, Dnu, nu_p))**2 * jnp.pi / Dnu
+              + jnp.tan(self.Theta_p(nu, Dnu, nu_p)) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**2
+              - qp)
+
+    def Fpp(self, nu, nu_p, nu_g, Dnu, DPi1, qpp=0):
+        """
+        Second derivative d²F / dnu². Required for some numerical methods.
+        """
+        return (2 * self.F(nu, nu_p, nu_g, Dnu, DPi1, 0) / jnp.cos(self.Theta_p(nu, Dnu, nu_p))**2 * (jnp.pi / Dnu)**2
+              + 2 * self.F(nu, nu_p, nu_g, Dnu, DPi1, 0) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * (jnp.pi / DPi1 / nu**2)**2
+              - 2 * jnp.tan(self.Theta_p(nu, Dnu, nu_p)) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**3
+              + 2 / jnp.cos(self.Theta_p(nu, Dnu, nu_p))**2 * jnp.pi / Dnu / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**2
+              - qpp)
+    
+    def halley_iteration(self, x, y, yp, ypp, lmbda=1.):
+        """
+        Halley's method (2nd order Householder):
+        x_{n+1} = x_n = 2 f f' / (2 f'² - f f''),
+        again with damping.
+        """
+        return x - lmbda * 2 * y * yp / (2 * yp * yp - y * ypp)
+
+    def couple_halley(self, nu_p, nu_g, q_p, q_g, DPi1, lmbda=.5):
+        """
+        Solve the characteristic equation with Halley's method.
+        This converges even faster than Newton's method and is capable
+        of handling quite numerically difficult scenarios with not
+        very much damping.
+        """
+
+        #Dnu   =  jnp.median(jnp.diff(nu_p))
+
+        #DPi1  = -jnp.median(jnp.diff(1/nu_g))
+
+        num_p = jnp.copy(nu_p)
+        
+        num_g = jnp.copy(nu_g)
+
+        for _ in range(self.maxiter):
+            num_p = self.halley_iteration(num_p,
+                                          self.F(num_p, nu_p, nu_g, self.obs['dnu'][0], DPi1, q_p),
+                                          self.Fp(num_p, nu_p, nu_g, self.obs['dnu'][0], DPi1),
+                                          self.Fpp(num_p, nu_p, nu_g, self.obs['dnu'][0], DPi1), lmbda=lmbda)
+            num_g = self.halley_iteration(num_g,
+                                          self.F(num_g, nu_p, nu_g, self.obs['dnu'][0], DPi1, q_g),
+                                          self.Fp(num_g, nu_p, nu_g, self.obs['dnu'][0], DPi1),
+                                          self.Fpp(num_g, nu_p, nu_g, self.obs['dnu'][0], DPi1), lmbda=lmbda)
+
+        return num_p, num_g
+    
+

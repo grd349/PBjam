@@ -198,7 +198,7 @@ class modeIDsampler(plotting, ):
             R[key] = np.append(l20res[key], l1res[key])
         
         for rootkey in ['summary', 'samples']:
-            for D in [l20res, l1res]:
+            for D in [l1res, l20res]: # Note this overrides the numax, dnu and teff estimates from l1res since they are included in l20res.
                 for subkey in list(D[rootkey].keys()):
                     if subkey not in ['freq', 'height', 'width']:
                         R[rootkey][subkey] = D[rootkey][subkey]
