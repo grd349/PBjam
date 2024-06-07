@@ -1,0 +1,176 @@
+{
+    "numax": {
+        "info": "frequency at maximum power",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "dnu": {
+        "info": "large frequency separation",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "d01": {
+        "info": "l=0,1 mean frequency difference",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "d02": {
+        "info": "l=0,2 mean frequency difference",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "eps_p": {
+        "info": "phase offset of the p-modes",
+        "log10": false,
+        "pca": true,
+        "unit": "None"
+    },
+    "alpha_p": {
+        "info": "curvature of the p-modes",
+        "log10": true,
+        "pca": true,
+        "unit": "None"
+    },
+    "nurot_c": {
+        "info": "core rotation rate",
+        "log10": true,
+        "pca": false,
+        "unit": "muHz"
+    },
+    "nurot_e": {
+        "info": "envelope rotation rate",
+        "log10": true,
+        "pca": false,
+        "unit": "muHz"
+    },
+    "inc": {
+        "info": "stellar inclination axis",
+        "log10": false,
+        "pca": false,
+        "unit": "rad"
+    },
+    "env_width": {
+        "info": "envelope width",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "env_height": {
+        "info": "envelope height",
+        "log10": true,
+        "pca": true,
+        "unit": "ppm^2/muHz"
+    },
+    "mode_width": {
+        "info": "mode width",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "teff": {
+        "info": "effective temperature",
+        "log10": true,
+        "pca": true,
+        "unit": "K"
+    },
+    "bp_rp": {
+        "info": "Gaia Gbp-Grp color",
+        "log10": false,
+        "pca": true,
+        "unit": "mag"
+    },
+    "H1_nu": {
+        "info": "Frequency of the high-frequency Harvey",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "H1_exp": {
+        "info": "Exponent of the high-frequency Harvey",
+        "log10": false,
+        "pca": true,
+        "unit": "None"
+    },
+    "H_power": {
+        "info": "Power of the Harvey law",
+        "log10": true,
+        "pca": true,
+        "unit": "ppm^2/muHz"
+    },
+    "H2_nu": {
+        "info": "Frequency of the mid-frequency Harvey",
+        "log10": true,
+        "pca": true,
+        "unit": "muHz"
+    },
+    "H2_exp": {
+        "info": "Exponent of the mid-frequency Harvey",
+        "log10": false,
+        "pca": true,
+        "unit": "None"
+    },
+    "H3_power": {
+        "info": "Power of the low-frequency Harvey",
+        "log10": true,
+        "pca": false,
+        "unit": "ppm^2/muHz"
+    },
+    "H3_nu": {
+        "info": "Frequency of the low-frequency Harvey",
+        "log10": true,
+        "pca": false,
+        "unit": "muHz"
+    },
+    "H3_exp": {
+        "info": "Exponent of the low-frequency Harvey",
+        "log10": false,
+        "pca": false,
+        "unit": "None"
+    },
+    "shot": {
+        "info": "Shot noise level",
+        "log10": true,
+        "pca": false,
+        "unit": "ppm^2/muHz"
+    },
+    "u1": {
+        "info": "Sum of p_L0 and p_D0 over sqrt(2)",
+        "log10": false,
+        "pca": true,
+        "unit": "Angular frequency 1/muHz^2"
+    },
+    "u2": {
+        "info": "Difference of p_L0 and p_D0 over sqrt(2)",
+        "log10": false,
+        "pca": true,
+        "unit": "Angular frequency 1/muHz^2"
+    },
+    "DPi1": {
+        "info": "period spacing of the l=0 modes",
+        "log10": false,
+        "pca": true,
+        "unit": "s"
+    },
+    "eps_g": {
+        "info": "phase offset of the g-modes",
+        "log10": false,
+        "pca": true,
+        "unit": "None"
+    },
+    "freqError": {
+        "info": "Frequency error",
+        "log10": false,
+        "pca": false,
+        "unit": "muHz"
+    },
+    "q": {
+        "info": "coupling strength",
+        "log10": false,
+        "pca": false,
+        "unit": "None"
+    }
+}
