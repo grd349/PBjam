@@ -705,9 +705,9 @@ class truncsine():
             The probability at x
         """
 
-        T = jax.lax.lt(x, 0.) | jax.lax.lt(1., x)  
+        T = jax.lax.lt(x, 0.) | jax.lax.lt(jnp.pi/2., x)  
              
-        y = jax.lax.cond(T, lambda : 0., lambda : jnp.log(jnp.sin(x)))
+        y = jax.lax.cond(T, lambda : -jnp.inf, lambda : jnp.log(jnp.sin(x)))
 
         return y
 
