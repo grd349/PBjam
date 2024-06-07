@@ -6,11 +6,9 @@ import pbjam.distributions as dist
 from pbjam import jar
 import numpy as np
 from tinygp import GaussianProcess, kernels
-import numpyro
-import numpyro.distributions as pyrodist
-from numpyro.infer import MCMC, NUTS, init_to_median
-import heapq
+import statsmodels.api as sm
 from tqdm import tqdm
+
 
 class peakbag(plotting):
 
@@ -42,7 +40,7 @@ class peakbag(plotting):
     
         diffs = np.array([distances[m, i] for i, m in enumerate(np.argmin(distances, axis=0))])
     
-        goodCutIdx = diffs > 3*Gamma
+        goodCutIdx = diffs > Gamma
 
         return goodCutIdx
 
@@ -52,24 +50,23 @@ class peakbag(plotting):
     
         for i, c in enumerate(C):
         
-            if i ==0 or i==len(C)-1:
+            if (i==0) or (i==len(C)-1):
                 continue
         
             bidx = nu < c
             nub_idx = np.argmax(nu[bidx] - c)
-        
             lb = ells[bidx][nub_idx]
     
             aidx = nu > c
-        
             nua_idx = np.argmin(nu[aidx] - c)
-        
             la = ells[aidx][nua_idx]
         
             if (int(lb)==2) and (int(la)==0):
                 goodCut = False
+
             elif (int(lb)==3) and (int(la)==1):
                 goodCut = False
+
             else:
                 goodCut = True
     
@@ -79,18 +76,22 @@ class peakbag(plotting):
 
     def kmeans(self, nu, ells, centroids=None, max_iters=100):
  
+        nu = np.sort(nu)
+         
         if not centroids:
-            centroids = nu[ells==0]
-    
-        k = len(centroids)
-    
+            _k = int(np.ceil(len(ells[ells==0]) / self.Nslices))
+
+            centroids = nu[ells==0][::_k]
+         
+        k = len(centroids) # should be the same as _k
+         
         for _ in range(max_iters):
         
             # Assign each data point to the closest centroid
             distances = np.abs(nu[:, np.newaxis] - centroids) # distance of each point to all the centroids
 
             labels = np.argmin(distances, axis=1) # assign to closest centroid
-        
+             
             # Update centroids based on the mean of data points assigned to each cluster
             new_centroids = np.array([nu[labels == i].mean() for i in range(k)])
         
@@ -120,17 +121,16 @@ class peakbag(plotting):
 
         return cuts
 
- 
     def createPeakbagInstances(self):
 
         if self.slice:
     
-            if self.Nslices == 0:
+            if self.Nslices < 1:
                 self.Nslices = len(self.ell[self.ell==0])
 
             sliceLimits = self.sliceSpectrum()
-
-            print('Creating spectrum slices')
+            
+            print('Creating envelope slices')
             for i in tqdm(range(len(sliceLimits) - 1)):
                  
                 slcIdx = self.slc(self.freq[0, :], sliceLimits[i], sliceLimits[i + 1])
@@ -216,66 +216,43 @@ class peakbag(plotting):
         limits : np.array
             Frequencies delimiting the slices. 
         """
-  
-        # freqs = self.freq.copy()
-
-        # # Sort modes because they might be ordered by angular degree
-        # sortIdx = np.argsort(freqs[0, :])
-
-        # sortedFreqs = freqs[:, sortIdx]
-
-        # # Compute the differences between the mean freqs of all modes
-        # modeDiffs = np.diff(sortedFreqs[0, :])
-
-        # # Find the indices of the N largets differences so we slice furthest from any mode, a reasonable number here is N_p.
-        # ind = [np.where(modeDiffs==x)[0][0] for x in heapq.nlargest(self.Nslices, modeDiffs)]
-
-        # # Place the slice halfway between adjacent modes with the largest frequency differences
-        # cuts = sortedFreqs[0, ind] + modeDiffs[ind] / 2
-
-        # # Make list of 
-        # limits = np.append(np.append(min(self.freq_limits), sorted(cuts)), max(self.freq_limits))
-
-        # clusters
-
-        freqs = np.sort(self.freq[0, :])
+   
+        sortidx = np.argsort(self.freq[0, :])
+        
+        freqs = self.freq[0, sortidx]
+        ells = self.ell[sortidx]
          
-        _, labels, nclusters = self.kmeans(freqs, self.ell)
+        _, labels, nclusters = self.kmeans(freqs, ells)
          
         # find cuts
         cuts = self.determineCuts(self.dnu[0], freqs, labels)
-        # print(len(cuts))
-        # print(nclusters+1)
+ 
         assert len(cuts) == nclusters + 1
 
         # weed out small distances
-        goodCutIdx0 = self.checkSmallDiffs(cuts, freqs, np.median(self.width[0, :]))
+        goodCutIdx0 = self.checkSmallDiffs(cuts, freqs, 3*np.median(self.width[0, sortidx]))
 
         # weed out 2, 0 and 3, 1 splitting cuts
-        goodCutIdx1 = self.checkNoSmallSep(cuts, freqs, self.ell)
+        goodCutIdx1 = self.checkNoSmallSep(cuts, freqs, ells)
 
         goodCutIdx = goodCutIdx0 * goodCutIdx1
 
-        # len(cuts[goodCutIdx])
-
         limits = cuts[goodCutIdx]
 
-        #npercut = [len(freqs[0, self.slc(freqs[0, :], limits[i], limits[i+1])]) for i in range(len(limits)-1)]
- 
         return limits
     
-    def __call__(self, dynamic=False, progress=True, sampler_kwargs={}):
+    def __call__(self, dynamic=False, progress=True, sampler_kwargs={}, Nsamples=10000):
   
         if self.slice:
-            print('Peakbagging mode slices')
+            print('Peakbagging envelope slices')
         else:
             print('Peakbagging the whole envelope')
 
-        for i, inst in tqdm(enumerate(self.pbInstances)):
+        for inst in tqdm(self.pbInstances):
              
             inst(dynamic, progress, sampler_kwargs)
  
-        samplesSaved = min([10000, min([inst.nsamples for inst in self.pbInstances])])
+        samplesSaved = min([Nsamples, min([inst.nsamples for inst in self.pbInstances])])
 
         mainResult = {'ell': np.array([]),
                       'zeta': np.array([]),
@@ -287,7 +264,7 @@ class peakbag(plotting):
                                 'width' : np.empty(shape=(samplesSaved, 0), dtype=float),},
                       }
         
-        for i, inst in enumerate(self.pbInstances):
+        for inst in self.pbInstances:
 
             mainResult = self.compileResults(mainResult, inst.result)
 
@@ -316,7 +293,125 @@ class peakbag(plotting):
             mainResult['samples'][key] = np.append(mainResult['samples'][key], smpl, axis=1)
             
         return mainResult
+
+    def getRotationInclination(self,):
+
+        R = jointRotInc(self)
+
+        samples = R()
+
+        samplesU = R.unpackSamples(samples)
+
+        self.result['samples'].update(samplesU)
+
+        for key in samplesU.keys():
+            self.result['summary'][key] = jar.smryStats(samplesU[key])
+
+
+class jointRotInc(jar.DynestySamplingTools):
     
+    def __init__(self, pb, NKDE=2500, bw=0.03):
+        
+        self.insts = pb.pbInstances
+        
+        self.labels = ['nurot_e', 'nurot_c', 'inc']
+        
+        self.priors = {lbl: self.insts[0].priors[lbl] for lbl in self.labels}
+
+        self.ndims = len(self.priors)
+        
+        self.Nslices = len(pb.pbInstances)
+        
+        self.makeKDEs(NKDE, bw)
+    
+    def makeKDEs(self, N, bw):
+        
+        self.kdes = []
+        
+        sampleSizes = np.array([self.insts[i].samples.shape[0] for i in range(self.Nslices)])
+        
+        Nc = np.append(N, sampleSizes).min()
+        
+        for i in range(self.Nslices):
+            
+            indx = np.random.choice(np.arange(self.insts[i].samples.shape[0], dtype=int), Nc)
+ 
+            samplesU = self.insts[i].unpackSamples(self.insts[i].samples[indx, :])
+
+            kde = sm.nonparametric.KDEMultivariate(data=[samplesU[lbl] for lbl in self.labels], 
+                                                   var_type='c'*self.ndims, 
+                                                   bw=[bw]*self.ndims)
+
+            self.kdes.append(kde)
+ 
+    @partial(jax.jit, static_argnums=(0,))
+    def unpackParams(self, theta):
+        thetaU = {lbl: theta[i] for i, lbl in enumerate(self.labels)}
+        return thetaU
+    
+    def unpackSamples(self, samples):
+        S = {}
+    
+        for i, lbl in enumerate(self.labels):
+            S[f'{lbl}'] = samples[:, i]
+        
+        return S
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def priorLnProb(self, thetaU):
+        return jnp.sum(jnp.array([self.priors[lbl].logpdf(thetaU[lbl]) for lbl in self.labels]))
+   
+    def lnJointPost(self, theta):
+         
+        thetaU = self.unpackParams(theta)
+        
+        lnPrior = self.priorLnProb(thetaU)
+    
+        lnL = 0  
+        
+        for kde in self.kdes:
+            lnL += jnp.log(kde.pdf(theta)) - lnPrior 
+    
+        lnP = lnL + lnPrior  
+ 
+        if np.isnan(lnP) or np.isinf(lnP):
+            lnP = -jnp.inf
+        
+        return lnP
+ 
+    def __call__(self,  nwalkers=500, nsteps=500, burnFraction=0.1, accept=0.1, progress=True):
+        
+        import emcee
+
+        itr = 0
+
+        p0 = np.empty(shape=(0, self.ndims), dtype=float)
+
+        while p0.shape[0] < nwalkers:
+            itr += 1
+
+            u = np.random.uniform(0, 1, size=self.ndims)
+
+            _p0 = self.ptform(u)
+
+            lnP = self.lnJointPost(_p0)
+
+            if np.isfinite(lnP):
+                p0 = np.vstack((p0, _p0))
+
+            if itr>10000:
+                p0 = np.vstack((p0, _p0))
+
+        sampler = emcee.EnsembleSampler(nwalkers, self.ndims, self.lnJointPost)
+
+        sampler.run_mcmc(p0, nsteps=nsteps, progress=True);
+        
+        idx = sampler.acceptance_fraction > accept
+        
+        samples = sampler.get_chain()[int(burnFraction*nsteps):, idx, :].reshape((-1, self.ndims))
+        
+        return samples
+
 class DynestyPeakbag(jar.DynestySamplingTools, plotting):
     
     def __init__(self, f, s, ell, freq, height, width, zeta, numax,  dnu, d02, freq_limits, addPriors={}, **kwargs):
@@ -360,18 +455,16 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         
         # Envelope rotation prior
         if 'nurot_e' not in self.priors.keys():
-            #self.priors['nurot_e'] = dist.uniform(loc=-2, scale=2.)
-            self.priors['nurot_e'] = dist.uniform(loc=1e-2, scale=2.)
+            self.priors['nurot_e'] = dist.uniform(loc=1e-9, scale=2.)
 
         # Core rotation prior
         if 'nurot_c' not in self.priors.keys():
-            #self.priors['nurot_c'] = dist.uniform(loc=-2, scale=2.)
-            self.priors['nurot_c'] = dist.uniform(loc=1e-2, scale=2.)
+            self.priors['nurot_c'] = dist.uniform(loc=1e-9, scale=2.)
 
         # The inclination prior is a cos(i)~U(0,1)
         if 'inc' not in self.priors.keys():
-            #self.priors['inc'] = dist.truncsine()
-            self.priors['inc'] = dist.uniform(loc=0., scale=1.)
+            self.priors['inc'] = dist.truncsine()
+            #self.priors['inc'] = dist.uniform(loc=0., scale=1)
 
         if 'shot' not in self.priors.keys():
             self.priors['shot'] = dist.normal(loc=0., scale=0.01)
@@ -509,11 +602,9 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
                    'inc'    : theta[self.labels.index('inc')],
                    'shot'   : theta[self.labels.index('shot')],
                    }
-  
-        theta_u['inc'] = jnp.arccos(theta_u['inc'])
 
-        theta_u['nurot_e'] = theta_u['nurot_e']/jnp.sin(theta_u['inc'])
-        theta_u['nurot_c'] = theta_u['nurot_c']/jnp.sin(theta_u['inc'])
+        theta_u['nurot_e'] = theta_u['nurot_e'] / jnp.sin(theta_u['inc'])
+        theta_u['nurot_c'] = theta_u['nurot_c'] / jnp.sin(theta_u['inc'])
 
         for key in self.logpars:
             theta_u[key] = 10**theta_u[key]
@@ -653,260 +744,4 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         return GP
 
 
-class NumPyroPeakbag(plotting):
-
-    def __init__(self, f, s, ell, zeta, freq, height, width, numax, 
-                 dnu, d02, addPriors={}, freq_limits=[], **kwargs):
-    
-        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
-        
-        self.Nyquist = self.f[-1]
-
-        self.bkg = self.getBkg() 
-
-        self.snr = self.s / self.bkg(self.f)
-
-        idxModes = self.pickFreqs(self.ell, self.freq, self.dnu)
-
-        self.ell = self.ell[idxModes]
- 
-        self.freq = self.freq[:, idxModes]
-        
-        self.height = self.height[:, idxModes]
-        self.mode_snr = self.height[0, :] / self.bkg(self.freq[0, :])
-
-        self.zeta = self.zeta[idxModes]
-         
-        self.width = self.width[:, idxModes]
-        self.widths = jnp.log10(self.width[0, :]/(1-self.zeta))
-         
-        
-        self.Nmodes = len(self.ell)
-
-        self.sel = self.setFreqRange()
-
-        self.freq_err = 0.03
-
-        self._f = self.f[self.sel]
-        self._snr = self.snr[self.sel]
-
-        self.zeros = jnp.zeros_like(self._f)
-
-    @partial(jax.jit, static_argnums=(0,))
-    def visell1(self, emm, inc):
-
-        y = jax.lax.cond(emm == 0, 
-                            lambda : jnp.cos(inc)**2,
-                            lambda : 0.5*jnp.sin(inc)**2
-                        )
-        return y
-
-    @partial(jax.jit, static_argnums=(0,))
-    def visell2(self, emm, inc):
-
-        y = jax.lax.cond(emm == 0, 
-                            lambda : (3*jnp.cos(inc)**2-1)**2/4,
-                            lambda : jax.lax.cond(emm == 1,
-                                                lambda : jnp.sin(2*inc)**2*3/8,
-                                                lambda : jnp.sin(inc)**4*3/8))
-        return y
-
-    @partial(jax.jit, static_argnums=(0,))
-    def visell3(self, emm, inc):
-
-        y = jax.lax.cond(emm == 0, 
-                            lambda : (5*jnp.cos(3*inc)+3*jnp.cos(inc))**2/64,
-                            lambda : jax.lax.cond(emm == 1,
-                                                lambda : (5*jnp.cos(2*inc)+3)**2*jnp.sin(inc)**2*3/64,
-                                                lambda : jax.lax.cond(emm == 2,
-                                                                        lambda : jnp.cos(inc)**2*jnp.sin(inc)**4*15/8,
-                                                                        lambda : jnp.sin(inc)**6*5/16)))
-        return y
-
-    @partial(jax.jit, static_argnums=(0,))
-    def visibility(self, ell, m, inc):
-
-        emm = abs(m)
-
-        y = jax.lax.cond(ell == 0, 
-                            lambda : 1.,
-                            lambda : jax.lax.cond(ell == 1,
-                                                lambda : self.visell1(emm, inc),
-                                                lambda : jax.lax.cond(ell == 2,
-                                                                        lambda : self.visell2(emm, inc),
-                                                                        lambda : jax.lax.cond(ell == 3,
-                                                                                            lambda : self.visell3(emm, inc),
-                                                                                            lambda : jnp.nan))))
-        return y 
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def lor(self, nu0, h, w):
-        """ Lorentzian to describe an oscillation mode.
-
-        Parameters
-        ----------
-        nu0 : float
-            Frequency of lorentzian (muHz).
-        h : float
-            Height of the lorentizan (SNR).
-        w : float
-            Full width of the lorentzian (muHz).
-
-        Returns
-        -------
-        mode : ndarray
-            The SNR as a function frequency for a lorentzian.
-        """
-
-        return h / (1.0 + 4.0/ w**2 * (self._f - nu0)**2)
-
-    @partial(jax.jit, static_argnums=(0,))
-    def model(self, freq, height, width, split, inc, shot):
-
-        modes = self.zeros + shot
-         
-        for i, l in enumerate(self.ell):
-            
-            for m in jnp.arange(2 * l + 1) - l:
-                
-                E = self.visibility(l, m, inc)
-                
-                nu_nlm = freq[i] + split * m
-                 
-                H = E * height[i]
-
-                w = width[i]
-                 
-                modes += self.lor(nu_nlm, H, width[i])
-        
-        return modes
-     
-    def PyroModel(self, obs=None, ):
-    
-        freq = numpyro.sample('freq', pyrodist.Normal(loc=self.freq[0, :], scale=self.freq_err * self.dnu[0]) )
-        
-        height_s = numpyro.sample('height_s', pyrodist.Normal(loc=jnp.log10(self.mode_snr), scale=0.1))
-        height = numpyro.deterministic('height', jnp.power(10., height_s))
-        
-        width_s = numpyro.sample('width_s', pyrodist.Normal(self.widths, 0.1))
-        width = numpyro.deterministic('width', jnp.power(10., width_s))
-        
-        split = numpyro.sample('split', pyrodist.HalfNormal(1.0))
-
-        cosinc_s = numpyro.sample('cosinc', pyrodist.Uniform(low=0., high=1.0))
-        inc = numpyro.deterministic('inc', jnp.arccos(cosinc_s))
-
-        shot_s = numpyro.sample('shot_s', pyrodist.Normal(loc=0, scale=0.1))
-        shot = numpyro.deterministic('shot', jnp.power(10., shot_s))
-
-        mod = self.model(freq, height, width, split, inc, shot)
-         
-        if obs is not None:
-            numpyro.sample('obs', pyrodist.Gamma(1.0, 1.0/mod), obs=obs)
-
-    def runNUTS(self, samplePrior=False, warmup=4000, Nsamples=1000, Nchains=1, acceptance=0.8):
-
-        nuts = NUTS(self.PyroModel, target_accept_prob=acceptance, init_strategy=init_to_median)
-        
-        mcmc = MCMC(nuts, num_warmup=warmup, num_samples=Nsamples, num_chains=Nchains)
-        
-        rng = jax.random.PRNGKey(0)
-
-        rng, key = jax.random.split(rng)
-        if samplePrior:
-            mcmc.run(key, obs=None)
-        else:
-            mcmc.run(key, obs=self._snr)
-
-        return mcmc
-
-    def getBkg(self, a=0.66, b=0.88, skips=100):
-        """ Estimate the background
-
-        Takes an average of the power at linearly spaced points along the
-        log(frequency) axis, where the width of the averaging window increases
-        as a power law.
-
-        The mean power values are interpolated back onto the full linear
-        frequency axis to estimate the background noise level at all
-        frequencies.
-
-        Returns
-        -------
-        b : array
-            Array of psd values approximating the background.
-        """
-
-        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
-
-        m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
-
-        bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
-
-        return bkgModel
-
-    def pickFreqs(self, ell, freq, dnu, fac=0.25, modes='l201'):
-        """
-        Pick mode frequency indices that fall within +/- fac * dnu of the lowest
-        and highest l=0 mode frequency in freq. 
-
-        Parameters
-        ----------
-        ell : numpy.ndarray
-            Array of angular degrees values.
-        freq : numpy.ndarray
-            Array of frequency values, contains all angular degrees.
-        dnu : float
-            Larage frequency spacing.
-        fac : float
-            Number of large separations away from lowest and highest l=0 freqs.
-        all : bool, optional
-            Flag to select all frequencies. Default is False.
-
-        Returns
-        -------
-        numpy.ndarray
-            Boolean array indicating selected frequency indices.
-
-        Notes
-        -----
-        - If 'all' is False, selects indices within the range of the lowest ell=0 frequency.
-        - If 'all' is True, selects all frequency indices.
-        """
-         
-        if modes == 'all':
-            idx = jnp.ones(freq.shape[1], dtype=bool)
-        
-        else:
-            idx = (self.freq_limits[0] - fac * dnu[0] < freq[0, :]) & (freq[0,:] < self.freq_limits[1] + fac * dnu[0])
-
-        return idx
-
-    def setFreqRange(self,):
-        """ Get frequency range around numax for model 
-
-        Returns
-        -------
-        idx : jax device array
-            Array of boolean values defining the interval of the frequency axis
-            where the oscillation modes present.
-        """
-        
-        if len(self.freq_limits) == 2:
-            lfreq = self.freq_limits[0]
-            
-            ufreq = self.freq_limits[1]
-        
-        elif (self.modeIDres is not None) and (len(self.freq_limits) == 0):
-            pad = self.modeIDres['summary']['dnu'][0] / 2
-
-            muFreqs = jnp.array([self.priors[key].ppf(0.5) for key in self.labels if 'freq' in key])
-            
-            lfreq = muFreqs.min() - pad
-
-            ufreq = muFreqs.max() + pad
-        else:
-            raise ValueError('Supply a modeID result dictionary or freq_limits to set fit window.')
-
-        return (lfreq < self.f) & (self.f < ufreq)  
     

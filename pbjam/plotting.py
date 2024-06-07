@@ -406,12 +406,15 @@ def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
 
     return fig, ax
 
-def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, **kwargs):
+def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None, **kwargs):
     
-    dnu = self.dnu[0]
     
-    numax = self.numax[0]
-
+    if dnu is None:
+        dnu = self.dnu[0]
+    
+    if numax is None:
+        numax = self.numax[0]
+ 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
     maxL = 0
@@ -911,7 +914,7 @@ class plotting():
             outpath = os.path.join(*[path,  type(self).__name__+f'_{figtype}_{str(ID)}.png'])
             fig.savefig(outpath)
 
-    def echelle(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}):
+    def echelle(self, stage='posterior', ID=None, savepath=None, save_kwargs={}, kwargs={}):
 
         if not 'colors' in kwargs:
             kwargs['colors'] = ellColors
