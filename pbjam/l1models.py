@@ -6,137 +6,21 @@ from functools import partial
 from pbjam.jar import constants as c
 from pbjam.DR import PCA
 import pbjam.distributions as dist
+from pbjam.jar import generalModelFuncs, DynestySamplingTools
+import dynesty
+from dynesty import utils as dyfunc
 
 jax.config.update('jax_enable_x64', True)
 
-class generalFuncs():
-    def __init__(self):
-        pass
-
-    def chi_sqr(self, mod):
-        """ Chi^2 2 dof likelihood
-
-        Evaulates the likelihood of observing the data given the model.
-
-        Parameters
-        ----------
-        mod : jax device array
-            Spectrum model.
-
-        Returns
-        -------
-        L : float
-            Likelihood of the data given the model
-        """
-
-        L = -jnp.sum(jnp.log(mod) + self.s / mod)
-
-        return L 
-       
-    def envelope(self, nu,):
-        """ Power of the seismic p-mode envelope
-    
-        Computes the power at frequency nu in the oscillation envelope from a 
-        Gaussian distribution. Used for computing mode heights.
-    
-        Parameters
-        ----------
-        nu : float
-            Frequency (in muHz).
-        hmax : float
-            Height of p-mode envelope (in SNR).
-        numax : float
-            Frequency of maximum power of the p-mode envelope (in muHz).
-        width : float
-            Width of the p-mode envelope (in muHz).
-    
-        Returns
-        -------
-        h : float
-            Power at frequency nu (in SNR)   
-        """
  
-        return jar.gaussian(nu, 2*self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
-    
-    @partial(jax.jit, static_argnums=(0,))
-    def lnlikelihood(self, theta, scale=1):
-        """
-        Calculate the log likelihood of the model given parameters and data.
-        
-        Parameters
-        ----------
-        theta : numpy.ndarray
-            Parameter values.
-        nu : numpy.ndarray
-            Array of frequency values.
-
-        Returns
-        -------
-        float :
-            Log-likelihood value.
-        """
-
-        theta_u = self.unpackParams(theta)
-        
-        lnlike = self.addAddObsLike(theta_u)
-
-        # Constraint from the periodogram 
-        mod = self.model(theta_u)
-        
-        lnlike += self.chi_sqr(mod)
-         
-        return lnlike
-    
-    def addAddObsLike(self, theta_u):
-        """ Add the additional probabilities to likelihood
-        
-        Adds the additional observational data likelihoods to the PSD likelihood.
-
-        Parameters
-        ----------
-        p : list
-            Sampling parameters.
-
-        Returns
-        -------
-        lnp : float
-            The likelihood of a sample given the parameter PDFs.
-        """
-
-        lnp = 0
-
-        for key in self.addObs.keys():       
-            lnp += self.addObs[key].logpdf(theta_u[key]) 
- 
-        return lnp
-    
-    def setAddObs(self, keys):
-        """ Set attribute containing additional observational data
-
-        Additional observational data other than the power spectrum goes here. 
-
-        Can be Teff or bp_rp color, but may also be additional constraints on
-        e.g., numax, dnu. 
-        """
-        
-        self.addObs = {}
-
-        for key in keys:
-            self.addObs[key] = dist.normal(loc=self.obs[key][0], 
-                                           scale=self.obs[key][1])
- 
-
-class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
+class Asyl1Model(DynestySamplingTools, generalModelFuncs):
     def __init__(self, f, s, obs, addPriors, N_p, NPriorSamples, vis={'V10': 1.22}, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
-        # self.modelVars = {'d01': self.variables['l1']['d01'],
-        #                   'nurot_e': self.variables['common']['nurot_e'],
-        #                   'inc': self.variables['common']['inc'],
-        #                   }
+        modelParLabels = ['d01', 'nurot_e',  'inc',]
 
-        self.setLabels()
+        self.setLabels(self.addPriors, modelParLabels)
 
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
@@ -147,35 +31,7 @@ class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
         self.ndims = len(self.priors)
 
         self.ones_nu = jnp.ones_like(self.f)
-
-    def setLabels(self, ):
-        """
-        Set parameter labels and categorize them based on priors.
-
-        Parameters
-        ----------
-        priors : dict
-            Dictionary containing prior information for specific parameters.
-
-        Notes
-        -----
-        - Initializes default PCA and additional parameter lists.
-        - Checks if parameters are marked for PCA and not in priors; if so, 
-          adds to PCA list.
-        - Otherwise, adds parameters to the additional list.
-        - Combines PCA and additional lists to create the final labels list.
-        - Identifies parameters that use a logarithmic scale and adds them to 
-          logpars list.
-        """
  
-        self.labels = list(self.variables.keys())
-
-        # Parameters that are in log10
-        self.logpars = []
-        for key in self.variables.keys():
-            if self.variables[key]['log10']:
-                self.logpars.append(key)
-
     def setPriors(self,):
         """ Set the prior distributions.
 
@@ -207,33 +63,6 @@ class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
         self.priors['inc'] = dist.truncsine()            
  
     @partial(jax.jit, static_argnums=(0,))
-    def lnlikelihood(self, theta):
-        """
-        Calculate the log likelihood of the model given parameters and data.
-        
-        Parameters
-        ----------
-        theta : numpy.ndarray
-            Parameter values.
-        nu : numpy.ndarray
-            Array of frequency values.
-
-        Returns
-        -------
-        float :
-            Log-likelihood value.
-        """
-    
-        theta_u = self.unpackParams(theta)
-           
-        # Constraint from the periodogram 
-        mod = self.model(theta_u)
-        
-        lnlike = self.chi_sqr(mod)
-         
-        return lnlike
-
-    @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
 
@@ -264,7 +93,7 @@ class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
         
         nu1s = self.nu1_frequencies(theta_u)
          
-        Hs1 = self.envelope(nu1s, )
+        Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
         modewidth1s = self.obs['mode_width'][0] 
          
@@ -341,19 +170,7 @@ class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
                 S[key][i] = theta_u[key]
             
         return S
-
-    def testModel(self):
-        
-        u = np.random.uniform(0, 1, self.ndims)
-        
-        theta = self.ptform(u)
-        
-        theta_u = self.unpackParams(theta)
-        
-        m = self.model(theta_u,)
-        
-        return self.f, m
-    
+   
     def parseSamples(self, smp, Nmax=10000):
 
         N = min([len(list(smp.values())[0]), Nmax])
@@ -388,7 +205,7 @@ class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
         result['zeta'] = np.append(result['zeta'], np.zeros(result['summary']['freq'].shape[1]))
 
         # # Heights
-        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :]) for i in range(N)]) 
+        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
         jar.modeUpdoot(result, H1_samps, 'height', self.N_p)
 
         # # Widths
@@ -398,43 +215,48 @@ class Asyl1Model(jar.DynestySamplingTools, generalFuncs):
 
         return result
     
-    variables = {'d01'       : {'info': 'l=0,1 mean frequency difference'         , 'log10': True , 'pca': True, 'unit': 'muHz'},
-                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
- 
-class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
+     
+class Mixl1Model(DynestySamplingTools, generalModelFuncs):
 
     def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
                  vis={'V10': 1.22}, priorpath=None):
    
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
-        self.setLabels(self.addPriors) 
-         
+        modelParLabels = ['u1', 'u2', 'DPi1', 'eps_g',
+                          'd01', 'dnu', 'numax', 'nurot_c', 
+                          'nurot_e', 'inc', 'teff'
+                          ]
+                    
+        self.setLabels(self.addPriors, modelParLabels)
+ 
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
 
         self.badPrior = False
 
         self.setupDR()
-
+ 
         self.setAddObs(keys=['teff', 'dnu', 'numax'])
 
         if not self.badPrior: 
  
             self.setPriors()
-
-            self.ndims = len(self.priors)
  
-            n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
-
-            self.n_g = self.select_n_g(n_g_ppf)
+            self.n_g = self.select_n_g()
 
             self.N_g = len(self.n_g)
 
-            self.trimVariables()
+            for i in range(self.N_g + self.N_p):
+                self.addlabels.append(f'freqError{i}')
+
+                self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=0.03 * self.obs['dnu'][0])
+
+            self.ndims = len(self.priors)
+
+            # self.trimVariables()
 
             self.makeEmpties()
-
+ 
     def makeEmpties(self):
         """ Make a bunch of static matrices so we don't need to make them during
         sampling
@@ -505,138 +327,9 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
 
             self.DR.dimsR = 0
 
-    def _makeTmpSample(self, keys, N=1000):
-        """
-        Draw samples for specified keys.
 
-        Parameters
-        ----------
-        keys : list
-            List of parameter keys to be sampled.
-        N : int, optional
-            Number of samples to generate. Default is 1000.
-
-        Returns
-        -------
-        tuple
-            A tuple containing the quantile function, probability density 
-            function, log probability density function, and cumulative 
-            distribution function of the generated samples.
-
-        Notes
-        -----
-        - Generates N random samples.
-        - Transforms the samples using `ptform` and `unpackParams`.
-        - Constructs arrays for specified keys.
-        - Computes quantile function, probability density function,
-        log probability density function, and cumulative distribution function.
-        """
-
-        K = np.zeros((len(keys), N))
-
-        for i in range(N):
-            u = np.random.uniform(0, 1, size=self.ndims)
-        
-            theta = self.ptform(u)
-
-            theta_u = self.unpackParams(theta)
-
-            K[:, i] = np.array([theta_u[key] for key in keys]) 
-        
-        ppf, pdf, logpdf, cdf = dist.getQuantileFuncs(K.T)
-        
-        return ppf, pdf, logpdf, cdf
-
-    def trimVariables(self):
-        
-        N = self.N_p + self.N_g  
-
-        for i in range(N, 200, 1):
-            del self.addlabels[self.addlabels.index(f'freqError{i}')]
-            del self.labels[self.labels.index(f'freqError{i}')]
-            del self.priors[f'freqError{i}']
-            
-        self.ndims = len(self.priors)    
-   
-    def setLabels(self, addPriors):
-        """
-        Set parameter labels and categorize them based on priors.
-
-        Parameters
-        ----------
-        priors : dict
-            Dictionary containing prior information for specific parameters.
-
-        Notes
-        -----
-        - Initializes default PCA and additional parameter lists.
-        - Checks if parameters are marked for PCA and not in priors; if so, 
-          adds to PCA list.
-        - Otherwise, adds parameters to the additional list.
-        - Combines PCA and additional lists to create the final labels list.
-        - Identifies parameters that use a logarithmic scale and adds them to 
-          logpars list.
-        """
-
-        # Default PCA parameters       
-        self.pcalabels = []
-        
-        # Default additional parameters
-        self.addlabels = []
-        
-        # If key appears in priors dict, override default and move it to add. 
-        for key in self.variables.keys():
-                
-            if self.variables[key]['pca'] and (key not in addPriors.keys()):
-                self.pcalabels.append(key)
-
-            else:
-                if key == 'freqError':
-                    for i in range(200):
-                        self.addlabels.append(f'freqError{i}')
-                else:
-                    self.addlabels.append(key)
-
-        self.labels = self.pcalabels + self.addlabels
-
-        # Parameters that are in log10
-        self.logpars = []
-        for key in self.variables.keys():
-            if self.variables[key]['log10']:
-                self.logpars.append(key)
-
-    def setPriors(self,):
-        """ Set the prior distributions.
-
-        The prior distributions are constructed from the projection of the 
-        PCA sample onto the reduced dimensional space.
-
-        """
-
-        self.priors = {}
-
-        for i, key in enumerate(self.latentLabels):
-            self.priors[key] = dist.distribution(self.DR.ppf[i], 
-                                                 self.DR.pdf[i], 
-                                                 self.DR.logpdf[i], 
-                                                 self.DR.cdf[i])
-
-        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
-
-        self.priors.update({key : self.addPriors[key] for key in AddKeys})
- 
-        for i in range(200):
-            self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=0.03 * self.obs['dnu'][0])
-  
-        # Core rotation prior
-        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
-
-        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
-
-        # The inclination prior is a sine truncated between 0, and pi/2.
-        self.priors['inc'] = dist.truncsine()            
- 
-    def select_n_g(self, n_g_ppf, fac=1):
+    
+    def select_n_g(self, fac=1):
         """ Select and initial range for n_g
 
         Computes the number of g-modes that are relevant near the oscillation
@@ -657,32 +350,37 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
             of numax. A larger may(??) increase precision at the cost of time
             to perform eigendecomposition.
         """
-  
-        #n = self.N_p // 2 + 1
  
-        #width = max((n + 1) * self.obs['dnu'][0], fac * jar.scalingRelations.envWidth(self.obs['numax'][0]))
+        _sampler = dynesty.NestedSampler(self.obsOnlylnlikelihood, 
+                                        self.ptform, 
+                                        len(self.priors),
+                                        sample='rwalk'
+                                        )
+            
+        _sampler.run_nested(print_progress=False, save_bounds=False,)
 
-        # freq_lims = (self.obs['numax'][0] - width, 
-        #              self.obs['numax'][0] + width)
+        _samples = dyfunc.resample_equal(_sampler.results.samples, 
+                                         jnp.exp(_sampler.results.logwt - _sampler.results.logz[-1]))
+       
+        _sampler.reset()
 
-        n_g_ppf, _, _, _ = self._makeTmpSample(['DPi1', 'eps_g'])
+        del _sampler
 
-        freq_lims = {'coupling': (min(self.obs['nu0_p']) - 5*self.obs['dnu'][0], 
-                                  max(self.obs['nu0_p']) + 5*self.obs['dnu'][0]),
-                     'fit':      (min(self.obs['nu0_p']) - 0.5*self.obs['dnu'][0], 
-                                  max(self.obs['nu0_p']) + 0.5*self.obs['dnu'][0])
-                    }
-         
+        _samplesU = self.unpackSamples(_samples)
+ 
+        DPi1 = np.median(_samplesU['DPi1'])
+        
+        eps_g = np.median(_samplesU['eps_g'])
+ 
+        freq_lims = (min(self.obs['nu0_p']) - 5*self.obs['dnu'][0],  max(self.obs['nu0_p']) + 5*self.obs['dnu'][0])
+ 
         # Start with an exagerated number of g-modes.
         init_n_g = jnp.arange(10000)[::-1] + 1
 
         min_n_g_c = init_n_g.max()
-        min_n_g_f = init_n_g.max()
-
+ 
         max_n_g_c = init_n_g.min()
-        max_n_g_f = init_n_g.min()
-
-
+ 
         def update_limit(limit, idx, init_n_g, crit):
             """ Update min/max frequency limits
 
@@ -705,39 +403,18 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
 
             return limit
                 
-        # Loop over combinations of DPi1 and eps_g as drawn from the respective PDFs.       
-        for DPi1 in jnp.linspace(n_g_ppf[0](0.40), n_g_ppf[0](0.60), 3):
-            
-            for eps_g in jnp.linspace(n_g_ppf[1](0.05), n_g_ppf[1](0.95), 3):
-                
-                nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g)
-                
-                idx_c = (freq_lims['coupling'][0] < nu_g) & (nu_g < freq_lims['coupling'][1])
-                 
-                #t = jnp.where(idx, init_n_g, 0 * init_n_g + jnp.inf).min()
-                 
-                min_n_g_c = update_limit(min_n_g_c, idx_c, init_n_g, 'min') #jnp.minimum(min_n_g, t)
-                
-                #t = jnp.where(idx, init_n_g, 0 * init_n_g - 1).max()
-                max_n_g_c = update_limit(max_n_g_c, idx_c, init_n_g, 'max')  #jnp.maximum(max_n_g, t)
-
-                idx_f = (freq_lims['fit'][0] < nu_g) & (nu_g < freq_lims['fit'][1])
-                 
-                #t = jnp.where(idx, init_n_g, 0 * init_n_g + jnp.inf).min()
-                 
-                min_n_g_f = update_limit(min_n_g_f, idx_f, init_n_g, 'min') #jnp.minimum(min_n_g, t)
-                
-                #t = jnp.where(idx, init_n_g, 0 * init_n_g - 1).max()
-                max_n_g_f = update_limit(max_n_g_f, idx_f, init_n_g, 'max')  #jnp.maximum(max_n_g, t)
-
+        nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g)
+        
+        idx_c = (freq_lims[0] < nu_g) & (nu_g < freq_lims[1])
+             
+        min_n_g_c = update_limit(min_n_g_c, idx_c, init_n_g, 'min')  
+        
+        max_n_g_c = update_limit(max_n_g_c, idx_c, init_n_g, 'max')   
+ 
         
         n_g = jnp.arange(min_n_g_c, max_n_g_c, dtype=int)[::-1]
         
-        # print('g-modes within 5 dnu of min/max l=0', min_n_g_c, max_n_g_c, len(n_g))
-        # print('g-modes within 0.5 dnu of min/max l=0', min_n_g_f, max_n_g_f, len(n_g_to_fit))
-        
-        #self.mixed_to_fit = self.N_p + len(n_g_to_fit)
-
+       
         if len(n_g) > 100:
             warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
 
@@ -746,8 +423,50 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
             n_g = jnp.array([1])
 
         return n_g
+
+    def trimVariables(self):
+        
+        N = self.N_p + self.N_g  
+
+        for i in range(N, 200, 1):
+            del self.addlabels[self.addlabels.index(f'freqError{i}')]
+            #del self.labels[self.labels.index(f'freqError{i}')]
+            del self.priors[f'freqError{i}']
+            
+        self.ndims = len(self.priors)    
+   
+    def setPriors(self,):
+        """ Set the prior distributions.
+
+        The prior distributions are constructed from the projection of the 
+        PCA sample onto the reduced dimensional space.
+
+        """
+
+        self.priors = {}
+
+        for i, key in enumerate(self.latentLabels):
+            self.priors[key] = dist.distribution(self.DR.ppf[i], 
+                                                 self.DR.pdf[i], 
+                                                 self.DR.logpdf[i], 
+                                                 self.DR.cdf[i])
+
+        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
+
+        self.priors.update({key : self.addPriors[key] for key in AddKeys})
  
-    @partial(jax.jit, static_argnums=(0,))
+        # Core rotation prior
+        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
+
+        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
+
+        # The inclination prior is a sine truncated between 0, and pi/2.
+        self.priors['inc'] = dist.truncsine() 
+
+        
+             
+    
+ 
     def l1_modewidths(self, zeta, fac=1, **kwargs):
         """ Compute linewidths for mixed l1 modes
 
@@ -775,7 +494,7 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
         
         nu1s, zeta = self.nu1_frequencies(theta_u)
          
-        Hs1 = self.envelope(nu1s, )
+        Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
         modewidth1s = self.l1_modewidths(zeta,)
          
@@ -814,9 +533,10 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
         theta_inv = self.DR.inverse_transform(theta[:self.DR.dimsR])
 
         theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
- 
-        #theta_u = {key: theta[i] for i, key in enumerate(self.addlabels)}
         
+        # for k, v in {key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)}.items():
+        #     print(k, v)
+
         theta_u.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)})
 
         for key in self.logpars:
@@ -824,7 +544,6 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
  
         return theta_u
  
-    #@partial(jax.jit, static_argnums=(0,))
     def asymptotic_nu_g(self, n_g, DPi1, eps_g):
         """Asymptotic relation for g-modes
 
@@ -901,8 +620,6 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
  
         return nu, zeta 
  
-
-    #@partial(jax.jit, static_argnums=(0,))
     def generate_matrices(self, nu_p, nu_g, p_L, p_D):
         """Generate coupling strength matrices
 
@@ -949,7 +666,6 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
 
         return L, D
      
-    #@partial(jax.jit, static_argnums=(0,))
     def new_modes(self, L, D):
         """ Solve for mixed mode frequencies
 
@@ -985,7 +701,6 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
 
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
 
-    #@partial(jax.jit, static_argnums=(0,))
     def generalized_eig(self, A, B):
         
         B_inv = jnp.linalg.inv(B)
@@ -994,7 +709,6 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
         
         return U.real, V.real
     
-    #@partial(jax.jit, static_argnums=(0,))
     def generalized_eigh(self, A, B):
         
         B_inv = jnp.linalg.inv(B)
@@ -1002,79 +716,7 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
         U, V = jnp.linalg.eigh(B_inv @ A)
         
         return U.real, V.real
-  
-    def unpackSamples(self, samples=None):
-        """
-        Unpack a set of parameter samples into a dictionary of arrays.
-
-        Parameters
-        ----------
-        samples : array-like
-            A 2D array of shape (n, m), where n is the number of samples and 
-            m is the number of parameters.
-
-        Returns
-        -------
-        S : dict
-            A dictionary containing the parameter values for each parameter 
-            label.
-
-        Notes
-        -----
-        This method takes a 2D numpy array of parameter samples and unpacks each
-        sample into a dictionary of parameter values. The keys of the dictionary 
-        are the parameter labels and the values are 1D numpy arrays containing 
-        the parameter values for each sample.
-
-        Examples
-        --------
-        >>> class MyModel:
-        ...     def __init__(self):
-        ...         self.labels = ['a', 'b', 'c']
-        ...     def unpackParams(self, theta):
-        ...         return {'a': theta[0], 'b': theta[1], 'c': theta[2]}
-        ...     def unpackSamples(self, samples):
-        ...         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
-        ...         for i, theta in enumerate(samples):
-        ...             theta_u = self.unpackParams(theta)
-        ...             for key in self.labels:
-        ...                 S[key][i] = theta_u[key]
-        ...         return S
-        ...
-        >>> model = MyModel()
-        >>> samples = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-        >>> S = model.unpackSamples(samples)
-        >>> print(S)
-        {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
-        """
-
-        if samples is None:
-            samples = self.samples
-
-        S = {key: np.zeros(samples.shape[0]) for key in self.labels}
-        
-        for i, theta in enumerate(samples):
-        
-            theta_u = self.unpackParams(theta)
-             
-            for key in theta_u.keys():
-                
-                S[key][i] = theta_u[key]
-            
-        return S
-    
-    def testModel(self):
-        
-        u = np.random.uniform(0, 1, self.ndims)
-        
-        theta = self.ptform(u)
-        
-        theta_u = self.unpackParams(theta)
-        
-        m = self.model(theta_u,)
-        
-        return self.f, m
-    
+ 
     def parseSamples(self, smp, Nmax=10000):
 
         N = min([len(list(smp.values())[0]),
@@ -1128,7 +770,7 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
         result['zeta'] = np.append(result['zeta'], np.median(zeta_samps, axis=0))
         
         # Heights
-        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :]) for i in range(N)]) 
+        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
         jar.modeUpdoot(result, H1_samps, 'height', N_pg)
         
         # Widths
@@ -1137,68 +779,70 @@ class Mixl1Model(jar.DynestySamplingTools, generalFuncs):
 
         return result
 
-    variables = {'u1'       : {'info': 'Sum of p_L0 and p_D0 over sqrt(2)'         , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-                 'u2'        : {'info': 'Difference of p_L0 and p_D0 over sqrt(2)' , 'log10': False, 'pca': True, 'unit': 'Angular frequency 1/muHz^2'},
-                 'DPi1'      : {'info': 'period spacing of the l=0 modes'          , 'log10': False, 'pca': True, 'unit': 's'}, 
-                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-                 #'alpha_g'   : {'info': 'curvature of the g-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-                 'd01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True, 'pca': True, 'unit': 'muHz'},
-                 'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-                 'freqError' : {'info': 'Frequency error'                          , 'log10': False, 'pca': False, 'unit': 'muHz'},
-                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},
-                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True, 'unit': 'K'}, 
-                 }
-                
+    # def _makeTmpSample(self, keys, N=1000):
+    #     """
+    #     Draw samples for specified keys.
 
-class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
+    #     Parameters
+    #     ----------
+    #     keys : list
+    #         List of parameter keys to be sampled.
+    #     N : int, optional
+    #         Number of samples to generate. Default is 1000.
+
+    #     Returns
+    #     -------
+    #     tuple
+    #         A tuple containing the quantile function, probability density 
+    #         function, log probability density function, and cumulative 
+    #         distribution function of the generated samples.
+
+    #     Notes
+    #     -----
+    #     - Generates N random samples.
+    #     - Transforms the samples using `ptform` and `unpackParams`.
+    #     - Constructs arrays for specified keys.
+    #     - Computes quantile function, probability density function,
+    #     log probability density function, and cumulative distribution function.
+    #     """
+
+    #     K = np.zeros((len(keys), N))
+
+    #     for i in range(N):
+    #         u = np.random.uniform(0, 1, size=self.ndims)
+        
+    #         theta = self.ptform(u)
+
+    #         theta_u = self.unpackParams(theta)
+
+    #         K[:, i] = np.array([theta_u[key] for key in keys]) 
+        
+    #     ppf, pdf, logpdf, cdf = dist.getQuantileFuncs(K.T)
+        
+    #     return ppf, pdf, logpdf, cdf
+     
+class RGBl1Model(DynestySamplingTools, generalModelFuncs):
 
     def __init__(self, f, s, obs, addPriors, N_g, NPriorSamples, maxiter=15, vis={'V10': 1.22}, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
   
+        modelParLabels = ['d01', 'DPi1', 'teff', 'bp_rp', 'eps_g', 'q',
+                          'nurot_c', 'nurot_e', 'inc', 'dnu',
+                          'numax']
+                    
+        self.setLabels(self.addPriors, modelParLabels)
+        
         self.setPriors()
-
-        self.setLabels() 
-
-        self.setAddObs(keys=['teff', 'dnu', 'numax'])
+ 
+        self.setAddObs(keys=['teff', 'bp_rp', 'dnu', 'numax'])
 
         self.ndims = len(self.priors)
 
         self.n_g_min = 1
         
-        self.compileCouplingFunc()
-
-    def setLabels(self, ):
-        """
-        Set parameter labels and categorize them based on priors.
-
-        Parameters
-        ----------
-        priors : dict
-            Dictionary containing prior information for specific parameters.
-
-        Notes
-        -----
-        - Initializes default PCA and additional parameter lists.
-        - Checks if parameters are marked for PCA and not in priors; if so, 
-          adds to PCA list.
-        - Otherwise, adds parameters to the additional list.
-        - Combines PCA and additional lists to create the final labels list.
-        - Identifies parameters that use a logarithmic scale and adds them to 
-          logpars list.
-        """
+        self.makeEmpties()
  
-        self.labels = list(self.priors.keys())
-
-        # Parameters that are in log10
-        self.logpars = []
-        for key in self.priors.keys():
-            if self.variables[key]['log10']:
-                self.logpars.append(key)
-
     def setPriors(self,):
         """ Set the prior distributions.
 
@@ -1214,20 +858,20 @@ class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
 
-        self.DR = PCA(_obs, ['d01', 'DPi1', 'teff', 'dnu', 'numax'], self.priorpath, self.NPriorSamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, ['d01', 'DPi1', 'teff', 'bp_rp', 'dnu', 'numax'], self.priorpath, self.NPriorSamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
         
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
-        for i, key in enumerate(['d01', 'DPi1', 'teff', 'dnu', 'numax']):
+        for i, key in enumerate(['d01', 'DPi1', 'teff', 'bp_rp', 'dnu', 'numax']):
 
             self.priors[key] = dist.distribution(self.DR.ppf[i], 
-                                                self.DR.pdf[i], 
-                                                self.DR.logpdf[i], 
-                                                self.DR.cdf[i])
+                                                 self.DR.pdf[i], 
+                                                 self.DR.logpdf[i], 
+                                                 self.DR.cdf[i])
  
         self.priors['eps_g'] = dist.normal(loc=0.8, scale=0.1)
 
-        self.priors['q'] = dist.uniform(loc=0.01, scale=0.5)
+        self.priors['q'] = dist.uniform(loc=0.01, scale=0.6)
 
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
@@ -1259,7 +903,7 @@ class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
  
         return theta_u
     
-    def compileCouplingFunc(self):
+    def makeEmpties(self):
         """ Compile the coupling function ahead of runtime
         """
         _nu_p = jnp.arange(len(self.obs['nu0_p']), dtype=np.float64)
@@ -1273,37 +917,25 @@ class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
 
         self.ones_nu = jnp.ones_like(self.f)
 
-        q_dummy = 0.1
+        # q_dummy = 0.1
 
-        DPi1_dummy = 100.
+        # DPi1_dummy = 100.
  
         #self.couple = jax.jit(self.couple_halley).lower(_nu_p, _nu_g, q_dummy, q_dummy, DPi1_dummy).compile()
- 
-    variables = {'d01'       : {'info': 'l=0,1 mean frequency difference'          , 'log10': True , 'pca': True , 'unit': 'muHz'},
-                 'DPi1'      : {'info': 'period spacing of the l=1 modes'          , 'log10': False, 'pca': False, 'unit': 's'}, 
-                 'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True , 'unit': 'K'}, 
-                 'eps_g'     : {'info': 'phase offset of the g-modes'              , 'log10': False, 'pca': False, 'unit': 'None'}, 
-                 'q'         : {'info': 'coupling strength'                        , 'log10': False, 'pca': False, 'unit': 'None'},
-                 'nurot_c'   : {'info': 'core rotation rate'                       , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                 'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-                 'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'}, 
-                 'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-                 'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'},  
-                 }
- 
+     
     def model(self, thetaU):
  
         nu1_g = 1 / (thetaU['DPi1']/ 1e6 * (jnp.arange(self.n_g_min, self.n_g_min+self.N_g) + thetaU['eps_g']))[::-1]
 
         nu1_p = self.obs['nu0_p'] + thetaU['d01'] 
 
-        num_p, num_g = self.couple_halley(nu1_p, nu1_g, thetaU['q'], thetaU['q'], thetaU['DPi1'] / 1e6)
+        num_p, num_g = self.couple(nu1_p, nu1_g, thetaU['q'], thetaU['q'], thetaU['DPi1'] / 1e6)
 
         nu1s = jnp.append(num_p, num_g) # TODO is this correct? Should all num_p and num_g be included in the model?
 
         zeta = self.zeta_p(nu1s, thetaU['q'], thetaU['DPi1']/1e6, thetaU['dnu'], nu1_p) # jnp.zeros_like(nu1s) # TODO how should zeta be calculated?
 
-        Hs1 = self.envelope(nu1s, )
+        Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
         modewidth1s = self.l1_modewidths(zeta,)
          
@@ -1338,21 +970,6 @@ class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
         """
          
         return  fac * self.obs['mode_width'][0] * jnp.maximum(1e-6, 1. - zeta)   
-
-    
-    
-    def __call__(self):  
-        pass
-
- 
-     
-        
- 
- 
- 
-       
-    
-    
 
     def nearest(self, nu, nu_target):
         """
@@ -1440,18 +1057,14 @@ class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
         """
         return x - lmbda * 2 * y * yp / (2 * yp * yp - y * ypp)
 
-    def couple_halley(self, nu_p, nu_g, q_p, q_g, DPi1, lmbda=.5):
+    def couple(self, nu_p, nu_g, q_p, q_g, DPi1, lmbda=.5):
         """
         Solve the characteristic equation with Halley's method.
         This converges even faster than Newton's method and is capable
         of handling quite numerically difficult scenarios with not
         very much damping.
         """
-
-        #Dnu   =  jnp.median(jnp.diff(nu_p))
-
-        #DPi1  = -jnp.median(jnp.diff(1/nu_g))
-
+ 
         num_p = jnp.copy(nu_p)
         
         num_g = jnp.copy(nu_g)
@@ -1468,4 +1081,3 @@ class RGBl1Model(jar.DynestySamplingTools, generalFuncs):
 
         return num_p, num_g
     
-
