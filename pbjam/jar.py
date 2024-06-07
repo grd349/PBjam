@@ -5,7 +5,7 @@ This module contains general purpose functions that are used throughout PBjam.
 """
 
 from . import PACKAGEDIR
-import os, jax
+import os, jax, json, dynesty
 import jax.numpy as jnp
 import numpy as np
 from scipy.special import erf
@@ -14,10 +14,253 @@ import scipy.special as sc
 import scipy.integrate as si
 from dataclasses import dataclass
 import pandas as pd
-import dynesty
 from dynesty import utils as dyfunc
+import pbjam.distributions as dist
 
+class generalModelFuncs():
 
+    def __init__(self):
+        pass
+
+    def chi_sqr(self, mod):
+        """ Chi^2 2 dof likelihood
+
+        Evaulates the likelihood of observing the data given the model.
+
+        Parameters
+        ----------
+        mod : jax device array
+            Spectrum model.
+
+        Returns
+        -------
+        L : float
+            Likelihood of the data given the model
+        """
+
+        L = -jnp.sum(jnp.log(mod) + self.s / mod)
+
+        return L 
+ 
+    def envelope(self, nu, env_height, numax, env_width, **kwargs):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+ 
+        return gaussian(nu, 2*env_height, numax, env_width)
+
+    @partial(jax.jit, static_argnums=(0))
+    def lnlikelihood(self, theta):
+        """
+        Calculate the log likelihood of the model given parameters and data.
+        
+        Parameters
+        ----------
+        theta : numpy.ndarray
+            Parameter values.
+        nu : numpy.ndarray
+            Array of frequency values.
+
+        Returns
+        -------
+        float :
+            Log-likelihood value.
+        """
+
+        thetaU = self.unpackParams(theta)
+        
+        lnlike = self.addAddObsLike(thetaU)  
+
+        # Constraint from the periodogram 
+
+        mod = self.model(thetaU)
+      
+        lnlike +=  self.chi_sqr(mod)  
+         
+        return lnlike 
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def obsOnlylnlikelihood(self, theta):
+
+        thetaU = self.unpackParams(theta)
+    
+        lnlike = self.addAddObsLike(thetaU)
+
+        return lnlike
+    
+    def addAddObsLike(self, theta_u):
+        """ Add the additional probabilities to likelihood
+        
+        Adds the additional observational data likelihoods to the PSD likelihood.
+
+        Parameters
+        ----------
+        p : list
+            Sampling parameters.
+
+        Returns
+        -------
+        lnp : float
+            The likelihood of a sample given the parameter PDFs.
+        """
+
+        lnp = 0
+
+        for key in self.addObs.keys():       
+            lnp += self.addObs[key].logpdf(theta_u[key]) 
+ 
+        return lnp
+    
+    def setAddObs(self, keys):
+        """ Set attribute containing additional observational data
+
+        Additional observational data other than the power spectrum goes here. 
+
+        Can be Teff or bp_rp color, but may also be additional constraints on
+        e.g., numax, dnu. 
+        """
+        
+        self.addObs = {}
+
+        for key in keys:
+            self.addObs[key] = dist.normal(loc=self.obs[key][0], 
+                                           scale=self.obs[key][1])
+
+    def setLabels(self, addPriors, modelParLabels):
+        """
+        Set parameter labels and categorize them based on priors.
+
+        Parameters
+        ----------
+        priors : dict
+            Dictionary containing prior information for specific parameters.
+
+        Notes
+        -----
+        - Initializes default PCA and additional parameter lists.
+        - Checks if parameters are marked for PCA and not in priors; if so, 
+            adds to PCA list.
+        - Otherwise, adds parameters to the additional list.
+        - Combines PCA and additional lists to create the final labels list.
+        - Identifies parameters that use a logarithmic scale and adds them to 
+            logpars list.
+        """
+
+        with open("pbjam/data/parameters.json", "r") as read_file:
+            availableParams = json.load(read_file)
+        
+        self.variables = {key: availableParams[key] for key in modelParLabels}
+
+        # Default PCA parameters       
+        self.pcalabels = []
+        
+        # Default additional parameters
+        self.addlabels = []
+        
+        # If key appears in priors dict, override default and move it to add. 
+        for key in self.variables.keys():
+            if self.variables[key]['pca'] and (key not in addPriors.keys()):
+                self.pcalabels.append(key)
+
+            else:
+                self.addlabels.append(key)
+
+        # Parameters that are in log10
+        self.logpars = []
+        for key in self.variables.keys():
+            if self.variables[key]['log10']:
+                self.logpars.append(key)
+
+    def unpackSamples(self, samples=None):
+        """
+        Unpack a set of parameter samples into a dictionary of arrays.
+
+        Parameters
+        ----------
+        samples : array-like
+            A 2D array of shape (n, m), where n is the number of samples and 
+            m is the number of parameters.
+
+        Returns
+        -------
+        S : dict
+            A dictionary containing the parameter values for each parameter 
+            label.
+
+        Notes
+        -----
+        This method takes a 2D numpy array of parameter samples and unpacks each
+        sample into a dictionary of parameter values. The keys of the dictionary 
+        are the parameter labels and the values are 1D numpy arrays containing 
+        the parameter values for each sample.
+
+        Examples
+        --------
+        >>> class MyModel:
+        ...     def __init__(self):
+        ...         self.labels = ['a', 'b', 'c']
+        ...     def unpackParams(self, theta):
+        ...         return {'a': theta[0], 'b': theta[1], 'c': theta[2]}
+        ...     def unpackSamples(self, samples):
+        ...         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
+        ...         for i, theta in enumerate(samples):
+        ...             theta_u = self.unpackParams(theta)
+        ...             for key in self.labels:
+        ...                 S[key][i] = theta_u[key]
+        ...         return S
+        ...
+        >>> model = MyModel()
+        >>> samples = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+        >>> S = model.unpackSamples(samples)
+        >>> print(S)
+        {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
+        """
+
+        if samples is None:
+            samples = self.samples
+
+        S = {key: np.zeros(samples.shape[0]) for key in self.pcalabels + self.addlabels}
+        
+        for i, theta in enumerate(samples):
+        
+            thetaU = self.unpackParams(theta)
+             
+            for key in thetaU.keys():
+                
+                S[key][i] = thetaU[key]
+            
+        return S
+
+    def testModel(self):
+        
+        u = np.random.uniform(0, 1, self.ndims)
+        
+        theta = self.ptform(u)
+        
+        theta_u = self.unpackParams(theta)
+        
+        m = self.model(theta_u,)
+        
+        return self.f, m
+ 
 def modeUpdoot(result, sample, key, Nmodes):
     
     result['summary'][key] = np.hstack((result['summary'][key], np.array([smryStats(sample[:, j]) for j in range(Nmodes)]).T))
@@ -107,8 +350,6 @@ class DynestySamplingTools():
         logL = self.lnlikelihood(theta, **logl_kwargs)
         
         assert jnp.isreal(logL)
-
-        #print('Likelihood OK')
     
     def runDynesty(self, dynamic=False, progress=True, minSamples=5000, logl_kwargs={}, 
                    sampler_kwargs={}):
