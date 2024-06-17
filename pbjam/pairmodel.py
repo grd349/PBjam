@@ -9,7 +9,7 @@ import pbjam.distributions as dist
 from pbjam.jar import generalModelFuncs
 jax.config.update('jax_enable_x64', True)
 
-class Asyl20Model(jar.DynestySamplingTools, generalModelFuncs):
+class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
 
     def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
                  vis={'V20': 0.71}, priorpath=None):
