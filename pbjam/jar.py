@@ -5,7 +5,7 @@ This module contains general purpose functions that are used throughout PBjam.
 """
 
 from . import PACKAGEDIR
-import os, jax, json, dynesty
+import os, jax, json, dynesty, warnings
 import jax.numpy as jnp
 import numpy as np
 from scipy.special import erf
@@ -21,6 +21,10 @@ class generalModelFuncs():
 
     def __init__(self):
         pass
+
+    
+
+
 
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
@@ -431,7 +435,7 @@ class DynestySamplingTools():
 
 
 
-@jax.jit
+#@jax.jit
 def visell1(emm, inc):
     """ l=1, m=0, 1"""
     y = jax.lax.cond(emm == 0, 
@@ -443,7 +447,7 @@ def visell1(emm, inc):
                     
     return y
 
-@jax.jit
+#@jax.jit
 def visell2(emm, inc):
     """ l=1, m=0, 1, 2"""
     y = jax.lax.cond(emm == 0, 
@@ -456,7 +460,7 @@ def visell2(emm, inc):
                                                                  )))
     return y
 
-@jax.jit
+#@jax.jit
 def visell3(emm, inc):
     """ l=1, m = 0, 1, 2, 3"""
     y = jax.lax.cond(emm == 0, 
@@ -471,7 +475,7 @@ def visell3(emm, inc):
                                                                                        ))))
     return y
 
-@jax.jit
+#@jax.jit
 def visibility(ell, m, inc):
 
     emm = abs(m)
