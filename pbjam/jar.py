@@ -22,10 +22,30 @@ class generalModelFuncs():
     def __init__(self):
         pass
 
-    
+    def getMedianModel(self, samplesU=None, rint=None, N=30):
+        
+        if samplesU is None:
+            samplesU = self.unpackSamples(self.samples)
 
+        mod = np.zeros((len(self.f), N))
+        
+        rkey = np.random.choice(list(samplesU.keys()))
 
+        Nsamples = len(samplesU[rkey])
 
+        if rint is None:
+            rint = np.random.choice(np.arange(Nsamples), size=N, replace=False)
+        
+        for i, j in enumerate(rint):
+            # Extract background parameters for the selected sample
+            theta_u = {k: v[j] for k, v in samplesU.items()}
+            
+            # Compute the background model for the selected sample
+            mod[:, i] = self.model(theta_u)
+        
+        # Compute the median background model across samples
+        return np.median(mod, axis=1)
+ 
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
