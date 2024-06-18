@@ -61,6 +61,9 @@ class generall1Funcs(generalModelFuncs):
         P = DPi1 * (n_g + eps_g)
         
         return 1/P
+    
+    def asymptotic_nu_p(self, d01):
+        return self.obs['nu0_p'] + d01
 
     def select_n_g(self, fac=7):
         """ Select and initial range for n_g
@@ -202,16 +205,20 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
         return thetaU
     
     def nu1_frequencies(self, thetaU):
-        return self.obs['nu0_p'] + thetaU['d01']
+        nu = self.asymptotic_nu_p(thetaU['d01'])
+        
+        zeta = jnp.zeros_like(nu)
+        
+        return nu, zeta
     
     @partial(jax.jit, static_argnums=(0,))
     def model(self, thetaU,):
         
-        nu1s = self.nu1_frequencies(thetaU)
+        nu1s, zeta, _, _ = self.nu1_frequencies(thetaU)
          
         Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
-        modewidth1s = self.l1_modewidths(self.obs['mode_width'][0], jnp.zeros_like(nu1s),) #self.obs['mode_width'][0] 
+        modewidth1s = self.l1_modewidths(self.obs['mode_width'][0], zeta,)  
          
         nurot = thetaU['nurot_e']
         
@@ -227,66 +234,7 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
 
         return modes
  
-    # def unpackSamples(self, samples=None):
-    #     """
-    #     Unpack a set of parameter samples into a dictionary of arrays.
-
-    #     Parameters
-    #     ----------
-    #     samples : array-like
-    #         A 2D array of shape (n, m), where n is the number of samples and 
-    #         m is the number of parameters.
-
-    #     Returns
-    #     -------
-    #     S : dict
-    #         A dictionary containing the parameter values for each parameter 
-    #         label.
-
-    #     Notes
-    #     -----
-    #     This method takes a 2D numpy array of parameter samples and unpacks each
-    #     sample into a dictionary of parameter values. The keys of the dictionary 
-    #     are the parameter labels and the values are 1D numpy arrays containing 
-    #     the parameter values for each sample.
-
-    #     Examples
-    #     --------
-    #     >>> class MyModel:
-    #     ...     def __init__(self):
-    #     ...         self.labels = ['a', 'b', 'c']
-    #     ...     def unpackParams(self, theta):
-    #     ...         return {'a': theta[0], 'b': theta[1], 'c': theta[2]}
-    #     ...     def unpackSamples(self, samples):
-    #     ...         S = {key: np.zeros(samples.shape[0]) for key in self.labels}
-    #     ...         for i, theta in enumerate(samples):
-    #     ...             thetaU= self.unpackParams(theta)
-    #     ...             for key in self.labels:
-    #     ...                 S[key][i] = thetaU[key]
-    #     ...         return S
-    #     ...
-    #     >>> model = MyModel()
-    #     >>> samples = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-    #     >>> S = model.unpackSamples(samples)
-    #     >>> print(S)
-    #     {'a': array([1., 4., 7.]), 'b': array([2., 5., 8.]), 'c': array([3., 6., 9.])}
-    #     """
-         
-    #     if samples is None:
-    #         samples = self.samples
-
-    #     S = {key: np.zeros(samples.shape[0]) for key in self.labels}
-        
-    #     for i, theta in enumerate(samples):
-        
-    #         thetaU= self.unpackParams(theta)
-             
-    #         for key in thetaU.keys():
-                
-    #             S[key][i] = thetaU[key]
-            
-    #     return S
-   
+  
     def parseSamples(self, smp, Nmax=10000):
 
         N = min([len(list(smp.values())[0]), Nmax])
@@ -311,7 +259,7 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
         result['samples'].update(smp)
 
         # l=1
-        nu1_samps = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01']}) for i in range(N)])
+        nu1_samps, _, _, _ = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01']}) for i in range(N)])
 
         result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 1)
         result['enn'] = np.append(result['enn'], np.zeros(self.N_p) - 1)
@@ -338,7 +286,7 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
    
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
-        modelParLabels = ['u1', 'u2', 'DPi1', 'eps_g',
+        modelParLabels = ['p_L', 'p_D', 'DPi1', 'eps_g',
                           'd01', 'dnu', 'numax', 'nurot_c', 
                           'nurot_e', 'inc', 'teff'
                           ]
@@ -473,10 +421,6 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
     @partial(jax.jit, static_argnums=(0,))
     def model(self, thetaU,):
 
-        thetaU['p_L'] = (thetaU['u1'] + thetaU['u2'])/jnp.sqrt(2)
-
-        thetaU['p_D'] = (thetaU['u1'] - thetaU['u2'])/jnp.sqrt(2)
-        
         nu1s, zeta = self.nu1_frequencies(thetaU)
          
         Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
@@ -491,7 +435,7 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
              
             nul1 = nu1s[i] + thetaU[f'freqError{i}']  
 
-            modes += jar.lor(self.f, nul1                     , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(thetaU['inc'])**2
+            modes += jar.lor(self.f, nul1           , Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(thetaU['inc'])**2
         
             modes += jar.lor(self.f, nul1 - nurot[i], Hs1[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(thetaU['inc'])**2 / 2
         
@@ -563,15 +507,19 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
             Array of mixing degrees for the modes.
         """
 
-        nu1_p = self.obs['nu0_p'] + thetaU['d01'] 
+        #thetaU['p_L'] = (thetaU['u1'] + thetaU['u2'])/jnp.sqrt(2)
+
+        #thetaU['p_D'] = (thetaU['u1'] - thetaU['u2'])/jnp.sqrt(2)
+
+        nu_p = self.asymptotic_nu_p(thetaU['d01'])
         
         nu_g = self.asymptotic_nu_g(self.n_g, thetaU['DPi1'], thetaU['eps_g'])
 
-        L, D = self.generate_matrices(nu1_p, nu_g, thetaU['p_L'], thetaU['p_D'])
+        L, D = self.generate_matrices(nu_p, nu_g, thetaU['p_L'], thetaU['p_D'])
          
         nu, zeta = self.new_modes(L, D)
  
-        return nu, zeta 
+        return nu, zeta
  
     def generate_matrices(self, nu_p, nu_g, p_L, p_D):
         """Generate coupling strength matrices
@@ -693,14 +641,14 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
         result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
 
  
-        smp['p_L'] = (smp['u1'] + smp['u2'])/jnp.sqrt(2)
+        #smp['p_L'] = (smp['u1'] + smp['u2'])/jnp.sqrt(2)
 
-        smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
+        #smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
 
         result['samples'].update(smp)
 
 
-        A = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g']}) for i in range(N)])
+        A = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g', 'p_L', 'p_D']}) for i in range(N)])
  
         N_pg = self.N_p + self.N_g
         
@@ -749,7 +697,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
 
         self.ndims = len(self.priors)
  
-        self.n_g = self.select_n_g() #jnp.arange(self.n_g_min, self.n_g_min + self.N_g)
+        self.n_g = self.select_n_g()  
 
         self.N_g = len(self.n_g)
 
@@ -848,7 +796,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
         # Compute unmixed modes
         nu1_g = self.asymptotic_nu_g(self.n_g, thetaU['DPi1'], thetaU['eps_g'])[::-1]
          
-        nu1_p = self.obs['nu0_p'] + thetaU['d01'] 
+        nu1_p = self.asymptotic_nu_p(thetaU['d01'])
 
         # Compute coupling
         num_p, num_g = self.couple(nu1_p, nu1_g, thetaU['q'], thetaU['q'], thetaU['DPi1'] * 1e-6)
@@ -868,14 +816,14 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
                            zeta, # m=0
                            zeta]) # m=1
         
-        return nu1s, zeta, nu1_p, nu1_g
+        return nu1s, zeta
     
     def rotationCoupledFrequencies(self, thetaU):
 
         # Compute unmixed modes
         _nu1_g = self.asymptotic_nu_g(self.n_g, thetaU['DPi1'], thetaU['eps_g'])[::-1]
 
-        _nu1_p = self.obs['nu0_p'] + thetaU['d01'] 
+        _nu1_p = self.asymptotic_nu_p(thetaU['d01'])
 
         # Split by relevant rotation rates
         nu1_g = jnp.hstack([_nu1_g - thetaU['nurot_c']/2,
@@ -893,7 +841,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
 
         zeta = self.zeta_p(nu1s, thetaU['q'], thetaU['DPi1'] * 1e-6, thetaU['dnu'], nu1_p)  
 
-        return nu1s, zeta, nu1_p, nu1_g
+        return nu1s, zeta
             
     def model(self, thetaU):
         """_summary_
@@ -1125,279 +1073,4 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
         #W1_samps = np.array([self.l1_modewidths(self.obs['mode_width'][0], zeta_samples[i, :], ) for i in range(N)]) 
         #jar.modeUpdoot(result, W1_samps, 'width', N_pg)
             
-    # def simpleModel(self, thetaU):
-    #     """_summary_
-
-    #     Follows Li et al 2024 Approach One
-
-    #     Parameters
-    #     ----------
-    #     thetaU : _type_
-    #         _description_
-
-    #     Returns
-    #     -------
-    #     _type_
-    #         _description_
-    #     """
-
-    #     nu1s, zeta, _, _ = self.nu1_frequencies(thetaU)
- 
-    #     H1s = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
-        
-    #     modewidth1s = self.l1_modewidths(zeta,)
-                 
-    #     modes = self.ones_nu
- 
-    #     # for i in range(len(nu1s)):
-            
-    #     #     modes += jar.lor(self.f, nu1s[i]           , H1s[i] * self.vis['V10'], modewidth1s[i]) * jnp.cos(thetaU['inc'])**2
-        
-    #     #     modes += jar.lor(self.f, nu1s[i] - nurot[i], H1s[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(thetaU['inc'])**2 / 2
-        
-    #     #     modes += jar.lor(self.f, nu1s[i] + nurot[i], H1s[i] * self.vis['V10'], modewidth1s[i]) * jnp.sin(thetaU['inc'])**2 / 2
- 
-    #     for i in range(len(nu1s)):
-    #         modes += jar.lor(self.f, nu1s[i], H1s[i] * self.vis['V10'], modewidth1s[i]) * jar.visell1(abs(self.emms[i]), thetaU['inc'])
-
-    #     return modes
-
-# def select_n_g(self, fac=7):
-#         """ Select and initial range for n_g
-
-#         Computes the number of g-modes that are relevant near the oscillation
-#         envelope. This is based on the expected range for DPi1 and eps_g and 
-#         numax.
-
-#         This is used to set the number of g-modes at the start of the run, and
-#         sets the number of g-modes at or near the p-mode envelope. The range is
-#         significantly wider than the actual power distribution of the envelope
-#         so there is room for DPi1 and eps_g to change.
-
-#         Returns
-#         -------
-#         n_g_ppf : list
-#             The quauntile functions for DPi1 and eps_g. 
-#         fac : float
-#             g-modes are considered if they fall within +/- fac * envelope_width
-#             of numax. A larger may(??) increase precision at the cost of time
-#             to perform eigendecomposition.
-#         """
- 
-#         _sampler = dynesty.NestedSampler(self.obsOnlylnlikelihood, 
-#                                         self.ptform, 
-#                                         len(self.priors),
-#                                         sample='rwalk'
-#                                         )
-            
-#         _sampler.run_nested(print_progress=False, save_bounds=False,)
-
-#         _samples = dyfunc.resample_equal(_sampler.results.samples, 
-#                                          jnp.exp(_sampler.results.logwt - _sampler.results.logz[-1]))
-       
-#         _sampler.reset()
-
-#         del _sampler
-
-#         _samplesU = self.unpackSamples(_samples)
- 
-#         DPi1 = np.median(_samplesU['DPi1'])
- 
-#         eps_g = np.median(_samplesU['eps_g'])
- 
-#         freq_lims = (min(self.obs['nu0_p']) - fac*self.obs['dnu'][0],  max(self.obs['nu0_p']) + fac*self.obs['dnu'][0])
-        
-#         # Start with an exagerated number of g-modes.
-#         init_n_g = jnp.arange(10000)[::-1] + 1
-                
-#         nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g)
-        
-#         idx_c = (freq_lims[0] < nu_g) & (nu_g < freq_lims[1])
   
-#         n_g = jnp.arange(init_n_g[idx_c].min(), 
-#                          init_n_g[idx_c].max(), 
-#                          dtype=int)[::-1]
-              
-#         if len(n_g) > 100:
-#             warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
-
-#         # Force a minimum of 1 g-mode to be included as a test
-#         if len(n_g) == 0:
-#             n_g = jnp.array([1])
-
-#         return n_g
-
-# def select_n_g(self, fac=1):
-#         """ Select and initial range for n_g
-
-#         Computes the number of g-modes that are relevant near the oscillation
-#         envelope. This is based on the expected range for DPi1 and eps_g and 
-#         numax.
-
-#         This is used to set the number of g-modes at the start of the run, and
-#         sets the number of g-modes at or near the p-mode envelope. The range is
-#         significantly wider than the actual power distribution of the envelope
-#         so there is room for DPi1 and eps_g to change.
-
-#         Returns
-#         -------
-#         n_g_ppf : list
-#             The quauntile functions for DPi1 and eps_g. 
-#         fac : float
-#             g-modes are considered if they fall within +/- fac * envelope_width
-#             of numax. A larger may(??) increase precision at the cost of time
-#             to perform eigendecomposition.
-#         """
- 
-#         _sampler = dynesty.NestedSampler(self.obsOnlylnlikelihood, 
-#                                         self.ptform, 
-#                                         len(self.priors),
-#                                         sample='rwalk'
-#                                         )
-            
-#         _sampler.run_nested(print_progress=False, save_bounds=False,)
-
-#         _samples = dyfunc.resample_equal(_sampler.results.samples, 
-#                                          jnp.exp(_sampler.results.logwt - _sampler.results.logz[-1]))
-       
-#         _sampler.reset()
-
-#         del _sampler
-
-#         _samplesU = self.unpackSamples(_samples)
- 
-#         DPi1 = np.median(_samplesU['DPi1'])
-        
-#         eps_g = np.median(_samplesU['eps_g'])
- 
-#         freq_lims = (min(self.obs['nu0_p']) - 5*self.obs['dnu'][0],  max(self.obs['nu0_p']) + 5*self.obs['dnu'][0])
- 
-#         # Start with an exagerated number of g-modes.
-#         init_n_g = jnp.arange(10000)[::-1] + 1
-
-#         min_n_g_c = init_n_g.max()
- 
-#         max_n_g_c = init_n_g.min()
- 
-#         def update_limit(limit, idx, init_n_g, crit):
-#             """ Update min/max frequency limits
-
-#             Revise the frequency range min/max g-mode radial order, based on the
-#             previous min/max frequency limits for the g-modes to include, and 
-#             the current set of frequencies that fall near the
-#             envelope.
-            
-#             """
-
-#             if crit == 'min':
-#                 t = jnp.where(idx, init_n_g, 0 * init_n_g + jnp.inf).min()
-                 
-#                 limit = jnp.minimum(limit, t)
-
-#             elif crit == 'max':
-#                 t = jnp.where(idx, init_n_g, 0 * init_n_g - 1).max()
-                 
-#                 limit = jnp.maximum(limit, t)
-
-#             return limit
-                
-#         nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g)
-        
-#         idx_c = (freq_lims[0] < nu_g) & (nu_g < freq_lims[1])
-             
-#         min_n_g_c = update_limit(min_n_g_c, idx_c, init_n_g, 'min')  
-        
-#         max_n_g_c = update_limit(max_n_g_c, idx_c, init_n_g, 'max')   
- 
-        
-#         n_g = jnp.arange(min_n_g_c, max_n_g_c, dtype=int)[::-1]
-        
-       
-#         if len(n_g) > 100:
-#             warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
-
-#         # Force a minimum of 1 g-mode to be included as a test
-#         if len(n_g) == 0:
-#             n_g = jnp.array([1])
-
-#         return n_g
-
-    # def asymptotic_nu_g(self, n_g, DPi1, eps_g):
-    #     """Asymptotic relation for g-modes
-
-    #     Asymptotic relation for the g-mode frequencies in terms of a fundamental
-    #     period offset (defined by the maximum Brunt-Vaisala frequency), the 
-    #     asymptotic g-mode period spacing, the g-mode phase offset, and an 
-    #     optional curvature term.
-
-    #     Parameters
-    #     ----------
-    #     n_g : jax device array
-    #         Array of radial orders for the g-modes.
-    #     DPi1 : float
-    #         Period spacing for l=1 in seconds).
-    #     eps_g : float
-    #         Phase offset of the g-modes.
-    #     alpha_g : float
-    #         Curvature scale of the g-modes.
-    #     max_N2 : float
-    #         Maximum of the Brunt-Vaisala frequency.
-    #     Returns
-    #     -------
-    #     jax device array
-    #         Frequencies of the notionally pure g-modes of degree l.
-    #     """
- 
-    #     DPi1 *= 1e-6 # DPi1 in s to Ms.  
- 
-    #     P = DPi1 * (n_g + eps_g)
-        
-    #     return 1/P
-
-    # def trimVariables(self):
-        
-    #     N = self.N_p + self.N_g  
-
-    #     for i in range(N, 200, 1):
-    #         del self.addlabels[self.addlabels.index(f'freqError{i}')]
-    #         #del self.labels[self.labels.index(f'freqError{i}')]
-    #         del self.priors[f'freqError{i}']
-            
-    #     self.ndims = len(self.priors)   
-
-    # def l1_modewidths(self, zeta, fac=1, **kwargs):
-    #     """ Compute linewidths for mixed l1 modes
-
-    #     Parameters
-    #     ----------
-    #     modewidth0 : jax device array
-    #         Mode widths of l=0 modes.
-    #     zeta : jax device array
-    #         The mixing degree
-
-    #     Returns
-    #     -------
-    #     modewidths : jax device array
-    #         Mode widths of l1 modes.
-    #     """
-         
-    #     return  fac * self.obs['mode_width'][0] * jnp.maximum(1e-6, 1. - zeta) 
-
-
-    # def l1_modewidths(self, zeta, fac=1, **kwargs):
-    #     """ Compute linewidths for mixed l1 modes
-
-    #     Parameters
-    #     ----------
-    #     modewidth0 : jax device array
-    #         Mode widths of l=0 modes.
-    #     zeta : jax device array
-    #         The mixing degree
-
-    #     Returns
-    #     -------
-    #     modewidths : jax device array
-    #         Mode widths of l1 modes.
-    #     """
-         
-    #     return  fac * self.obs['mode_width'][0] * jnp.maximum(1e-6, 1. - zeta)   
