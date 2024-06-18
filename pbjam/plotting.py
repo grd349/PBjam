@@ -158,7 +158,123 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     return ax
 
 
+def _scatterFrame(model, samples, key1, key2, ax,):
+     
+    df = model.DR.priorData
+    
+    # Relevant bit of prior_data.csv
+    prior1 = df[key1]
+    
+    prior2 = df[key2]
 
+    # Sample used to construct prior
+    select1 = model.DR.selectedSubset[key1]
+    
+    select2 = model.DR.selectedSubset[key2]
+    
+    # Samples from the sampling
+    samplesU = model.unpackSamples(samples)
+    
+    # Compute some limits
+    dx = (select1.max()-select1.min())*0.25
+    minx = select1.min()-dx
+    
+    maxx = select1.max()+dx
+    
+    dy = (select2.max()-select2.min())*0.25
+     
+    miny = select2.min()-dy
+    
+    maxy = select2.max()+dy
+    
+    # Plot the things
+    pidx = (minx < prior1) & (prior1 < maxx) & (miny < prior2) & (prior2 < maxy)
+ 
+    ax.scatter(prior1[pidx], prior2[pidx], ec='k', alpha=0.25, s=8, fc='None')
+
+    ax.scatter(select1, select2, c='C3', alpha=0.55, s=15)
+  
+    ax.set_xlim(minx, maxx)
+    
+    ax.set_ylim(miny, maxy)
+
+    if not np.isnan(samples).all():
+        # Only plot the summary stats
+        result1 = np.percentile(samplesU[key1], [15, 50, 85])
+        
+        result2 = np.percentile(samplesU[key2], [15, 50, 85])
+        
+        if key1 in model.logpars:
+            result1 = np.log10(result1)
+        if key2 in model.logpars:
+            result2 = np.log10(result2)
+        
+        ax.errorbar(result1[1], 
+                    result2[1], 
+                    xerr=np.array([[result1[1]-result1[0]], [result1[2]-result1[1]]]), 
+                    yerr=np.array([[result2[1]-result2[0]], [result2[2]-result2[1]]]), 
+                    fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0')
+    
+def _baseReference(self, model, samples, fac=3):
+
+    labels = model.pcalabels + model.addlabels
+
+    labelsInfile = [label for label in labels if label in model.DR.priorData.keys()]
+
+    Nf = len(labelsInfile)-1
+    
+    fig, axes = plt.subplots(Nf, Nf, figsize=(fac*Nf, fac*Nf))
+
+    for i in range(Nf):
+        for j in range(Nf):
+            ax = axes[j, i]
+
+            key1 = labelsInfile[i]
+
+            key2 = labelsInfile[j+1]
+
+            if j >= i:
+                _scatterFrame(model, samples, key1, key2, ax)
+            else:
+                ax.set_visible(False)
+                
+            if i != 0:
+                ax.set_yticks([])
+            else:
+                ax.set_ylabel(key2)
+
+            if j != Nf-1:
+                ax.set_xticks([])
+            else:
+                ax.set_xlabel(key1)
+      
+    axes[0, 0].scatter(np.nan, np.nan, ec='k', alpha=1, s=8, fc='None', label=f'Viable prior sample')
+    
+    axes[0, 0].scatter(np.nan, np.nan, c='C3', alpha=0.55, s=15, label='Selected prior sample')
+    
+    if not np.isnan(samples).all():
+        axes[0, 0].errorbar(np.nan, np.nan, xerr=np.array([[np.nan], [np.nan]]), yerr=np.array([[np.nan], [np.nan]]), 
+                            fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0', label='Result summary statistics')
+
+    axes[0, 0].legend(bbox_to_anchor=(4, 1))
+ 
+    return fig, axes
+
+def _ModeIDPriorReference(self, model, N=1000):
+
+    samples = np.zeros_like(model.samples[:N, :]) * np.nan
+
+    fig, axes = _baseReference(self, model, samples)
+
+    return fig, axes
+
+def _ModeIDPosteriorReference(self, model, N=1000):
+    
+    samples = model.samples[:N, :].copy()
+
+    fig, axes = _baseReference(self, model, samples)
+
+    return fig, axes
 
 
 def _echellify_freqs(nu, dnu):
@@ -1047,7 +1163,49 @@ class plotting():
         
         return fig, ax
 
+    def reference(self, stage='posterior', ID=None):
+        """Make a corner plot of the prior sample with relevant overplotted values."""
 
+        if self.__class__.__name__ == 'modeIDsampler':
+            
+            fig, axes = [], []
+
+            if stage=='prior':
+ 
+                if hasattr(self, 'l20model'):
+                    figl20, axl20 = _ModeIDPriorReference(self.l20model)
+                    
+                    fig.append(figl20)
+                    
+                    axes.append(axl20)
+
+                if hasattr(self, 'l1model'):
+                    figl1, axl1 = _ModeIDPriorReference(self.l1model)
+
+                    fig.append(figl1)
+                    
+                    axes.append(axl1)
+
+            elif stage=='posterior':
+                if hasattr(self, 'l20model'):
+                    figl20, axl20 = _ModeIDPosteriorReference(self.l20model)
+
+                    fig.append(figl20)
+                    
+                    axes.append(axl20)
+
+                if hasattr(self, 'l1model'):
+                    figl1, axl1 = _ModeIDPosteriorReference(self.l1model)
+
+                    fig.append(figl1)
+                    
+                    axes.append(axl1)
+            else:
+                raise ValueError('Set stage optional argument to either prior or posterior')
+            
+            return fig, axes
+        else:
+            raise ValueError('This kind of plot is only available for the modeIDsampler module.')
 
 
 
