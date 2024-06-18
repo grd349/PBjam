@@ -141,13 +141,25 @@
         "info": "Sum of p_L0 and p_D0 over sqrt(2)",
         "log10": false,
         "pca": true,
-        "unit": "Angular frequency 1/muHz^2"
+        "unit": "None"
     },
     "u2": {
         "info": "Difference of p_L0 and p_D0 over sqrt(2)",
         "log10": false,
         "pca": true,
-        "unit": "Angular frequency 1/muHz^2"
+        "unit": "None"
+    },
+    "p_L": {
+        "info": "Coupling matrix coefficient",
+        "log10": false,
+        "pca": true,
+        "unit": "None"
+    },
+    "p_D": {
+        "info": "Coupling matrix coefficient",
+        "log10": false,
+        "pca": true,
+        "unit": "None"
     },
     "DPi1": {
         "info": "period spacing of the l=0 modes",
