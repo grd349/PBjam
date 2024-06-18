@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 import astropy.convolution as conv
 import pbjam, os, corner, warnings, logging
 import numpy as np
-import astropy.units as u
 import pandas as pd
 
 ellColors = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
@@ -208,19 +207,7 @@ def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
 
     return fig, ax
 
-def _StarClassEchelle(self, obs, scale, **kwargs):
-
-    dnu = obs['dnu'][0]
-    
-    numax = obs['numax'][0]
-
-    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
-        
-    ax.set_xlim(0, dnu)
-
-    return fig, ax
-
-def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None, 
+def _ModeIDClassPriorEchelle(self, Nsamples, scale, colors, dnu=None, numax=None, 
                              DPi1=None, eps_g=None, **kwargs):
 
     if dnu is None:
@@ -230,139 +217,171 @@ def _ModeIDClassPriorEchelle(self, scale, colors, dnu=None, numax=None,
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
 
+    if hasattr(self, 'l20model'):
+ 
+        for k in range(Nsamples):
 
-     
-    if DPi1 is None:
-        DPi1 = self.Mixl1Model.priors['DPi1'].ppf(0.5)
-    if eps_g is None:
-        eps_g = self.Mixl1Model.priors['eps_g'].ppf(0.5)
-    #if alpha_g is None:
-    #    alpha_g = 10**self.MixFreqModel.priors['alpha_g'].ppf(0.5)
-     
-    # Overplot gmode frequencies
-    nu_g = self.Mixl1Model.asymptotic_nu_g(self.Mixl1Model.n_g, DPi1, eps_g, 
-                                             )
-   
-    curlyN = dnu / (DPi1 *1e-6 * numax**2)
+            u = np.random.uniform(0, 1, size=self.l20model.ndims)
+        
+            theta = self.l20model.ptform(u)
 
-    ylims = ax.get_ylim()
-    if curlyN > 1:
-        nu_g_x, nu_g_y = _echellify_freqs(nu_g, dnu)
-
-        ax.scatter(nu_g_x, nu_g_y, color=colors[1])
-
-    else:
-        for i, nu in enumerate(nu_g):
+            thetaU = self.l20model.unpackParams(theta)
             
-            ax.axhline(nu, color='k', ls='dashed')
+            nu0p, _ = self.l20model.asymptotic_nu_p(**thetaU)
 
-            if (ylims[0] < nu) & (nu < ylims[1]):
-                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.Mixl1Model.n_g[i]}', ha='right', fontsize=11)
+            nu2p  = nu0p + thetaU['d02']
 
-        ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{np.round(DPi1, decimals=0)}s \n' r'$\epsilon_g=$'+f'{np.round(eps_g, decimals=2)}')
+            for freqs, ell in zip([nu0p, nu2p], [0, 2]):
+                smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
+                ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[ell], s=100)
+ 
+        for ell in [0, 2]:
+            ax.scatter(np.nan, np.nan, alpha=1, color=colors[ell], s=100, label=r'$\ell=$'+str(ell))
+
+    if hasattr(self, 'l1model'):
+ 
+        for k in range(Nsamples):
+
+            u = np.random.uniform(0, 1, size=self.l1model.ndims)
+        
+            theta = self.l1model.ptform(u)
+
+            thetaU = self.l1model.unpackParams(theta)
+            
+            nu1 = self.l1model.nu1_frequencies(thetaU)
+            
+            smp_x, smp_y = _echellify_freqs(nu1, dnu) 
+
+            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[1], s=100)
+
+        ax.scatter(np.nan, np.nan, alpha=1, color=colors[1], s=100, label=r'$\ell=$'+str(1))
+ 
+        # if DPi1 is None:
+        #     DPi1 = self.l1model.priors['DPi1'].ppf(0.5)
+        # if eps_g is None:
+        #     eps_g = self.l1model.priors['eps_g'].ppf(0.5)
+
+        # # Overplot gmode frequencies
+        # nu_g = self.l1model.asymptotic_nu_g(self.l1model.n_g, DPi1, eps_g,) 
+
+        # curlyN = dnu / (DPi1 *1e-6 * numax**2)
+
+        # ylims = ax.get_ylim()
+
+        # if curlyN > 1:
+        #     nu_g_x, nu_g_y = _echellify_freqs(nu_g, dnu)
+
+        #     ax.scatter(nu_g_x, nu_g_y, color=colors[1])
+
+        # else:
+        #     for i, nu in enumerate(nu_g):
+            
+        #         ax.axhline(nu, color='k', ls='dashed')
+
+        #         if (ylims[0] < nu) & (nu < ylims[1]):
+        #             ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.l1model.n_g[i]}', ha='right', fontsize=11)
+
+        #     ax.axhline(np.nan, color='k', ls='dashed', label='g-modes \n' + r'$\Delta\Pi_1=$'+f'{np.round(DPi1, decimals=0)}s \n' r'$\epsilon_g=$'+f'{np.round(eps_g, decimals=2)}')
+ 
+    ax.set_xlim(0, dnu)
+    
     ax.legend(loc=1)
 
     return fig, ax
 
 def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwargs):
 
-    if dnu is None:
+    if (dnu is None) and hasattr(self, 'result'):
         dnu = self.result['summary']['dnu'][0]
+    else:
+        dnu = self.obs['dnu'][0]
     
-    if numax is None:
+    
+    if (numax is None) and hasattr(self, 'result'):
         numax = self.result['summary']['numax'][0]
+    else:
+        numax = self.obs['numax'][0]
 
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
- 
-    for l in np.unique(self.result['ell']).astype(int):
 
-        idx_ell = self.result['ell'] == l
+    if hasattr(self, 'result'):
+        for l in np.unique(self.result['ell']).astype(int):
 
-        freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
+            idx_ell = self.result['ell'] == l
 
-        smp_x, smp_y = _echellify_freqs(freqs, dnu) 
+            freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
-        ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+            smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
-        med_freqs = self.result['summary']['freq'][0, :]
+            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
 
-        med_x, med_y = _echellify_freqs(med_freqs, dnu) 
+            med_freqs = self.result['summary']['freq'][0, :]
 
-        ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
+            med_x, med_y = _echellify_freqs(med_freqs, dnu) 
 
-        # Add to legend
-        ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
+            ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
+
+            # Add to legend
+            ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
 
     ylims = ax.get_ylim()
 
-    if self.useMixResult:
-        rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.782])   
+    # If fudge frequencies are used plot those
+    if hasattr(self, 'l1model'):
+
+        rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.827])   
         rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
         rect_ax.set_yticks([])
         rect_ax.set_ylim(ax.get_ylim())
+    
         rect_ax.fill_betweenx(ax.get_ylim(), 
-                              x1=self.Mixl1Model.priors['freqError0'].mean - self.Mixl1Model.priors['freqError0'].scale,
-                              x2=self.Mixl1Model.priors['freqError0'].mean + self.Mixl1Model.priors['freqError0'].scale, color='k', alpha=0.1)
+                              x1=self.l1model.priors['freqError0'].mean - self.l1model.priors['freqError0'].scale,
+                              x2=self.l1model.priors['freqError0'].mean + self.l1model.priors['freqError0'].scale, color='k', alpha=0.1)
+    
         rect_ax.fill_betweenx(ax.get_ylim(), 
-                              x1=self.Mixl1Model.priors['freqError0'].mean - 2*self.Mixl1Model.priors['freqError0'].scale,
-                              x2=self.Mixl1Model.priors['freqError0'].mean + 2*self.Mixl1Model.priors['freqError0'].scale, color='k', alpha=0.1)
-        rect_ax.set_xlim(self.Mixl1Model.priors['freqError0'].mean - 3*self.Mixl1Model.priors['freqError0'].scale,
-                         self.Mixl1Model.priors['freqError0'].mean + 3*self.Mixl1Model.priors['freqError0'].scale)
+                              x1=self.l1model.priors['freqError0'].mean - 2*self.l1model.priors['freqError0'].scale,
+                              x2=self.l1model.priors['freqError0'].mean + 2*self.l1model.priors['freqError0'].scale, color='k', alpha=0.1)
+    
+        rect_ax.set_xlim(self.l1model.priors['freqError0'].mean - 3*self.l1model.priors['freqError0'].scale,
+                         self.l1model.priors['freqError0'].mean + 3*self.l1model.priors['freqError0'].scale)
+    
         rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
         l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
          
         rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, self.result['ell']==1], 'o', alpha=0.1, color='C4')
     
+
         # Overplot gmode frequencies
-        nu_g = self.Mixl1Model.asymptotic_nu_g(self.Mixl1Model.n_g, 
+        nu_g = self.l1model.asymptotic_nu_g(self.l1model.n_g, 
                                             self.result['summary']['DPi1'][0], 
                                             self.result['summary']['eps_g'][0], 
                                             )
-                                            # self.result['summary']['alpha_g'][0], 
-        
+                                            
         for i, nu in enumerate(nu_g):
 
             if (ylims[0] < nu) & (nu < ylims[1]):
-                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.Mixl1Model.n_g[i]}', ha='right', fontsize=11)
+                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.l1model.n_g[i]}', ha='right', fontsize=11)
 
             ax.axhline(nu, color='k', ls='dashed')
 
         ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
 
         #Overplot l=1 p-modes
-        # nu0_p, _ = self.Asyl20Model.asymptotic_nu_p(numax, 
-        #                                              dnu,  
-        #                                              self.result['summary']['eps_p'][0], 
-        #                                              self.result['summary']['alpha_p'][0],)
-    
-        # nu1_p = nu0_p + self.result['summary']['d01'][0]
+        nu0_p, _ = self.l20model.asymptotic_nu_p(self.result['summary']['numax'][0], 
+                                                self.result['summary']['dnu'][0],  
+                                                self.result['summary']['eps_p'][0], 
+                                                self.result['summary']['alpha_p'][0],)
 
-        # nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+        nu1_p = nu0_p + self.result['summary']['d01'][0]
 
-        # ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+        nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+
+        ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
                 
     
-
-    # Overplot mode frequency samples
-    # for l in np.unique(self.result['ell']).astype(int):
-
-    #     idx_ell = self.result['ell'] == l
-
-    #     freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
-
-    #     if (l==1) and ('freqError0' in self.MixFreqModel.priors.keys()):
-    #         rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, idx_ell], 'o', alpha=0.1, color='C4')
-
-    #     smp_x, smp_y = _echellify_freqs(freqs, dnu) 
-
-    #     ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
-
-    #     # Add to legend
-    #     ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
  
-    
     ax.set_xlim(0, dnu)
 
     ax.legend(ncols=2)
@@ -476,185 +495,134 @@ def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None]
     
     ax.set_xlim(_xlim)
 
-def _StarClassSpectrum(self):
-    
-    fig, ax = plt.subplots(2, 1, figsize=(16,9))
-    
-    dnu = self.obs['dnu'][0]
-    
-    numax = self.obs['numax'][0]
-    
+def _makeBaseFrames(self):
 
-    # Full frame
-    _baseSpectrum(ax[0], self.f, self.s)
-    
-    ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+    if not hasattr(self, 'l20model'):
+        fig, ax = plt.subplots(2, 1, figsize=(16,18))
 
+        _baseSpectrum(ax[0], self.f, self.s)
+
+        _baseSpectrum(ax[1], self.f[self.sel], self.s[self.sel])
+
+
+    elif hasattr(self, 'l20model') and not hasattr(self, 'l1model'): # only l20 has been run
+
+        fig, ax = plt.subplots(3, 1, figsize=(16,18))
+
+        _baseSpectrum(ax[0], self.f, self.s)
+
+        _baseSpectrum(ax[1], self.f[self.sel], self.s[self.sel])
+
+        _baseSpectrum(ax[2], self.f[self.sel], self.s[self.sel] / self.l20model.getMedianModel())
+    
+    elif hasattr(self, 'l20model') and hasattr(self, 'l1model'):
+
+        fig, ax = plt.subplots(4, 1, figsize=(16,18))
+
+        _baseSpectrum(ax[0], self.f, self.s)
+
+        _baseSpectrum(ax[1], self.f[self.sel], self.s[self.sel])
+
+        _baseSpectrum(ax[2], self.f[self.sel], self.s[self.sel] / self.l20model.getMedianModel())
+
+        _baseSpectrum(ax[3], self.f[self.sel], self.l20residual / self.l1model.getMedianModel())
+    
+    else:
+        raise ValueError('Unable to make plots')
+  
+    ax[0].set_xlim(self.f.min(), self.f.max())
+    
     ax[0].set_yscale('log')
-    
+
     ax[0].set_xscale('log')
-    
-    # Zoom on envelope
+         
+    for i in range(ax.shape[0]):
+        ax[i].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
-    xlim = [max([min(self.f), numax - 5 * dnu]), 
-            min([max(self.f), numax + 5 * dnu])]
+        if i > 0:
+            ax[i].set_xlim(self.f[self.sel].min(), 
+                        self.f[self.sel].max())
 
-    sel = (xlim[0] <= self.f) & (self.f <= xlim[1])
-
-    _baseSpectrum(ax[1], self.f[sel], self.s[sel])
-    
-    ax[1].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-    
-    ax[1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
-
-    ax[1].legend()
-
+    ax[-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
+   
     return fig, ax
 
 def _ModeIDClassPriorSpectrum(self, N):
-    
-    fig, ax = plt.subplots(3, 1, figsize=(16,18))
-    
-    _baseSpectrum(ax[0], self.f, self.s)
-    ax[0].set_xlim(self.f.min(), self.f.max())
-    
-    _baseSpectrum(ax[1], 
-                  self.f[self.l20sel][self.l1sel], 
-                  self.s[self.l20sel][self.l1sel],
-                  )
      
-    _baseSpectrum(ax[2], self.f[self.l20sel][self.l1sel], self.l20residual[self.l1sel], ylim=[0, None])
-    ax[2].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
-
-    for i in range(N):
-    
-        l20m = np.ones(len(self.f[self.l20sel]))
-
-        l20u = np.random.uniform(0, 1, size=self.Asyl20Model.ndims)
-        
-        l20theta = self.Asyl20Model.ptform(l20u)
-        
-        l20theta_u = self.Asyl20Model.unpackParams(l20theta)
-        
-        l20m *= self.Asyl20Model.model(l20theta_u)
+    fig, ax = _makeBaseFrames(self)
  
-        ax[0].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
+    if hasattr(self, 'l20model'):
 
-        ax[1].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
-        
-        if self.useMixResult:
+        rint = np.random.randint(0, len(self.result['samples']['dnu']), size=N)
 
-            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
-
-            l1u = np.random.uniform(0, 1, size=self.Mixl1Model.ndims)
-
-            l1theta = self.Mixl1Model.ptform(l1u)
-
-            l1theta_u = self.Mixl1Model.unpackParams(l1theta)
+        for k in rint:
             
-            l1m *= self.Mixl1Model.model(l1theta_u,)
+            u = np.random.uniform(0, 1, size=self.l20model.ndims)
+        
+            theta = self.l20model.ptform(u)
 
-            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
- 
-        else:
-            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
-
-            l1u = np.random.uniform(0, 1, size=self.Asyl1Model.ndims)
-
-            l1theta = self.Asyl1Model.ptform(l1u)
-
-            l1theta_u = self.Asyl1Model.unpackParams(l1theta)
+            thetaU = self.l20model.unpackParams(theta)
             
-            l1m *= self.Asyl1Model.model(l1theta_u,)
+            mod = self.l20model.model(thetaU)
 
-            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
+            ax[0].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
 
-    ax[0].set_yscale('log')
+            ax[1].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
 
-    ax[0].set_xscale('log')
- 
-    ax[0].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+        ax[0].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+        ax[1].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
     
+    if hasattr(self, 'l1model'):
+
+        rint = np.random.randint(0, len(self.result['samples']['d01']), size=N)
+
+        for k in rint:
+            u = np.random.uniform(0, 1, size=self.l1model.ndims)
+        
+            theta = self.l1model.ptform(u)
+        
+            thetaU = self.l1model.unpackParams(theta)
+            
+            mod = self.l1model.model(thetaU,)
+
+            ax[2].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
+
+        ax[2].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
+  
     ax[0].legend(loc=3)
-    
-    ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-
-    for i in range(1,3):
-         
-        ax[i].plot([-100, -100], [-100, -100], color='C3', label='Prior samples', alpha=1)
- 
-        ax[i].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-        
-        ax[i].set_xlabel(r'Frequency ($\mu \rm Hz$)')
-
-        ax[i].legend(loc=2)
- 
+     
     return fig, ax
-
+ 
 def _ModeIDClassPostSpectrum(self, N):
-
-    Nmax = min([len(self.result['samples']['d01']), len(self.result['samples']['dnu'])])  
-
-    rint = np.random.randint(0, Nmax, size=N)
-
-    fig, ax = plt.subplots(3, 1, figsize=(16,18))
-    
-    _baseSpectrum(ax[0], self.f, self.s)
-    ax[0].set_xlim(self.f.min(), self.f.max())
-    
-    _baseSpectrum(ax[1], 
-                  self.f[self.l20sel][self.l1sel], 
-                  self.s[self.l20sel][self.l1sel],
-                  )
-     
-    _baseSpectrum(ax[2], self.f[self.l20sel][self.l1sel], self.l20residual[self.l1sel], ylim=[0, None])
-    ax[2].set_xlim(self.f[self.l20sel][self.l1sel].min(), self.f[self.l20sel][self.l1sel].max())
-
-     
-    for k in rint:
-        
-        l20m = np.ones(len(self.f[self.l20sel]))
-
-        l20theta_u = self.Asyl20Model.unpackParams(self.Asyl20Samples[k, :])
-        
-        l20m *= self.Asyl20Model.model(l20theta_u)
-
-        ax[0].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
-
-        ax[1].plot(self.f[self.l20sel], l20m, color='C3', alpha=0.2)
-
-
-        if self.useMixResult:
-
-            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
-            
-            l1theta_u = self.Mixl1Model.unpackParams(self.Mixl1Samples[k, :])
-            
-            l1m *= self.Mixl1Model.model(l1theta_u,)
-
-            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
-
-        else:
-
-            l1m = np.ones(len(self.f[self.l20sel][self.l1sel]))
-            
-            l1theta_u = self.Asyl1Model.unpackParams(self.Asyl1Samples[k, :])
-            
-            l1m *= self.Asyl1Model.model(l1theta_u,)
-
-            ax[2].plot(self.f[self.l20sel][self.l1sel], l1m, color='C3', alpha=0.2)
  
-    ax[0].set_yscale('log')
+    rint = np.random.randint(0, len(self.result['samples']['dnu']), size=N)
 
-    ax[0].set_xscale('log')
+    fig, ax = _makeBaseFrames(self)
  
+    if hasattr(self, 'l20model'):
+        for k in rint:
+        
+            thetaU = self.l20model.unpackParams(self.l20Samples[k, :])
+            
+            mod = self.l20model.model(thetaU)
+
+            ax[0].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
+
+            ax[1].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
+    
+    if hasattr(self, 'l1model'):
+        for k in rint:
+            thetaU = self.l1model.unpackParams(self.l1Samples[k, :])
+            
+            mod = self.l1model.model(thetaU,)
+
+            ax[2].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
+  
     ax[0].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
     
     ax[0].legend(loc=3)
     
-    ax[0].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-
-    for i in range(1,3):
+    for i in range(1, ax.shape[0]):
         for j, nu in enumerate(self.result['summary']['freq'][0]):
             
             if (i==1 and self.result['ell'][j]==1) or (i==2 and self.result['ell'][j]!=1):
@@ -668,11 +636,7 @@ def _ModeIDClassPostSpectrum(self, N):
         ax[i].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
 
         ax[i].axvline(-100, c='k', linestyle='--', label='Median frequencies')
-
-        ax[i].set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
-        
-        ax[i].set_xlabel(r'Frequency ($\mu \rm Hz$)')
-
+ 
         ax[i].legend(loc=2)
  
     return fig, ax
@@ -748,26 +712,30 @@ def _PeakbagClassPostSpectrum(self, N):
 
 def _baseCorner(samples, labels):
  
-    fig = corner.corner(samples, hist_kwargs={'density': True}, labels=labels)
+    fig = corner.corner(np.array([samples[key] for key in labels]).T, hist_kwargs={'density': True}, labels=labels)
     
     return fig
 
-def _setSampleToPlot(self, unpacked, labels=None):
+def _setSampleToPlot(self, N, unpacked=True, stage='prior'):
+
+    if stage == 'prior':
+        samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
+    else:
+        samples = self.samples
 
     if unpacked:
-        _samples = self.unpackSamples(self.samples)
+        _samples = self.unpackSamples(samples)
 
     else:
-        _samples = {label: self.samples[:, i] for i, label in enumerate(self.priors.keys())}
+        _samples = {label: samples[:, i] for i, label in enumerate(self.priors.keys())}
 
     return _samples
 
-def _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs):
+def _ModeIDClassPriorCorner(self, modObj, unpacked, N, **kwargs):
 
-    _samples = _setSampleToPlot(self, samples, unpacked)
-
-    if labels == None:
-        labels = list(_samples.keys())
+    _samples = _setSampleToPlot(modObj, N, unpacked=unpacked, stage='prior')
+ 
+    labels = list(_samples.keys())
         
     fig = _baseCorner(_samples, labels)    
 
@@ -775,20 +743,20 @@ def _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs):
 
     if not unpacked:
         for i, key in enumerate(labels):
-            if key in self.priors.keys():
+            if key in modObj.priors.keys():
             
-                x = np.linspace(self.priors[key].ppf(1e-6), 
-                                self.priors[key].ppf(1-1e-6), 100)
+                x = np.linspace(modObj.priors[key].ppf(1e-6), 
+                                modObj.priors[key].ppf(1-1e-6), 100)
 
-                pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+                pdf = np.array([modObj.priors[key].pdf(x[j]) for j in range(len(x))])
 
                 axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5)
         
     return fig, axes
 
-def _ModeIDClassPostCorner(self, modObj, unpacked, **kwargs):
+def _ModeIDClassPostCorner(self, modObj, unpacked, N, **kwargs):
 
-    _samples = _setSampleToPlot(modObj, unpacked)
+    _samples = _setSampleToPlot(modObj, N, unpacked=unpacked, stage='posterior')
     
     labels = list(_samples.keys())
 
@@ -924,20 +892,13 @@ class plotting():
 
         if not 'Nsamples' in kwargs:
             kwargs['Nsamples'] = 200
-        
-        # TODO the self.__class__.__name__ check is instead of isinstance
-        # since it plays better with auto reload
-        if self.__class__.__name__ == 'star': 
-
-            fig, ax = _StarClassEchelle(self, self.obs, **kwargs)
             
-        elif self.__class__.__name__ == 'modeIDsampler':
+        if self.__class__.__name__ == 'modeIDsampler':
 
             if stage=='prior':
                 fig, ax = _ModeIDClassPriorEchelle(self, **kwargs)
 
             elif stage=='posterior': 
-                
                 fig, ax = _ModeIDClassPostEchelle(self, **kwargs)
                 
             else:
@@ -950,11 +911,12 @@ class plotting():
                 
             elif stage=='posterior':
                 fig, ax = _PeakbagClassPostEchelle(self, **kwargs)
+
             else:
                 raise ValueError('Set stage optional argument to either prior or posterior')
 
         else:
-            raise ValueError('Unrecognized class type')
+            raise ValueError('Unrecognized class type. Only modeID and peakbag have this plotting function built in.')
 
         if ID is not None:
             ax.set_title(ID)
@@ -969,11 +931,7 @@ class plotting():
 
     def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}, N=30):
          
-        if self.__class__.__name__ == 'star': 
-            
-            _StarClassSpectrum(self, **kwargs)
-
-        elif self.__class__.__name__ == 'modeIDsampler':
+        if self.__class__.__name__ == 'modeIDsampler':
             if stage=='prior':
 
                 fig, ax = _ModeIDClassPriorSpectrum(self, N, **kwargs)
@@ -997,7 +955,7 @@ class plotting():
                 raise ValueError('Set stage optional argument to either prior or posterior')
         
         else:
-            raise ValueError('Unrecognized class type')
+            raise ValueError('Unrecognized class type. Only modeID and peakbag have this plotting function built in.')        
         
         if ID is not None:
             ax.set_title(ID)
@@ -1014,31 +972,56 @@ class plotting():
         if not 'colors' in kwargs:
             kwargs['colors'] = ellColors
 
-        if self.__class__.__name__ == 'star': 
-            
-            #_StarClassCorner(self, **kwargs)
-            raise ValueError('Only the mode ID and peakbag classes have corner plotting functions.')
-
-        elif self.__class__.__name__ == 'modeIDsampler':
+        
+        if self.__class__.__name__ == 'modeIDsampler':
              
             if stage=='prior':
                  
-                samples = np.array([self.ptform(np.random.uniform(0, 1, size=self.ndims)) for i in range(N)])
+                fig, ax = [], []
+                
+                if hasattr(self, 'l20model'):
+                    figl20, axl20 = _ModeIDClassPriorCorner(self, self.l20model, unpacked, N, **kwargs)
+                    
+                    fig.append(figl20)
+                    
+                    ax.append(axl20)
 
-                fig, ax = _ModeIDClassPriorCorner(self, samples, labels, unpacked, **kwargs)
+                else:
+                    warnings.warn('modeIDsampler does not currently have and l20model attribute, use runl20model first.')
+
+                if hasattr(self, 'l1model'):
+                    figl1, axl1 = _ModeIDClassPriorCorner(self, self.l1model, unpacked, N, **kwargs)
+
+                    fig.append(figl1)
+                
+                    ax.append(axl1)
+                    
+                else:
+                    warnings.warn('modeIDsampler does not currently have and l1model attribute, use runl1model first.')
             
             elif stage=='posterior': 
                 
-                figl20, axl20 = _ModeIDClassPostCorner(self, self.Asyl20Model, unpacked, **kwargs)
+                fig, ax = [], []
                 
-                if self.useMixResult:
-                    figl1, axl1 = _ModeIDClassPostCorner(self, self.Mixl1Model, unpacked, **kwargs)
+                if hasattr(self, 'l20model'):
+                    figl20, axl20 = _ModeIDClassPostCorner(self, self.l20model, unpacked, N, **kwargs)
+                    
+                    fig.append(figl20)
+                    
+                    ax.append(axl20)
+
                 else:
-                    figl1, axl1 = _ModeIDClassPostCorner(self, self.Asyl1Model, unpacked, **kwargs)              
+                    warnings.warn('modeIDsampler does not currently have and l20model attribute, use runl20model first.')
 
-                fig = [figl20, figl1]
+                if hasattr(self, 'l1model'):
+                    figl1, axl1 = _ModeIDClassPostCorner(self, self.l1model, unpacked, N, **kwargs)
 
-                ax = [axl20, axl1]
+                    fig.append(figl1)
+                
+                    ax.append(axl1)
+
+                else:
+                    warnings.warn('modeIDsampler does not currently have and l1model attribute, use runl1model first.')
 
             else:
                 raise ValueError('Set stage optional argument to either prior or posterior')
@@ -1060,7 +1043,7 @@ class plotting():
                 raise ValueError('Set stage optional argument to either prior or posterior')
             
         else:
-            raise ValueError('Unrecognized class type')
+            raise ValueError('Unrecognized class type. Only modeID and peakbag have this plotting function built in.')
         
         return fig, ax
 
@@ -1286,28 +1269,4 @@ class plotting():
 
 
         return crnr
-    
-    # def plot_start(self):
-    #     """ Plot starting point for peakbag
-        
-    #     Plots the starting model to be used in peakbag as a diagnotstic.
-        
-    #     """
-
-    #     dnu = 10**np.median(self.start_samples, axis=0)[0]
-    #     xlim = [min(self.f[self.sel])-dnu, max(self.f[self.sel])+dnu]
-    #     fig, ax = plt.subplots(figsize=[16,9])
-    #     ax.plot(self.f, self.s, 'k-', label='Data', alpha=0.2)
-    #     smoo = dnu * 0.005 / (self.f[1] - self.f[0])
-    #     kernel = conv.Gaussian1DKernel(stddev=smoo)
-    #     smoothed = conv.convolve(self.s, kernel)
-    #     ax.plot(self.f, smoothed, 'k-', label='Smoothed', lw=3, alpha=0.6)
-    #     ax.plot(self.f[self.sel], self.model(self.start_samples.mean(axis=0)),
-    #             'r-', label='Start model', alpha=0.7)
-    #     ax.set_ylim([0, smoothed.max()*1.5])
-    #     ax.set_xlim(xlim)
-    #     ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
-    #     ax.set_ylabel(r'SNR')
-    #     ax.legend()
-    #     return fig
-
+     
