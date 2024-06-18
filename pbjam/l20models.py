@@ -128,18 +128,20 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
     def model(self, theta_u):
         
         # l=2,0
-        modes, _, _ = self.add20Pairs(self.ones_nu, **theta_u)
+        modes, _, _ = self.add20Pairs(**theta_u)
         
         # Background
         bkg = self.background(theta_u)
          
         return modes * bkg
     
-    def add20Pairs(self, modes, d02, mode_width, nurot_e, inc, **kwargs):
+    def add20Pairs(self, d02, mode_width, nurot_e, inc, **kwargs):
          
         nu0_p, n_p = self.asymptotic_nu_p(**kwargs)
 
         Hs0 = self.envelope(nu0_p, **kwargs)
+
+        modes = self.ones_nu
 
         for n in range(self.N_p):
 
@@ -257,27 +259,6 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
         n_p = self._get_n_p(n_p_max)
 
         return (n_p + eps_p + alpha_p/2*(n_p - n_p_max)**2) * dnu, n_p
- 
-    def getMedianModel(self, samples_u, N=30):
- 
-        mod = np.zeros((len(self.f), N))
-        
-        # Generate random indices for selecting samples
-        rkey = np.random.choice(list(samples_u.keys()))
-        
-        nsamples = len(samples_u[rkey])
-
-        idx = np.random.choice(np.arange(nsamples), size=N, replace=False)
-        
-        for i, j in enumerate(idx):
-            # Extract background parameters for the selected sample
-            theta_u = {k: v[j] for k, v in samples_u.items()}
-            
-            # Compute the background model for the selected sample
-            mod[:, i] = self.model(theta_u)
-        
-        # Compute the median background model across samples
-        return np.median(mod, axis=1)
     
     def parseSamples(self, smp, Nmax=10000):
 
@@ -350,211 +331,3 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
   
         return result
 
-# def setAddObs(self, ):
-#         """ Set attribute containing additional observational data
-
-#         Additional observational data other than the power spectrum goes here. 
-
-#         Can be Teff or bp_rp color, but may also be additional constraints on
-#         e.g., numax, dnu. 
-#         """
-        
-#         self.addObs = {}
-
-#         self.addObs['teff'] = dist.normal(loc=self.obs['teff'][0], 
-#                                           scale=self.obs['teff'][1])
-
-#         self.addObs['bp_rp'] = dist.normal(loc=self.obs['bp_rp'][0], 
-#                                            scale=self.obs['bp_rp'][1])
-        
- # def addAddObsLike(self, theta_u):
-    #     """ Add the additional probabilities to likelihood
-        
-    #     Adds the additional observational data likelihoods to the PSD likelihood.
-
-    #     Parameters
-    #     ----------
-    #     p : list
-    #         Sampling parameters.
-
-    #     Returns
-    #     -------
-    #     lnp : float
-    #         The likelihood of a sample given the parameter PDFs.
-    #     """
-
-    #     lnp = 0
-
-    #     for key in self.addObs.keys():       
-    #         lnp += self.addObs[key].logpdf(theta_u[key]) 
- 
-    #     return lnp
-
-    # def chi_sqr(self, mod):
-    #     """ Chi^2 2 dof likelihood
-
-    #     Evaulates the likelihood of observing the data given the model.
-
-    #     Parameters
-    #     ----------
-    #     mod : jax device array
-    #         Spectrum model.
-
-    #     Returns
-    #     -------
-    #     L : float
-    #         Likelihood of the data given the model
-    #     """
-
-    #     L = -jnp.sum(jnp.log(mod) + self.s / mod)
-
-    #     return L      
-    
-    # @partial(jax.jit, static_argnums=(0,))
-    # def lnlikelihood(self, theta):
-    #     """
-    #     Calculate the log likelihood of the model given parameters and data.
-        
-    #     Parameters
-    #     ----------
-    #     theta : numpy.ndarray
-    #         Parameter values.
-    #     nu : numpy.ndarray
-    #         Array of frequency values.
-
-    #     Returns
-    #     -------
-    #     float :
-    #         Log-likelihood value.
-    #     """
-    
-    #     theta_u = self.unpackParams(theta)
- 
-    #     # Constraint from input obs
-    #     lnlike = self.addAddObsLike(theta_u)
-         
-    #     # Constraint from the periodogram 
-    #     mod = self.model(theta_u)
-         
-    #     lnlike += self.chi_sqr(mod)
-         
-    #     return lnlike
-
-# def envelope(self, nu, env_height, numax, env_width, **kwargs):
-    #     """ Power of the seismic p-mode envelope
-    
-    #     Computes the power at frequency nu in the oscillation envelope from a 
-    #     Gaussian distribution. Used for computing mode heights.
-    
-    #     Parameters
-    #     ----------
-    #     nu : float
-    #         Frequency (in muHz).
-    #     hmax : float
-    #         Height of p-mode envelope (in SNR).
-    #     numax : float
-    #         Frequency of maximum power of the p-mode envelope (in muHz).
-    #     width : float
-    #         Width of the p-mode envelope (in muHz).
-    
-    #     Returns
-    #     -------
-    #     h : float
-    #         Power at frequency nu (in SNR)   
-    #     """
-    
-    #     return jar.gaussian(nu, 2*env_height, numax, env_width)
-
-    # variables = {'l20':{'dnu'       : {'info': 'large frequency separation'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'numax'     : {'info': 'frequency at maximum power'               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'eps_p'     : {'info': 'phase offset of the p-modes'              , 'log10': False, 'pca': True, 'unit': 'None'}, 
-    #                     'd02'       : {'info': 'l=0,2 mean frequency difference'          , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'alpha_p'   : {'info': 'curvature of the p-modes'                 , 'log10': True , 'pca': True, 'unit': 'None'}, 
-    #                     'env_width' : {'info': 'envelope width'                           , 'log10': True , 'pca': True, 'unit': 'muHz'},
-    #                     'env_height': {'info': 'envelope height'                          , 'log10': True , 'pca': True, 'unit': 'ppm^2/muHz'}, 
-    #                     'mode_width': {'info': 'mode width'                               , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                     'teff'      : {'info': 'effective temperature'                    , 'log10': True , 'pca': True, 'unit': 'K'}, 
-    #                     'bp_rp'     : {'info': 'Gaia Gbp-Grp color'                       , 'log10': False, 'pca': True, 'unit': 'mag'},
-    #                     },
-    #             'background' : {'H1_nu'     : {'info': 'Frequency of the high-frequency Harvey'   , 'log10': True , 'pca': True, 'unit': 'muHz'}, 
-    #                             'H1_exp'    : {'info': 'Exponent of the high-frequency Harvey'    , 'log10': False, 'pca': True, 'unit': 'None'},
-    #                             'H_power'   : {'info': 'Power of the Harvey law'                  , 'log10': True , 'pca': True, 'unit': 'ppm^2/muHz'}, 
-    #                             'H2_nu'     : {'info': 'Frequency of the mid-frequency Harvey'    , 'log10': True , 'pca': True, 'unit': 'muHz'},
-    #                             'H2_exp'    : {'info': 'Exponent of the mid-frequency Harvey'     , 'log10': False, 'pca': True, 'unit': 'None'},
-    #                             'H3_power'  : {'info': 'Power of the low-frequency Harvey'        , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'}, 
-    #                             'H3_nu'     : {'info': 'Frequency of the low-frequency Harvey'    , 'log10': True , 'pca': False, 'unit': 'muHz'},
-    #                             'H3_exp'    : {'info': 'Exponent of the low-frequency Harvey'     , 'log10': False, 'pca': False, 'unit': 'None'},
-    #                             'shot'      : {'info': 'Shot noise level'                         , 'log10': True , 'pca': False, 'unit': 'ppm^2/muHz'},
-    #                             },
-                 
-    #             'common': {'nurot_e'   : {'info': 'envelope rotation rate'                   , 'log10': True , 'pca': False, 'unit': 'muHz'}, 
-    #                        'inc'       : {'info': 'stellar inclination axis'                 , 'log10': False, 'pca': False, 'unit': 'rad'},}
-    #             }
-
-
-
- # def setFreqRange(self,):
-    #     """ Get frequency range around numax for model 
-
-    #     Returns
-    #     -------
-    #     idx : jax device array
-    #         Array of boolean values defining the interval of the frequency axis
-    #         where the oscillation modes present.
-    #     """
- 
-    #     lfreq = self.freq_limits[0]
-        
-    #     ufreq = self.freq_limits[1]
-
-    #     return (lfreq < self.f) & (self.f < ufreq) 
-    
-
-# def setLabels(self, addPriors, modelParLabels):
-    #     """
-    #     Set parameter labels and categorize them based on priors.
-
-    #     Parameters
-    #     ----------
-    #     priors : dict
-    #         Dictionary containing prior information for specific parameters.
-
-    #     Notes
-    #     -----
-    #     - Initializes default PCA and additional parameter lists.
-    #     - Checks if parameters are marked for PCA and not in priors; if so, 
-    #       adds to PCA list.
-    #     - Otherwise, adds parameters to the additional list.
-    #     - Combines PCA and additional lists to create the final labels list.
-    #     - Identifies parameters that use a logarithmic scale and adds them to 
-    #       logpars list.
-    #     """
- 
-    #     with open("pbjam/data/parameters.json", "r") as read_file:
-    #         availableParams = json.load(read_file)
-        
-    #     self.variables = {key: availableParams[key] for key in modelParLabels}
-
-    #     # Default PCA parameters       
-    #     self.pcalabels = []
-        
-    #     # Default additional parameters
-    #     self.addlabels = []
-        
-    #     # If key appears in priors dict, override default and move it to add. 
-    #     for key in self.variables.keys():
-                
-    #         if self.variables[key]['pca'] and (key not in addPriors.keys()):
-    #             self.pcalabels.append(key)
-    #         else:
-    #             self.addlabels.append(key)
-
-    #     #self.labels = self.pcalabels + self.addlabels
-
-    #     # Parameters that are in log10
-    #     self.logpars = []
-    #     for key in self.variables.keys():
-    #         if self.variables[key]['log10']:
-    #             self.logpars.append(key)
-
-    #     return variables, pcalabels, addlabels, logpars
