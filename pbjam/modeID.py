@@ -6,7 +6,7 @@ from pbjam.l20models import Asyl20model
 from pbjam.plotting import plotting
 import pandas as pd
 
-class modeIDsampler(plotting, ):
+class modeID(plotting, ):
 
     def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, 
                  vis={'V20': 0.71, 'V10': 1.22}, Npca=50, PCAdims=8, 
@@ -66,19 +66,10 @@ class modeIDsampler(plotting, ):
         self.l20result = self.l20model.parseSamples(l20samples_u)
 
         self.result = self.mergeResults(l20result=self.l20result)
-
-        self.summary = {}
-
-        self.summary['n_p'] = self.l20result['enn'][self.l20result['ell']==0]
-
-        self.summary['nu0_p'] = self.l20result['summary']['freq'][0, self.l20result['ell']==0]
-
-        for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
-            self.summary[key] = self.l20result['summary'][key]
  
         return self.l20result
 
-    def runl1model(self, progress, sampler_kwargs, logl_kwargs, model='asy', BayesFactorLimit=1/2):
+    def runl1model(self, progress, sampler_kwargs, logl_kwargs, model='asy'):
  
         self.l20residual = self.s[self.sel] / self.l20model.getMedianModel()
       
@@ -86,29 +77,35 @@ class modeIDsampler(plotting, ):
 
         s = self.l20residual
 
+        summary = {'n_p': self.l20result['enn'][self.l20result['ell']==0],
+                   'nu0_p': self.l20result['summary']['freq'][0, self.l20result['ell']==0]}
+ 
+        for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
+            summary[key] = self.l20result['summary'][key]
+
         if model.lower() == 'asy':
             self.l1model = Asyl1model(f, s, 
-                                        self.summary, 
-                                        self.addPriors,
-                                        self.Npca_asy, 
-                                        priorpath=self.priorpath)
+                                      summary, 
+                                      self.addPriors,
+                                      self.Npca_asy, 
+                                      priorpath=self.priorpath)
 
         elif model.lower() == 'mix':    
             self.l1model = Mixl1model(f, s, 
-                                        self.summary, 
-                                        self.addPriors,
-                                        self.Npca_mix, 
-                                        self.PCAdims_mix,
-                                        priorpath=self.priorpath)
+                                      summary, 
+                                      self.addPriors,
+                                      self.Npca_mix, 
+                                      self.PCAdims_mix,
+                                      priorpath=self.priorpath)
 
         elif model.lower() == 'rgb':
             self.l1model = RGBl1model(f, s,  
-                                        self.summary, 
-                                        self.addPriors, 
-                                        NPriorSamples=50,
-                                        rootiter=15,
-                                        priorpath=self.priorpath,
-                                        modelChoice='simple')
+                                      summary, 
+                                      self.addPriors, 
+                                      NPriorSamples=50,
+                                      rootiter=15,
+                                      priorpath=self.priorpath,
+                                      modelChoice='simple')
         else:
             raise ValueError(f'Model {model} is invalid. Please use either Asy, Mix or RGB.')
 
