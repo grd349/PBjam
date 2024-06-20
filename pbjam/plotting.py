@@ -8,9 +8,8 @@ each step that has been performed.
 
 import matplotlib.pyplot as plt
 import astropy.convolution as conv
-import pbjam, os, corner, warnings, logging
+import os, corner, warnings, logging
 import numpy as np
-import pandas as pd
 
 ellColors = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
 
@@ -32,7 +31,7 @@ def smooth_power(freq, power, smooth_filter_width):
 
     kernel = conv.Gaussian1DKernel(stddev=np.array(fac))
 
-    smoo = conv.convolve(power, kernel)
+    smoo = conv.convolve_fft(power, kernel)
 
     return smoo
 
@@ -99,7 +98,6 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
         for j in range(i * morerow, (i + 1) * morerow):
             z[j, :] = yp[n_element * (i) : n_element * (i + 1)]
     return xn, yn, z
-
 
 def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
                  interpolation=None, smooth=False, smooth_filter_width=50, 
@@ -215,7 +213,7 @@ def _scatterFrame(model, samples, key1, key2, ax,):
                     yerr=np.array([[result2[1]-result2[0]], [result2[2]-result2[1]]]), 
                     fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0')
     
-def _baseReference(self, model, samples, fac=3):
+def _baseReference(model, samples, fac=3):
 
     labels = model.pcalabels + model.addlabels
 
@@ -256,23 +254,23 @@ def _baseReference(self, model, samples, fac=3):
         axes[0, 0].errorbar(np.nan, np.nan, xerr=np.array([[np.nan], [np.nan]]), yerr=np.array([[np.nan], [np.nan]]), 
                             fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0', label='Result summary statistics')
 
-    axes[0, 0].legend(bbox_to_anchor=(4, 1))
+    axes[0, 0].legend(bbox_to_anchor=(4, 1), fontsize=24, markerscale=2.)
  
     return fig, axes
 
-def _ModeIDPriorReference(self, model, N=1000):
+def _ModeIDPriorReference(model, N=1000):
 
     samples = np.zeros_like(model.samples[:N, :]) * np.nan
 
-    fig, axes = _baseReference(self, model, samples)
+    fig, axes = _baseReference(model, samples)
 
     return fig, axes
 
-def _ModeIDPosteriorReference(self, model, N=1000):
+def _ModeIDPosteriorReference(model, N=1000):
     
     samples = model.samples[:N, :].copy()
 
-    fig, axes = _baseReference(self, model, samples)
+    fig, axes = _baseReference(model, samples)
 
     return fig, axes
 
@@ -827,9 +825,11 @@ def _PeakbagClassPostSpectrum(self, N):
 
 
 def _baseCorner(samples, labels):
- 
+
+    logging.disable(logging.WARNING)
     fig = corner.corner(np.array([samples[key] for key in labels]).T, hist_kwargs={'density': True}, labels=labels)
-    
+    logging.getLogger().setLevel(logging.WARNING)
+
     return fig
 
 def _setSampleToPlot(self, N, unpacked=True, stage='prior'):
@@ -963,8 +963,7 @@ class plotting():
     
     This is used to standardize the plots produced at various steps of the 
     peakbagging process. 
-    
-    As PBjam class is initialized, these plotting methods will be inherited.
+ 
     The methods will plot the relevant result based on the class they are being
     called from. 
     
@@ -1219,212 +1218,212 @@ class plotting():
 
 
 
-    def plotLatentCorner(self, samples, labels=None):
+    # def plotLatentCorner(self, samples, labels=None):
     
-        if labels == None:
-            labels = list(self.priors.keys()) 
+    #     if labels == None:
+    #         labels = list(self.priors.keys()) 
         
-        fig = corner.corner(samples, hist_kwargs = {'density': True}, labels=labels)
+    #     fig = corner.corner(samples, hist_kwargs = {'density': True}, labels=labels)
 
-        axes = np.array(fig.get_axes()).reshape((len(labels), len(labels)))
+    #     axes = np.array(fig.get_axes()).reshape((len(labels), len(labels)))
 
-        for i, key in enumerate(labels):
+    #     for i, key in enumerate(labels):
         
-            if key in self.priors.keys():
+    #         if key in self.priors.keys():
             
-                x = np.linspace(self.priors[key].ppf(1e-6), self.priors[key].ppf(1-1e-6), 100)
+    #             x = np.linspace(self.priors[key].ppf(1e-6), self.priors[key].ppf(1-1e-6), 100)
 
-                pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
+    #             pdf = np.array([self.priors[key].pdf(x[j]) for j in range(len(x))])
     
-                axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5)    
+    #             axes[i, i].plot(x, pdf, color='C3', alpha=0.5, lw =5)    
 
-    def plot_corner(self, path=None, ID=None, savefig=False):
-        """ Make corner plot of result.
+    # def plot_corner(self, path=None, ID=None, savefig=False):
+    #     """ Make corner plot of result.
         
-        Makes a nice corner plot of the fit parameters.
+    #     Makes a nice corner plot of the fit parameters.
 
-        Parameters
-        ----------
-        path : str, optional
-            Used along with savefig, sets the output directory to store the
-            figure. Default is to save the figure to the star directory.
-        ID : str, optional
-            ID of the target to be included in the filename of the figure.
-        savefig : bool
-            Whether or not to save the figure to disk. Default is False.
+    #     Parameters
+    #     ----------
+    #     path : str, optional
+    #         Used along with savefig, sets the output directory to store the
+    #         figure. Default is to save the figure to the star directory.
+    #     ID : str, optional
+    #         ID of the target to be included in the filename of the figure.
+    #     savefig : bool
+    #         Whether or not to save the figure to disk. Default is False.
 
-        Returns
-        -------
-        fig : Matplotlib figure object
-            Figure object with the corner plot.
+    #     Returns
+    #     -------
+    #     fig : Matplotlib figure object
+    #         Figure object with the corner plot.
 
-        """
+    #     """
 
-        if not hasattr(self, 'samples'):
-            warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
-            return None
+    #     if not hasattr(self, 'samples'):
+    #         warnings.warn(f"'{self.__class__.__name__}' has no attribute 'samples'. Can't plot a corner plot.")
+    #         return None
 
-        fig = corner.corner(self.samples, labels=self.par_names,
-                            show_titles=True, quantiles=[0.16, 0.5, 0.84],
-                            title_kwargs={"fontsize": 12})
+    #     fig = corner.corner(self.samples, labels=self.par_names,
+    #                         show_titles=True, quantiles=[0.16, 0.5, 0.84],
+    #                         title_kwargs={"fontsize": 12})
 
-        if savefig:
-            self._save_my_fig(fig, 'corner', path, ID)
+    #     if savefig:
+    #         self._save_my_fig(fig, 'corner', path, ID)
 
-        return fig
-
-
+    #     return fig
 
 
-    def _fill_diag(self, axes, vals, vals_err, idxs):
-        """ Overplot diagnoal values along a corner plot diagonal.
+
+
+    # def _fill_diag(self, axes, vals, vals_err, idxs):
+    #     """ Overplot diagnoal values along a corner plot diagonal.
         
-        Plots a set of specified values over the 1D histograms in the diagonal 
-        frames of a corner plot.
+    #     Plots a set of specified values over the 1D histograms in the diagonal 
+    #     frames of a corner plot.
 
-        Parameters
-        ----------
-        axes : Matplotlib axis object
-            The particular axis element to be plotted in.
-        vals : float
-            Mean values to plot.
-        vals_err : float
-            Error estimates for the value to be plotted.
-        idxs : list
-            List of 2D indices that represent the diagonal. 
+    #     Parameters
+    #     ----------
+    #     axes : Matplotlib axis object
+    #         The particular axis element to be plotted in.
+    #     vals : float
+    #         Mean values to plot.
+    #     vals_err : float
+    #         Error estimates for the value to be plotted.
+    #     idxs : list
+    #         List of 2D indices that represent the diagonal. 
 
-        """
+    #     """
 
-        N = int(np.sqrt(len(axes)))
-        axs = np.array(axes).reshape((N,N)).T
+    #     N = int(np.sqrt(len(axes)))
+    #     axs = np.array(axes).reshape((N,N)).T
         
-        for i,j in enumerate(idxs):
-            yrng = axs[j,j].get_ylim()
+    #     for i,j in enumerate(idxs):
+    #         yrng = axs[j,j].get_ylim()
             
-            v, ve = vals[i], vals_err[i]
+    #         v, ve = vals[i], vals_err[i]
             
-            axs[j,j].fill_betweenx(y=yrng, x1= v-ve[0], x2 = v+ve[-1], color = 'C3', alpha = 0.5)
+    #         axs[j,j].fill_betweenx(y=yrng, x1= v-ve[0], x2 = v+ve[-1], color = 'C3', alpha = 0.5)
     
-    def _plot_offdiag(self, axes, vals, vals_err, idxs):
-        """ Overplot offdiagonal values in a corner plot.
+    # def _plot_offdiag(self, axes, vals, vals_err, idxs):
+    #     """ Overplot offdiagonal values in a corner plot.
         
-        Plots a set of specified values over the 2D histograms or scatter in the
-        off-diagonal frames of a corner plot.
+    #     Plots a set of specified values over the 2D histograms or scatter in the
+    #     off-diagonal frames of a corner plot.
 
-        Parameters
-        ----------
-        axes : Matplotlib axis object
-            The particular axis element to be plotted in.
-        vals : float
-            Mean values to plot.
-        vals_err : float
-            Error estimates for the value to be plotted.
-        idxs : list
-            List of 2D indices that represent the diagonal. 
+    #     Parameters
+    #     ----------
+    #     axes : Matplotlib axis object
+    #         The particular axis element to be plotted in.
+    #     vals : float
+    #         Mean values to plot.
+    #     vals_err : float
+    #         Error estimates for the value to be plotted.
+    #     idxs : list
+    #         List of 2D indices that represent the diagonal. 
 
-        """
+    #     """
         
-        N = int(np.sqrt(len(axes)))
+    #     N = int(np.sqrt(len(axes)))
 
-        axs = np.array(axes).reshape((N,N)).T
+    #     axs = np.array(axes).reshape((N,N)).T
         
-        for i, j in enumerate(idxs):
+    #     for i, j in enumerate(idxs):
             
-            for m, k in enumerate(idxs):
-                if j >= k:
-                    continue
+    #         for m, k in enumerate(idxs):
+    #             if j >= k:
+    #                 continue
                     
-                v, ve = vals[i], vals_err[i]
+    #             v, ve = vals[i], vals_err[i]
 
-                w, we = vals[m], vals_err[m]
+    #             w, we = vals[m], vals_err[m]
     
-                axs[j,k].errorbar(v, w, xerr=ve.reshape((2,1)), yerr=we.reshape((2,1)), fmt = 'o', ms = 10, color = 'C3')
+    #             axs[j,k].errorbar(v, w, xerr=ve.reshape((2,1)), yerr=we.reshape((2,1)), fmt = 'o', ms = 10, color = 'C3')
 
-    def _make_prior_corner(self, df, numax_rng = 100):
-        """ Show dataframe contents in a corner plot.
+    # def _make_prior_corner(self, df, numax_rng = 100):
+    #     """ Show dataframe contents in a corner plot.
         
-        This is meant to be used to show the contents of the prior_data that is
-        used by KDE and Asy_peakbag. 
+    #     This is meant to be used to show the contents of the prior_data that is
+    #     used by KDE and Asy_peakbag. 
 
-        Parameters
-        ----------
-        df : pandas.Dataframe object
-            Dataframe of the data to be shown in the corner plot.
-        numax_rng : float, optional
-            Range in muHz around the input numax to be shown in the corner plot.
-            The default is 100. 
+    #     Parameters
+    #     ----------
+    #     df : pandas.Dataframe object
+    #         Dataframe of the data to be shown in the corner plot.
+    #     numax_rng : float, optional
+    #         Range in muHz around the input numax to be shown in the corner plot.
+    #         The default is 100. 
 
-        Returns
-        -------
-        crnr : matplotlib figure object
-            Corner plot figure object containing NxN axis objects.
-        crnr_axs : list
-            List of axis objects from the crnr object.
+    #     Returns
+    #     -------
+    #     crnr : matplotlib figure object
+    #         Corner plot figure object containing NxN axis objects.
+    #     crnr_axs : list
+    #         List of axis objects from the crnr object.
 
-        """
+    #     """
         
-        idx = abs(10**df['numax'] - self._obs['numax'][0]) <= numax_rng
+    #     idx = abs(10**df['numax'] - self._obs['numax'][0]) <= numax_rng
         
-        # This is a temporary fix for disabling the 'Too few samples' warning 
-        # from corner.hist2d. The github bleeding edge version has 
-        # hist2d_kwargs = {'quiet': True}, but this isn't in the pip 
-        # installable version yet. March 2020.
-        logging.disable(logging.WARNING)
-        crnr = corner.corner(df.to_numpy()[idx,:-1], data_kwargs = {'alpha': 0.5}, labels = df.keys());
-        logging.getLogger().setLevel(logging.WARNING)
+    #     # This is a temporary fix for disabling the 'Too few samples' warning 
+    #     # from corner.hist2d. The github bleeding edge version has 
+    #     # hist2d_kwargs = {'quiet': True}, but this isn't in the pip 
+    #     # installable version yet. March 2020.
+    #     logging.disable(logging.WARNING)
+    #     crnr = corner.corner(df.to_numpy()[idx,:-1], data_kwargs = {'alpha': 0.5}, labels = df.keys());
+    #     logging.getLogger().setLevel(logging.WARNING)
     
-        return crnr,  crnr.get_axes()
+    #     return crnr,  crnr.get_axes()
         
 
 
-    def plot_prior(self, path=None, ID=None, savefig=False):
-        """ Corner of result in relation to prior sample.
+    # def plot_prior(self, path=None, ID=None, savefig=False):
+    #     """ Corner of result in relation to prior sample.
         
-        Create a corner plot showing the location of the star in relation to
-        the rest of the prior.
+    #     Create a corner plot showing the location of the star in relation to
+    #     the rest of the prior.
 
-        Parameters
-        ----------
-        path : str, optional
-            Used along with savefig, sets the output directory to store the
-            figure. Default is to save the figure to the star directory.
-        ID : str, optional
-            ID of the target to be included in the filename of the figure.
-        savefig : bool
-            Whether or not to save the figure to disk. Default is False.
+    #     Parameters
+    #     ----------
+    #     path : str, optional
+    #         Used along with savefig, sets the output directory to store the
+    #         figure. Default is to save the figure to the star directory.
+    #     ID : str, optional
+    #         ID of the target to be included in the filename of the figure.
+    #     savefig : bool
+    #         Whether or not to save the figure to disk. Default is False.
 
-        Returns
-        -------
-        crnr : matplotlib figure object
-            Corner plot figure object containing NxN axis objects.
+    #     Returns
+    #     -------
+    #     crnr : matplotlib figure object
+    #         Corner plot figure object containing NxN axis objects.
             
-        """
+    #     """
         
-        df = pd.read_csv(self.prior_file)
-        crnr, axes = self._make_prior_corner(df)
+    #     df = pd.read_csv(self.prior_file)
+    #     crnr, axes = self._make_prior_corner(df)
        
-        if type(self) == pbjam.star:
-            vals, vals_err = np.array([self._log_obs['dnu'],
-                                       self._log_obs['numax'], 
-                                       self._log_obs['teff'], 
-                                       self._obs['bp_rp']]).T
+    #     if type(self) == pbjam.star:
+    #         vals, vals_err = np.array([self._log_obs['dnu'],
+    #                                    self._log_obs['numax'], 
+    #                                    self._log_obs['teff'], 
+    #                                    self._obs['bp_rp']]).T
             
-            vals_err = np.vstack((vals_err, vals_err)).T
-            self._fill_diag(axes, vals, vals_err, [0, 1, 8, 9])
-            self._plot_offdiag(axes, vals, vals_err, [0, 1, 8, 9])
+    #         vals_err = np.vstack((vals_err, vals_err)).T
+    #         self._fill_diag(axes, vals, vals_err, [0, 1, 8, 9])
+    #         self._plot_offdiag(axes, vals, vals_err, [0, 1, 8, 9])
             
-            # break this if statement if asy_fit should plot something else
-        elif (type(self) == pbjam.priors.kde) or (type(self) == pbjam.asy_peakbag.asymptotic_fit): 
-            percs = np.percentile(self.samples, [16, 50, 84], axis=0)
-            vals = percs[1,:]
-            vals_err = np.diff(percs, axis = 0).T
+    #         # break this if statement if asy_fit should plot something else
+    #     elif (type(self) == pbjam.priors.kde) or (type(self) == pbjam.asy_peakbag.asymptotic_fit): 
+    #         percs = np.percentile(self.samples, [16, 50, 84], axis=0)
+    #         vals = percs[1,:]
+    #         vals_err = np.diff(percs, axis = 0).T
             
-            self._fill_diag(axes, vals, vals_err, range(len(vals)))
-            self._plot_offdiag(axes, vals, vals_err, range(len(vals)))
+    #         self._fill_diag(axes, vals, vals_err, range(len(vals)))
+    #         self._plot_offdiag(axes, vals, vals_err, range(len(vals)))
 
-        elif type(self) == pbjam.peakbag:
-            raise AttributeError('The result of the peakbag run cannot be plotted in relation to the prior, since it does not know what the prior is anymore. plot_corner is only available for star, kde and asy_peakbag.')
+    #     elif type(self) == pbjam.peakbag:
+    #         raise AttributeError('The result of the peakbag run cannot be plotted in relation to the prior, since it does not know what the prior is anymore. plot_corner is only available for star, kde and asy_peakbag.')
 
 
-        return crnr
+    #     return crnr
      
