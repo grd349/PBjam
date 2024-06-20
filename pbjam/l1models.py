@@ -1,17 +1,14 @@
 import jax.numpy as jnp
 import numpy as np
-import jax, warnings
+import jax, warnings, dynesty
 from pbjam import jar
-from functools import partial
 from pbjam.jar import constants as c
 from pbjam.DR import PCA
 import pbjam.distributions as dist
-from pbjam.jar import generalModelFuncs, DynestySamplingTools
-import dynesty
 from dynesty import utils as dyfunc
 jax.config.update('jax_enable_x64', True)
 
-class generall1Funcs(generalModelFuncs):
+class generall1Funcs(jar.generalModelFuncs):
     def __init__(self):
         pass
 
@@ -130,7 +127,7 @@ class generall1Funcs(generalModelFuncs):
 
         return n_g
 
-class Asyl1model(DynestySamplingTools, generall1Funcs):
+class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
     def __init__(self, f, s, obs, addPriors, NPriorSamples, vis={'V10': 1.22}, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
@@ -181,7 +178,6 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine()            
  
-    @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
 
@@ -211,12 +207,11 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
         
         return nu, zeta
     
-    @partial(jax.jit, static_argnums=(0,))
     def model(self, thetaU,):
         
         nu1s, zeta, _, _ = self.nu1_frequencies(thetaU)
          
-        Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+        Hs1 = jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
         modewidth1s = self.l1_modewidths(self.obs['mode_width'][0], zeta,)  
          
@@ -234,8 +229,7 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
 
         return modes
  
-  
-    def parseSamples(self, smp, Nmax=10000):
+    def parseSamples(self, smp, Nmax=5000):
 
         N = min([len(list(smp.values())[0]), Nmax])
 
@@ -269,7 +263,7 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
         result['zeta'] = np.append(result['zeta'], np.zeros(result['summary']['freq'].shape[1]))
 
         # # Heights
-        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
+        H1_samps = self.vis['V10'] * np.array([jar.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
         jar.modeUpdoot(result, H1_samps, 'height', self.N_p)
 
         # # Widths
@@ -279,7 +273,7 @@ class Asyl1model(DynestySamplingTools, generall1Funcs):
 
         return result
         
-class Mixl1model(DynestySamplingTools, generall1Funcs):
+class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
 
     def __init__(self, f, s, obs, addPriors, Npca, PCAdims,
                  vis={'V10': 1.22}, priorpath=None):
@@ -418,12 +412,11 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
         # The inclination prior is a sine truncated between 0, and pi/2.
         self.priors['inc'] = dist.truncsine() 
  
-    @partial(jax.jit, static_argnums=(0,))
     def model(self, thetaU,):
 
         nu1s, zeta = self.nu1_frequencies(thetaU)
          
-        Hs1 = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+        Hs1 = jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
         modewidth1s = self.l1_modewidths(self.obs['mode_width'][0], zeta,)
          
@@ -443,7 +436,6 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
 
         return modes
     
-    @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
 
@@ -473,7 +465,6 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
  
         return thetaU
  
-    @partial(jax.jit, static_argnums=(0,))
     def nu1_frequencies(self, thetaU):
         """
         Calculate mixed nu1 values and associated zeta values.
@@ -618,7 +609,7 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
         
         return U.real, V.real
  
-    def parseSamples(self, smp, Nmax=10000):
+    def parseSamples(self, smp, Nmax=5000):
 
         N = min([len(list(smp.values())[0]), Nmax])
         
@@ -670,7 +661,7 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
         result['zeta'] = np.append(result['zeta'], np.median(zeta_samps, axis=0))
         
         # Heights
-        H1_samps = self.vis['V10'] * np.array([self.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
+        H1_samps = self.vis['V10'] * np.array([jar.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
         jar.modeUpdoot(result, H1_samps, 'height', N_pg)
         
         # Widths
@@ -679,7 +670,7 @@ class Mixl1model(DynestySamplingTools, generall1Funcs):
 
         return result
     
-class RGBl1model(DynestySamplingTools, generall1Funcs):
+class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
 
     def __init__(self, f, s, obs, addPriors, NPriorSamples, rootiter=15, vis={'V10': 1.22}, priorpath=None, modelChoice='simple'):
 
@@ -861,7 +852,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
 
         nu1s, zeta, _, _ = self.nu1_frequencies(thetaU)
 
-        H1s = self.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+        H1s = jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
         modewidth1s = self.l1_modewidths(self.obs['mode_width'][0], zeta,)
          
@@ -982,7 +973,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
 
         return num_p, num_g
 
-    def parseSamples(self, smp, Nmax=10000):
+    def parseSamples(self, smp, Nmax=5000):
 
         N = min([len(list(smp.values())[0]), Nmax])
         
@@ -1031,7 +1022,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
 
             nu_samples[i, :], zeta_samples[i, :] = nu[N_pg: 2*N_pg], zeta[N_pg: 2*N_pg]
 
-            height_samples[i, :] = self.vis['V10'] * self.envelope(nu_samples[i, :], 
+            height_samples[i, :] = self.vis['V10'] * jar.envelope(nu_samples[i, :], 
                                                                    self.obs['env_height'][0], 
                                                                    self.obs['numax'][0], 
                                                                    self.obs['env_width'][0])
@@ -1066,7 +1057,7 @@ class RGBl1model(DynestySamplingTools, generall1Funcs):
         # zeta_samps = A[:, 1, :]
  
         # Heights
-        #H1_samps = self.vis['V10'] * np.array([self.envelope(nu1s_samples[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
+        #H1_samps = self.vis['V10'] * np.array([jar.envelope(nu1s_samples[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
         #jar.modeUpdoot(result, H1_samps, 'height', N_pg)
         
         # Widths

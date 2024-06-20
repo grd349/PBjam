@@ -1,15 +1,13 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from functools import partial
 from pbjam import jar
 from pbjam.background import bkgModel
 from pbjam.DR import PCA
-import pbjam.distributions as dist
-from pbjam.jar import generalModelFuncs
+import pbjam.distributions as dist 
 jax.config.update('jax_enable_x64', True)
 
-class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
+class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
 
     def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
                  vis={'V20': 0.71}, priorpath=None):
@@ -139,7 +137,7 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
          
         nu0_p, n_p = self.asymptotic_nu_p(**kwargs)
 
-        Hs0 = self.envelope(nu0_p, **kwargs)
+        Hs0 = jar.envelope(nu0_p, **kwargs)
 
         modes = self.ones_nu
 
@@ -159,7 +157,6 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
 
         return modes, nu0_p, n_p
     
-    @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
 
@@ -260,7 +257,7 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
 
         return (n_p + eps_p + alpha_p/2*(n_p - n_p_max)**2) * dnu, n_p
     
-    def parseSamples(self, smp, Nmax=10000):
+    def parseSamples(self, smp, Nmax=5000):
 
         N = min([len(list(smp.values())[0]), 
                  Nmax])
@@ -285,7 +282,8 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
         result['samples'].update(smp)
   
         # l=0
-        asymptotic_samps = np.array([self.asymptotic_nu_p(smp['numax'][i], smp['dnu'][i], smp['eps_p'][i], smp['alpha_p'][i]) for i in range(N)])
+        jasymptotic_nu_p = jax.jit(self.asymptotic_nu_p)
+        asymptotic_samps = np.array([jasymptotic_nu_p(smp['numax'][i], smp['dnu'][i], smp['eps_p'][i], smp['alpha_p'][i]) for i in range(N)])
         n_p = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
         
         result['ell'] = np.append(result['ell'], np.zeros(self.N_p))
@@ -299,7 +297,8 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
         jar.modeUpdoot(result, nu0_samps, 'freq', self.N_p)
 
         # # Heights
-        H0_samps = np.array([self.envelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
+        jenvelope = jax.jit(jar.envelope)
+        H0_samps = np.array([jenvelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
         jar.modeUpdoot(result, H0_samps, 'height', self.N_p)
 
         # # Widths
@@ -316,7 +315,7 @@ class Asyl20model(jar.DynestySamplingTools, generalModelFuncs):
         jar.modeUpdoot(result, nu2_samps, 'freq', self.N_p)
 
         # # Heights
-        H2_samps = self.vis['V20'] * np.array([self.envelope(nu2_samps[i, :],  
+        H2_samps = self.vis['V20'] * np.array([jenvelope(nu2_samps[i, :],  
                                                             smp['env_height'][i], 
                                                             smp['numax'][i], 
                                                             smp['env_width'][i]) for i in range(N)])

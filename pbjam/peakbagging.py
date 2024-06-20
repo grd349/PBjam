@@ -9,7 +9,6 @@ from tinygp import GaussianProcess, kernels
 import statsmodels.api as sm
 from tqdm import tqdm
 
-
 class peakbag(plotting):
 
     def __init__(self, f, s, ell, zeta, freq, height, width, numax, dnu, d02, freq_limits=[], slice=True, Nslices=0, **kwargs):
@@ -306,7 +305,6 @@ class peakbag(plotting):
 
         for key in samplesU.keys():
             self.result['summary'][key] = jar.smryStats(samplesU[key])
-
 
 class jointRotInc(jar.DynestySamplingTools):
     

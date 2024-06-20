@@ -5,7 +5,7 @@ This module contains general purpose functions that are used throughout PBjam.
 """
 
 from . import PACKAGEDIR
-import os, jax, json, dynesty, warnings
+import os, jax, json, dynesty
 import jax.numpy as jnp
 import numpy as np
 from scipy.special import erf
@@ -66,31 +66,6 @@ class generalModelFuncs():
 
         return L 
  
-    def envelope(self, nu, env_height, numax, env_width, **kwargs):
-        """ Power of the seismic p-mode envelope
-    
-        Computes the power at frequency nu in the oscillation envelope from a 
-        Gaussian distribution. Used for computing mode heights.
-    
-        Parameters
-        ----------
-        nu : float
-            Frequency (in muHz).
-        hmax : float
-            Height of p-mode envelope (in SNR).
-        numax : float
-            Frequency of maximum power of the p-mode envelope (in muHz).
-        width : float
-            Width of the p-mode envelope (in muHz).
-    
-        Returns
-        -------
-        h : float
-            Power at frequency nu (in SNR)   
-        """
- 
-        return gaussian(nu, 2*env_height, numax, env_width)
-
     @partial(jax.jit, static_argnums=(0))
     def lnlikelihood(self, theta):
         """
@@ -263,9 +238,11 @@ class generalModelFuncs():
 
         S = {key: np.zeros(samples.shape[0]) for key in self.pcalabels + self.addlabels}
         
+        jUnpack = jax.jit(self.unpackParams)
+
         for i, theta in enumerate(samples):
         
-            thetaU = self.unpackParams(theta)
+            thetaU = jUnpack(theta)
              
             for key in thetaU.keys():
                 
@@ -285,13 +262,6 @@ class generalModelFuncs():
         
         return self.f, m
  
-def modeUpdoot(result, sample, key, Nmodes):
-    
-    result['summary'][key] = np.hstack((result['summary'][key], np.array([smryStats(sample[:, j]) for j in range(Nmodes)]).T))
-
-    result['samples'][key] = np.hstack((result['samples'][key], sample))
-
-
 class DynestySamplingTools():
     
     def __init__(self):
@@ -304,7 +274,7 @@ class DynestySamplingTools():
         """
         pass
     
-    @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,)) # Must stay jitted.
     def ptform(self, u):
         """
         Transform a set of random variables from the unit hypercube to a set of 
@@ -453,9 +423,37 @@ class DynestySamplingTools():
 
         return self.samples, self.logz
 
+def envelope(nu, env_height, numax, env_width, **kwargs):
+        """ Power of the seismic p-mode envelope
+    
+        Computes the power at frequency nu in the oscillation envelope from a 
+        Gaussian distribution. Used for computing mode heights.
+    
+        Parameters
+        ----------
+        nu : float
+            Frequency (in muHz).
+        hmax : float
+            Height of p-mode envelope (in SNR).
+        numax : float
+            Frequency of maximum power of the p-mode envelope (in muHz).
+        width : float
+            Width of the p-mode envelope (in muHz).
+    
+        Returns
+        -------
+        h : float
+            Power at frequency nu (in SNR)   
+        """
+ 
+        return gaussian(nu, 2*env_height, numax, env_width)
 
+def modeUpdoot(result, sample, key, Nmodes):
+    
+    result['summary'][key] = np.hstack((result['summary'][key], np.array([smryStats(sample[:, j]) for j in range(Nmodes)]).T))
 
-#@jax.jit
+    result['samples'][key] = np.hstack((result['samples'][key], sample))
+
 def visell1(emm, inc):
     """ l=1, m=0, 1"""
     y = jax.lax.cond(emm == 0, 
@@ -467,7 +465,6 @@ def visell1(emm, inc):
                     
     return y
 
-#@jax.jit
 def visell2(emm, inc):
     """ l=1, m=0, 1, 2"""
     y = jax.lax.cond(emm == 0, 
@@ -480,7 +477,6 @@ def visell2(emm, inc):
                                                                  )))
     return y
 
-#@jax.jit
 def visell3(emm, inc):
     """ l=1, m = 0, 1, 2, 3"""
     y = jax.lax.cond(emm == 0, 
@@ -495,7 +491,6 @@ def visell3(emm, inc):
                                                                                        ))))
     return y
 
-#@jax.jit
 def visibility(ell, m, inc):
 
     emm = abs(m)
@@ -555,7 +550,6 @@ def smryStats(y):
     
     return np.array([u[1], np.mean(np.diff(u))])
 
-@jax.jit
 def attenuation(f, nyq):
     """ The sampling attenuation
 
@@ -579,7 +573,6 @@ def attenuation(f, nyq):
 
     return eta
 
-@jax.jit
 def lor(nu, nu0, h, w):
     """ Lorentzian to describe an oscillation mode.
 
@@ -1024,7 +1017,7 @@ class scalingRelations():
 
         return Amax # solar units
 
-class references():
+class bibliography():
     """ A class for managing references used when running PBjam.
 
     This is inherited by session and star. 
@@ -1243,7 +1236,6 @@ def to_log10(x, xerr):
         return [np.log10(x), xerr/x/np.log(10.0)]
     return [x, xerr]
 
-@jax.jit
 def normal(x, mu, sigma):
     """ Evaluate logarithm of normal distribution (not normalized!!)
 
@@ -1266,7 +1258,6 @@ def normal(x, mu, sigma):
 
     return gaussian(x, 1/jnp.sqrt(2*jnp.pi*sigma**2), mu, sigma)
 
-@jax.jit
 def gaussian(x, A, mu, sigma):
     return A*jnp.exp(-(x-mu)**2/(2*sigma**2))
 
