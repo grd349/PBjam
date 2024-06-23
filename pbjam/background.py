@@ -1,6 +1,4 @@
-from pbjam import jar
-from functools import partial
-import jax
+from pbjam import jar 
 
 class bkgModel():
     def __init__(self, nu, Nyquist):
@@ -17,9 +15,7 @@ class bkgModel():
         self.Nyquist = Nyquist
 
         self.eta = jar.attenuation(self.nu, self.Nyquist)**2
-
-
-    #@partial(jax.jit, static_argnums=(0,))
+ 
     def harvey(self, nu, a, b, c):
         """ Harvey-profile
 
@@ -43,8 +39,7 @@ class bkgModel():
         H = a / b * 1 / (1 + (nu / b)**c)
 
         return H
-
-    #@partial(jax.jit, static_argnums=(0,))
+ 
     def __call__(self, theta_u,):
         """
         Calculate the background model.

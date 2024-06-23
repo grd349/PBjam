@@ -128,13 +128,17 @@ class generall1Funcs(jar.generalModelFuncs):
         return n_g
 
 class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
-    def __init__(self, f, s, obs, addPriors, NPriorSamples, vis={'V10': 1.22}, priorpath=None):
+    def __init__(self, f, s, obs, addPriors, Npca, vis={'V10': 1.22}, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
         modelParLabels = ['d01', 'nurot_e',  'inc',]
 
         self.N_p = len(self.obs['nu0_p'])
+ 
+        self.N_g = 0
+
+        self.N_pg = self.N_p + self.N_g
 
         self.setLabels(self.addPriors, modelParLabels)
 
@@ -142,6 +146,10 @@ class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
 
         self.setPriors()
 
+        self.ell = np.ones(self.N_pg)
+
+        self.emm = np.zeros_like(self.ell)
+        
         self.setAddObs(keys=[])
 
         self.ndims = len(self.priors)
@@ -163,7 +171,7 @@ class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
 
-        self.DR = PCA(_obs, ['d01'], self.priorpath, self.NPriorSamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, ['d01'], self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
         
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
@@ -209,7 +217,7 @@ class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
     
     def model(self, thetaU,):
         
-        nu1s, zeta, _, _ = self.nu1_frequencies(thetaU)
+        nu1s, zeta = self.nu1_frequencies(thetaU)
          
         Hs1 = jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
@@ -236,14 +244,15 @@ class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
         for key in smp.keys():
             smp[key] = smp[key][:N]
 
-        result = {'ell': np.array([]),
-                'enn': np.array([]),
-                'zeta': np.array([]),
-                'summary': {'freq'  : np.array([]).reshape((2, 0)), 
+        result = {'ell': self.ell,
+                  'enn': np.zeros_like(self.ell) - 1,
+                  'emm': self.emm,
+                  'zeta': np.zeros(self.N_pg),
+                  'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                             'height': np.array([]).reshape((2, 0)), 
                             'width' : np.array([]).reshape((2, 0))
                             },
-                'samples': {'freq'  : np.array([]).reshape((N, 0)),
+                  'samples': {'freq'  : np.array([]).reshape((N, 0)),
                             'height': np.array([]).reshape((N, 0)), 
                             'width' : np.array([]).reshape((N, 0))
                             },
@@ -253,11 +262,10 @@ class Asyl1model(jar.DynestySamplingTools, generall1Funcs):
         result['samples'].update(smp)
 
         # l=1
-        nu1_samps, _, _, _ = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01']}) for i in range(N)])
-
-        result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 1)
-        result['enn'] = np.append(result['enn'], np.zeros(self.N_p) - 1)
-            
+        A = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01']}) for i in range(N)])
+        
+        nu1_samps = A[:, 0, :]
+        
         jar.modeUpdoot(result, nu1_samps, 'freq', self.N_p)
     
         result['zeta'] = np.append(result['zeta'], np.zeros(result['summary']['freq'].shape[1]))
@@ -304,6 +312,12 @@ class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
             self.n_g = self.select_n_g(fac=5)
 
             self.N_g = len(self.n_g)
+
+            self.N_pg = self.N_p + self.N_g
+            
+            self.ell = np.ones(self.N_pg)
+            
+            self.emm = np.zeros_like(self.ell)
 
             for i in range(self.N_g + self.N_p):
                 self.addlabels.append(f'freqError{i}')
@@ -453,11 +467,8 @@ class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
   
         theta_inv = self.DR.inverse_transform(theta[:self.DR.dimsR])
 
-        thetaU= {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
-        
-        # for k, v in {key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)}.items():
-        #     print(k, v)
-
+        thetaU = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
+   
         thetaU.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)})
 
         for key in self.logpars:
@@ -497,10 +508,6 @@ class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
         zeta : jax device array
             Array of mixing degrees for the modes.
         """
-
-        #thetaU['p_L'] = (thetaU['u1'] + thetaU['u2'])/jnp.sqrt(2)
-
-        #thetaU['p_D'] = (thetaU['u1'] - thetaU['u2'])/jnp.sqrt(2)
 
         nu_p = self.asymptotic_nu_p(thetaU['d01'])
         
@@ -616,8 +623,9 @@ class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
         for key in smp.keys():
             smp[key] = smp[key][:N]
         
-        result = {'ell': np.array([]),
-                  'enn': np.array([]),
+        result = {'ell': self.ell,
+                  'enn': np.zeros_like(self.ell) - 1,
+                  'emm': self.emm,
                   'zeta': np.array([]),
                   'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                               'height': np.array([]).reshape((2, 0)), 
@@ -630,31 +638,21 @@ class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
                 }
         
         result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
-
  
-        #smp['p_L'] = (smp['u1'] + smp['u2'])/jnp.sqrt(2)
-
-        #smp['p_D'] = (smp['u1'] - smp['u2'])/jnp.sqrt(2)
-
         result['samples'].update(smp)
 
 
         A = np.array([self.nu1_frequencies({key: smp[key][i] for key in ['d01', 'DPi1', 'p_L', 'p_D', 'eps_g', 'p_L', 'p_D']}) for i in range(N)])
- 
-        N_pg = self.N_p + self.N_g
-        
-        result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
-        result['enn'] = np.append(result['enn'], np.zeros(N_pg) - 1)
-
+  
         # Frequencies 
         nu1_samps = A[:, 0, :]
         
         sigma_nul1 = np.array([smp[key] for key in smp.keys() if key.startswith('freqError')]).T
         
         if len(sigma_nul1) == 0:        
-            jar.modeUpdoot(result, nu1_samps, 'freq', N_pg)
+            jar.modeUpdoot(result, nu1_samps, 'freq', self.N_pg)
         else:
-            jar.modeUpdoot(result, nu1_samps + sigma_nul1, 'freq', N_pg)
+            jar.modeUpdoot(result, nu1_samps + sigma_nul1, 'freq', self.N_pg)
 
         zeta_samps = A[:, 1, :]
 
@@ -662,17 +660,17 @@ class Mixl1model(jar.DynestySamplingTools, generall1Funcs):
         
         # Heights
         H1_samps = self.vis['V10'] * np.array([jar.envelope(nu1_samps[i, :], self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0]) for i in range(N)]) 
-        jar.modeUpdoot(result, H1_samps, 'height', N_pg)
+        jar.modeUpdoot(result, H1_samps, 'height', self.N_pg)
         
         # Widths
         W1_samps = np.array([self.l1_modewidths(self.obs['mode_width'][0], zeta_samps[i, :], ) for i in range(N)]) 
-        jar.modeUpdoot(result, W1_samps, 'width', N_pg)
+        jar.modeUpdoot(result, W1_samps, 'width', self.N_pg)
 
         return result
     
 class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
 
-    def __init__(self, f, s, obs, addPriors, NPriorSamples, rootiter=15, vis={'V10': 1.22}, priorpath=None, modelChoice='simple'):
+    def __init__(self, f, s, obs, addPriors, Npca, rootiter=15, vis={'V10': 1.22}, priorpath=None, modelChoice='simple'):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
   
@@ -694,19 +692,21 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
 
         self.N_p = len(self.obs['nu0_p'])
 
+        self.N_pg = self.N_p + self.N_g
+
         self.initRotationModel(self.modelChoice)
 
         self.ones_nu = jnp.ones_like(self.f)
 
+        self.ell = jnp.ones(3 * self.N_pg) # m=-1,0,1
+
+        self.emm = jnp.hstack([-jnp.ones(self.N_pg),
+                                 jnp.zeros(self.N_pg),
+                                 jnp.ones(self.N_pg)]) # m=-1,0,1
+
     def initRotationModel(self, modelChoice):
         """Setup the chosen frequency model"""
-
-        self.ells = jnp.ones(3 * (self.N_p + self.N_g)) # m=-1,0,1
-
-        self.emms = jnp.hstack([-jnp.ones(self.N_p + self.N_g),
-                                 jnp.zeros(self.N_p + self.N_g),
-                                 jnp.ones(self.N_p + self.N_g)]) # m=-1,0,1
-        
+ 
         if modelChoice == 'simple':
              
             self.nu1_frequencies = self.simpleFrequencies
@@ -737,7 +737,7 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
          
-        self.DR = PCA(_obs, ['d01', 'DPi1', 'teff', 'dnu', 'numax'], self.priorpath, self.NPriorSamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, ['d01', 'DPi1', 'teff', 'dnu', 'numax'], self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
          
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
@@ -850,7 +850,7 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
             _description_
         """
 
-        nu1s, zeta, _, _ = self.nu1_frequencies(thetaU)
+        nu1s, zeta = self.nu1_frequencies(thetaU)
 
         H1s = jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
         
@@ -859,7 +859,7 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
         modes = self.ones_nu
  
         for i in range(len(nu1s)):
-            modes += jar.lor(self.f, nu1s[i], H1s[i] * self.vis['V10'], modewidth1s[i]) * jar.visell1(abs(self.emms[i]), thetaU['inc'])
+            modes += jar.lor(self.f, nu1s[i], H1s[i] * self.vis['V10'], modewidth1s[i]) * jar.visell1(abs(self.emm[i]), thetaU['inc'])
          
         return modes
  
@@ -980,8 +980,9 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
         for key in smp.keys():
             smp[key] = smp[key][:N]
         
-        result = {'ell': np.array([]),
-                  'enn': np.array([]),
+        result = {'ell': self.ell,
+                  'enn': jnp.zeros_like(self.ell) - 1,
+                  'emm': self.emm,
                   'zeta': np.array([]),
                   'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                               'height': np.array([]).reshape((2, 0)), 
@@ -996,20 +997,14 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
         result['summary'].update({key: jar.smryStats(smp[key]) for key in smp.keys()})
  
         result['samples'].update(smp)
+ 
+        nu_samples = np.zeros((N, 3*self.N_pg))
 
-        N_pg = self.N_p + self.N_g
-
-        result['ell'] = np.append(result['ell'], np.zeros(N_pg) + 1)
-
-        result['enn'] = np.append(result['enn'], np.zeros(N_pg) - 1)
-
-        nu_samples = np.zeros((N, N_pg))
-
-        zeta_samples = np.zeros((N, N_pg))
+        zeta_samples = np.zeros((N, 3*self.N_pg))
         
-        height_samples = np.zeros((N, N_pg))
+        height_samples = np.zeros((N, 3*self.N_pg))
         
-        width_samples = np.zeros((N, N_pg))
+        width_samples = np.zeros((N, 3*self.N_pg))
         
         jfreqs = jax.jit(self.nu1_frequencies)
 
@@ -1017,11 +1012,8 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
              
             thetaU = {key: smp[key][i] for key in smp.keys()} #self.unpackParams(smp[i, :])
 
-
-            nu, zeta, _, _ = jfreqs(thetaU)
-
-            nu_samples[i, :], zeta_samples[i, :] = nu[N_pg: 2*N_pg], zeta[N_pg: 2*N_pg]
-
+            nu_samples[i, :], zeta_samples[i, :] = jfreqs(thetaU)
+ 
             height_samples[i, :] = self.vis['V10'] * jar.envelope(nu_samples[i, :], 
                                                                    self.obs['env_height'][0], 
                                                                    self.obs['numax'][0], 
@@ -1030,11 +1022,11 @@ class RGBl1model(jar.DynestySamplingTools, generall1Funcs):
             width_samples[i, :] = self.l1_modewidths(self.obs['mode_width'][0], 
                                                      zeta_samples[i, :],)
 
-        jar.modeUpdoot(result, nu_samples, 'freq', N_pg)
+        jar.modeUpdoot(result, nu_samples, 'freq', 3*self.N_pg)
 
-        jar.modeUpdoot(result, height_samples, 'height', N_pg)
+        jar.modeUpdoot(result, height_samples, 'height', 3*self.N_pg)
 
-        jar.modeUpdoot(result, width_samples, 'width', N_pg)
+        jar.modeUpdoot(result, width_samples, 'width', 3*self.N_pg)
 
         result['zeta'] = np.append(result['zeta'], np.median(zeta_samples, axis=0))
 

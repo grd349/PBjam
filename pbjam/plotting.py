@@ -422,15 +422,15 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     if hasattr(self, 'result'):
         for l in np.unique(self.result['ell']).astype(int):
 
-            idx_ell = self.result['ell'] == l
-
+            idx_ell = (self.result['ell'] == l ) & (self.result['emm'] == 0)
+            
             freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
             smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
             ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
 
-            med_freqs = self.result['summary']['freq'][0, :]
+            med_freqs = self.result['summary']['freq'][0, self.result['emm'] == 0]
 
             med_x, med_y = _echellify_freqs(med_freqs, dnu) 
 
@@ -442,7 +442,7 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     ylims = ax.get_ylim()
 
     # If fudge frequencies are used plot those
-    if hasattr(self, 'l1model'):
+    if hasattr(self, 'l1model') and 'freqError0' in self.result['summary'].keys():
 
         rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.827])   
         rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
@@ -464,10 +464,11 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
         l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
          
-        rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, self.result['ell']==1], 'o', alpha=0.1, color='C4')
+        rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, (self.result['ell']==1) & (self.result['emm']==0)], 'o', alpha=0.1, color='C4')
     
 
-        # Overplot gmode frequencies
+    # Overplot gmode frequencies
+    if self.l1model.N_g > 0:
         nu_g = self.l1model.asymptotic_nu_g(self.l1model.n_g, 
                                             self.result['summary']['DPi1'][0], 
                                             self.result['summary']['eps_g'][0], 
@@ -1008,7 +1009,7 @@ class plotting():
         if not 'Nsamples' in kwargs:
             kwargs['Nsamples'] = 200
             
-        if self.__class__.__name__ == 'modeIDsampler':
+        if self.__class__.__name__ == 'modeID':
 
             if stage=='prior':
                 fig, ax = _ModeIDClassPriorEchelle(self, **kwargs)
@@ -1046,7 +1047,7 @@ class plotting():
 
     def spectrum(self, stage='posterior', ID=None, savepath=None, kwargs={}, save_kwargs={}, N=30):
          
-        if self.__class__.__name__ == 'modeIDsampler':
+        if self.__class__.__name__ == 'modeID':
             if stage=='prior':
 
                 fig, ax = _ModeIDClassPriorSpectrum(self, N, **kwargs)
@@ -1088,7 +1089,7 @@ class plotting():
             kwargs['colors'] = ellColors
 
         
-        if self.__class__.__name__ == 'modeIDsampler':
+        if self.__class__.__name__ == 'modeID':
              
             if stage=='prior':
                  
@@ -1102,7 +1103,7 @@ class plotting():
                     ax.append(axl20)
 
                 else:
-                    warnings.warn('modeIDsampler does not currently have and l20model attribute, use runl20model first.')
+                    warnings.warn('modeID does not currently have and l20model attribute, use runl20model first.')
 
                 if hasattr(self, 'l1model'):
                     figl1, axl1 = _ModeIDClassPriorCorner(self, self.l1model, unpacked, N, **kwargs)
@@ -1112,7 +1113,7 @@ class plotting():
                     ax.append(axl1)
                     
                 else:
-                    warnings.warn('modeIDsampler does not currently have and l1model attribute, use runl1model first.')
+                    warnings.warn('modeID does not currently have and l1model attribute, use runl1model first.')
             
             elif stage=='posterior': 
                 
@@ -1126,7 +1127,7 @@ class plotting():
                     ax.append(axl20)
 
                 else:
-                    warnings.warn('modeIDsampler does not currently have and l20model attribute, use runl20model first.')
+                    warnings.warn('modeID does not currently have and l20model attribute, use runl20model first.')
 
                 if hasattr(self, 'l1model'):
                     figl1, axl1 = _ModeIDClassPostCorner(self, self.l1model, unpacked, N, **kwargs)
@@ -1136,7 +1137,7 @@ class plotting():
                     ax.append(axl1)
 
                 else:
-                    warnings.warn('modeIDsampler does not currently have and l1model attribute, use runl1model first.')
+                    warnings.warn('modeID does not currently have and l1model attribute, use runl1model first.')
 
             else:
                 raise ValueError('Set stage optional argument to either prior or posterior')
@@ -1165,7 +1166,7 @@ class plotting():
     def reference(self, stage='posterior', ID=None):
         """Make a corner plot of the prior sample with relevant overplotted values."""
 
-        if self.__class__.__name__ == 'modeIDsampler':
+        if self.__class__.__name__ == 'modeID':
             
             fig, axes = [], []
 

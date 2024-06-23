@@ -102,10 +102,10 @@ class modeID(plotting, ):
             self.l1model = RGBl1model(f, s,  
                                       summary, 
                                       self.addPriors, 
-                                      NPriorSamples=50,
+                                      Npca=self.Npca_mix,
                                       rootiter=15,
                                       priorpath=self.priorpath,
-                                      modelChoice='simple')
+                                      modelChoice='complicated')
         else:
             raise ValueError(f'Model {model} is invalid. Please use either Asy, Mix or RGB.')
 
@@ -153,6 +153,7 @@ class modeID(plotting, ):
     
         R = {'ell': np.array([]),
              'enn': np.array([]),
+             'emm': np.array([]),
              'zeta': np.array([]),
              'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                          'height': np.array([]).reshape((2, 0)), 
@@ -179,7 +180,7 @@ class modeID(plotting, ):
 
         resList = [l1result, l20result] # This order overrides the numax, dnu and teff from l1result in the output since the l20result is more reliable. 
 
-        for rootkey in ['ell', 'enn', 'zeta']:
+        for rootkey in ['ell', 'enn', 'emm', 'zeta']:
             for D in resList:
                 if D is not None:
                     R[rootkey] = np.append(R[rootkey], D[rootkey])

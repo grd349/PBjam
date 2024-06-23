@@ -42,6 +42,10 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
  
         self.setAddObs(keys=['teff', 'bp_rp'])
 
+        self.ell = np.append(np.zeros(self.N_p), np.zeros(self.N_p) + 2)
+        
+        self.emm = np.zeros(2*self.N_p)
+
         self.makeEmpties()
 
     def makeEmpties(self):
@@ -265,8 +269,9 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         for key in smp.keys():
             smp[key] = smp[key][:N]
         
-        result = {'ell': np.array([]),
+        result = {'ell': self.ell,
                   'enn': np.array([]),
+                  'emm': self.emm,
                   'zeta': np.array([]),
                   'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                               'height': np.array([]).reshape((2, 0)), 
@@ -286,8 +291,6 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         asymptotic_samps = np.array([jasymptotic_nu_p(smp['numax'][i], smp['dnu'][i], smp['eps_p'][i], smp['alpha_p'][i]) for i in range(N)])
         n_p = np.median(asymptotic_samps[:, 1, :], axis=0).astype(int)
         
-        result['ell'] = np.append(result['ell'], np.zeros(self.N_p))
-
         result['enn'] = np.append(result['enn'], n_p)
 
         result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
@@ -306,7 +309,6 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         jar.modeUpdoot(result, W0_samps, 'width', self.N_p)
         
         # l=2
-        result['ell'] = np.append(result['ell'], np.zeros(self.N_p) + 2)
         result['enn'] = np.append(result['enn'], n_p-1)
         result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
 
