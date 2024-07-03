@@ -9,8 +9,7 @@ jax.config.update('jax_enable_x64', True)
 
 class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
 
-    def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims,
-                 vis={'V20': 0.71}, priorpath=None):
+    def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims, vis={'V20': 0.71}, priorpath=None):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
@@ -275,11 +274,13 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
                   'zeta': np.array([]),
                   'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                               'height': np.array([]).reshape((2, 0)), 
-                              'width' : np.array([]).reshape((2, 0))
+                              'width' : np.array([]).reshape((2, 0)),
+                              'rotAsym': np.zeros((2, 2*self.N_p))
                              },
                   'samples': {'freq'  : np.array([]).reshape((N, 0)),
                               'height': np.array([]).reshape((N, 0)), 
-                              'width' : np.array([]).reshape((N, 0))
+                              'width' : np.array([]).reshape((N, 0)), 
+                              'rotAsym' : np.zeros((N, 2*self.N_p))
                              },
                 }
         
@@ -295,16 +296,16 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
 
         result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
 
-        # # Frequencies
+        # Frequencies
         nu0_samps = asymptotic_samps[:, 0, :]
         jar.modeUpdoot(result, nu0_samps, 'freq', self.N_p)
 
-        # # Heights
+        # Heights
         jenvelope = jax.jit(jar.envelope)
         H0_samps = np.array([jenvelope(nu0_samps[i, :], smp['env_height'][i], smp['numax'][i], smp['env_width'][i]) for i in range(N)])
         jar.modeUpdoot(result, H0_samps, 'height', self.N_p)
 
-        # # Widths
+        # Widths
         W0_samps = np.tile(smp['mode_width'], self.N_p).reshape((self.N_p, N)).T
         jar.modeUpdoot(result, W0_samps, 'width', self.N_p)
         
@@ -312,23 +313,20 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         result['enn'] = np.append(result['enn'], n_p-1)
         result['zeta'] = np.append(result['zeta'], np.zeros(self.N_p))
 
-        # # Frequencies
+        # Frequencies
         nu2_samps = np.array([nu0_samps[i, :] - smp['d02'][i] for i in range(N)])
         jar.modeUpdoot(result, nu2_samps, 'freq', self.N_p)
 
-        # # Heights
+        # Heights
         H2_samps = self.vis['V20'] * np.array([jenvelope(nu2_samps[i, :],  
                                                             smp['env_height'][i], 
                                                             smp['numax'][i], 
                                                             smp['env_width'][i]) for i in range(N)])
         jar.modeUpdoot(result, H2_samps, 'height', self.N_p)
         
-        # # Widths
+        # Widths
         W2_samps = np.tile(smp['mode_width'], np.shape(nu2_samps)[1]).reshape((nu2_samps.shape[1], nu2_samps.shape[0])).T
         jar.modeUpdoot(result, W2_samps, 'width', self.N_p)
-
-        #Background
-        #result['background'] = self.meanBkg(self.f, smp)  
   
         return result
 

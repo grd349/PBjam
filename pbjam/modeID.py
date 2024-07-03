@@ -4,13 +4,12 @@ import numpy as np
 from pbjam.l1models import Asyl1model, Mixl1model, RGBl1model
 from pbjam.l20models import Asyl20model
 from pbjam.plotting import plotting
+from pbjam import jar
 import pandas as pd
 
 class modeID(plotting, ):
 
-    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, 
-                 vis={'V20': 0.71, 'V10': 1.22}, Npca=50, PCAdims=8, 
-                 priorpath=None):
+    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorpath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
@@ -24,27 +23,13 @@ class modeID(plotting, ):
             self.freqLimits = [self.obs['numax'][0] - self.obs['dnu'][0]*(self.N_p//2+1), 
                                self.obs['numax'][0] + self.obs['dnu'][0]*(self.N_p//2+1),]
             
-        self.sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())    
+        self.sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   
 
-        if np.isscalar(self.Npca):
-            self.Npca_asy = self.Npca
-            self.Npca_mix = self.Npca
-        elif np.size(self.Npca) == 2:
-            self.Npca_asy = self.Npca[0]
-            self.Npca_mix = self.Npca[1]
-        else:
-            raise ValueError('Npca is wrong')
-        
-        if np.isscalar(self.PCAdims):
-            self.PCAdims_asy = self.PCAdims
-            self.PCAdims_mix = self.PCAdims
-        elif np.size(self.PCAdims) == 2:
-            self.PCAdims_asy = self.PCAdims[0]
-            self.PCAdims_mix = self.PCAdims[1]
-        else:
-            raise ValueError('PCAdims is wrong')
+        if priorpath is None:
+            self.priorpath = jar.getPriorpath()
+ 
 
-    def runl20model(self, progress, sampler_kwargs, logl_kwargs):
+    def runl20model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
  
         f = self.f[self.sel]
 
@@ -54,12 +39,13 @@ class modeID(plotting, ):
                                     self.obs, 
                                     self.addPriors, 
                                     self.N_p, 
-                                    self.Npca_asy, 
-                                    self.PCAdims_asy,
+                                    PCAsamples, 
+                                    PCAdims,
                                     priorpath=self.priorpath)
         
-        self.l20Samples, self.l20logz = self.l20model.runDynesty(progress=progress, logl_kwargs=logl_kwargs, 
-                                                                            sampler_kwargs=sampler_kwargs)
+        self.l20Samples, self.l20logz = self.l20model.runDynesty(progress=progress, 
+                                                                 logl_kwargs=logl_kwargs, 
+                                                                 sampler_kwargs=sampler_kwargs)
 
         l20samples_u = self.l20model.unpackSamples(self.l20Samples)
 
@@ -69,7 +55,7 @@ class modeID(plotting, ):
  
         return self.l20result
 
-    def runl1model(self, progress, sampler_kwargs, logl_kwargs, model='asy'):
+    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=100, PCAdims=5):
  
         self.l20residual = self.s[self.sel] / self.l20model.getMedianModel()
       
@@ -83,35 +69,35 @@ class modeID(plotting, ):
         for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
             summary[key] = self.l20result['summary'][key]
 
-        if model.lower() == 'asy':
+        if model.lower() == 'ms':
             self.l1model = Asyl1model(f, s, 
                                       summary, 
                                       self.addPriors,
-                                      self.Npca_asy, 
+                                      PCAsamples, 
                                       priorpath=self.priorpath)
 
-        elif model.lower() == 'mix':    
+        elif model.lower() == 'sg':    
             self.l1model = Mixl1model(f, s, 
                                       summary, 
                                       self.addPriors,
-                                      self.Npca_mix, 
-                                      self.PCAdims_mix,
+                                      PCAsamples, 
+                                      PCAdims,
                                       priorpath=self.priorpath)
 
         elif model.lower() == 'rgb':
             self.l1model = RGBl1model(f, s,  
                                       summary, 
                                       self.addPriors, 
-                                      Npca=self.Npca_mix,
+                                      PCAsamples,
                                       rootiter=15,
                                       priorpath=self.priorpath,
                                       modelChoice='complicated')
         else:
-            raise ValueError(f'Model {model} is invalid. Please use either Asy, Mix or RGB.')
+            raise ValueError(f'Model {model} is invalid. Please use either MS, SG or RGB.')
 
         self.l1Samples, self.l1logz  = self.l1model.runDynesty(progress=progress, 
-                                                                logl_kwargs=logl_kwargs, 
-                                                                sampler_kwargs=sampler_kwargs)
+                                                               logl_kwargs=logl_kwargs, 
+                                                               sampler_kwargs=sampler_kwargs)
         
         l1SamplesU = self.l1model.unpackSamples(self.l1Samples)
 
@@ -157,11 +143,13 @@ class modeID(plotting, ):
              'zeta': np.array([]),
              'summary': {'freq'  : np.array([]).reshape((2, 0)), 
                          'height': np.array([]).reshape((2, 0)), 
-                         'width' : np.array([]).reshape((2, 0))
+                         'width' : np.array([]).reshape((2, 0)),
+                         'rotAsym': np.array([]).reshape((2, 0)),
                         },
              'samples': {'freq'  : np.array([]).reshape((N, 0)),
                          'height': np.array([]).reshape((N, 0)), 
-                         'width' : np.array([]).reshape((N, 0))
+                         'width' : np.array([]).reshape((N, 0)),
+                         'rotAsym' : np.array([]).reshape((N, 0))
                         },
             }
  
@@ -189,10 +177,10 @@ class modeID(plotting, ):
             for D in resList: 
                 if D is not None:
                     for subkey in list(D[rootkey].keys()):
-                        if subkey not in ['freq', 'height', 'width']:
+                        if subkey not in ['freq', 'height', 'width', 'rotAsym']:
                             R[rootkey][subkey] = D[rootkey][subkey]
 
-                    for subkey in ['freq', 'height', 'width']:
+                    for subkey in ['freq', 'height', 'width', 'rotAsym']:
                         R[rootkey][subkey] = np.hstack((R[rootkey][subkey][:N, :], 
                                                         D[rootkey][subkey][:N, :]))
 

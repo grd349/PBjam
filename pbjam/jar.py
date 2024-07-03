@@ -619,7 +619,7 @@ def getCurvePercentiles(x, y, cdf=None, percentiles=None):
     y /= np.trapz(y, x)
   
     if cdf is None:
-        cdf = si.cumtrapz(y, x, initial=0)
+        cdf = si.cumulative_trapezoid(y, x, initial=0)
         cdf /= cdf.max()  
          
     percs = np.zeros(len(percentiles))
@@ -1265,3 +1265,15 @@ def makeUneven(n):
     if n % 2 == 0:
         n += 1
     return n
+
+def getPriorpath():
+    """ Get default prior path name
+    
+    Returns
+    -------
+    prior_file : str
+        Default path to the prior in the package directory structure.
+        
+    """
+    
+    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
