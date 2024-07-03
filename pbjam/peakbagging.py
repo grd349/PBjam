@@ -1,5 +1,5 @@
 from functools import partial
-import jax
+import jax, emcee, warnings
 import jax.numpy as jnp
 from pbjam.plotting import plotting 
 import pbjam.distributions as dist
@@ -11,28 +11,83 @@ from tqdm import tqdm
 
 class peakbag(plotting):
 
-    def __init__(self, f, s, ell, zeta, freq, height, width, numax, dnu, d02, freq_limits=[], slice=True, Nslices=0, **kwargs):
+    def __init__(self, f, s, ell, freq, height, width, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slice=True, Nslices=0, snrInput=False, **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
         self.pbInstances = []
 
         self.pickModes()
- 
+        
         self.N_p = len(self.ell[self.ell==0])
 
         self.Nmodes = len(self.freq[0, :])
 
-        self.bkg = self.getBkg()
+        if self.zeta is None:
+            self.zeta == jnp.zeros_like(self.freq)
 
-        self.snr = self.s / self.bkg(self.f)
-
-        self.height[0, :] = self.height[0, :] / self.bkg(self.freq[0, :])
+        self.dnu = self.setDnu()
+                        
+        self.d02 = self.setd02()
  
+        if not self.snrInput:
+            self.bkg = self.getBkg()
+
+            self.snr = self.s / self.bkg(self.f)
+
+            self.height[0, :] = self.height[0, :] / self.bkg(self.freq[0, :])
+
+        else:
+            self.snr = self.s
+
         self.width[0, :] = self.width[0, :] / (1-self.zeta)
-         
+        
+        if self.rotAsym is None:
+            self.rotAsym = jnp.zeros((2, len(self.ell)))
+
         self.createPeakbagInstances()
 
+    def setd02(self):
+            
+        if self.d02 is None and (2 in self.ell and 0 in self.ell):
+            try:
+                self.d02 = np.median(self.freq[self.ell==0]-self.freq[self.ell==2])
+            except:
+                warnings.warn("Estimating d02 as 0.1*dnu")
+                self.d02 = 0.1 * self.dnu[0]
+
+        elif isinstance(self.d02, (float, int)):
+            d02 = np.array([self.d02, jnp.nan])
+        
+        else:
+            d02 = np.array(self.d02)
+            
+            assert (d02.dtype==float) or (d02.type==int)
+
+        return d02
+    
+    def setDnu(self):
+            
+        if self.dnu is None:
+            if 0 in self.ell:
+                ref_l = 0
+            elif 2 in self.ell:
+                ref_l = 2
+            elif 1 in self.ell:
+                ref_l = 1
+
+            dnu = np.array([jnp.median(jnp.diff(self.freq[self.ell==ref_l])), jnp.nan])
+        
+        elif isinstance(self.dnu, (float, int)):
+            dnu = np.array([self.dnu, jnp.nan])
+        
+        else:
+            dnu = np.array(self.dnu)
+            
+            assert (dnu.dtype==float) or (dnu.type==int)
+
+        return dnu
+    
     def checkSmallDiffs(self, cuts, nu, Gamma):
     
         distances = np.abs(nu[:, np.newaxis] - cuts)
@@ -116,7 +171,7 @@ class peakbag(plotting):
          
         cuts = np.append(nu.min() - dnu / 3, # append lower limit 
                          np.append(nu[x] + (nu[x+1] - nu[x])/2,  # append list of cuts
-                                   nu.max()+dnu/3)) # append upper limit
+                         nu.max() + dnu / 3)) # append upper limit
 
         return cuts
 
@@ -133,7 +188,7 @@ class peakbag(plotting):
             for i in tqdm(range(len(sliceLimits) - 1)):
                  
                 slcIdx = self.slc(self.freq[0, :], sliceLimits[i], sliceLimits[i + 1])
-                 
+
                 _ell = self.ell[slcIdx]
                 
                 _zeta = self.zeta[slcIdx]
@@ -143,11 +198,13 @@ class peakbag(plotting):
                 _height = self.height[:, slcIdx]
                 
                 _width = self.width[:, slcIdx]
+
+                _rotAsym = self.rotAsym[:, slcIdx]
                  
-                self.pbInstances.append(DynestyPeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.numax, self.dnu, self.d02, sliceLimits[i: i+2]))
+                self.pbInstances.append(DynestyPeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
                                                        
         else:
-            self.pbInstances.append(DynestyPeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.numax, self.dnu, self.d02, self.freq_limits))
+            self.pbInstances.append(DynestyPeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freq_limits, _rotAsym))
 
     def getBkg(self, a=0.66, b=0.88, skips=100):
             """ Estimate the background
@@ -190,7 +247,11 @@ class peakbag(plotting):
         
         self.width = self.width[:, idx]
         
+        self.rotAsym = self.rotAsym[:, idx]
+
         self.zeta = self.zeta[idx]
+
+        
 
         return idx
 
@@ -240,7 +301,7 @@ class peakbag(plotting):
 
         return limits
     
-    def __call__(self, dynamic=False, progress=True, sampler_kwargs={}, Nsamples=10000):
+    def __call__(self, dynamic=False, progress=False, sampler_kwargs={}, Nsamples=10000):
   
         if self.slice:
             print('Peakbagging envelope slices')
@@ -254,6 +315,8 @@ class peakbag(plotting):
         samplesSaved = min([Nsamples, min([inst.nsamples for inst in self.pbInstances])])
 
         mainResult = {'ell': np.array([]),
+                      'enn': np.array([]),
+                      'emm': np.array([]),
                       'zeta': np.array([]),
                       'summary': {'freq'  : np.empty(shape=(2, 0), dtype=float),
                                 'height': np.empty(shape=(2, 0), dtype=float),
@@ -273,10 +336,9 @@ class peakbag(plotting):
     
     def compileResults(self, mainResult, instResult):
     
-        mainResult['ell'] = np.append(mainResult['ell'], instResult['ell'])
-        
-        mainResult['zeta'] = np.append(mainResult['zeta'], instResult['zeta'])
-        
+        for key in ['ell', 'enn', 'ell', 'zeta']:
+            mainResult[key] = np.append(mainResult[key], instResult[key])
+            
         n = mainResult['samples']['freq'].shape[0]
         
         m = instResult['samples']['freq'].shape[0]
@@ -379,8 +441,6 @@ class jointRotInc(jar.DynestySamplingTools):
  
     def __call__(self,  nwalkers=500, nsteps=500, burnFraction=0.1, accept=0.1, progress=True):
         
-        import emcee
-
         itr = 0
 
         p0 = np.empty(shape=(0, self.ndims), dtype=float)
@@ -412,12 +472,18 @@ class jointRotInc(jar.DynestySamplingTools):
 
 class DynestyPeakbag(jar.DynestySamplingTools, plotting):
     
-    def __init__(self, f, s, ell, freq, height, width, zeta, numax,  dnu, d02, freq_limits, addPriors={}, **kwargs):
+    def __init__(self, f, s, ell, freq, height, width, zeta, dnu, d02, freq_limits, rotAsym, addPriors={}, **kwargs):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
-        
-        self.Nyquist = self.f[-1]
- 
+         
+        # Convert everything to jax array
+        for key, val in self.__dict__.items():
+            if type(val) == np.ndarray:
+                self.__dict__.update({key: jnp.array(val)})
+
+        # Except ell. For some reason it's no longer jit-able?
+        self.ell = list(np.array(self.ell))
+         
         self.Nmodes = len(self.ell)
         
         self.setLabels()
@@ -429,6 +495,8 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         self.ndims = len(self.priors.keys())
 
         self.setAddLikeTerms()
+
+        self.zeros = jnp.zeros_like(self.f[self.sel])
 
     def setPriors(self, freq_err=0.03):
  
@@ -496,25 +564,11 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
             where the oscillation modes present.
         """
         
-        if len(self.freq_limits) == 2:
-            lfreq = self.freq_limits[0]
-            
-            ufreq = self.freq_limits[1]
-        
-        elif (self.modeIDres is not None) and (len(self.freq_limits) == 0):
-            pad = self.dnu[0] / 2
+        if len(self.freq_limits) != 2:
+            raise ValueError('freq_limits should be an iterable of length 2.')
 
-            muFreqs = jnp.array([self.priors[key].ppf(0.5) for key in self.labels if 'freq' in key])
-            
-            lfreq = muFreqs.min() - pad
-
-            ufreq = muFreqs.max() + pad
-        else:
-            raise ValueError('Supply a modeID result dictionary or freq_limits to set fit window.')
-
-        return (lfreq < self.f) & (self.f < ufreq)  
+        return (self.freq_limits[0] < self.f) & (self.f < self.freq_limits[1])  
     
-    @partial(jax.jit, static_argnums=(0,))
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
@@ -576,7 +630,6 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         
         return lnlike
 
-    @partial(jax.jit, static_argnums=(0,))
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
 
@@ -609,20 +662,19 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
   
         return theta_u
  
-    @partial(jax.jit, static_argnums=(0,))
     def model(self, theta_u):
          
-        modes = jnp.zeros_like(self.f[self.sel]) + theta_u['shot']
+        modes = self.zeros + theta_u['shot']
         
         omega = self.zeta * theta_u['nurot_c'] + (1 - self.zeta) * theta_u['nurot_e']
  
         for i, l in enumerate(self.ell):
             
-            for m in jnp.arange(2 * l + 1) - l:
+            for m in jnp.arange(-l, l+1):
                 
                 E = jar.visibility(l, m, theta_u['inc'])
                 
-                nu = theta_u['freq'][i] + omega[i] * m
+                nu = theta_u['freq'][i] + omega[i] * m 
 
                 H = E * theta_u['height'][i]
 
@@ -643,6 +695,8 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         theta_u = self.unpackSamples(samples)
         
         result = {'ell': np.array([self.ell]),
+                  'enn': np.array([]),
+                  'emm': np.array([]),
                   'zeta': np.array([self.zeta]),
                   'summary': {},
                   'samples': {}
@@ -654,11 +708,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
             result['summary'][key] = np.array([np.mean(arr, axis=1), np.std(arr, axis=1)]) 
             
             result['samples'][key] = arr[:, :N].T
-            
-            # for field in ['summary', 'samples']:
-            #     if result[field][key].shape[0] == 1:
-            #         result[field][key] = result[field][key].flatten()
- 
+
         return result
  
     def unpackSamples(self, samples):
@@ -684,6 +734,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
 
         self.addObs = {}
 
+        # l=0 and l=2 can't swap places.
         # TODO this should be changed to something that can't go below 0
         self.addObs['d02'] = dist.normal(loc=self.d02[0], 
                                          scale=10 * self.d02[1])
@@ -707,8 +758,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
 
         # self.addObs['heightGP'] = hGP.log_probability
  
-    @partial(jax.jit, static_argnums=(0,))
-    def AddLikeTerms(self, theta, theta_u):
+    def AddLikeTerms(self, theta, thetaU):
         """ Add the additional probabilities to likelihood
         
         Adds the additional observational data likelihoods to the PSD likelihood.
@@ -723,7 +773,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         lnp : float
             The likelihood of a sample given the parameter PDFs.
         """
-        delta = theta_u['freq'][self.ell==0] - theta_u['freq'][self.ell==2]
+        delta = thetaU['freq'][self.ell==0] - thetaU['freq'][self.ell==2]
 
         lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
         
