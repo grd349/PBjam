@@ -732,9 +732,9 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
                          result['samples']['freq'], 
                          result['samples']['freq'] + nurot])
         
-        asym_samps = np.array([[self.asymmetry(nulm[:, j, i]) for i in range(self.N_p)] for j in range(N)])
+        asym_samps = np.array([[self.asymmetry(nulm[:, j, i]) for i in range(self.N_pg)] for j in range(N)])
  
-        jar.modeUpdoot(result, asym_samps, 'rotAsym', self.N_p)
+        jar.modeUpdoot(result, asym_samps, 'rotAsym', self.N_pg)
 
         return result
     
