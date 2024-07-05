@@ -503,12 +503,14 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     
     return fig, ax
 
-def _PeakbagClassPriorEchelle(self, scale, colors, **kwargs):
+def _PeakbagClassPriorEchelle(self, scale, colors, dnu=None, numax=None, **kwargs):
 
-    dnu = self.dnu[0]
+    if dnu is None:
+        dnu = self.dnu[0]
     
-    numax = self.numax[0]
-
+    if numax is None:
+        numax = np.median(self.freq)
+   
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
 
     maxL = 0
@@ -547,7 +549,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
         dnu = self.dnu[0]
     
     if numax is None:
-        numax = self.numax[0]
+        numax = np.median(self.freq)
  
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
