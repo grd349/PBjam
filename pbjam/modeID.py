@@ -91,7 +91,7 @@ class modeID(plotting, ):
                                       PCAsamples,
                                       rootiter=15,
                                       priorpath=self.priorpath,
-                                      modelChoice='complicated')
+                                      modelChoice='simple')
         else:
             raise ValueError(f'Model {model} is invalid. Please use either MS, SG or RGB.')
 
@@ -152,20 +152,20 @@ class modeID(plotting, ):
                          'rotAsym' : np.array([]).reshape((N, 0))
                         },
             }
- 
+        
         if l20result is None and hasattr(self, 'l20result'):
             l20result = self.l20result
 
-            N = min([l20result['samples']['freq'].shape[0], 
-                     N])
- 
+        _N = np.append(N, l20result['samples']['freq'].shape[0])
+         
         if l1result is None and hasattr(self, 'l1model'):
             l1result = self.l1result
+        
+        if l1result is not None:
+            _N = np.append(_N, l1result['samples']['freq'].shape[0])
  
-            N = min([l20result['samples']['freq'].shape[0], 
-                     l1result['samples']['freq'].shape[0],
-                     N])
-
+        N = np.min(_N)
+         
         resList = [l1result, l20result] # This order overrides the numax, dnu and teff from l1result in the output since the l20result is more reliable. 
 
         for rootkey in ['ell', 'enn', 'emm', 'zeta']:
