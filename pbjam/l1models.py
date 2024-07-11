@@ -108,7 +108,8 @@ class commonFuncs(jar.generalModelFuncs):
  
         eps_g = np.median(_samplesU['eps_g'])
  
-        freq_lims = (min(self.obs['nu0_p']) - fac*self.obs['dnu'][0],  max(self.obs['nu0_p']) + fac*self.obs['dnu'][0])
+        freq_lims = (min(self.obs['nu0_p']) - fac*self.obs['dnu'][0],  
+                     max(self.obs['nu0_p']) + fac*self.obs['dnu'][0])
         
         # Start with an exagerated number of g-modes.
         init_n_g = jnp.arange(10000)[::-1] + 1
@@ -120,10 +121,7 @@ class commonFuncs(jar.generalModelFuncs):
         n_g = jnp.arange(init_n_g[idx_c].min(), 
                          init_n_g[idx_c].max(), 
                          dtype=int)[::-1]
-              
-        if len(n_g) > 100:
-            warnings.warn(f'{len(n_g)} g-modes in the coupling matrix.')
-
+        
         # Force a minimum of 1 g-mode to be included as a test
         if len(n_g) == 0:
             n_g = jnp.array([1])
@@ -355,13 +353,16 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
 
         self.setupDR()
  
-        self.setAddObs(keys=['teff', 'dnu', 'numax'])
+        self.setAddObs(keys=['teff'])
 
         if not self.badPrior: 
  
             self.setPriors()
  
             self.n_g = self.select_n_g(fac=5)
+
+            if len(self.n_g) > 100:
+                warnings.warn(f'{len(self.n_g)} g-modes in the coupling matrix.')
 
             self.N_g = len(self.n_g)
 
@@ -741,13 +742,13 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
 class RGBl1model(jar.DynestySamplingTools, commonFuncs):
 
     def __init__(self, f, s, obs, addPriors, Npca, rootiter=15, vis={'V10': 1.22}, priorpath=None, modelChoice='simple'):
-
+        
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
   
         modelParLabels = ['d01', 'DPi1', 'teff', 'eps_g', 'q',
                           'nurot_c', 'nurot_e', 'inc', 'dnu',
                           'numax']
-                    
+             
         self.setLabels(self.addPriors, modelParLabels)
         
         self.setPriors()
@@ -756,7 +757,7 @@ class RGBl1model(jar.DynestySamplingTools, commonFuncs):
 
         self.ndims = len(self.priors)
  
-        self.n_g = self.select_n_g()  
+        self.n_g = self.select_n_g(fac=5)  
 
         self.N_g = len(self.n_g)
 
@@ -802,23 +803,25 @@ class RGBl1model(jar.DynestySamplingTools, commonFuncs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
          
-        self.DR = PCA(_obs, ['d01', 'DPi1', 'teff', 'dnu', 'numax'], self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
          
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
-        for i, key in enumerate(['d01', 'DPi1', 'teff', 'dnu', 'numax']):
+        for i, key in enumerate(self.pcalabels):
 
             self.priors[key] = dist.distribution(self.DR.ppf[i], 
                                                  self.DR.pdf[i], 
                                                  self.DR.logpdf[i], 
                                                  self.DR.cdf[i])
- 
-        self.priors['eps_g'] = dist.normal(loc=0.8, scale=0.1)
+
+        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
+
+        self.priors.update({key : self.addPriors[key] for key in AddKeys})
 
         self.priors['q'] = dist.uniform(loc=0.01, scale=0.6)
 
         # Core rotation prior
-        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
+        self.priors['nurot_c'] = dist.uniform(loc=-2., scale=3.)
 
         self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
 
