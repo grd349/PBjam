@@ -11,7 +11,7 @@ from tqdm import tqdm
 
 class peakbag(plotting):
 
-    def __init__(self, f, s, ell, freq, height, width, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slice=True, Nslices=0, snrInput=False, **kwargs):
+    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slice=True, Nslices=0, snrInput=False, **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -23,8 +23,16 @@ class peakbag(plotting):
 
         self.Nmodes = len(self.freq[0, :])
 
+        if self.height is None:
+            self.height = jnp.ones_like(self.freq)
+
+        if self.width is None:
+            self.height = 0.1 * jnp.ones_like(self.freq)
+
+        self.width[0, :] = self.width[0, :] / (1-self.zeta)
+
         if self.zeta is None:
-            self.zeta == jnp.zeros_like(self.freq)
+            self.zeta = jnp.zeros_like(self.freq)
 
         self.dnu = self.setDnu()
                         
@@ -39,9 +47,7 @@ class peakbag(plotting):
 
         else:
             self.snr = self.s
-
-        self.width[0, :] = self.width[0, :] / (1-self.zeta)
-        
+ 
         if self.rotAsym is None:
             self.rotAsym = jnp.zeros((2, len(self.ell)))
 
@@ -336,9 +342,10 @@ class peakbag(plotting):
     
     def compileResults(self, mainResult, instResult):
     
-        for key in ['ell', 'enn', 'ell', 'zeta']:
-            mainResult[key] = np.append(mainResult[key], instResult[key])
+        for key in ['ell', 'enn', 'emm', 'zeta']:
             
+            mainResult[key] = np.append(mainResult[key], instResult[key])
+           
         n = mainResult['samples']['freq'].shape[0]
         
         m = instResult['samples']['freq'].shape[0]
