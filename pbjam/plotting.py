@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import astropy.convolution as conv
 import os, corner, warnings, logging
 import numpy as np
+import jax
 
 ellColors = {0: 'C1', 1: 'C4', 2: 'C3', 3: 'C5'}
 
@@ -36,7 +37,7 @@ def smooth_power(freq, power, smooth_filter_width):
     return smoo
 
 
-def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
+def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=1):
     """Calculates the echelle diagram. Use this function if you want to do
     some more custom plotting.
 
@@ -153,6 +154,10 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     ax.set_ylabel(r"Frequency [$\mu$Hz]")
 
     ax.set_ylim(freq[0], freq[-1])
+
+    for x in np.arange(echy.min(), echy.max(), dnu):
+        ax.axhline(x, color='k', alpha=0.1)
+        
     return ax
 
 
@@ -275,10 +280,11 @@ def _ModeIDPosteriorReference(model, N=1000):
     return fig, axes
 
 
-def _echellify_freqs(nu, dnu):
-    x = nu%dnu
+@jax.jit()
+def _echellify_freqs(nu, dnu, offset=0):
+    x = (nu - offset*dnu)  % dnu  
 
-    y = nu #+ dnu/2
+    y =  nu  
 
     return x, y
 
@@ -317,7 +323,7 @@ def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
 
     fig, ax = plt.subplots(figsize=(8,7))    
         
-    plot_echelle(f, s, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale)
+    plot_echelle(f, s, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale, **kwargs)
 
     return fig, ax
 
@@ -326,6 +332,7 @@ def _ModeIDClassPriorEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
 
     if dnu is None:
         dnu = self.obs['dnu'][0]
+
     if numax is None:
         numax = self.obs['numax'][0]
 
@@ -333,15 +340,21 @@ def _ModeIDClassPriorEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
 
     if hasattr(self, 'l20model'):
  
-        for k in range(Nsamples):
+        junpackl20 = jax.jit(self.l20model.unpackParams)
+ 
+        jptforml20 = jax.jit(self.l20model.ptform)
+
+        jasy_nu_p = jax.jit(self.l20model.asymptotic_nu_p)
+
+        for _ in range(Nsamples):
 
             u = np.random.uniform(0, 1, size=self.l20model.ndims)
         
-            theta = self.l20model.ptform(u)
+            theta = jptforml20(u)
 
-            thetaU = self.l20model.unpackParams(theta)
+            thetaU = junpackl20(theta)
             
-            nu0p, _ = self.l20model.asymptotic_nu_p(**thetaU)
+            nu0p, _ = jasy_nu_p(**thetaU)
 
             nu2p  = nu0p + thetaU['d02']
 
@@ -354,16 +367,22 @@ def _ModeIDClassPriorEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
             ax.scatter(np.nan, np.nan, alpha=1, color=colors[ell], s=100, label=r'$\ell=$'+str(ell))
 
     if hasattr(self, 'l1model'):
+
+        junpackl1 = jax.jit(self.l1model.unpackParams)
  
-        for k in range(Nsamples):
+        jptforml1 = jax.jit(self.l1model.ptform)
+
+        jnu = jax.jit(self.l1model.nu1_frequencies)
+
+        for _ in range(Nsamples):
 
             u = np.random.uniform(0, 1, size=self.l1model.ndims)
         
-            theta = self.l1model.ptform(u)
+            theta = jptforml1(u)
 
-            thetaU = self.l1model.unpackParams(theta)
+            thetaU = junpackl1(theta)
             
-            nu1 = self.l1model.nu1_frequencies(thetaU)
+            nu1 = jnu(thetaU)
             
             smp_x, smp_y = _echellify_freqs(nu1, dnu) 
 
@@ -417,8 +436,11 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     else:
         numax = self.obs['numax'][0]
 
-    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, **kwargs)
+    offset = (self.result['summary']['eps_p'][0])  - 0.25
+     
+    fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, offset=offset * dnu, **kwargs)
 
+    axes = np.array([ax])
     if hasattr(self, 'result'):
         for l in np.unique(self.result['ell']).astype(int):
 
@@ -426,15 +448,15 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
             
             freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
-            smp_x, smp_y = _echellify_freqs(freqs, dnu) 
+            smp_x, smp_y = _echellify_freqs(freqs, dnu, offset) 
 
             ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
 
             med_freqs = self.result['summary']['freq'][0, self.result['emm'] == 0]
 
-            med_x, med_y = _echellify_freqs(med_freqs, dnu) 
+            med_x, med_y = _echellify_freqs(med_freqs, dnu, offset) 
 
-            ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
+            #ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
 
             # Add to legend
             ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
@@ -444,7 +466,7 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
     # If fudge frequencies are used plot those
     if hasattr(self, 'l1model') and 'freqError0' in self.result['summary'].keys():
 
-        rect_ax = fig.add_axes([0.98, 0.135, 0.2, 0.827])   
+        rect_ax = fig.add_axes([0.92, 0.107, 0.2, 0.775])   
         rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
         rect_ax.set_yticks([])
         rect_ax.set_ylim(ax.get_ylim())
@@ -465,23 +487,28 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
         l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
          
         rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, (self.result['ell']==1) & (self.result['emm']==0)], 'o', alpha=0.1, color='C4')
-    
+        axes = np.append(axes, ax)
 
     # Overplot gmode frequencies
-    if self.l1model.N_g > 0:
-        nu_g = self.l1model.asymptotic_nu_g(self.l1model.n_g, 
-                                            self.result['summary']['DPi1'][0], 
-                                            self.result['summary']['eps_g'][0], 
-                                            )
-                                            
-        for i, nu in enumerate(nu_g):
+    if hasattr(self, 'l1model'):
+        if self.l1model.N_g > 0:
 
-            if (ylims[0] < nu) & (nu < ylims[1]):
-                ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.l1model.n_g[i]}', ha='right', fontsize=11)
+            curlyN = dnu / (self.result['summary']['DPi1'][0] *1e-6 * numax**2)
+            
+            if curlyN < 1:
+                nu_g = self.l1model.asymptotic_nu_g(self.l1model.n_g, 
+                                                    self.result['summary']['DPi1'][0], 
+                                                    self.result['summary']['eps_g'][0], 
+                                                    )
+                                                    
+                for i, nu in enumerate(nu_g):
 
-            ax.axhline(nu, color='k', ls='dashed')
+                    if (ylims[0] < nu) & (nu < ylims[1]):
+                        ax.text(dnu, nu + dnu/2, s=r'$n_g$'+f'={self.l1model.n_g[i]}', ha='right', fontsize=11)
 
-        ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
+                    ax.axhline(nu, color='k', ls='dashed')
+
+                ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
 
         #Overplot l=1 p-modes
         nu0_p, _ = self.l20model.asymptotic_nu_p(self.result['summary']['numax'][0], 
@@ -493,15 +520,15 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
         nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
 
-        ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
-                
+        #ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
+                        
     
  
     ax.set_xlim(0, dnu)
 
-    ax.legend(ncols=2)
+    ax.legend(ncols=len(np.unique(self.result['ell'])), loc=1)
     
-    return fig, ax
+    return fig, axes
 
 def _PeakbagClassPriorEchelle(self, scale, colors, dnu=None, numax=None, **kwargs):
 
@@ -579,7 +606,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
 
 def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
  
-    ax.plot(f, s, 'k-', label='Data', alpha=0.2)
+    #ax.plot(f, s, 'k-', label='Data', alpha=0.1)
     
     smoo = smooth_power(f, s, smoothness)
     
@@ -672,15 +699,21 @@ def _ModeIDClassPriorSpectrum(self, N):
 
         rint = np.random.randint(0, len(self.result['samples']['dnu']), size=N)
 
+        junpackl20 = jax.jit(self.l20model.unpackParams)
+
+        jmodell20 = jax.jit(self.l20model.model)
+
+        jptforml20 = jax.jit(self.l20model.ptform)
+
         for k in rint:
             
             u = np.random.uniform(0, 1, size=self.l20model.ndims)
         
-            theta = self.l20model.ptform(u)
+            theta = jptforml20(u)
 
-            thetaU = self.l20model.unpackParams(theta)
+            thetaU = junpackl20(theta)
             
-            mod = self.l20model.model(thetaU)
+            mod = jmodell20(thetaU)
 
             ax[0].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
 
@@ -693,14 +726,20 @@ def _ModeIDClassPriorSpectrum(self, N):
 
         rint = np.random.randint(0, len(self.result['samples']['d01']), size=N)
 
+        junpackl1 = jax.jit(self.l1model.unpackParams)
+
+        jmodell1 = jax.jit(self.l1model.model)
+
+        jptforml1 = jax.jit(self.l1model.ptform)
+
         for k in rint:
             u = np.random.uniform(0, 1, size=self.l1model.ndims)
         
-            theta = self.l1model.ptform(u)
+            theta = jptforml1(u)
         
-            thetaU = self.l1model.unpackParams(theta)
+            thetaU = junpackl1(theta)
             
-            mod = self.l1model.model(thetaU,)
+            mod = jmodell1(thetaU,)
 
             ax[2].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
 
@@ -717,44 +756,68 @@ def _ModeIDClassPostSpectrum(self, N):
     fig, ax = _makeBaseFrames(self)
  
     if hasattr(self, 'l20model'):
+
+        junpackl20 = jax.jit(self.l20model.unpackParams)
+
+        jmodell20 = jax.jit(self.l20model.model)
+
         for k in rint:
         
-            thetaU = self.l20model.unpackParams(self.l20Samples[k, :])
+            thetaU = junpackl20(self.l20Samples[k, :])
             
-            mod = self.l20model.model(thetaU)
+            mod = jmodell20(thetaU)
 
             ax[0].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
 
             ax[1].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
     
     if hasattr(self, 'l1model'):
+
+        junpackl1 = jax.jit(self.l1model.unpackParams)
+
+        jmodell1 = jax.jit(self.l1model.model)
+
         for k in rint:
-            thetaU = self.l1model.unpackParams(self.l1Samples[k, :])
+            thetaU = junpackl1(self.l1Samples[k, :])
             
-            mod = self.l1model.model(thetaU,)
+            mod = jmodell1(thetaU,)
 
             ax[2].plot(self.f[self.sel], mod, color='C3', alpha=0.2)
+
+            llim, ulim = ax[2].get_ylim()
+             
+            line_bottom = ulim - 0.1*(ulim-llim)
+
+            nu_l0 = self.result['summary']['freq'][0, self.result['ell']==0]
+
+            for _, nu_l0 in enumerate(nu_l0):
+                ax[2].plot([nu_l0, nu_l0],[line_bottom, ulim], lw=5, color=ellColors[0])
+
+            nu_l2 = self.result['summary']['freq'][0, self.result['ell']==2]
+
+            for _, nu_l2 in enumerate(nu_l2):
+                ax[2].plot([nu_l2, nu_l2],[line_bottom, ulim], lw=5, color=ellColors[2])
   
     ax[0].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
     
     ax[0].legend(loc=3)
     
-    for i in range(1, ax.shape[0]):
-        for j, nu in enumerate(self.result['summary']['freq'][0]):
+    # for i in range(1, ax.shape[0]):
+    #     for j, nu in enumerate(self.result['summary']['freq'][0]):
             
-            if (i==1 and self.result['ell'][j]==1) or (i==2 and self.result['ell'][j]!=1):
-                _alpha=0.35
+    #         if (i==1 and self.result['ell'][j]==1) or (i==2 and self.result['ell'][j]!=1):
+    #             _alpha=0.35
 
-            else:
-                _alpha=1.0
+    #         else:
+    #             _alpha=1.0
 
-            ax[i].axvline(nu, c='k', linestyle='--', alpha=_alpha, lw=3)
+    #         ax[i].axvline(nu, c='k', linestyle='--', alpha=_alpha, lw=3)
         
-        ax[i].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
+    #     ax[i].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
 
-        ax[i].axvline(-100, c='k', linestyle='--', label='Median frequencies')
+    #     ax[i].axvline(-100, c='k', linestyle='--', label='Median frequencies')
  
-        ax[i].legend(loc=2)
+    #     ax[i].legend(loc=2)
  
     return fig, ax
 
@@ -763,16 +826,24 @@ def _PeakbagClassPriorSpectrum(self, N):
     fig, ax = plt.subplots(figsize=(16,9))
 
     _baseSpectrum(ax, self.f, self.snr, smoothness=0.5)
+
     for inst in self.pbInstances:
-        for i in range(N):
+
+        junpack = jax.jit(inst.unpackParams)
+
+        jmodel = jax.jit(inst.model)
+
+        jptform = jax.jit(inst.ptform)
+
+        for _ in range(N):
     
             u = np.random.uniform(0, 1, size=inst.ndims)
 
-            theta = inst.ptform(u)
+            theta = jptform(u)
             
-            theta_u = inst.unpackParams(theta)
+            theta_u = junpack(theta)
              
-            m = inst.model(theta_u)
+            m = jmodel(theta_u)
              
             ax.plot(inst.f[inst.sel], m, alpha=0.2, color='C3')
 
@@ -793,21 +864,25 @@ def _PeakbagClassPriorSpectrum(self, N):
 
 def _PeakbagClassPostSpectrum(self, N):
 
-    fig, ax = plt.subplots(figsize=(16,9))
+    fig, ax = plt.subplots(figsize=(25,6))
 
-    _baseSpectrum(ax, self.f, self.snr, smoothness=0.5)
+    _baseSpectrum(ax, self.f, self.snr, smoothness=0.1)
 
     for inst in self.pbInstances:
 
         randInt = np.random.randint(0, inst.samples.shape[0], size=N)
         
+        junpack = jax.jit(inst.unpackParams)
+
+        jmodel = jax.jit(inst.model)
+
         for k in randInt:
         
             theta = inst.samples[k, :]
 
-            theta_u = inst.unpackParams(theta)
+            theta_u = junpack(theta)
             
-            m = inst.model(theta_u)
+            m = jmodel(theta_u)
             
             ax.plot(inst.f[inst.sel], m, color='C3', alpha=0.2)
 
@@ -822,7 +897,7 @@ def _PeakbagClassPostSpectrum(self, N):
 
     ax.set_xlim(xlims)
 
-    ax.legend(loc=1)
+    #ax.legend(loc=1)
 
     return fig, ax
 
@@ -1038,10 +1113,7 @@ class plotting():
 
         if ID is not None:
             ax.set_title(ID)
-
-                       
-        fig.tight_layout()
-
+ 
         if (savepath is not None):
             fig.savefig(savepath, **save_kwargs)
 
