@@ -65,7 +65,7 @@ class commonFuncs(jar.generalModelFuncs):
     def asymptotic_nu_p(self, d01):
         return self.obs['nu0_p'] + d01
 
-    def select_n_g(self, fac=7):
+    def select_n_g(self, fac=5):
         """ Select and initial range for n_g
 
         Computes the number of g-modes that are relevant near the oscillation
@@ -105,7 +105,7 @@ class commonFuncs(jar.generalModelFuncs):
         _samplesU = self.unpackSamples(_samples)
  
         DPi1 = np.median(_samplesU['DPi1'])
- 
+        
         eps_g = np.median(_samplesU['eps_g'])
  
         freq_lims = (min(self.obs['nu0_p']) - fac*self.obs['dnu'][0],  
@@ -353,7 +353,7 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
 
         self.setupDR()
  
-        self.setAddObs(keys=['teff'])
+        self.setAddObs(keys=['numax', 'dnu', 'teff'])
 
         if not self.badPrior: 
  

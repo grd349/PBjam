@@ -280,7 +280,7 @@ def _ModeIDPosteriorReference(model, N=1000):
     return fig, axes
 
 
-@jax.jit()
+@jax.jit
 def _echellify_freqs(nu, dnu, offset=0):
     x = (nu - offset*dnu)  % dnu  
 
