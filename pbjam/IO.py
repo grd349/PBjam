@@ -1,7 +1,7 @@
 from . import PACKAGEDIR
 import jax.numpy as jnp
 import numpy as np
-from scipy.integrate import simps
+from scipy.integrate import simpson
 from pbjam.jar import scalingRelations
 import os, pickle, re, time
 import lightkurve as lk
@@ -336,7 +336,7 @@ class psd(scalingRelations):
         freq, window = self.windowfunction(df, width=100*df, oversampling=5) # oversampling for integral accuracy
 
         # Integrate the windowfunction to get the corrected frequency resolution
-        df = simps(window, freq)
+        df = simpson(window, freq)
 
         return df*1e-6
 
