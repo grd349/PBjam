@@ -336,7 +336,7 @@ class psd(scalingRelations):
         freq, window = self.windowfunction(df, width=100*df, oversampling=5) # oversampling for integral accuracy
 
         # Integrate the windowfunction to get the corrected frequency resolution
-        df = simpson(window, freq)
+        df = simpson(window, x=freq)
 
         return df*1e-6
 
