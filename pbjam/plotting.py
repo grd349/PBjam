@@ -576,7 +576,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
         dnu = self.dnu[0]
     
     if numax is None:
-        numax = np.median(self.freq)
+        numax = np.median(self.freq[0, :])
  
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
