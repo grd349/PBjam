@@ -16,28 +16,35 @@ class peakbag(plotting):
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
         self.pbInstances = []
-         
+
+        self.dnu = self.setDnu()
+                        
+        self.d02 = self.setd02()
+   
+        if self.height is None:
+            self.height = np.ones_like(self.freq)
+        
+        if self.width is None:
+            self.width = 0.1 * np.ones_like(self.freq)
+
+        if self.zeta is None:
+            self.zeta = np.zeros(self.freq.shape[-1])
+        
+        if self.rotAsym is None:
+            self.rotAsym = np.zeros_like(self.freq)
+
+        self.width[0, :] = self.width[0, :] / (1-self.zeta)
+        
         self.pickModes()
         
         self.N_p = len(self.ell[self.ell==0])
 
         self.Nmodes = len(self.freq[0, :])
 
-        if self.height is None:
-            self.height = jnp.ones_like(self.freq)
-
-        if self.width is None:
-            self.height = 0.1 * jnp.ones_like(self.freq)
-
-        self.width[0, :] = self.width[0, :] / (1-self.zeta)
-
         if self.zeta is None:
             self.zeta = jnp.zeros_like(self.freq)
 
-        self.dnu = self.setDnu()
-                        
-        self.d02 = self.setd02()
- 
+       
         if not self.snrInput:
             self.bkg = self.getBkg()
 
@@ -57,10 +64,11 @@ class peakbag(plotting):
             
         if self.d02 is None and (2 in self.ell and 0 in self.ell):
             try:
-                self.d02 = np.median(self.freq[self.ell==0]-self.freq[self.ell==2])
+                d02 = np.array([np.median(self.freq[0, self.ell==0]-self.freq[0, self.ell==2]), jnp.nan])
             except:
                 warnings.warn("Estimating d02 as 0.1*dnu")
-                self.d02 = 0.1 * self.dnu[0]
+                d02 = np.array([0.1 * self.dnu[0], jnp.nan])
+            
 
         elif isinstance(self.d02, (float, int)):
             d02 = np.array([self.d02, jnp.nan])
@@ -69,7 +77,7 @@ class peakbag(plotting):
             d02 = np.array(self.d02)
             
             assert (d02.dtype==float) or (d02.type==int)
-
+        
         return d02
     
     def setDnu(self):
@@ -82,7 +90,7 @@ class peakbag(plotting):
             elif 1 in self.ell:
                 ref_l = 1
 
-            dnu = np.array([jnp.median(jnp.diff(self.freq[self.ell==ref_l])), jnp.nan])
+            dnu = np.array([jnp.median(jnp.diff(self.freq[0, self.ell==ref_l])), jnp.nan])
         
         elif isinstance(self.dnu, (float, int)):
             dnu = np.array([self.dnu, jnp.nan])
@@ -182,12 +190,12 @@ class peakbag(plotting):
         return cuts
 
     def createPeakbagInstances(self):
-
+        
         if self.slice:
     
             if self.Nslices < 1:
                 self.Nslices = len(self.ell[self.ell==0])
-
+            
             sliceLimits = self.sliceSpectrum()
             
             print('Creating envelope slices')
