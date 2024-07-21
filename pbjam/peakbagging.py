@@ -11,11 +11,12 @@ from tqdm import tqdm
 
 class peakbag(plotting):
 
-    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slice=True, Nslices=0, snrInput=False, **kwargs):
+    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slices=-1, snrInput=False, **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
         self.pbInstances = []
+      
 
         self.dnu = self.setDnu()
                         
@@ -191,11 +192,15 @@ class peakbag(plotting):
 
     def createPeakbagInstances(self):
         
-        if self.slice:
+        if self.slices < 0 or self.slices > len(self.ell):
+            self.Nslices = len(self.ell[self.ell==0])
+        elif self.slices == 0:
+            self.Nslices = 0
+        else:
+            self.Nslices = self.slices
     
-            if self.Nslices < 1:
-                self.Nslices = len(self.ell[self.ell==0])
-            
+        if self.Nslices > 0:
+                
             sliceLimits = self.sliceSpectrum()
             
             print('Creating envelope slices')
@@ -218,7 +223,7 @@ class peakbag(plotting):
                 self.pbInstances.append(DynestyPeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
                                                        
         else:
-            self.pbInstances.append(DynestyPeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, _rotAsym))
+            self.pbInstances.append(DynestyPeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
 
     def getBkg(self, a=0.66, b=0.88, skips=100):
             """ Estimate the background
@@ -317,7 +322,7 @@ class peakbag(plotting):
     
     def __call__(self, dynamic=False, progress=False, sampler_kwargs={}, Nsamples=10000):
   
-        if self.slice:
+        if self.Nslices > 0:
             print('Peakbagging envelope slices')
         else:
             print('Peakbagging the whole envelope')

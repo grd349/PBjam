@@ -864,7 +864,7 @@ def _PeakbagClassPriorSpectrum(self, N):
 
 def _PeakbagClassPostSpectrum(self, N):
 
-    fig, ax = plt.subplots(figsize=(25,6))
+    fig, ax = plt.subplots(figsize=(16,9))
 
     _baseSpectrum(ax, self.f, self.snr, smoothness=0.1)
 
