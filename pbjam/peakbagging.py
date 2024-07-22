@@ -5,7 +5,6 @@ from pbjam.plotting import plotting
 import pbjam.distributions as dist
 from pbjam import jar
 import numpy as np
-from tinygp import GaussianProcess, kernels
 import statsmodels.api as sm
 from tqdm import tqdm
 
