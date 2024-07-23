@@ -8,6 +8,28 @@ from pbjam import jar
 import pandas as pd
 
 class modeID(plotting, ):
+    
+    """
+    Class for identifying modes in solar-like oscillators.
+
+    Parameters
+    ----------
+    f : array-like
+        The frequency array of the spectrum.
+    s : array-like
+        The values of the power density spectrum.
+    obs : dict
+        Dictionary of observational inputs.
+    addPriors : dict, optional
+        Additional priors to be added. Default is an empty dictionary.
+    N_p : int, optional
+        Number of radial orders to use for mode identification. Default is 7.
+    freqLimits : list, optional
+        Frequency limits for mode identification. If None, it is calculated based on 'numax' and 'dnu'.
+    priorpath : str, optional
+        Path to prior sample csv. If None, a default path is used.
+
+    """
 
     def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorpath=None):
 
@@ -19,6 +41,7 @@ class modeID(plotting, ):
       
         self.Nyquist = self.f[-1]
 
+        # Set frequency range to compute the model on. Default is one radial order above/below the requested number.
         if self.freqLimits is None:
             self.freqLimits = [self.obs['numax'][0] - self.obs['dnu'][0]*(self.N_p//2+1), 
                                self.obs['numax'][0] + self.obs['dnu'][0]*(self.N_p//2+1),]
@@ -30,7 +53,28 @@ class modeID(plotting, ):
  
 
     def runl20model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
- 
+        """
+        Runs the l20 model on the selected spectrum.
+
+        Parameters
+        ----------
+        progress : bool, optional
+            Whether to show progress during the model run. Default is True.
+        sampler_kwargs : dict, optional
+            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        logl_kwargs : dict, optional
+            Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
+        PCAsamples : int, optional
+            Number of samples for PCA. Default is 50.
+        PCAdims : int, optional
+            Number of dimensions for PCA. Default is 6.
+
+        Returns
+        -------
+        result : dict
+            Parsed results from the l20 model.
+        """
+
         f = self.f[self.sel]
 
         s = self.s[self.sel]
@@ -56,7 +100,33 @@ class modeID(plotting, ):
         return self.l20result
 
     def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=100, PCAdims=5):
- 
+        """
+        Runs the l1 model on the selected spectrum.
+
+        Should follow the l20 model run.
+
+        Parameters
+        ----------
+        progress : bool, optional
+            Whether to show progress during the model run. Default is True.
+        sampler_kwargs : dict, optional
+            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        logl_kwargs : dict, optional
+            Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
+        model : str
+            Choice of which model to use for estimating the l=1 mode locations. Choices are MS, SG, RGB models.
+        PCAsamples : int, optional
+            Number of samples for PCA. Default is 100.
+        PCAdims : int, optional
+            Number of dimensions for PCA. Default is 5.
+
+        Returns
+        -------
+        result : dict
+            Parsed results from the l1 model.
+        """
+
+        # Compute the l=2,0 model residual. 
         self.l20residual = self.s[self.sel] / self.l20model.getMedianModel()
       
         f = self.f[self.sel]
