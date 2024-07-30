@@ -1,4 +1,4 @@
-import warnings, os
+import warnings, os, pickle
 import jax.numpy as jnp
 import numpy as np
 from pbjam.l1models import Asyl1model, Mixl1model, RGBl1model
@@ -7,9 +7,29 @@ from pbjam.plotting import plotting
 from pbjam import jar
 import pandas as pd
 
-class modeID(plotting, ):
+class modeID(plotting, ):  
+    """
+    Class for identifying modes in solar-like oscillators.
 
-    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorpath=None):
+    Parameters
+    ----------
+    f : array-like
+        The frequency array of the spectrum.
+    s : array-like
+        The values of the power density spectrum.
+    obs : dict
+        Dictionary of observational inputs.
+    addPriors : dict, optional
+        Additional priors to be added. Default is an empty dictionary.
+    N_p : int, optional
+        Number of radial orders to use for mode identification. Default is 7.
+    freqLimits : list, optional
+        Frequency limits for mode identification. If None, it is calculated based on 'numax' and 'dnu'.
+    priorPath : str, optional
+        Path to prior sample csv. If None, a default path is used.
+    """
+
+    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorPath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
@@ -19,18 +39,39 @@ class modeID(plotting, ):
       
         self.Nyquist = self.f[-1]
 
+        # Set frequency range to compute the model on. Default is one radial order above/below the requested number.
         if self.freqLimits is None:
             self.freqLimits = [self.obs['numax'][0] - self.obs['dnu'][0]*(self.N_p//2+1), 
                                self.obs['numax'][0] + self.obs['dnu'][0]*(self.N_p//2+1),]
             
         self.sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   
 
-        if priorpath is None:
-            self.priorpath = jar.getPriorpath()
+        if self.priorPath is None:
+            self.priorPath = jar.getPriorPath()
  
-
     def runl20model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
- 
+        """
+        Runs the l20 model on the selected spectrum.
+
+        Parameters
+        ----------
+        progress : bool, optional
+            Whether to show progress during the model run. Default is True.
+        sampler_kwargs : dict, optional
+            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        logl_kwargs : dict, optional
+            Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
+        PCAsamples : int, optional
+            Number of samples for PCA. Default is 50.
+        PCAdims : int, optional
+            Number of dimensions for PCA. Default is 6.
+
+        Returns
+        -------
+        result : dict
+            Parsed results from the l20 model.
+        """
+
         f = self.f[self.sel]
 
         s = self.s[self.sel]
@@ -41,7 +82,7 @@ class modeID(plotting, ):
                                     self.N_p, 
                                     PCAsamples, 
                                     PCAdims,
-                                    priorpath=self.priorpath)
+                                    priorPath=self.priorPath)
         
         self.l20Samples, self.l20logz = self.l20model.runDynesty(progress=progress, 
                                                                  logl_kwargs=logl_kwargs, 
@@ -56,7 +97,33 @@ class modeID(plotting, ):
         return self.l20result
 
     def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=100, PCAdims=5):
- 
+        """
+        Runs the l1 model on the selected spectrum.
+
+        Should follow the l20 model run.
+
+        Parameters
+        ----------
+        progress : bool, optional
+            Whether to show progress during the model run. Default is True.
+        sampler_kwargs : dict, optional
+            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        logl_kwargs : dict, optional
+            Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
+        model : str
+            Choice of which model to use for estimating the l=1 mode locations. Choices are MS, SG, RGB models.
+        PCAsamples : int, optional
+            Number of samples for PCA. Default is 100.
+        PCAdims : int, optional
+            Number of dimensions for PCA. Default is 5.
+
+        Returns
+        -------
+        result : dict
+            Parsed results from the l1 model.
+        """
+
+        # Compute the l=2,0 model residual. 
         self.l20residual = self.s[self.sel] / self.l20model.getMedianModel()
       
         f = self.f[self.sel]
@@ -74,7 +141,7 @@ class modeID(plotting, ):
                                       summary, 
                                       self.addPriors,
                                       PCAsamples, 
-                                      priorpath=self.priorpath)
+                                      priorPath=self.priorPath)
 
         elif model.lower() == 'sg':    
             self.l1model = Mixl1model(f, s, 
@@ -82,7 +149,7 @@ class modeID(plotting, ):
                                       self.addPriors,
                                       PCAsamples, 
                                       PCAdims,
-                                      priorpath=self.priorpath)
+                                      priorPath=self.priorPath)
 
         elif model.lower() == 'rgb':
             self.l1model = RGBl1model(f, s,  
@@ -90,7 +157,7 @@ class modeID(plotting, ):
                                       self.addPriors, 
                                       PCAsamples,
                                       rootiter=15,
-                                      priorpath=self.priorpath,
+                                      priorPath=self.priorPath,
                                       modelChoice='simple')
         else:
             raise ValueError(f'Model {model} is invalid. Please use either MS, SG or RGB.')
@@ -109,26 +176,19 @@ class modeID(plotting, ):
 
     def __call__(self, progress=True, sampler_kwargs={}, logl_kwargs={}):
         """
-        Run the Dynesty sampler.
+        Run both the l20 and l1 models.
+
+        The results are stored in the modeID.result dictionary after each step is 
+        completed.
 
         Parameters
         ----------
-        dynesty_kwargs : dict, optional
-            Additional keyword arguments for the Dynesty sampler. 
-
-        Returns
-        -------
-        samples : jax device array
-            The generated samples
-        result : dict
-            Dictionary of parsed result. Contains summary statistics and samples
-            in human-readable form.
-
-        Notes
-        -----
-        - Calls the `runDynesty` method with provided keyword arguments.
-        - Unpacks and parses the generated samples.
-        - Stores the parsed result and returns both the samples and the result.
+        progress : bool, optional
+            Whether to show progress during the model run. Default is True.
+        sampler_kwargs : dict, optional
+            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        logl_kwargs : dict, optional
+            Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         """
         
         self.runl20model(progress, sampler_kwargs, logl_kwargs)
@@ -136,7 +196,31 @@ class modeID(plotting, ):
         self.runl1model(progress, sampler_kwargs, logl_kwargs)
  
     def mergeResults(self, l20result=None, l1result=None, N=5000):
-    
+        """
+        Merges results from l20 and l1 models into a single result dictionary. 
+
+        Attempts to include N samples from both models, but will use the lowest common
+        value in case one of the models returns less than N samples.
+
+        Note that if l20 and l1 share any parameters (like numax and dnu) the results 
+        from the l20 model are used since they are probably a bit more reliable.
+
+        Parameters
+        ----------
+        l20result : dict, optional
+            The result dictionary from the l20 model. 
+        l1result : dict, optional
+            The result dictionary from the L1 model. 
+        N : int, optional
+            The number of samples to include in the merged results. Default is 5000.
+
+        Returns
+        -------
+        R : dict
+            A dictionary containing merged results from the l20 and l1 models.
+        """
+
+        # Initialize an empty result dictionary
         R = {'ell': np.array([]),
              'enn': np.array([]),
              'emm': np.array([]),
@@ -153,26 +237,32 @@ class modeID(plotting, ):
                         },
             }
         
+        # Use self.l20result if l20result is not provided
         if l20result is None and hasattr(self, 'l20result'):
             l20result = self.l20result
 
         _N = np.append(N, l20result['samples']['freq'].shape[0])
          
+        # Use self.l1result if l1result is not provided
         if l1result is None and hasattr(self, 'l1model'):
             l1result = self.l1result
         
         if l1result is not None:
             _N = np.append(_N, l1result['samples']['freq'].shape[0])
  
+        # Use the minimum number of samples.
         N = np.min(_N)
-         
-        resList = [l1result, l20result] # This order overrides the numax, dnu and teff from l1result in the output since the l20result is more reliable. 
+        
+        # This order overrides the numax, dnu and teff from l1result in the output since the l20result is more reliable. 
+        resList = [l1result, l20result] 
 
+        # Merge top level dictionary keys.
         for rootkey in ['ell', 'enn', 'emm', 'zeta']:
             for D in resList:
                 if D is not None:
                     R[rootkey] = np.append(R[rootkey], D[rootkey])
         
+        # Merge summary and samples level keys.
         for rootkey in ['summary', 'samples']:
             for D in resList: 
                 if D is not None:
@@ -189,29 +279,46 @@ class modeID(plotting, ):
 
         return R
 
-    def storeResult(self, resultDict, ID=None):
+    def storeResult(self, resultDict, path=None, ID=None):
+        """
+        Stores the results in a specified directory with identifier. The results are stored as a 
+        pickled Python dictionary file and a CSV file. The pickle file contains all results,
+        while the CSV file contains only the summary model parameters.
 
-        # TODO ID should come from star?
+        Parameters
+        ----------
+        resultDict : dict
+            The dictionary containing the results to be stored.
+        path : str, optional
+            The directory path where the results should be stored. If None, it defaults to the current directory.
+        ID : str, optional
+            A unique identifier for the stored results. If None, a random identifier is generated.
+        """
+
+        # If no path is specified use cwd.
+        if path is None:
+            path = os.getcwd()
+        else:
+            path = str(path)
+        
+        # Make the dir path if it doesn't exist
+        if not os.path.exists(os.path.dirname(path)):
+            os.makedirs(path)
+
+        # Assign random number identifier to the save
         if ID is not None:
-            _ID = ID
-        elif (ID is None) and hasattr(self, 'ID'):
-            _ID = self.ID
+            _ID = str(ID) 
         else:   
             _ID = f'unknown_tgt_{np.random.randint(0, 1e10)}'
 
             warnings.warn(f'Output stored under {_ID}. You should probably specify a target ID.')
         
-        path = _ID
+        basefilename = os.path.join(*[path, f'{_ID}_modeIDresult'])
         
-        basefilename = os.path.join(*[path, f'asymptotic_fit_summary_{_ID}'])
-        
-        if not os.path.exists(path):
-            os.makedirs(path)
+        # Store everything in pickled dict
+        pickle.dump(resultDict, open(basefilename+'.pkl', 'wb'))
 
-        # store everything
-        np.savez(basefilename+'.npz', resultDict)
-
-        # grab just model parameters and save
+        # Grab just model parameters and save
         _tmp = {key: self.result['summary'][key] for key in self.result['summary'].keys() if key not in ['freq', 'height', 'width']}
 
         df_data = [{'name': key, 'mean': value[0], 'error': value[1]} for key, value in _tmp.items()]
