@@ -96,7 +96,7 @@ class modeID(plotting, ):
  
         return self.l20result
 
-    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=100, PCAdims=5):
+    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=200, PCAdims=7):
         """
         Runs the l1 model on the selected spectrum.
 

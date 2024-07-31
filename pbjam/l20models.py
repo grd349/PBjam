@@ -8,8 +8,49 @@ import pbjam.distributions as dist
 jax.config.update('jax_enable_x64', True)
 
 class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
+    """
+    A class for constructing the l20 model using the asymptotic relation for p-modes.
 
-    def __init__(self, f, s, obs, addPriors, N_p, Npca, PCAdims, vis={'V20': 0.71}, priorpath=None):
+    Parameters
+    ----------
+    f : array-like
+        The frequency array of the spectrum.
+    s : array-like
+        The values of the power density spectrum.
+    obs : dict
+        Dictionary of observational inputs.
+    addPriors : dict, optional
+        Additional priors to be added. Default is an empty dictionary.
+    N_p : int, optional
+        Number of radial orders to use for mode identification. Default is 7.
+    PCAsamples : int
+        Number of samples for PCA.
+    PCAdims : int
+        Number of dimensions for PCA.
+    vis : dict, optional
+        Dictionary of visibility ratios for mode power given as V_{l}/V_{l=0}. Default is {'V20': 0.71}.
+    priorPath : str, optional
+        Path to prior information. If None, assumes it is in the pbjam/data directory.
+
+    Attributes
+    ----------
+    Nyquist : float
+        Nyquist frequency, defined as the highest frequency in `f`.
+    modelParLabels : list
+        Labels for model parameters.
+    log_obs : dict
+        Logarithms of the observational data.
+    background : bkgModel
+        Background model class instance for the frequency data.
+    ndims : int
+        Number of parameters in the model.
+    ell : ndarray
+        Array of angular degrees of the modes (l=0 and l=2).
+    emm : ndarray
+        Array of azimuthal orders of modes (fixed at m=0 but this may change in the future).
+    """
+
+    def __init__(self, f, s, obs, addPriors, N_p, PCAsamples, PCAdims, vis={'V20': 0.71}, priorPath=None):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
@@ -27,6 +68,7 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
                           'shot', 'nurot_e',  
                           'inc',
                          ]
+        
         self.setLabels(self.addPriors, modelParLabels)
          
         self.log_obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in self.logpars}
@@ -45,11 +87,12 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         
         self.emm = np.zeros(2*self.N_p)
 
-        self.makeEmpties()
+        self._makeEmpties()
 
-    def makeEmpties(self):
-        """ Make a bunch of static matrices so we don't need to make them during
-        sampling
+    def _makeEmpties(self):
+        """ 
+        Make a bunch of static matrices so we don't need to make them during
+        sampling. Just for keeping things a bit neater. 
         """
         
         self.N_p_range = jnp.arange(self.N_p)
@@ -59,11 +102,13 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         self.ones_nu = jnp.ones_like(self.f)
        
     def setPriors(self):
-        """ Set the prior distributions.
+        """
+        Assigns the priors attribute, which is a dictionary containing class instances of 
+        prior distributions for the different model parameters. Each must have ppf, pdf, 
+        logpdf and cdf as callable methods. 
 
-        The prior distributions are constructed from the projection of the 
-        PCA sample onto the reduced dimensional space.
-
+        The latent parameters are assigned initially followed by any priors that might 
+        be manually specified in addPriors.     
         """
 
         self.priors = {}
@@ -87,28 +132,38 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         
         mu = jnp.array([1, inst_est - shot_est]).max()
         
-        self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=1)  
+        if 'H3_power' not in self.addPriors.keys():
+            self.priors['H3_power'] = dist.normal(loc=jnp.log10(mu * self.f[0]), scale=1)  
 
-        self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-1, scale=2)  
+        if 'H3_nu' not in self.addPriors.keys():
+            self.priors['H3_nu'] = dist.beta(a=1.2, b=1.2, loc=-1, scale=2)  
         
-        self.priors['H3_exp'] = dist.beta(a=1.2, b=1.2, loc=1.5, scale=3.5)  
+        if 'H3_exp' not in self.addPriors.keys():
+            self.priors['H3_exp'] = dist.beta(a=1.2, b=1.2, loc=1.5, scale=3.5)  
 
-        self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
+        if 'shot' not in self.addPriors.keys():
+            self.priors['shot'] = dist.normal(loc=jnp.log10(shot_est), scale=0.1)
 
-        # Core/envelope rotation prior
-        self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
+        # Envelope rotation prior. Envelope rotation is not included in this model.
+        if 'nurot_e' not in self.addPriors.keys():
+            self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
 
         # The inclination prior is a sine truncated between 0, and pi/2.
-        self.priors['inc'] = dist.truncsine()
+        if 'inc' not in self.addPriors.keys():
+            self.priors['inc'] = dist.truncsine()
 
     def setupDR(self):
-        """ Setup the latent parameters and projection functions
+        """ 
+        Sets up the latent parameters as distribution class instances with 
+        callable ppf, pdf, logpdf and cdf methods.
+         
+        Also assigns the projection functions for the dimensionality reduction 
+        to transform between the latent and model parameter spaces.
 
-        Parameters
-        ----------
-        prior_file : str
-            Full path name for the file containing the prior samples.
- 
+        Parameters included in the addPriors argument are not included in the 
+        PCA dimensionality reduction.
+
+        Each latent parameter is assigned a parameter label `theta_i`. 
         """
  
         _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}
@@ -116,7 +171,7 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
          
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff', 'bp_rp']) 
+        self.DR = PCA(_obs, self.pcaLabels, self.priorPath, self.PCAsamples, selectLabels=['numax', 'dnu', 'teff', 'bp_rp']) 
 
         self.DR.fit_weightedPCA(self.PCAdims)
 
@@ -126,18 +181,67 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         
         self.latentLabels = ['theta_%i' % (i) for i in range(self.PCAdims)]
        
-    def model(self, theta_u):
+    def model(self, thetaU):
+        """
+        Computes the model spectrum by combining the l20 mode pairs and background components.
+
+        Notes
+        -----
+        The l20 model is defined based on the SNR ratio of the modes, and so is multiplied onto the
+        background model (instead of being added as is usually the case.)
+
+        Parameters
+        ----------
+        thetaU : dict
+            A dictionary of model parameters.
+
+        Returns
+        -------
+        mod : ndarray
+            The computed model spectrum.
+        """
         
         # l=2,0
-        modes, _, _ = self.add20Pairs(**theta_u)
+        modes, _, _ = self.add20Pairs(**thetaU)
         
         # Background
-        bkg = self.background(theta_u)
+        bkg = self.background(thetaU)
+
+        mod = modes * bkg
          
-        return modes * bkg
+        return mod
     
     def add20Pairs(self, d02, mode_width, nurot_e, inc, **kwargs):
-         
+        """
+        Adds l=2,0 mode pairs to the spectrum.
+
+        The mode heights are defined in terms of the SNR of the modes. The
+        resulting model should therefore be multipled onto a background to get
+        a correct spectrum model.
+
+        Parameters
+        ----------
+        d02 : float
+            The frequency separation between l=0 and l=2 modes.
+        mode_width : float
+            The width of the modes.
+        nurot_e : float
+            The envelope rotation frequency.
+        inc : float
+            The inclination angle.
+        **kwargs : dict
+            Additional keyword arguments for the asymptotic frequency calculation and envelope functions.
+
+        Returns
+        -------
+        modes : ndarray
+            Spectrum model of the combined l=2,0 mode pairs.
+        nu0_p : ndarray
+            The frequencies of the l=0 modes.
+        n_p : ndarray
+            The radial order of the modes.
+        """
+ 
         nu0_p, n_p = self.asymptotic_nu_p(**kwargs)
 
         Hs0 = jar.envelope(nu0_p, **kwargs)
@@ -161,7 +265,7 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         return modes, nu0_p, n_p
     
     def unpackParams(self, theta): 
-        """ Cast the parameters in a dictionary
+        """ Put the parameters in theta in a dictionary.
 
         Parameters
         ----------
@@ -170,21 +274,20 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
 
         Returns
         -------
-        theta_u : dict
+        thetaU : dict
             The unpacked parameters.
-
         """
          
         theta_inv = self.DR.inverse_transform(theta[:self.DR.dimsR])
          
-        theta_u = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
+        thetaU = {key: theta_inv[i] for i, key in enumerate(self.pcaLabels)}
          
-        theta_u.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)})
+        thetaU.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addLabels)})
  
         for key in self.logpars:
-            theta_u[key] = 10**theta_u[key]
+            thetaU[key] = 10**thetaU[key]
  
-        return theta_u
+        return thetaU
     
     def _get_n_p_max(self, dnu, numax, eps):
         """Compute radial order at numax.
@@ -212,7 +315,7 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
     def _get_n_p(self, nmax):
         """Compute radial order numbers.
 
-        Get the enns that will be included in the asymptotic relation fit.
+        Get the enns that will be included in the asymptotic relation model.
         These are all integer.
 
         Parameters
@@ -250,8 +353,7 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         Returns
         -------
         nu0s : ndarray
-            Array of l=0 mode frequencies from the asymptotic relation (muHz).
-            
+            Array of l=0 mode frequencies from the asymptotic relation (muHz). 
         """
         
         n_p_max = self._get_n_p_max(dnu, numax, eps_p)
@@ -261,6 +363,31 @@ class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
         return (n_p + eps_p + alpha_p/2*(n_p - n_p_max)**2) * dnu, n_p
     
     def parseSamples(self, smp, Nmax=5000):
+        """
+        Parses the samples to extract and organize the model parameters.
+
+        Attempts to include at most N samples from the model, but will default
+        to the actual number of samples of the model parameters if it's less than N.
+
+        The resulting dictionary contains some global parameters, ell, enn, emm etc. and 
+        two dictionaries, one containing the samples drawn and one with their summary 
+        statistics.
+
+        Samples and summary statistics are also included for the mode height, width and 
+        frequencies.
+
+        Parameters
+        ----------
+        smp : dict
+            A dictionary of sampled parameters.
+        Nmax : int, optional
+            Maximum number of samples to include. Default is 5000.
+
+        Returns
+        -------
+        result : dict
+            A dictionary containing parsed and organized model parameters.
+        """
 
         N = min([len(list(smp.values())[0]), 
                  Nmax])
