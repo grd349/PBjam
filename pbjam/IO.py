@@ -1,8 +1,14 @@
+"""
+
+This module contains classes and functions for handling I/O related matters,
+including downloading time series and computing power density spectra.
+
+"""
+
 from . import PACKAGEDIR
 import jax.numpy as jnp
 import numpy as np
-from scipy.integrate import simps
-from pbjam.jar import scalingRelations
+from scipy.integrate import simpson
 import os, pickle, re, time
 import lightkurve as lk
 from lightkurve.periodogram import Periodogram
@@ -14,81 +20,79 @@ from astropy.timeseries import LombScargle
 from astropy import units
  
  
-class psd(scalingRelations):
+class psd():
+    """ Asteroseismology wrapper for Astropy Lomb-Scargle
+
+    Uses the Astropy.LombScargle class to compute the power spectrum of a given
+    time series. A variety of choices for computing the spectrum are available.
+    The recommended methods are either `fast' or `Cython'.
+
+    Notes
+    -----
+    The Cython implemenation is very slow for time series longer than about
+    1 month (array size of ~1e5). The Fast implementation is similar to the an
+    FFT, but at a very slight loss of accuracy. There appears to be a slight
+    increasing slope with frequency toward the Nyquist frequency.
+
+    The adjustments to the frequency resolution, due to gaps, performed in the
+    KASOC filter may not be beneficial the statistics we use in the detection
+    algorithm.  This has not been thuroughly tested yet though. So recommend
+    leaving it in, but with a switch to turn it off for testing.
+
+    Parameters
+    ----------
+    time : array
+        Time stamps of the time series.
+    flux : array
+        Flux values of the time series.
+    flux_error : array
+        Flux value errors of the time series.
+    fit_mean : bool, optional
+        Keyword for Astropy.LombScargle. If True, uses the generalized
+        Lomb-Scargle approach and fits with a floating mean. Default is 
+        False.
+    timeConversion : float
+        Factor to convert the time series such that it is in seconds. Note, 
+        all stored time values, e.g. cadence or duration, are kept in the 
+        input units. Default is 86400 to convert from days to seconds.
+
+    Attributes
+    ----------
+    dt : float
+        Cadence of the time series.
+    dT : float
+        Total length of the time series.
+    NT : int
+        Number of data points in the time series.
+    dutyCycle : float
+        Duty cycle of the time series.
+    Nyquist : float
+        Nyquist frequency in Hz.
+    df : float
+        Fundamental frequency spacing in Hz.
+    ls : astropy.timeseries.LombScargle object:
+        Astropy Lomb-Scargle class instance used in computing the power
+        spectrum.
+    indx : array, bool
+        Mask array for removing nan and/or -inf values from the time series.
+    freqHz : array, float
+        Frequency range in Hz.
+    freq : array, float
+        Freqeuency range in muHz.
+    normfactor : float
+        Normalization factor to ensure the power conforms with Parseval.
+    power : array, float
+        Power spectrum of the time series in ppm^2.
+    powerdensity : array float
+        Power density spectrum of the time series in ppm^2/muHz
+    amplitude : array, float
+        Amplitude spectrum of the time series in ppm.
+    """
     
     def __init__(self, ID, lk_kwargs={}, time=None, flux=None, flux_err=None, 
                  downloadDir=None, fit_mean=False, timeConversion=86400, 
                  use_cached=False):
-    
-        """ Asteroseismology wrapper for Astropy Lomb-Scargle
-
-        Uses the Astropy.LombScargle class to compute the power spectrum of a given
-        time series. A variety of choices for computing the spectrum are available.
-        The recommended methods are either `fast' or `Cython'.
-
-        Notes
-        -----
-        The Cython implemenation is very slow for time series longer than about
-        1 month (array size of ~1e5). The Fast implementation is similar to the an
-        FFT, but at a very slight loss of accuracy. There appears to be a slight
-        increasing slope with frequency toward the Nyquist frequency.
-
-        The adjustments to the frequency resolution, due to gaps, performed in the
-        KASOC filter may not be beneficial the statistics we use in the detection
-        algorithm.  This has not been thuroughly tested yet though. So recommend
-        leaving it in, but with a switch to turn it off for testing.
-
-        Parameters
-        ----------
-        time : array
-            Time stamps of the time series.
-        flux : array
-            Flux values of the time series.
-        flux_error : array
-            Flux value errors of the time series.
-        fit_mean : bool, optional
-            Keyword for Astropy.LombScargle. If True, uses the generalized
-            Lomb-Scargle approach and fits with a floating mean. Default is 
-            False.
-        timeConversion : float
-            Factor to convert the time series such that it is in seconds. Note, 
-            all stored time values, e.g. cadence or duration, are kept in the 
-            input units. Default is 86400 to convert from days to seconds.
-
-        Attributes
-        ----------
-        dt : float
-            Cadence of the time series.
-        dT : float
-            Total length of the time series.
-        NT : int
-            Number of data points in the time series.
-        dutyCycle : float
-            Duty cycle of the time series.
-        Nyquist : float
-            Nyquist frequency in Hz.
-        df : float
-            Fundamental frequency spacing in Hz.
-        ls : astropy.timeseries.LombScargle object:
-            Astropy Lomb-Scargle class instance used in computing the power
-            spectrum.
-        indx : array, bool
-            Mask array for removing nan and/or -inf values from the time series.
-        freqHz : array, float
-            Frequency range in Hz.
-        freq : array, float
-            Freqeuency range in muHz.
-        normfactor : float
-            Normalization factor to ensure the power conforms with Parseval.
-        power : array, float
-            Power spectrum of the time series in ppm^2.
-        powerdensity : array float
-            Power density spectrum of the time series in ppm^2/muHz
-        amplitude : array, float
-            Amplitude spectrum of the time series in ppm.
-        """
-
-
+ 
         self.ID = ID
 
         self.downloadDir = downloadDir
@@ -138,8 +142,6 @@ class psd(scalingRelations):
 
         self.df = self._fundamental_spacing_integral()
  
-
-
     def __call__(self, oversampling=1, nyquist_factor=1.0, method='fast'):
         """ Compute power spectrum
 
@@ -195,12 +197,35 @@ class psd(scalingRelations):
 
         Flags array indices where either the timestamps, flux values, or flux errors
         are nan or inf.
-
         """
 
         self.indx = np.invert(np.isnan(time) | np.isnan(flux) | np.isinf(time) | np.isinf(flux))
 
     def getTSWindowFunction(self, tmin=None, tmax=None, cadenceMargin=1.01):
+        """
+        Generates a time series window function.
+
+        Parameters
+        ----------
+        tmin : float, optional
+            Minimum time value for padding. If None, uses the minimum of self.time. Default is None.
+        tmax : float, optional
+            Maximum time value for padding. If None, uses the maximum of self.time. Default is None.
+        cadenceMargin : float, optional
+            Margin factor to identify gaps in the time series. Default is 1.01.
+
+        Returns
+        -------
+        tuple
+            A tuple containing the adjusted time array and the corresponding window function array.
+
+        Notes
+        -----
+        - The method first initializes the time (`t`) and window function (`w`) arrays.
+        - It then identifies gaps in the time series larger than `cadenceMargin * self.dt` and fills them with zeros in the window function.
+        - The method ensures the length of the time series does not exceed a break counter of 100 to avoid infinite loops.
+        - Padding is added at the start and end of the time series if `tmin` or `tmax` are specified and exceed the current bounds of `t`.
+        """
 
         if tmin is None:
             tmin = min(self.time)
@@ -336,7 +361,7 @@ class psd(scalingRelations):
         freq, window = self.windowfunction(df, width=100*df, oversampling=5) # oversampling for integral accuracy
 
         # Integrate the windowfunction to get the corrected frequency resolution
-        df = simps(window, freq)
+        df = simpson(window, x=freq)
 
         return df*1e-6
 
@@ -881,7 +906,7 @@ def _set_outpath(ID, rootPath):
     
     return path
 
-def get_priorpath():
+def getPriorPath():
     """ Get default prior path name
     
     Returns
@@ -891,7 +916,6 @@ def get_priorpath():
     """
     
     return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
-
 
 def clean_lc(lc):
     """ Perform Lightkurve operations on object.
