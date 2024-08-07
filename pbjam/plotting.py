@@ -220,7 +220,7 @@ def _scatterFrame(model, samples, key1, key2, ax,):
     
 def _baseReference(model, samples, fac=3):
 
-    labels = model.pcalabels + model.addlabels
+    labels = model.pcaLabels + model.addLabels
 
     labelsInfile = [label for label in labels if label in model.DR.priorData.keys()]
 
@@ -576,7 +576,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
         dnu = self.dnu[0]
     
     if numax is None:
-        numax = np.median(self.freq)
+        numax = np.median(self.freq[0, :])
  
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
@@ -686,6 +686,9 @@ def _makeBaseFrames(self):
         if i > 0:
             ax[i].set_xlim(self.f[self.sel].min(), 
                         self.f[self.sel].max())
+            
+        if i > 1:
+            ax[i].set_ylabel(r'Residual')
 
     ax[-1].set_xlabel(r'Frequency ($\mu \rm Hz$)')
    
@@ -864,7 +867,7 @@ def _PeakbagClassPriorSpectrum(self, N):
 
 def _PeakbagClassPostSpectrum(self, N):
 
-    fig, ax = plt.subplots(figsize=(25,6))
+    fig, ax = plt.subplots(figsize=(16,9))
 
     _baseSpectrum(ax, self.f, self.snr, smoothness=0.1)
 
