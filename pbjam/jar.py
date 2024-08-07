@@ -18,12 +18,38 @@ from dynesty import utils as dyfunc
 import pbjam.distributions as dist
 
 class generalModelFuncs():
+    """
+    A class containing general model functions for various models in PBjam.
+
+    This class in inherited by the model classes.
+
+    """
 
     def __init__(self):
         pass
 
     def getMedianModel(self, samplesU=None, rint=None, N=30):
-        
+        """
+        Computes the median model from a set of N samples drawn from the posterior.
+
+        Parameters
+        ----------
+        samplesU : dict, optional
+            A dictionary of samples where each key corresponds to a parameter
+            and each value is a list of sample values for that parameter.
+            If None, it uses `self.samples` unpacked using `self.unpackSamples`.
+        rint : array-like, optional
+            Indices to select specific samples. If None, `N` indices are randomly
+            chosen without replacement.
+        N : int, optional
+            The number of samples to use for computing the median model. Default is 30.
+
+        Returns
+        -------
+        ndarray
+            The median background model computed from the samples.
+        """
+                
         if samplesU is None:
             samplesU = self.unpackSamples(self.samples)
 
@@ -45,6 +71,52 @@ class generalModelFuncs():
         
         # Compute the median background model across samples
         return np.median(mod, axis=1)
+    
+    
+    @partial(jax.jit, static_argnums=(0,))
+    def obsOnlylnlikelihood(self, theta):
+        """
+        Computes the log-likelihood using just the obs parameters.
+
+        This ignores all spectrum information.
+
+        Parameters
+        ----------
+        theta : array-like
+            Parameter vector.
+
+        Returns
+        -------
+        lnlike : float
+            Log-likelihood value.
+        """
+
+        thetaU = self.unpackParams(theta)
+    
+        lnlike = self.addAddObsLike(thetaU)
+
+        return lnlike
+
+    def setAddObs(self, keys):
+        """ 
+        Set attribute containing additional observational data
+
+        Additional observational data other than the power spectrum goes here. 
+
+        Can be Teff or bp_rp color, but may also be additional constraints on
+        e.g., numax, dnu. 
+
+        Parameters
+        ----------
+        keys : list
+            List of keys for additional observational data.
+        """
+        
+        self.addObs = {}
+
+        for key in keys:
+            self.addObs[key] = dist.normal(loc=self.obs[key][0], 
+                                           scale=self.obs[key][1])
  
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
@@ -96,15 +168,6 @@ class generalModelFuncs():
          
         return lnlike 
     
-    @partial(jax.jit, static_argnums=(0,))
-    def obsOnlylnlikelihood(self, theta):
-
-        thetaU = self.unpackParams(theta)
-    
-        lnlike = self.addAddObsLike(thetaU)
-
-        return lnlike
-    
     def addAddObsLike(self, theta_u):
         """ Add the additional probabilities to likelihood
         
@@ -128,21 +191,6 @@ class generalModelFuncs():
  
         return lnp
     
-    def setAddObs(self, keys):
-        """ Set attribute containing additional observational data
-
-        Additional observational data other than the power spectrum goes here. 
-
-        Can be Teff or bp_rp color, but may also be additional constraints on
-        e.g., numax, dnu. 
-        """
-        
-        self.addObs = {}
-
-        for key in keys:
-            self.addObs[key] = dist.normal(loc=self.obs[key][0], 
-                                           scale=self.obs[key][1])
-
     def setLabels(self, addPriors, modelParLabels):
         """
         Set parameter labels and categorize them based on priors.
@@ -169,24 +217,20 @@ class generalModelFuncs():
         self.variables = {key: availableParams[key] for key in modelParLabels}
 
         # Default PCA parameters       
-        self.pcalabels = []
+        self.pcaLabels = []
         
         # Default additional parameters
-        self.addlabels = []
+        self.addLabels = []
         
         # If key appears in priors dict, override default and move it to add. 
         for key in self.variables.keys():
             if self.variables[key]['pca'] and (key not in addPriors.keys()):
-                self.pcalabels.append(key)
-
+                self.pcaLabels.append(key)
             else:
-                self.addlabels.append(key)
+                self.addLabels.append(key)
+ 
+        self.logpars = [key for key in self.variables.keys() if self.variables[key]['log10']]
 
-        # Parameters that are in log10
-        self.logpars = []
-        for key in self.variables.keys():
-            if self.variables[key]['log10']:
-                self.logpars.append(key)
 
     def unpackSamples(self, samples=None):
         """
@@ -236,7 +280,7 @@ class generalModelFuncs():
         if samples is None:
             samples = self.samples
 
-        S = {key: np.zeros(samples.shape[0]) for key in self.pcalabels + self.addlabels}
+        S = {key: np.zeros(samples.shape[0]) for key in self.pcaLabels + self.addLabels}
         
         jUnpack = jax.jit(self.unpackParams)
 
@@ -250,28 +294,18 @@ class generalModelFuncs():
             
         return S
 
-    def testModel(self):
-        
-        u = np.random.uniform(0, 1, self.ndims)
-        
-        theta = self.ptform(u)
-        
-        theta_u = self.unpackParams(theta)
-        
-        m = self.model(theta_u,)
-        
-        return self.f, m
+
  
 class DynestySamplingTools():
-    
-    def __init__(self):
-        """ Generic dynesty sampling methods to be inherited.
+    """ Generic dynesty sampling methods to be inherited.
         
         The inheriting class must have a callable lnlikelihood function, a
         dictionary of callable prior ppf functions, and an integer ndims 
         attribute.
         
         """
+    def __init__(self):
+        
         pass
     
     @partial(jax.jit, static_argnums=(0,)) # Must stay jitted.
@@ -345,7 +379,7 @@ class DynestySamplingTools():
         
         assert jnp.isreal(logL)
     
-    def runDynesty(self, dynamic=False, progress=True, minSamples=5000, logl_kwargs={}, 
+    def runDynesty(self, dynamic=False, progress=False, minSamples=5000, logl_kwargs={}, 
                    sampler_kwargs={}):
          
         #if not hasattr(self, 'ndims'):
@@ -355,7 +389,6 @@ class DynestySamplingTools():
 
         skwargs = sampler_kwargs.copy()
 
-        # According to the Dynesty docs 50 * ndims is a good estimate of nlive
         if 'nlive' not in skwargs.keys():
             skwargs['nlive'] = 50*self.ndims
 
@@ -387,7 +420,8 @@ class DynestySamplingTools():
 
                 sampler.run_nested(dlogz=1e-9, print_progress=progress, save_bounds=False, maxiter=missingSamples)
 
-        else:           
+        else:
+             
             sampler = dynesty.NestedSampler(self.lnlikelihood, 
                                             self.ptform, 
                                             ndims,  
@@ -396,7 +430,7 @@ class DynestySamplingTools():
                                             )
             
             sampler.run_nested(print_progress=progress, 
-                               save_bounds=False,)
+                               save_bounds=False, dlogz=0.1,)
 
             _nsamples = sampler.results.niter + sampler.results.nlive
             
@@ -688,335 +722,6 @@ class jaxInterp1D():
 
         return jnp.interp(x, self.xp, self.fp, self.left, self.right, self.period)
 
-class scalingRelations():
-    """ Container for scaling relations
-
-    This is a helper class which contains methods for the various scaling
-    relations.
-
-    """
-
-    def __init_(self):
-        pass
-
-    @staticmethod
-    @jax.jit
-    def envHeight(Amax, V, dilution, eta, numax=None, dnu=None, alpha=0.791):
-        """ Envelope height
-
-        Scaling relation for the p-mode envelope height. 
-
-        Parameters
-        ----------
-        Amax : float
-            Amplitude of the p-modes for a notinoal radial mode at numax. 
-        V : float
-            Visibility scaling of the oscillations. This is instrument dependent.
-        dilution : float
-            Fraction of the flux due to the source, compared to the overall 
-            flux in the aperature. Also known as wash-out.
-        eta : float
-            Attenuation of the continuous signal due to discrete sampling.
-        numax : float
-            Frequency of maximum power of the p-mode envelope in muHz, by 
-            default None.
-        dnu : float, optional
-            Large separation of the target, by default None
-        alpha : float, optional
-            Exponent of the dnu/numax scaling relation. Default is 0.791
-
-        Returns
-        -------
-        Henv : float
-            Height of the p-mode envelope at numax.
-        """
-         
-        I = eta * dilution * V
-
-        if numax is not None:
-            Henv = constants.Henv0 * I**2 * (numax/constants.numax0)**-alpha * Amax**2
-
-        elif dnu is not None:
-            Henv = constants.Henv0 * I**2 * (dnu/constants.dnu0) * Amax**2
-
-        else:
-            raise ValueError('Must provide either dnu or numax.')
-        
-        return Henv
-
-    @staticmethod
-    @jax.jit
-    def envWidth(numax, Teff=0, Tefflim=5600):
-        """ Scaling relation for the envelope width
-
-        Full width at half maximum.
-
-        Parameters
-        ----------
-        numax : float
-            Frequency of maximum power of the p-mode envelope in muHz.
-        Teff : float
-            Stellar effective temperature in K.
-        Tefflim : float
-            Limit for adding the Teff dependence in K. Default is 5600 K.
-
-        Returns
-        -------
-        width : float
-            Envelope width in muHz
-
-        """
-        
-        T = jax.lax.lt(Teff, Tefflim)
-        
-        width = jax.lax.cond(T, lambda numax, teff : 0.66 * numax**0.88,
-                                lambda numax, teff : 0.66 * numax**0.88 * (1 + (teff - constants.Teff0) * 6e-4), numax, Teff)
-            
-        return width
-
-    @staticmethod
-    @jax.jit
-    def nuHarveyGran(numax):
-        """ Harvey frequency for granulation term
-
-        Scaling relation for the characteristic frequency of the granulation
-        noise. Based on Kallinger et al. (2014).
-
-        Parameters
-        ----------
-        numax : float
-            Frequency of maximum power of the p-mode envelope.
-
-        Returns
-        -------
-        nu : float
-            Characteristic frequency of Harvey law for granulation.
-
-        """
-
-        nu = 0.317 * numax**0.970
-
-        return nu
-    
-    @staticmethod
-    @jax.jit
-    def nuHarveyEnv(numax):
-        """ Harvey frequency for envelope term
-
-        Scaling relation for the characteristic frequency of the envelope
-        noise. Based on Kallinger et al. (2014).
-
-        Parameters
-        ----------
-        numax : float
-            Frequency of maximum power of the p-mode envelope.
-
-        Returns
-        -------
-        nu : float
-            Characteristic frequency of Harvey law for envelope.
-
-        """
-
-        nu = 0.948 * numax**0.992
-
-        return nu
-    
-    @staticmethod
-    @jax.jit
-    def dnuScale(numax=None, rho=None, R=None, Teff=None, gamma=0.0, p=jnp.array([0.79101684, -0.63285292])):
-        """ Scaling relation dnu
-
-        Computes an estimate of the large separation from scaling relations.
-         
-        Default is to use the mean density rho of the star. Otherwise if R
-        Teff and numax are given instead, it will use these.
-
-        Finally if only numax is given dnu is evaluated based on the polynomial
-        relation between log(dnu) and log(numax). This estimated based on a 
-        polynomial fit performed on a set of main-sequence and sub- giant stars 
-        in the literature.
-
-        The output may be scaled by a factor gamma, e.g., for setting credible
-        intervals.
-
-        Parameters
-        ----------
-        numax : float
-            Value(s) at which to compute dnu in muHz.
-        rho : float
-            Mean density of the star in solar units.
-        Teff : float
-            Stellar effective temperature in K.
-        R : float
-            Stellar radius in solar radii.
-        gamma : float, optional
-            Scaling factor to apply. Only applies to the polynomial scaling 
-            relation. Default is 0.
-        p : array-like, optional
-            Polynomial coefficients to use for log(dnu), log(numax), starting 
-            with the coefficient of the Nth order term and ending at the bias 
-            term.
-
-        Returns
-        -------
-        dnu : float 
-            Estimate of the large separation dnu in muHz.
-        """
-        
-        if rho is not None:
-            dnu = jnp.sqrt(rho) * constants.dnu0
-
-        elif (R is not None) and (Teff is not None) and (numax is not None):
-            dnu = jnp.sqrt(R * (Teff / constants.Teff0)**(-1/2) * (numax/constants.numax0)**(-1))
-
-        else:
-            dnu = 10**(jnp.polyval(p, jnp.log10(numax), unroll=128) + gamma)
-
-        return dnu
-    
-    @staticmethod
-    @jax.jit
-    def numaxScale(Teff=None, R=None, dnu=None, logg=None, alpha=0.791):
-        """ Scaling relation numax
-
-        Compute numax from scaling relations given some combination of 
-        parameters.
-
-        The default is to use log(g), and if not available to use dnu and R. If
-        only R is given, it uses the mass-less approximation and if only dnu
-        is given the power-law relation. 
-
-        Parameters
-        ----------
-        Teff : float
-            Stellar effective temperature in K.
-        R : float
-            Stellar radius in solar radii.
-        dnu : float, optional
-            Large frequency separation in muHz, by default None.
-        logg : float, optional
-            logg for the star in log(cm/s**2), by default None.
-        alpha : float, optional
-            Exponent to use in the dnu \propto numax**n relation. Default is
-            0.791.
-
-        Returns
-        -------
-        numax : float
-            Frequency of maximum power of the p-mode envelope in muHz.
-
-        Raises
-        ------
-        ValueError
-            If none of the combination of parameters match.
-        """
-
-        if logg is not None:
-            numax = (Teff / constants.Teff0)**(-1/2) * 10**(logg - constants.logg0) * constants.numax0
-            
-        elif (dnu is not None) and (R is not None):
-            numax = (Teff / constants.Teff0)**(-1/2) * R * (dnu/constants.dnu0)**-2 * constants.numax0
-            
-        elif (dnu is None) and (R is not None):
-            A = 0.5/(0.5 - alpha)
-
-            B = -0.25/(0.5 - alpha)
-
-            numax = (Teff / constants.Teff0)**B * R**A * constants.numax0
-
-        elif (dnu is not None) and (R is None) and (Teff is None):
-            numax = (dnu/constants.dnu0)**(1/alpha) * constants.numax0
-            
-        else:
-            raise ValueError('Must provide logg, or dnu and/or R to compute numax')
-
-        return numax
-    
-    @staticmethod
-    @jax.jit
-    def envBeta(nu, Teff, L=None, a=0.11, b=-0.47, c=-0.093):
-        """ Compute beta correction
-
-        Computes the beta correction factor for Amax. This has the effect of
-        reducing the amplitude for hotter solar-like stars that are close to
-        the red edge of the delta-scuti instability strip, according to the
-        observed reduction in the amplitude.
-
-        This method was originally applied by Chaplin et al. 2011, who used a
-        Delta_Teff = 1250K, this was later updated (private communcation) to
-        Delta_Teff = 1550K.
-
-        Parameters
-        ----------
-        nu : float
-            Value of nu in muHz to compute the beta correction at.
-        Teff : float
-            Stellar effective temperature in K.
-        L : float
-            Stellar luminosity in solar units. Default is None.
-        a : float
-            Scaling relation exponent to compute TeffRed for when L is None. By
-            default 0.11.
-        b : float
-            Scaling relation exponent to compute TeffRed for when L is None. By 
-            default -0.47.
-        c : float
-            Scaling relation exponent to compute TeffRed for when L is not None.
-            By default -0.093.
-
-        Returns
-        -------
-        beta : float
-            The correction factor for Amax.
-        """
-        
-        nu = jnp.asarray(nu)
-        
-        if L is None:
-            TeffRed = constants.TeffRed0 * (nu/constants.numax0)**a * (Teff/constants.Teff0)**b
-
-        else:
-            TeffRed = constants.TeffRed0 * L**c
-            
-        _beta = 1.0 - jnp.exp(-(TeffRed-Teff)/constants.Delta_Teff)
-         
-        beta = jnp.where(_beta <= 0, jnp.exp(-1250), _beta)
-        
-        return beta
-    
-    @staticmethod
-    @jax.jit
-    def Amax(numax, Teff, L=None, M=None):
-        """ Compute Amax
-
-        Computes the mode amplitude of a notional radial mode at nu_max, based
-        on scaling relations.
-
-        This includes the beta correction factor.
-
-        Parameters
-        ----------
-        numax : float
-            Frequency of maximum power of the p-mode envelope in muHz.
-        Teff : float
-            Stellar effective temperature in K.
-
-        Returns
-        -------
-        Amax : float
-            Amplitude in ppm of a radial order if it were exactly at nu_max.
-        """
-
-        beta = scalingRelations.envBeta(numax, Teff)
-    
-        if (L is None) and (M is None):
-            Amax =  beta * (numax/constants.numax0)**-1 * (Teff/constants.Teff0)**1.5
-        else:
-            Amax =  beta *  L / M * (Teff/constants.Teff0)**-2
-
-        return Amax # solar units
-
 class bibliography():
     """ A class for managing references used when running PBjam.
 
@@ -1164,24 +869,6 @@ class bibliography():
         if bibfile is not None:
             with open(bibfile, mode='w') as file_object: #robustify the filepath so it goes to the right place all the time.
                 print(out, file=file_object)
-
-def isvalid(number):
-    """ Checks if number is finite.
-    
-    Parameters
-    ----------
-    number : object
-    
-    Returns
-    -------
-    x : bool
-        Whether number a real float or not.
-    
-    """
-    if (number is None) or isinstance(number, str) or not np.isfinite(number):
-        return False
-    else:
-        return True
                             
 def getNormalPercentiles(X, nsigma=2, **kwargs):
     """ Get percentiles of an distribution
@@ -1259,21 +946,413 @@ def normal(x, mu, sigma):
     return gaussian(x, 1/jnp.sqrt(2*jnp.pi*sigma**2), mu, sigma)
 
 def gaussian(x, A, mu, sigma):
-    return A*jnp.exp(-(x-mu)**2/(2*sigma**2))
+    """
+    Computes the Gaussian function.
 
-def makeUneven(n):
-    if n % 2 == 0:
-        n += 1
-    return n
+    Parameters
+    ----------
+    x : array-like
+        Input array of x values.
+    A : float
+        Amplitude of the Gaussian.
+    mu : float
+        Mean (center) of the Gaussian.
+    sigma : float
+        Standard deviation (width) of the Gaussian.
 
-def getPriorpath():
-    """ Get default prior path name
-    
     Returns
     -------
-    prior_file : str
-        Default path to the prior in the package directory structure.
-        
+    array-like
+        The computed Gaussian function values.
     """
+        
+    return A*jnp.exp(-(x-mu)**2/(2*sigma**2))
+
+
+# def isvalid(number):
+#     """ Checks if number is finite.
     
-    return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+#     Parameters
+#     ----------
+#     number : object
+    
+#     Returns
+#     -------
+#     x : bool
+#         Whether number a real float or not.
+    
+#     """
+#     if (number is None) or isinstance(number, str) or not np.isfinite(number):
+#         return False
+#     else:
+#         return True
+
+# def makeUneven(n):
+#     if n % 2 == 0:
+#         n += 1
+#     return n
+
+# def getPriorPath():
+#     """ Get default prior path name
+    
+#     Returns
+#     -------
+#     prior_file : str
+#         Default path to the prior in the package directory structure.
+        
+#     """
+    
+#     return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
+
+
+
+# class scalingRelations():
+#     """ Container for scaling relations
+
+#     This is a helper class which contains methods for the various scaling
+#     relations.
+
+#     """
+
+#     def __init_(self):
+#         pass
+
+#     @staticmethod
+#     @jax.jit
+#     def envHeight(Amax, V, dilution, eta, numax=None, dnu=None, alpha=0.791):
+#         """ Envelope height
+
+#         Scaling relation for the p-mode envelope height. 
+
+#         Parameters
+#         ----------
+#         Amax : float
+#             Amplitude of the p-modes for a notinoal radial mode at numax. 
+#         V : float
+#             Visibility scaling of the oscillations. This is instrument dependent.
+#         dilution : float
+#             Fraction of the flux due to the source, compared to the overall 
+#             flux in the aperature. Also known as wash-out.
+#         eta : float
+#             Attenuation of the continuous signal due to discrete sampling.
+#         numax : float
+#             Frequency of maximum power of the p-mode envelope in muHz, by 
+#             default None.
+#         dnu : float, optional
+#             Large separation of the target, by default None
+#         alpha : float, optional
+#             Exponent of the dnu/numax scaling relation. Default is 0.791
+
+#         Returns
+#         -------
+#         Henv : float
+#             Height of the p-mode envelope at numax.
+#         """
+         
+#         I = eta * dilution * V
+
+#         if numax is not None:
+#             Henv = constants.Henv0 * I**2 * (numax/constants.numax0)**-alpha * Amax**2
+
+#         elif dnu is not None:
+#             Henv = constants.Henv0 * I**2 * (dnu/constants.dnu0) * Amax**2
+
+#         else:
+#             raise ValueError('Must provide either dnu or numax.')
+        
+#         return Henv
+
+#     @staticmethod
+#     @jax.jit
+#     def envWidth(numax, Teff=0, Tefflim=5600):
+#         """ Scaling relation for the envelope width
+
+#         Full width at half maximum.
+
+#         Parameters
+#         ----------
+#         numax : float
+#             Frequency of maximum power of the p-mode envelope in muHz.
+#         Teff : float
+#             Stellar effective temperature in K.
+#         Tefflim : float
+#             Limit for adding the Teff dependence in K. Default is 5600 K.
+
+#         Returns
+#         -------
+#         width : float
+#             Envelope width in muHz
+
+#         """
+        
+#         T = jax.lax.lt(Teff, Tefflim)
+        
+#         width = jax.lax.cond(T, lambda numax, teff : 0.66 * numax**0.88,
+#                                 lambda numax, teff : 0.66 * numax**0.88 * (1 + (teff - constants.Teff0) * 6e-4), numax, Teff)
+            
+#         return width
+
+#     @staticmethod
+#     @jax.jit
+#     def nuHarveyGran(numax):
+#         """ Harvey frequency for granulation term
+
+#         Scaling relation for the characteristic frequency of the granulation
+#         noise. Based on Kallinger et al. (2014).
+
+#         Parameters
+#         ----------
+#         numax : float
+#             Frequency of maximum power of the p-mode envelope.
+
+#         Returns
+#         -------
+#         nu : float
+#             Characteristic frequency of Harvey law for granulation.
+
+#         """
+
+#         nu = 0.317 * numax**0.970
+
+#         return nu
+    
+#     @staticmethod
+#     @jax.jit
+#     def nuHarveyEnv(numax):
+#         """ Harvey frequency for envelope term
+
+#         Scaling relation for the characteristic frequency of the envelope
+#         noise. Based on Kallinger et al. (2014).
+
+#         Parameters
+#         ----------
+#         numax : float
+#             Frequency of maximum power of the p-mode envelope.
+
+#         Returns
+#         -------
+#         nu : float
+#             Characteristic frequency of Harvey law for envelope.
+
+#         """
+
+#         nu = 0.948 * numax**0.992
+
+#         return nu
+    
+#     @staticmethod
+#     @jax.jit
+#     def dnuScale(numax=None, rho=None, R=None, Teff=None, gamma=0.0, p=jnp.array([0.79101684, -0.63285292])):
+#         """ Scaling relation dnu
+
+#         Computes an estimate of the large separation from scaling relations.
+         
+#         Default is to use the mean density rho of the star. Otherwise if R
+#         Teff and numax are given instead, it will use these.
+
+#         Finally if only numax is given dnu is evaluated based on the polynomial
+#         relation between log(dnu) and log(numax). This estimated based on a 
+#         polynomial fit performed on a set of main-sequence and sub- giant stars 
+#         in the literature.
+
+#         The output may be scaled by a factor gamma, e.g., for setting credible
+#         intervals.
+
+#         Parameters
+#         ----------
+#         numax : float
+#             Value(s) at which to compute dnu in muHz.
+#         rho : float
+#             Mean density of the star in solar units.
+#         Teff : float
+#             Stellar effective temperature in K.
+#         R : float
+#             Stellar radius in solar radii.
+#         gamma : float, optional
+#             Scaling factor to apply. Only applies to the polynomial scaling 
+#             relation. Default is 0.
+#         p : array-like, optional
+#             Polynomial coefficients to use for log(dnu), log(numax), starting 
+#             with the coefficient of the Nth order term and ending at the bias 
+#             term.
+
+#         Returns
+#         -------
+#         dnu : float 
+#             Estimate of the large separation dnu in muHz.
+#         """
+        
+#         if rho is not None:
+#             dnu = jnp.sqrt(rho) * constants.dnu0
+
+#         elif (R is not None) and (Teff is not None) and (numax is not None):
+#             dnu = jnp.sqrt(R * (Teff / constants.Teff0)**(-1/2) * (numax/constants.numax0)**(-1))
+
+#         else:
+#             dnu = 10**(jnp.polyval(p, jnp.log10(numax), unroll=128) + gamma)
+
+#         return dnu
+    
+#     @staticmethod
+#     @jax.jit
+#     def numaxScale(Teff=None, R=None, dnu=None, logg=None, alpha=0.791):
+#         """ Scaling relation numax
+
+#         Compute numax from scaling relations given some combination of 
+#         parameters.
+
+#         The default is to use log(g), and if not available to use dnu and R. If
+#         only R is given, it uses the mass-less approximation and if only dnu
+#         is given the power-law relation. 
+
+#         Parameters
+#         ----------
+#         Teff : float
+#             Stellar effective temperature in K.
+#         R : float
+#             Stellar radius in solar radii.
+#         dnu : float, optional
+#             Large frequency separation in muHz, by default None.
+#         logg : float, optional
+#             logg for the star in log(cm/s**2), by default None.
+#         alpha : float, optional
+#             Exponent to use in the dnu \propto numax**n relation. Default is
+#             0.791.
+
+#         Returns
+#         -------
+#         numax : float
+#             Frequency of maximum power of the p-mode envelope in muHz.
+
+#         Raises
+#         ------
+#         ValueError
+#             If none of the combination of parameters match.
+#         """
+
+#         if logg is not None:
+#             numax = (Teff / constants.Teff0)**(-1/2) * 10**(logg - constants.logg0) * constants.numax0
+            
+#         elif (dnu is not None) and (R is not None):
+#             numax = (Teff / constants.Teff0)**(-1/2) * R * (dnu/constants.dnu0)**-2 * constants.numax0
+            
+#         elif (dnu is None) and (R is not None):
+#             A = 0.5/(0.5 - alpha)
+
+#             B = -0.25/(0.5 - alpha)
+
+#             numax = (Teff / constants.Teff0)**B * R**A * constants.numax0
+
+#         elif (dnu is not None) and (R is None) and (Teff is None):
+#             numax = (dnu/constants.dnu0)**(1/alpha) * constants.numax0
+            
+#         else:
+#             raise ValueError('Must provide logg, or dnu and/or R to compute numax')
+
+#         return numax
+    
+#     @staticmethod
+#     @jax.jit
+#     def envBeta(nu, Teff, L=None, a=0.11, b=-0.47, c=-0.093):
+#         """ Compute beta correction
+
+#         Computes the beta correction factor for Amax. This has the effect of
+#         reducing the amplitude for hotter solar-like stars that are close to
+#         the red edge of the delta-scuti instability strip, according to the
+#         observed reduction in the amplitude.
+
+#         This method was originally applied by Chaplin et al. 2011, who used a
+#         Delta_Teff = 1250K, this was later updated (private communcation) to
+#         Delta_Teff = 1550K.
+
+#         Parameters
+#         ----------
+#         nu : float
+#             Value of nu in muHz to compute the beta correction at.
+#         Teff : float
+#             Stellar effective temperature in K.
+#         L : float
+#             Stellar luminosity in solar units. Default is None.
+#         a : float
+#             Scaling relation exponent to compute TeffRed for when L is None. By
+#             default 0.11.
+#         b : float
+#             Scaling relation exponent to compute TeffRed for when L is None. By 
+#             default -0.47.
+#         c : float
+#             Scaling relation exponent to compute TeffRed for when L is not None.
+#             By default -0.093.
+
+#         Returns
+#         -------
+#         beta : float
+#             The correction factor for Amax.
+#         """
+        
+#         nu = jnp.asarray(nu)
+        
+#         if L is None:
+#             TeffRed = constants.TeffRed0 * (nu/constants.numax0)**a * (Teff/constants.Teff0)**b
+
+#         else:
+#             TeffRed = constants.TeffRed0 * L**c
+            
+#         _beta = 1.0 - jnp.exp(-(TeffRed-Teff)/constants.Delta_Teff)
+         
+#         beta = jnp.where(_beta <= 0, jnp.exp(-1250), _beta)
+        
+#         return beta
+    
+#     @staticmethod
+#     @jax.jit
+#     def Amax(numax, Teff, L=None, M=None):
+#         """ Compute Amax
+
+#         Computes the mode amplitude of a notional radial mode at nu_max, based
+#         on scaling relations.
+
+#         This includes the beta correction factor.
+
+#         Parameters
+#         ----------
+#         numax : float
+#             Frequency of maximum power of the p-mode envelope in muHz.
+#         Teff : float
+#             Stellar effective temperature in K.
+
+#         Returns
+#         -------
+#         Amax : float
+#             Amplitude in ppm of a radial order if it were exactly at nu_max.
+#         """
+
+#         beta = scalingRelations.envBeta(numax, Teff)
+    
+#         if (L is None) and (M is None):
+#             Amax =  beta * (numax/constants.numax0)**-1 * (Teff/constants.Teff0)**1.5
+#         else:
+#             Amax =  beta *  L / M * (Teff/constants.Teff0)**-2
+
+#         return Amax # solar units
+
+
+    # def testModel(self):
+    #     """
+    #     Tests the model by generating a random parameter set and computing the model.
+
+    #     This is just a quick check that the model returns a sensible 
+    #     Returns
+    #     -------
+    #     tuple
+    #         A tuple containing the frequency array and the computed model.
+    #     """
+
+    #     u = np.random.uniform(0, 1, self.ndims)
+        
+    #     theta = self.ptform(u)
+        
+    #     theta_u = self.unpackParams(theta)
+        
+    #     m = self.model(theta_u,)
+        
+    #     return self.f, m
