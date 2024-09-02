@@ -86,10 +86,12 @@ class commonFuncs(jar.generalModelFuncs):
             of numax. A larger may(??) increase precision at the cost of time
             to perform eigendecomposition.
         """
- 
-        _sampler = dynesty.NestedSampler(self.obsOnlylnlikelihood, 
+
+        ndim = len(self.priors)
+         
+        _sampler = dynesty.DynamicNestedSampler(self.obsOnlylnlikelihood, 
                                         self.ptform, 
-                                        len(self.priors),
+                                        ndim=ndim, 
                                         sample='rwalk'
                                         )
             
@@ -107,7 +109,7 @@ class commonFuncs(jar.generalModelFuncs):
         DPi1 = np.median(_samplesU['DPi1'])
         
         eps_g = np.median(_samplesU['eps_g'])
- 
+        
         freq_lims = (min(self.obs['nu0_p']) - fac*self.obs['dnu'][0],  
                      max(self.obs['nu0_p']) + fac*self.obs['dnu'][0])
         
@@ -125,7 +127,7 @@ class commonFuncs(jar.generalModelFuncs):
         # Force a minimum of 1 g-mode to be included as a test
         if len(n_g) == 0:
             n_g = jnp.array([1])
-
+        
         return n_g
 
     def asymmetry(self, nulm, m=1):
@@ -162,8 +164,8 @@ class commonFuncs(jar.generalModelFuncs):
         return asym
 
 
-class Asyl1model(jar.DynestySamplingTools, commonFuncs):
-    def __init__(self, f, s, obs, addPriors, Npca, vis={'V10': 1.22}, priorpath=None):
+class Asyl1model(jar.DynestySampling, commonFuncs):
+    def __init__(self, f, s, obs, addPriors, PCAsamples, vis={'V10': 1.22}, priorPath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
  
@@ -206,7 +208,7 @@ class Asyl1model(jar.DynestySamplingTools, commonFuncs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
 
-        self.DR = PCA(_obs, ['d01'], self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, ['d01'], self.priorPath, self.PCAsamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
         
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
@@ -332,9 +334,9 @@ class Asyl1model(jar.DynestySamplingTools, commonFuncs):
 
         return result
         
-class Mixl1model(jar.DynestySamplingTools, commonFuncs):
+class Mixl1model(jar.DynestySampling, commonFuncs):
 
-    def __init__(self, f, s, obs, addPriors, Npca, PCAdims, vis={'V10': 1.22}, priorpath=None):
+    def __init__(self, f, s, obs, addPriors, PCAsamples, PCAdims, vis={'V10': 1.22}, priorPath=None):
    
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -353,7 +355,7 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
 
         self.setupDR()
  
-        self.setAddObs(keys=['numax', 'dnu', 'teff'])
+        self.setAddObs(keys=['teff'])
 
         if not self.badPrior: 
  
@@ -373,7 +375,7 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
             self.emm = np.zeros_like(self.ell)
 
             for i in range(self.N_g + self.N_p):
-                self.addlabels.append(f'freqError{i}')
+                self.addLabels.append(f'freqError{i}')
 
                 self.priors[f'freqError{i}'] = dist.normal(loc=0, scale=0.03 * self.obs['dnu'][0])
 
@@ -414,14 +416,21 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
         
+
+        # The errors are only used to weight the different selection labels. So we enflate errors on dnu and numax slightly so Teff doesn't become insignificant. 
+        _obs['dnu'][1] += 0.01
+        
+        _obs['numax'][1] += 0.01
+        
         # TODO maybe in future put bp_rp back in, when we aren't using models anymore
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, self.pcaLabels, self.priorPath, self.PCAsamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
 
         self.badPrior = False
         
         # If no prior samples are returned, flag bad prior
         if len(self.DR.selectedSubset) == 0:
             self.badPrior = True
+
         # Else cycle through the selection labels and compare with obs, if too far away the prior is also labeled as bad
         else:
             for i, key in enumerate(self.DR.selectLabels):
@@ -436,7 +445,7 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
  
         self.DR.fit_weightedPCA(self.PCAdims)
  
-        if len(self.pcalabels) > 0 and not self.badPrior:
+        if len(self.pcaLabels) > 0 and not self.badPrior:
 
             _Y = self.DR.transform(self.DR.dataF)
 
@@ -483,11 +492,11 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
 
         nu1s, zeta = self.nu1_frequencies(thetaU)
          
-        Hs1 = self.heights(nu1s) #self.vis['V10'] * jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+        Hs1 = self.heights(nu1s)  
          
         modewidth1s = self.modewidths(self.obs['mode_width'][0], zeta,)
          
-        nurot = self.rotation(zeta, thetaU['nurot_c'], thetaU['nurot_e']) #zeta * thetaU['nurot_c'] + (1 - zeta) * thetaU['nurot_e']
+        nurot = self.rotation(zeta, thetaU['nurot_c'], thetaU['nurot_e'])  
         
         modes = self.ones_nu
 
@@ -520,9 +529,9 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
   
         theta_inv = self.DR.inverse_transform(theta[:self.DR.dimsR])
 
-        thetaU = {key: theta_inv[i] for i, key in enumerate(self.pcalabels)}
+        thetaU = {key: theta_inv[i] for i, key in enumerate(self.pcaLabels)}
    
-        thetaU.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addlabels)})
+        thetaU.update({key: theta[self.DR.dimsR:][i] for i, key in enumerate(self.addLabels)})
 
         for key in self.logpars:
             thetaU[key] = 10**thetaU[key]
@@ -739,9 +748,9 @@ class Mixl1model(jar.DynestySamplingTools, commonFuncs):
 
         return result
     
-class RGBl1model(jar.DynestySamplingTools, commonFuncs):
+class RGBl1model(jar.DynestySampling, commonFuncs):
 
-    def __init__(self, f, s, obs, addPriors, Npca, rootiter=15, vis={'V10': 1.22}, priorpath=None, modelChoice='simple'):
+    def __init__(self, f, s, obs, addPriors, PCAsamples, rootiter=15, vis={'V10': 1.22}, priorPath=None, modelChoice='simple'):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
   
@@ -803,11 +812,11 @@ class RGBl1model(jar.DynestySamplingTools, commonFuncs):
         for key in ['bp_rp']:
             _obs[key] = self.obs[key]
          
-        self.DR = PCA(_obs, self.pcalabels, self.priorpath, self.Npca, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
+        self.DR = PCA(_obs, self.pcaLabels, self.priorPath, self.PCAsamples, selectLabels=['numax', 'dnu', 'teff'], dropNansIn='Not all') 
          
         self.DR.ppf, self.DR.pdf, self.DR.logpdf, self.DR.cdf = dist.getQuantileFuncs(self.DR.dataF)
  
-        for i, key in enumerate(self.pcalabels):
+        for i, key in enumerate(self.pcaLabels):
 
             self.priors[key] = dist.distribution(self.DR.ppf[i], 
                                                  self.DR.pdf[i], 

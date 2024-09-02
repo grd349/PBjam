@@ -7,7 +7,7 @@ from pbjam.DR import PCA
 import pbjam.distributions as dist 
 jax.config.update('jax_enable_x64', True)
 
-class Asyl20model(jar.DynestySamplingTools, jar.generalModelFuncs):
+class Asyl20model(jar.DynestySampling, jar.generalModelFuncs):
     """
     A class for constructing the l20 model using the asymptotic relation for p-modes.
 
