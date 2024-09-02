@@ -508,12 +508,12 @@ class peakbag(plotting):
 
                 _rotAsym = self.rotAsym[:, slcIdx]
                  
-                self.pbInstances.append(DynestyPeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
+                self.pbInstances.append(EmceePeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
                                                        
         else:
-            self.pbInstances.append(DynestyPeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
+            self.pbInstances.append(EmceePeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
     
-    def __call__(self, dynamic=False, progress=False, sampler_kwargs={}, Nsamples=10000):
+    def __call__(self, sampler_kwargs={}, Nsamples=10000):
         """
         Run the sampler for the slice(s) and parse the results. 
 
@@ -539,9 +539,9 @@ class peakbag(plotting):
         else:
             print('Peakbagging the whole envelope')
 
-        for inst in tqdm(self.pbInstances):
+        for inst in self.pbInstances:
              
-            inst(dynamic, progress, sampler_kwargs);
+            inst(**sampler_kwargs);
         
         self.result = self.parseSamples(Nsamples)
         
@@ -636,7 +636,7 @@ class peakbag(plotting):
         for key in samplesU.keys():
             self.result['summary'][key] = jar.smryStats(samplesU[key])
 
-class jointRotInc(jar.DynestySamplingTools):
+class jointRotInc(jar.DynestySampling):
     """
     A class to perform joint posterior sampling for rotation and inclination parameters using emcee.
 
@@ -849,7 +849,8 @@ class jointRotInc(jar.DynestySamplingTools):
         
         return samples
 
-class DynestyPeakbag(jar.DynestySamplingTools, plotting):
+    
+class basePeakbag(plotting):
     """
     A class for peakbagging a section of the power spectrum using the Dynesty nested sampler.
 
@@ -890,8 +891,8 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
     **kwargs : dict
         Additional keyword arguments.
     """
-
-    def __init__(self, f, s, ell, freq, height, width, zeta, dnu, d02, freqLimits, rotAsym, addPriors={}, **kwargs):
+ 
+    def __init__(self, f, s, ell, freq, height, width, zeta, dnu, d02, freqLimits, rotAsym, addPriors={}, sampling='emcee', **kwargs):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
          
@@ -1031,9 +1032,9 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
             Likelihood of the data given the model
         """
 
-        L = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
+        lnp = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
  
-        return L 
+        return jax.lax.cond(jnp.isfinite(lnp), lambda : lnp, lambda : -jnp.inf) # L 
         
     variables = {'freq'   : {'info': 'mode frequency list'      , 'log10': False},
                  'height' : {'info': 'mode height list'         , 'log10': True},
@@ -1091,7 +1092,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
 
         """
         
-        thetaU = {'freq'   : theta[0: self.Nmodes],
+        thetaU = {'freq'    : theta[0: self.Nmodes],
                    'height' : theta[self.Nmodes: 2 * self.Nmodes],
                    'width'  : theta[2 * self.Nmodes: 3 * self.Nmodes],
                    'nurot_e': theta[self.labels.index('nurot_e')],
@@ -1146,7 +1147,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         
         return modes
     
-    def __call__(self, dynamic=False, progress=False, sampler_kwargs={}):
+    def __call__(self, sampler_kwargs={}):
         """
         Run the sampler for the slice(s) and parse the results. 
 
@@ -1165,7 +1166,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
             Dictionary containing the results of the sampling.
         """
 
-        self.runDynesty(dynamic, progress, sampler_kwargs=sampler_kwargs)
+        self.runSampler(**sampler_kwargs)
 
         self.result = self.parseSamples(self.samples)
   
@@ -1253,10 +1254,29 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
 
         self.addObs = {}
 
-        # l=0 and l=2 can't swap places.
-        # TODO this should be changed to something that can't go below 0
-        self.addObs['d02'] = dist.normal(loc=self.d02[0], 
-                                         scale=10 * self.d02[1])
+        self.addObs['freq diff'] = dist.beta(a=1.00, b=1.00, loc=0., scale=100.)
+
+    # def setAddLikeTerms(self):
+    #     """ Set attribute containing additional observational data
+
+    #     Additional observational data other than the power spectrum goes here. 
+
+    #     Can be Teff or bp_rp color, but may also be additional constraints on
+    #     e.g., numax, dnu. 
+    #     """
+
+    #     self.addObs = {}
+
+    #     # Frequency diff prior so that they have to be positive.
+    #     freq_diff = jnp.diff(self.freq)
+
+    #     df = 0.08*self.dnu
+
+    #     loc = max([0.01, min(freq_diff)-df])
+
+    #     scale = min([max(freq_diff)+df, 1.25*self.dnu])
+
+    #     self.addObs['freq diff'] = dist.beta(a=1.00, b=1.00, loc=loc, scale=scale)
 
         # Correlated Noise Regularisation for width
         # wGPtheta={'amp': 1, 'scale': self.dnu[0]}
@@ -1277,7 +1297,7 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
 
         # self.addObs['heightGP'] = hGP.log_probability
  
-    def AddLikeTerms(self, thetaU):
+    def AddLikeTerms(self, theta, thetaU):
         """ Add the additional probabilities to likelihood
         
         Adds the additional observational data likelihoods to the PSD likelihood.
@@ -1292,9 +1312,18 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
         lnp : float
             The likelihood of a sample given the parameter PDFs.
         """
-        delta = thetaU['freq'][self.ell==0] - thetaU['freq'][self.ell==2]
+        #delta = thetaU['freq'][self.ell==0] - thetaU['freq'][self.ell==2]
 
-        lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
+        # lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
+        
+        delta = jnp.diff(jnp.sort(thetaU['freq']))
+
+        lnp = 0
+        
+        for d in delta:
+            lnp += self.addObs['freq diff'].logpdf(d)
+        
+        #lnp = jnp.sum(jnp.array([self.addObs['freq diff'].logpdf(d) for d in delta]))
         
         #lnp += self.addObs['heightGP'](theta[self.Nmodes: 2 * self.Nmodes])
 
@@ -1311,9 +1340,15 @@ class DynestyPeakbag(jar.DynestySamplingTools, plotting):
     #     return GP
 
 
+class DynestyPeakbag(basePeakbag, jar.DynestySampling):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
+class EmceePeakbag(basePeakbag, jar.EmceeSampling):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
-
+    
 #mainResult = self.compileResults(mainResult, inst.result)
 
 #self.result = mainResult
