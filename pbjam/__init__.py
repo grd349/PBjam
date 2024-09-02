@@ -5,7 +5,7 @@ import os
 PACKAGEDIR = os.path.abspath(os.path.dirname(__file__))
 
 from .version import __version__
-from .peakbagging import DynestyPeakbag
+from .peakbagging import basePeakbag
 from .core import star
 from .modeID import modeID
 
