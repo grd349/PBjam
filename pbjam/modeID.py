@@ -1,10 +1,32 @@
+"""
+
+This module contains the mode identification class for PBjam.
+
+The general mode ID strategy is to model the background + l=2,0 components 
+separately from the l=1 modes, since the latter are often more computationally 
+difficult.
+
+A usage example could be:
+
+M = modeID(...)
+M.runl20model(...)
+M.runl1model(...)
+
+This provides the inputs for the detailed peakbagging stage which is provided as 
+a separate module.
+
+Several plotting options are available to display the results, including `echelle`, 
+`spectrum` and `corner`.
+
+"""
+
 import warnings, os, pickle
 import jax.numpy as jnp
 import numpy as np
 from pbjam.l1models import Asyl1model, Mixl1model, RGBl1model
 from pbjam.l20models import Asyl20model
 from pbjam.plotting import plotting
-from pbjam import jar
+from pbjam import IO
 import pandas as pd
 
 class modeID(plotting, ):  
@@ -47,7 +69,7 @@ class modeID(plotting, ):
         self.sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   
 
         if self.priorPath is None:
-            self.priorPath = jar.getPriorPath()
+            self.priorPath = IO.getPriorPath()
  
     def runl20model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
         """
@@ -84,9 +106,9 @@ class modeID(plotting, ):
                                     PCAdims,
                                     priorPath=self.priorPath)
         
-        self.l20Samples, self.l20logz = self.l20model.runDynesty(progress=progress, 
-                                                                 logl_kwargs=logl_kwargs, 
-                                                                 sampler_kwargs=sampler_kwargs)
+        self.l20Samples = self.l20model.runSampler(progress=progress, 
+                                                    logl_kwargs=logl_kwargs, 
+                                                    sampler_kwargs=sampler_kwargs)
 
         l20samples_u = self.l20model.unpackSamples(self.l20Samples)
 
@@ -96,7 +118,7 @@ class modeID(plotting, ):
  
         return self.l20result
 
-    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=200, PCAdims=7):
+    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=500, PCAdims=7):
         """
         Runs the l1 model on the selected spectrum.
 
@@ -150,7 +172,7 @@ class modeID(plotting, ):
                                       PCAsamples, 
                                       PCAdims,
                                       priorPath=self.priorPath)
-
+            
         elif model.lower() == 'rgb':
             self.l1model = RGBl1model(f, s,  
                                       summary, 
@@ -161,10 +183,10 @@ class modeID(plotting, ):
                                       modelChoice='simple')
         else:
             raise ValueError(f'Model {model} is invalid. Please use either MS, SG or RGB.')
-
-        self.l1Samples, self.l1logz  = self.l1model.runDynesty(progress=progress, 
-                                                               logl_kwargs=logl_kwargs, 
-                                                               sampler_kwargs=sampler_kwargs)
+         
+        self.l1Samples  = self.l1model.runSampler(progress=progress, 
+                                                  logl_kwargs=logl_kwargs, 
+                                                  sampler_kwargs=sampler_kwargs)
         
         l1SamplesU = self.l1model.unpackSamples(self.l1Samples)
 
