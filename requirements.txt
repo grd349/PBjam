@@ -10,3 +10,4 @@ nbsphinx
 dynesty
 jax
 jaxlib
+emcee
