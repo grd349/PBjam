@@ -8,6 +8,4 @@ from .version import __version__
 from .peakbagging import basePeakbag
 from .core import star
 from .modeID import modeID
-
-#from .session import session
  
