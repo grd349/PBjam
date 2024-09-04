@@ -9,6 +9,11 @@ from dynesty import utils as dyfunc
 jax.config.update('jax_enable_x64', True)
 
 class commonFuncs(jar.generalModelFuncs):
+    """ 
+    A set of common functions for the l1 models, meant to be 
+    inherited by each of the model classes.
+    """
+
     def __init__(self):
         pass
 
@@ -31,6 +36,23 @@ class commonFuncs(jar.generalModelFuncs):
         return  fac * Gamma * jnp.maximum(1e-6, 1. - zeta)
     
     def heights(self, nu1s):
+        """
+        Computes the mode heights for l=1 modes using a visibility factor and an envelope function.
+
+        The mode heights are assumed to follow a Gaussian distribution centered on numax, and are modulated
+        by a fixed visibility ratio V10.
+
+        Parameters
+        ----------
+        nu1s : array-like
+            Array of l=1 mode frequencies.
+
+        Returns
+        -------
+        H : array-like
+            The computed heights for the l=1 modes.
+        """
+        
         return self.vis['V10'] * jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
 
     def asymptotic_nu_g(self, n_g, DPi1, eps_g):
@@ -63,6 +85,20 @@ class commonFuncs(jar.generalModelFuncs):
         return 1/P
     
     def asymptotic_nu_p(self, d01):
+        """
+        Computes the asymptotic l=1 mode frequencies based on a given frequency offset.
+
+        Parameters
+        ----------
+        d01 : float
+            The small frequency separation between l=0 and l=1 modes.
+
+        Returns
+        -------
+        nu : array-like
+            The l=1 mode frequencies, calculated as the observed l=0 frequencies plus the offset `d01`.
+        """
+
         return self.obs['nu0_p'] + d01
 
     def select_n_g(self, fac=5):
@@ -163,7 +199,6 @@ class commonFuncs(jar.generalModelFuncs):
         
         return asym
 
-
 class Asyl1model(jar.DynestySampling, commonFuncs):
     def __init__(self, f, s, obs, addPriors, PCAsamples, vis={'V10': 1.22}, priorPath=None):
 
@@ -246,6 +281,23 @@ class Asyl1model(jar.DynestySampling, commonFuncs):
         return thetaU
     
     def nu1_frequencies(self, thetaU):
+        """
+        Computes the l=1 mode frequencies based on thetaU.
+
+        Parameters
+        ----------
+        thetaU : dict
+            Dictionary of model parameters.
+
+        Returns
+        -------
+        nu : array-like
+            The l=1 mode frequencies.
+        zeta : array-like
+            The degree of mixing for each mode. For the asymptotic model 
+            this is assumed to be 0 for all modes.
+        """
+
         nu = self.asymptotic_nu_p(thetaU['d01'])
         
         zeta = jnp.zeros_like(nu)
@@ -253,7 +305,20 @@ class Asyl1model(jar.DynestySampling, commonFuncs):
         return nu, zeta
     
     def model(self, thetaU,):
-        
+        """
+        Computes the model given parameters thetaU.
+
+        Parameters
+        ----------
+        thetaU : dict
+            Dictionary of model parameters.
+
+        Returns
+        -------
+        modes : array-like
+            The computed model spectrum.
+        """
+
         nu1s, zeta = self.nu1_frequencies(thetaU)
          
         Hs1 = self.heights(nu1s)
@@ -275,9 +340,39 @@ class Asyl1model(jar.DynestySampling, commonFuncs):
         return modes
 
     def rotation(self, nurot_e, **kwargs):
+        """
+        Computes the rotational splitting for the modes.
+
+        Parameters
+        ----------
+        nurot_e : float
+            Envelope rotation rate.
+
+        Returns
+        -------
+        nurot_e : float
+            The rotational splitting.
+        """
+
         return nurot_e
    
     def parseSamples(self, smp, Nmax=5000):
+        """
+        Parses the samples from the posterior distribution.
+
+        Parameters
+        ----------
+        smp : dict
+            Dictionary of samples.
+        Nmax : int, optional
+            Maximum number of samples to process. Default is 5000.
+
+        Returns
+        -------
+        dict
+            A dictionary containing parsed results including frequencies, 
+            heights, widths, and rotational asymmetry.
+        """
 
         N = min([len(list(smp.values())[0]), Nmax])
 
@@ -335,6 +430,47 @@ class Asyl1model(jar.DynestySampling, commonFuncs):
         return result
         
 class Mixl1model(jar.DynestySampling, commonFuncs):
+    """
+    A class to model mixed l=1 modes using the coupling matrix formalism.
+
+    This is suitable for mode identification in sub-giant stars.
+
+    Parameters
+    ----------
+    f : array-like
+        Frequency array.
+    s : array-like
+        Power spectrum data.
+    obs : dict
+        Dictionary containing observed values such as 'nu0_p', 'mode_width', etc.
+    addPriors : dict
+        Additional priors to be included.
+    PCAsamples : int
+        Number of samples to use for PCA.
+    PCAdims : int
+        Number of principal components to retain.
+    vis : dict, optional
+        Visibility parameters for the modes. Default is {'V10': 1.22}.
+    priorPath : str, optional
+        Path to the prior data. Default is None.
+
+    Attributes
+    ----------
+    N_p : int
+        Number of p-modes (pressure modes).
+    N_g : int
+        Number of g-modes (gravity modes).
+    N_pg : int
+        Total number of p- and g-modes.
+    ell : ndarray
+        Array of degree (l) values for the modes.
+    emm : ndarray
+        Array of azimuthal order (m) values for the modes.
+    ndims : int
+        Number of dimensions (parameters) in the model.
+    priors : dict
+        Dictionary of prior distributions for the model parameters.
+    """
 
     def __init__(self, f, s, obs, addPriors, PCAsamples, PCAdims, vis={'V10': 1.22}, priorPath=None):
    
@@ -403,12 +539,14 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
         
     def setupDR(self):
         """ Setup the latent parameters and projection functions
-
-        Parameters
-        ----------
-        prior_file : str
-            Full path name for the file containing the prior samples.
  
+        Notes
+        -----
+        - The prior distributions are constructed based on the PCA sample projection 
+        onto the reduced-dimensional space.
+        - If the target values are too far from the viable prior sample, the prior is 
+        labeled as unreliable. This can happen if the target is very far outside the main 
+        prior sample distribution.
         """
  
         _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}
@@ -489,7 +627,20 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
         self.priors['inc'] = dist.truncsine() 
  
     def model(self, thetaU,):
+        """
+        Computes the model for the given parameters, thetaU.
 
+        Parameters
+        ----------
+        thetaU : dict
+            Dictionary of model parameters.
+
+        Returns
+        -------
+        mod : array-like
+            The computed model spectrum.
+        """
+        
         nu1s, zeta = self.nu1_frequencies(thetaU)
          
         Hs1 = self.heights(nu1s)  
@@ -541,33 +692,17 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
     def nu1_frequencies(self, thetaU):
         """
         Calculate mixed nu1 values and associated zeta values.
-        
+
         Parameters
         ----------
-        nu0_p : float
-            Initial nu0 value.
-        n_p : int
-            Number of n values.
-        d01 : float
-            The d01 frequency separation
-        DPi1 : float
-            Period spacing for l=1.
-        p_L : jax device array
-            Polynomial coefficients for the L coupling strength matrix.
-        p_D : jax device array
-            Polynomial coefficients for the D coupling strength matrix.
-        eps_g : float
-            Phase offset of the g-modes.
-        alpha_g : float
-            Curvature scale of the g-modes.
-        **kwargs : dict
-            Additional keyword arguments.
+        thetaU : dict
+            Dictionary of model parameters.
 
         Returns
         -------
-        nu : jax device array
+        nu : array-like
             Array of frequencies of the mixed l=1 modes. 
-        zeta : jax device array
+        zeta : array-like
             Array of mixing degrees for the modes.
         """
 
@@ -590,10 +725,6 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
 
         Parameters
         ----------
-        n_p : jax device array
-            Array containing p-mode radial orders.
-        n_g : jax device array
-            Array containing g-mode radial orders.
         nu_p : jax device array
             Array containing asymptotic l=1 p-mode frequencies.
         nu_g : jax device array
@@ -663,7 +794,24 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
         return jnp.sqrt(new_omega2)[sidx] / c.nu_to_omega, zeta[sidx]  
 
     def generalized_eig(self, A, B):
-        
+        """
+        Solves the generalized eigenvalue problem.
+
+        Parameters
+        ----------
+        A : ndarray
+            Matrix A in the generalized eigenvalue problem.
+        B : ndarray
+            Matrix B in the generalized eigenvalue problem.
+
+        Returns
+        -------
+        U : array-like
+            Eigenvalues of the problem.
+        V : array-like
+            Eigenvectors of the problem.
+        """
+
         B_inv = jnp.linalg.inv(B)
         
         U, V = jnp.linalg.eig(B_inv @ A)
@@ -671,7 +819,28 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
         return U.real, V.real
     
     def generalized_eigh(self, A, B):
-        
+        """
+        Solves the generalized eigenvalue problem using Hermitian matrices.
+
+        Notes
+        -----
+        This function is not currently used. generalized_eig seemed to be faster.
+
+        Parameters
+        ----------
+        A : ndarray
+            Hermitian matrix A in the generalized eigenvalue problem.
+        B : ndarray
+            Hermitian matrix B in the generalized eigenvalue problem.
+
+        Returns
+        -------
+        U : array-like
+            Eigenvalues of the problem.
+        V : array-like
+            Eigenvectors of the problem.
+        """
+
         B_inv = jnp.linalg.inv(B)
         
         U, V = jnp.linalg.eigh(B_inv @ A)
@@ -679,9 +848,44 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
         return U.real, V.real
 
     def rotation(self, zeta, nurot_c, nurot_e):
+        """
+        Computes the rotational splitting for the modes as a mixture model 
+        where the mixture coefficient is the degree of mixing, zeta.
+
+        Parameters
+        ----------
+        zeta : array-like
+            Mixing degree for each mode.
+        nurot_c : float
+            Core rotation rate.
+        nurot_e : float
+            Envelope rotation rate.
+
+        Returns
+        -------
+        array-like
+            Rotational splitting values.
+        """
+
         return zeta * nurot_c + (1 - zeta) * nurot_e
       
     def parseSamples(self, smp, Nmax=5000):
+        """
+        Parses the samples from the posterior distribution.
+
+        Parameters
+        ----------
+        smp : dict
+            Dictionary of samples.
+        Nmax : int, optional
+            Maximum number of samples to process. Default is 5000.
+
+        Returns
+        -------
+        dict
+            A dictionary containing parsed results including frequencies, 
+            heights, widths, and rotational asymmetry.
+        """
 
         N = min([len(list(smp.values())[0]), Nmax])
         
@@ -749,6 +953,49 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
         return result
     
 class RGBl1model(jar.DynestySampling, commonFuncs):
+    """
+    A class to model l=1 modes in red giant branch (RGB) stars using Dynesty sampling.
+
+    Parameters
+    ----------
+    f : array-like
+        Frequency array.
+    s : array-like
+        Power spectrum data.
+    obs : dict
+        Dictionary containing observed values such as 'nu0_p', 'mode_width', etc. 
+        Typically from the l=2,0 model.
+    addPriors : dict
+        Additional priors to be included.
+    PCAsamples : int
+        Number of samples to use for PCA.
+    rootiter : int, optional
+        Number of iterations for root-finding in coupling. Default is 15.
+    vis : dict, optional
+        Visibility parameters for the modes. Default is {'V10': 1.22}.
+    priorPath : str, optional
+        Path to the prior data. Default is None.
+    modelChoice : str, optional
+        Choice of the frequency model, either 'simple' or 'rotation-coupled'. 
+        Default is 'simple'.
+
+    Attributes
+    ----------
+    N_p : int
+        Number of p-modes (pressure modes).
+    N_g : int
+        Number of g-modes (gravity modes).
+    N_pg : int
+        Total number of p- and g-modes.
+    ell : ndarray
+        Array of degree (l) values for the modes.
+    emm : ndarray
+        Array of azimuthal order (m) values for the modes.
+    ndims : int
+        Number of dimensions (parameters) in the model.
+    priors : dict
+        Dictionary of prior distributions for the model parameters.
+    """
 
     def __init__(self, f, s, obs, addPriors, PCAsamples, rootiter=15, vis={'V10': 1.22}, priorPath=None, modelChoice='simple'):
         
@@ -781,7 +1028,14 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
         self.ell = jnp.ones(self.N_pg) # m=-1,0,1
  
     def initRotationModel(self, modelChoice):
-        """Setup the chosen frequency model"""
+        """
+        Initialize the chosen frequency model.
+
+        Parameters
+        ----------
+        modelChoice : str
+            The choice of frequency model, either 'simple' or 'rotation-coupled'.
+        """
  
         self.arange_nup = jnp.arange(self.N_p, dtype=np.float64)
 
@@ -798,11 +1052,11 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
             self.nu1_frequencies = self.rotationCoupledFrequencies
   
     def setPriors(self,):
-        """ Set the prior distributions.
+        """
+        Set the prior distributions for the model parameters.
 
-        The prior distributions are constructed from the projection of the 
-        PCA sample onto the reduced dimensional space.
-
+        The prior distributions are constructed from the projection of the PCA sample
+        onto the reduced-dimensional space.
         """
 
         self.priors = {}
@@ -860,6 +1114,23 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
         return thetaU
 
     def simpleFrequencies(self, thetaU):
+        """
+        Compute the mixed mode frequencies using the simple model. This model 
+        for rotation performs the coupling before splitting the modes by the 
+        mixing weighted rotation. 
+
+        Parameters
+        ----------
+        thetaU : dict
+            Dictionary of model parameters.
+
+        Returns
+        -------
+        num : array-like
+            Array of mixed l=1 mode frequencies.
+        zeta : array-like
+            Arrays of mixing degrees.
+        """
 
         # Compute unmixed modes
         nu1_g = self.asymptotic_nu_g(self.n_g, thetaU['DPi1'], thetaU['eps_g'])[::-1]
@@ -885,6 +1156,23 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
         return num, zeta
     
     def rotationCoupledFrequencies(self, thetaU):
+        """
+        Compute the mixed mode frequencies using the rotation-coupled model. This model 
+        splits the pure p- and g-modes first using just the envelope and core rotation 
+        rates respectively. The mode coupling is then performed following this.
+
+        Parameters
+        ----------
+        thetaU : dict
+            Dictionary of model parameters.
+
+        Returns
+        -------
+        num : array-like
+            Array of mixed l=1 mode frequencies.
+        zeta : array-like
+            Arrays of mixing degrees.
+        """
 
         # Compute unmixed modes
         _nu1_g = self.asymptotic_nu_g(self.n_g, thetaU['DPi1'], thetaU['eps_g'])[::-1]
@@ -908,24 +1196,23 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
         return num, zeta
             
     def model(self, thetaU):
-        """_summary_
-
-        Follows Li et al 2024 Approach Two
+        """
+        Compute the model spectrum based on the input parameters.
 
         Parameters
         ----------
-        thetaU : _type_
-            _description_
+        thetaU : dict
+            Dictionary of model parameters.
 
         Returns
         -------
-        _type_
-            _description_
+        modes : array-like
+            The computed model spectrum.
         """
 
         nus, zeta = self.nu1_frequencies(thetaU)
 
-        Hs = self.heights(nus[1, :]) #self.vis['V10']*jar.envelope(nu1s, self.obs['env_height'][0], self.obs['numax'][0], self.obs['env_width'][0])
+        Hs = self.heights(nus[1, :])  
         
         Ws = self.modewidths(self.obs['mode_width'][0], zeta[1, :],)
          
@@ -938,24 +1225,46 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
             modes += jar.lor(self.f, nus[1, i], Hs[i], Ws[i]) * jnp.sin(thetaU['inc'])**2 / 2
         
             modes += jar.lor(self.f, nus[2, i], Hs[i], Ws[i]) * jnp.sin(thetaU['inc'])**2 / 2
-
-        # for i in range(self.N_pg):
-        #     for j, emm in range([-1, 0, 1])
-        #         modes += jar.lor(self.f, nus[j, i], Hs[i], Ws[i]) * jar.visell1(abs(emm), thetaU['inc'])
-         
+  
         return modes
  
     def nearest(self, nu, nu_target):
         """
         Utility function: given 1d arrays nu and nu_target, return a 1d array with the 
         same shape as nu, containing the nearest elements of nu_target to each element of nu.
-        """
  
+        Parameters
+        ----------
+        nu : ndarray
+            Array of target frequencies.
+        nu_target : ndarray
+            Array of candidate frequencies.
+
+        Returns
+        -------
+        near : array-like
+            Array of the nearest frequencies in `nu_target` to each value in `nu`.
+        """
+
         return nu_target[jnp.argmin(jnp.abs(nu[:, None] - nu_target[None, :]), axis=1)]
 
     def Theta_p(self, nu, Dnu, nu_p):
         """
-        p-mode phase function Theta_p. Provide a list of p-mode frequencies nu_p.
+        Compute the p-mode phase function Theta_p.
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        Dnu : float
+            Large frequency separation.
+        nu_p : ndarray
+            Array of p-mode frequencies.
+
+        Returns
+        -------
+        Theta_p : array-like
+            The p-mode phase function Theta_p.
         """
         return jnp.pi * jnp.where((nu <= jnp.max(nu_p)) & (nu >= jnp.min(nu_p)),
                                  jnp.interp(nu, nu_p, self.arange_nup),
@@ -964,8 +1273,23 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
 
     def Theta_g(self, nu, DPi1, nu_g):
         """
-        g-mode phase function Theta_g. Provide a list of g-mode frequencies nu_g.
+        Compute the g-mode phase function Theta_g.
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+
+        Returns
+        -------
+        Theta_g : array-like
+            The g-mode phase function Theta_g.
         """
+
         return jnp.pi * jnp.where((nu <= jnp.max(nu_g)) & (nu >= jnp.min(nu_g)),
                                   -jnp.interp(1 / nu, jnp.sort(1 / nu_g), self.arange_nug),
                                   (1 / self.nearest(nu, nu_g) - 1 / nu) / DPi1
@@ -973,8 +1297,29 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
 
     def zeta(self, nu, q, DPi1, Dnu, nu_p, nu_g):
         """
-        zeta, the approximate local mixing fraction.
+        Compute the local mixing fraction zeta.
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        q : float
+            Coupling strength parameter.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        Dnu : float
+            Large frequency separation.
+        nu_p : ndarray
+            Array of p-mode frequencies.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+
+        Returns
+        -------
+        zeta : array-like
+            The local mixing fraction zeta using only the p-mode phase function.
         """
+
         Theta_p = self.Theta_p(nu, Dnu, nu_p)
         
         Theta_g = self.Theta_g(nu, DPi1, nu_g)
@@ -983,40 +1328,141 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
 
     def zeta_p(self, nu, q, DPi1, Dnu, nu_p):
         """
-        zeta as defined using only the p-mode phase function. Agrees with zeta only at the 
+        Compute the mixing fraction zeta using only the p-mode phase function. Agrees with zeta only at the 
         eigenvalues (i.e. roots of the characteristic equation F(nu) = 0).
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        q : float
+            Coupling strength parameter.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        Dnu : float
+            Large frequency separation.
+        nu_p : ndarray
+            Array of p-mode frequencies.
+
+        Returns
+        -------
+        zeta_p : array-like
+            The local mixing fraction zeta.
         """
         Theta = self.Theta_p(nu, Dnu, nu_p)
         
         return 1 / (1 + DPi1 / Dnu * nu**2 / (q * jnp.cos(Theta)**2 + jnp.sin(Theta)**2/q))
 
     def zeta_g(self, nu, q, DPi1, Dnu, nu_g):
+ 
         """
-        zeta as defined using only the g-mode phase function. Agrees with zeta only at the
+        Compute the mixing fraction zeta using only the g-mode phase function. Agrees with zeta only at the
         eigenvalues (i.e. roots of the characteristic equation F(nu) = 0).
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        q : float
+            Coupling strength parameter.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        Dnu : float
+            Large frequency separation.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+
+        Returns
+        -------
+        zeta_g : array-like
+            The mixing fraction zeta using only the g-mode phase function.
         """
+
         Theta = self.Theta_g(nu, DPi1, nu_g)
 
         return 1 / (1 + DPi1 / Dnu * nu**2 * (q * jnp.cos(Theta)**2 + jnp.sin(Theta)**2/q))
 
     def F(self, nu, nu_p, nu_g, Dnu, DPi1, q):
         """
-        Characteristic function F such that F(nu) = 0 yields eigenvalues.
+        Compute the characteristic function F such that F(nu) = 0 yields eigenvalues.
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        nu_p : ndarray
+            Array of p-mode frequencies.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+        Dnu : float
+            Large frequency separation.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        q : float
+            Coupling strength parameter.
+
+        Returns
+        -------
+        F : array-like
+            The characteristic function F.
         """
+
         return jnp.tan(self.Theta_p(nu, Dnu, nu_p)) * jnp.tan(self.Theta_g(nu, DPi1, nu_g)) - q
 
     def Fp(self, nu, nu_p, nu_g, Dnu, DPi1, qp=0):
         """
-        First derivative dF/dnu. Required for some numerical methods.
+        Compute the first derivative dF/dnu of the characteristic function F.
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        nu_p : ndarray
+            Array of p-mode frequencies.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+        Dnu : float
+            Large frequency separation.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        qp : float, optional
+            Additional parameter for the characteristic function. Default is 0.
+
+        Returns
+        -------
+        Fp : array-like
+            The first derivative of the characteristic function F.
         """
+        
         return (jnp.tan(self.Theta_g(nu, DPi1, nu_g)) / jnp.cos(self.Theta_p(nu, Dnu, nu_p))**2 * jnp.pi / Dnu
               + jnp.tan(self.Theta_p(nu, Dnu, nu_p)) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**2
               - qp)
 
     def Fpp(self, nu, nu_p, nu_g, Dnu, DPi1, qpp=0):
         """
-        Second derivative d²F / dnu². Required for some numerical methods.
+        Compute the second derivative  d^2F / dnu^2of the characteristic function F.
+
+        Parameters
+        ----------
+        nu : ndarray
+            Frequency array.
+        nu_p : ndarray
+            Array of p-mode frequencies.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+        Dnu : float
+            Large frequency separation.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        qpp : float, optional
+            Additional parameter for the characteristic function. Default is 0.
+
+        Returns
+        -------
+        ndarray
+            The second derivative of the characteristic function F.
         """
+
         return (2 * self.F(nu, nu_p, nu_g, Dnu, DPi1, 0) / jnp.cos(self.Theta_p(nu, Dnu, nu_p))**2 * (jnp.pi / Dnu)**2
               + 2 * self.F(nu, nu_p, nu_g, Dnu, DPi1, 0) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * (jnp.pi / DPi1 / nu**2)**2
               - 2 * jnp.tan(self.Theta_p(nu, Dnu, nu_p)) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**3
@@ -1025,18 +1471,54 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
     
     def halley_iteration(self, x, y, yp, ypp, lmbda=1.):
         """
-        Halley's method (2nd order Householder):
-        x_{n+1} = x_n = 2 f f' / (2 f'² - f f''),
-        again with damping.
+        Perform Halley's method (2nd order Householder) iteration, with damping
+
+        Parameters
+        ----------
+        x : ndarray
+            Current estimate of the root.
+        y : ndarray
+            Function value at the current estimate.
+        yp : ndarray
+            First derivative of the function.
+        ypp : ndarray
+            Second derivative of the function.
+        lmbda : float, optional
+            Damping factor. Default is 1.
+
+        Returns
+        -------
+        xprime : array-like
+            Updated estimate of the root after one iteration.
         """
         return x - lmbda * 2 * y * yp / (2 * yp * yp - y * ypp)
 
     def couple(self, nu_p, nu_g, q_p, q_g, DPi1, lmbda=.5):
         """
-        Solve the characteristic equation with Halley's method.
-        This converges even faster than Newton's method and is capable
-        of handling quite numerically difficult scenarios with not
-        very much damping.
+        Solve the characteristic equation using Halley's method to couple 
+        pure p- and g-modes to get the mixed mode frequencies. This converges 
+        even faster than Newton's method and is capable of handling quite 
+        numerically difficult scenarios with not very much damping.
+
+        Parameters
+        ----------
+        nu_p : ndarray
+            Array of p-mode frequencies.
+        nu_g : ndarray
+            Array of g-mode frequencies.
+        q_p : float
+            Coupling strength parameter for p-modes.
+        q_g : float
+            Coupling strength parameter for g-modes.
+        DPi1 : float
+            Period spacing for l=1 modes.
+        lmbda : float, optional
+            Damping factor for Halley's method. Default is 0.5.
+
+        Returns
+        -------
+        num : array-like
+            Array of mixed mode frequencies.
         """
  
         num_p = jnp.copy(nu_p)
@@ -1056,6 +1538,22 @@ class RGBl1model(jar.DynestySampling, commonFuncs):
         return jnp.append(num_p, num_g)
  
     def parseSamples(self, smp, Nmax=5000):
+        """
+        Parse the samples from the posterior distribution.
+
+        Parameters
+        ----------
+        smp : dict
+            Dictionary of samples.
+        Nmax : int, optional
+            Maximum number of samples to process. Default is 5000.
+
+        Returns
+        -------
+        dict
+            A dictionary containing parsed results including frequencies, 
+            heights, widths, and rotational asymmetry.
+        """
 
         N = min([len(list(smp.values())[0]), Nmax])
         
