@@ -534,9 +534,9 @@ class EmceeSampling():
 
         sampler = False
 
-        print('Warming up the sampler.')
-        print(f'Steps | Steps/s | AC time | Delta AC / step (target: {DtauLimit*100}%)):')
-        print('----------------------------------------------------------------------')
+        # print('Warming up the sampler.')
+        # print(f'Steps | Steps/s | AC time | Delta AC / step (target: {DtauLimit*100}%)):')
+        # print('----------------------------------------------------------------------')
         while not stop:
 
             if sampler:
@@ -569,10 +569,10 @@ class EmceeSampling():
             
             runtime = (time.time() - t0)
 
-            print(f'{totalSteps} |  {np.round(totalSteps/runtime, 1)} | {np.round(np.mean(tau), 1)} | {np.round(avgDtau*100, 3)}')
+            #print(f'{totalSteps} |  {np.round(totalSteps/runtime, 1)} | {np.round(np.mean(tau), 1)} | {np.round(avgDtau*100, 3)}')
 
             if converged and earlyStop:
-                print('Sampler has likely converged.')
+                #print('Sampler has likely converged.')
                 stop=True
             elif walltimeFlag:
                 print('Burn-in stopped due to walltime.')            
@@ -624,7 +624,7 @@ class EmceeSampling():
         sampler : emcee.EnsembleSampler
             The MCMC sampler from the last sampling step.
         """
-
+        
         # Get independent samples
         thin = min([int(np.mean(tau)*1.1), maxThin])
         
@@ -639,10 +639,10 @@ class EmceeSampling():
 
         chain = np.array([]).reshape((0, *pos.shape))
         
-        print()
-        print('Sampling from burnt-in chains. ')
-        print('Steps | Independent samples')
-        print('------------------------------')
+        # print()
+        # print('Sampling from burnt-in chains. ')
+        # print('Steps | Independent samples')
+        # print('------------------------------')
         while stepsTaken < stepsNeeded:
         
             sampler = emcee.EnsembleSampler(pos.shape[0], 
@@ -662,10 +662,10 @@ class EmceeSampling():
 
             nsteps = np.min([stepsNeeded - stepsTaken, nsteps])
 
-            print(f'{stepsTaken}/{stepsNeeded} | {chain.shape[0]*chain.shape[1]}')
+            #print(f'{stepsTaken}/{stepsNeeded} | {chain.shape[0]*chain.shape[1]}')
         
         samples = chain.reshape((-1, self.ndims))
-        print(samples.shape)
+        # print(samples.shape)
         
         return samples, chain, sampler 
        
@@ -735,7 +735,7 @@ class EmceeSampling():
         bool
             True if the elapsed time exceeds the walltime limit, False otherwise.
         """
-
+         
         return time.time()-t0 > 60*walltime
     
     def _iterateSampler(self, p0, sampler, nsteps, t0, walltime, progress=False, checkEvery=100):
@@ -825,10 +825,8 @@ class EmceeSampling():
         pos = self._fold(sampler)
          
         tau = emcee.autocorr.integrated_time(ctrlChain, tol=0)
-         
-        samples, chain, sampler= self.samplePosterior(pos, tau, DEfrac, nsamples, maxThin, walltime, checkEvery, t0)
-      
-        print(f'Time taken {np.round((time.time() - t0)/60, 1)} minutes')
+                                                      
+        samples, chain, sampler= self.samplePosterior(pos, tau, DEfrac, nsamples, maxThin, walltime, t0)
 
         self.samples = samples
         

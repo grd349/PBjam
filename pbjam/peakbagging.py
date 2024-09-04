@@ -1,5 +1,5 @@
 from functools import partial
-import jax, emcee, warnings
+import jax, emcee, warnings, time
 import jax.numpy as jnp
 from pbjam.plotting import plotting 
 import pbjam.distributions as dist
@@ -71,7 +71,7 @@ class peakbag(plotting):
         Total number of modes.
     """
 
-    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slices=-1, snrInput=False, **kwargs):
+    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slices=0, snrInput=False, samplerType='emcee', **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -103,7 +103,7 @@ class peakbag(plotting):
 
     def _checkDefaults(self):
         """
-        Checks and sets default values for attributes if they are None.
+        Checks and sets default values for attributes if they are None. Just to tidy up the init function.
         """
 
         self.dnu = self._setDnu()
@@ -124,7 +124,21 @@ class peakbag(plotting):
 
     def _pickModes(self, fac=1):
         """
-        Selects the modes to include in the model based on freqLimits.
+        Selects the modes to include in the model based on frequency limits.
+
+        Checks if `freqLimits` is empty. If so, it sets default frequency limits based on the minimum and maximum frequencies of the l=0 modes +/- fac*dnu.
+
+        The method updates the attributes `ell`, `freq`, `height`, `width`, `rotAsym`, and `zeta` to include only the selected modes.
+
+        Parameters
+        ----------
+        fac : float, optional
+            A factor used to adjust the frequency limits. Default is 1.
+
+        Returns
+        -------
+        idx : array-like
+            A boolean array indicating which modes are selected based on the frequency limits.
         """
 
         if len(self.freqLimits) == 0:
@@ -467,16 +481,34 @@ class peakbag(plotting):
 
         return limits
     
-    def createPeakbagInstances(self):
+    def createPeakbagInstances(self, ):
         """
         Create a list of class instances which do the modeling in each spectrum slice. 
         Only the relevant part of the spectrum and mode parameters are passed to each 
         instance.
 
-        The default is to use the DynestyPeakbag class.
+        Unless `self.slices` is set to 0, attempts to find the best number of slices to use. 
+        Starts at the number of l=0 modes, but may adjust down if there are closely 
+        spaced sets of modes. Similarly if a choice of self.slices > 0 means a slice has 
+        to be placed between two closely spaced modes, the number of slices is also adjusted 
+        downward to avoid slicing between closely spaced peaks.
+  
+        Notes
+        -----
+        - If `self.slices` is 0, no slicing occurs.
+        - The method stores the created instances in the `pbInstances` attribute.
         """
 
         self.pbInstances = []
+
+        if self.samplerType.lower()=='emcee':
+            print('Using emcee to sample.')
+            sampler = EmceePeakbag
+        elif self.samplerType.lower()=='dynesty':
+            print('Using Dynesty to sample.')
+            sampler = DynestyPeakbag
+        else:
+            raise ValueError('Sampler choice must be emcee or dynesty')
  
         if self.slices < 0 or self.slices > len(self.ell):
             self.Nslices = len(self.ell[self.ell==0])
@@ -508,10 +540,10 @@ class peakbag(plotting):
 
                 _rotAsym = self.rotAsym[:, slcIdx]
                  
-                self.pbInstances.append(EmceePeakbag(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
+                self.pbInstances.append(sampler(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
                                                        
         else:
-            self.pbInstances.append(EmceePeakbag(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
+            self.pbInstances.append(sampler(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
     
     def __call__(self, sampler_kwargs={}, Nsamples=10000):
         """
@@ -534,15 +566,18 @@ class peakbag(plotting):
             Dictionary containing the results of the sampling.
         """
 
-        if self.Nslices > 0:
-            print('Peakbagging envelope slices')
-        else:
-            print('Peakbagging the whole envelope')
+        # if self.Nslices > 0:
+        #     print('Peakbagging envelope slices')
+        # else:
+        #     print('Peakbagging the whole envelope')
+        t0 = time.time()
 
-        for inst in self.pbInstances:
-             
+        for i, inst in enumerate(self.pbInstances):
+            print(f'Peakbagging slice {i+1}/{len(self.pbInstances)}')
             inst(**sampler_kwargs);
         
+        print(f'Time taken {np.round((time.time() - t0)/60, 1)} minutes')
+
         self.result = self.parseSamples(Nsamples)
         
         return self.result
@@ -848,11 +883,12 @@ class jointRotInc(jar.DynestySampling):
         samples = sampler.get_chain()[int(burnFraction*nsteps):, idx, :].reshape((-1, self.ndims))
         
         return samples
-
-    
+ 
 class basePeakbag(plotting):
     """
-    A class for peakbagging a section of the power spectrum using the Dynesty nested sampler.
+    Base model class for peakbagging a section of the power spectrum.
+
+
 
     Parameters
     ----------
@@ -1034,7 +1070,7 @@ class basePeakbag(plotting):
 
         lnp = -jnp.sum(jnp.log(mod) + self.s[self.sel] / mod)
  
-        return jax.lax.cond(jnp.isfinite(lnp), lambda : lnp, lambda : -jnp.inf) # L 
+        return jax.lax.cond(jnp.isfinite(lnp), lambda : lnp, lambda : -jnp.inf)
         
     variables = {'freq'   : {'info': 'mode frequency list'      , 'log10': False},
                  'height' : {'info': 'mode height list'         , 'log10': True},
@@ -1076,7 +1112,7 @@ class basePeakbag(plotting):
         lnlike += self.AddLikeTerms(theta, thetaU)
         
         return lnlike
-
+ 
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
 
@@ -1312,9 +1348,6 @@ class basePeakbag(plotting):
         lnp : float
             The likelihood of a sample given the parameter PDFs.
         """
-        #delta = thetaU['freq'][self.ell==0] - thetaU['freq'][self.ell==2]
-
-        # lnp = jnp.sum(self.addObs['d02'].logpdf(delta))
         
         delta = jnp.diff(jnp.sort(thetaU['freq']))
 
@@ -1322,9 +1355,7 @@ class basePeakbag(plotting):
         
         for d in delta:
             lnp += self.addObs['freq diff'].logpdf(d)
-        
-        #lnp = jnp.sum(jnp.array([self.addObs['freq diff'].logpdf(d) for d in delta]))
-        
+                
         #lnp += self.addObs['heightGP'](theta[self.Nmodes: 2 * self.Nmodes])
 
         #lnp += self.addObs['widthGP'](theta[2 * self.Nmodes: 3 * self.Nmodes])
@@ -1339,7 +1370,6 @@ class basePeakbag(plotting):
 
     #     return GP
 
-
 class DynestyPeakbag(basePeakbag, jar.DynestySampling):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1348,36 +1378,4 @@ class EmceePeakbag(basePeakbag, jar.EmceeSampling):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-    
-#mainResult = self.compileResults(mainResult, inst.result)
-
-#self.result = mainResult
- 
-# def compileResults(self, mainResult, instResult):
-
-#     for key in ['ell', 'enn', 'emm', 'zeta']:
-        
-#         mainResult[key] = np.append(mainResult[key], instResult[key])
-        
-#     n = mainResult['samples']['freq'].shape[0]
-    
-#     m = instResult['samples']['freq'].shape[0]
-        
-#     randInt = np.random.choice(np.arange(m), size=n, replace=False)
-    
-#     for key in ['freq', 'height', 'width']:
-    
-#         mainResult['summary'][key] = np.append(mainResult['summary'][key], instResult['summary'][key], axis=1)
-        
-#         smpl = instResult['samples'][key][randInt, :]
-        
-#         mainResult['samples'][key] = np.append(mainResult['samples'][key], smpl, axis=1)
-        
-#     return mainResult    
-
-
-        # if self.rotAsym is None:
-        #     self.rotAsym = jnp.zeros((2, len(self.ell)))
-
-        # if self.zeta is None:
-        #     self.zeta = jnp.zeros_like(self.freq)
+  
