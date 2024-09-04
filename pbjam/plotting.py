@@ -754,7 +754,7 @@ def _ModeIDClassPriorSpectrum(self, N):
  
 def _ModeIDClassPostSpectrum(self, N):
  
-    rint = np.random.randint(0, len(self.result['samples']['dnu']), size=N)
+    rint = np.random.randint(0, np.min([self.result['samples'][key].shape[0] for key in self.result['samples'].keys()]), size=N)
 
     fig, ax = _makeBaseFrames(self)
  
