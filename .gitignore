@@ -4,6 +4,10 @@ __pycache__/
 *$py.class
 *~
 
+KIC*
+TIC*
+script*.sh
+slurm*
 
 # C extensions
 *.so
