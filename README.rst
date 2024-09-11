@@ -1,3 +1,10 @@
+Note
+============================
+This branch was meant to be used for the tutorial during the Porto Summer School on Asteroseismology.
+
+The code and tutorials from the school have been merged into the master branch now, so you should refer to that branch from now on.
+
+
 
 PBjam
 ============================
