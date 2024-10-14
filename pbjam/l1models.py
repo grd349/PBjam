@@ -1,7 +1,7 @@
 import jax.numpy as jnp
 import numpy as np
 import jax, warnings, dynesty
-from pbjam import jar
+from pbjam import jar, samplers
 from pbjam.jar import constants as c
 from pbjam.DR import PCA
 import pbjam.distributions as dist
@@ -199,7 +199,7 @@ class commonFuncs(jar.generalModelFuncs):
         
         return asym
 
-class Asyl1model(jar.DynestySampling, commonFuncs):
+class Asyl1model(samplers.DynestySampling, commonFuncs):
     def __init__(self, f, s, obs, addPriors, PCAsamples, vis={'V10': 1.22}, priorPath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
@@ -429,7 +429,7 @@ class Asyl1model(jar.DynestySampling, commonFuncs):
 
         return result
         
-class Mixl1model(jar.DynestySampling, commonFuncs):
+class Mixl1model(samplers.DynestySampling, commonFuncs):
     """
     A class to model mixed l=1 modes using the coupling matrix formalism.
 
@@ -952,7 +952,7 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
 
         return result
     
-class RGBl1model(jar.DynestySampling, commonFuncs):
+class RGBl1model(samplers.DynestySampling, commonFuncs):
     """
     A class to model l=1 modes in red giant branch (RGB) stars using Dynesty sampling.
 
