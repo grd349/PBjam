@@ -51,7 +51,7 @@ class modeID(plotting, ):
         Path to prior sample csv. If None, a default path is used.
     """
 
-    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorPath=None):
+    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorPath=None, **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
@@ -196,7 +196,7 @@ class modeID(plotting, ):
 
         return self.l1result
 
-    def __call__(self, progress=True, sampler_kwargs={}, logl_kwargs={}):
+    def __call__(self, progress=True, sampler_kwargs={}, logl_kwargs={}, **kwargs):
         """
         Run both the l20 and l1 models.
 
