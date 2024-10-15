@@ -63,7 +63,6 @@ For automatic download the long cadence data set is used by default, so set
 the cadence to `short' for main-sequence targets.
 
 """
-#from pbjam import IO
 from pbjam.plotting import plotting
 from pbjam import IO
 import lightkurve as lk
@@ -75,6 +74,7 @@ import os, pickle, warnings
 from datetime import datetime
 from pbjam.modeID import modeID
 from pbjam.peakbagging import peakbag
+import copy
 
 def _organize_sess_dataframe(vardf):
     """ Takes input dataframe and tidies it up.
@@ -905,42 +905,53 @@ class session():
 #                 print(message)
             
 
-
-
 class star(plotting):
 
-    def __init__(self, ID, f, s, addObs, outpath=None, priorpath=None):
-
-        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
- 
-        self.outpath = IO._set_outpath(ID, self.outpath)
-
-        if priorpath is None:
-            self.priorpath = IO.get_priorpath()
-
-    def modeID(self, addPriors={}, N_p=7, N_pca=100, PCAdims=8, **kwargs):
+    def __init__(self, name, f, s, obs, outpath=None, **kwargs):
         
-        self.modeID = modeID(self.f, self.s, self.addObs, addPriors, N_p=N_p, Npca=N_pca, PCAdims=PCAdims, priorpath=self.priorpath)
-
-        self.modeID()
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
+        
+        self.__dict__.update(kwargs)
+        
+        del self.__dict__['kwargs']
   
-        return self.modeID.result         
-     
-    def peakbag(self, modeIDDict=None, **kwargs):
- 
-        if modeIDDict is None:
-            modeIDDIct = self.modeID.result
-  
-        self.peakbag = peakbag(self.f, self.s, modeIDDIct['ell'], modeIDDIct['zeta'], **modeIDDIct['summary'], Nslices=4)
+        self.outpath = IO._set_outpath(self.name, self.outpath)
 
-        self.peakbag()
+    def runModeID(self, modeID_kwargs={}):
+        _modeID_kwargs = copy.deepcopy(self.__dict__)
+        
+        _modeID_kwargs.update(modeID_kwargs)
+         
+        if not 'priorpath' in _modeID_kwargs:
+            self.priorpath = IO.getPriorPath()
+            
+            _modeID_kwargs['priorpath'] = self.priorpath
+        
+        self.modeID = modeID(**_modeID_kwargs)
 
-        return self.peakbag.result
+        self.modeID(**_modeID_kwargs)
+        
+    def runPeakbag(self, peakbag_kwargs={}):
+         
+        _peakbag_kwargs = copy.deepcopy(self.__dict__)
+                
+        _peakbag_kwargs.update(peakbag_kwargs)
+        
+        if not 'ell' in _peakbag_kwargs.keys():
+            _peakbag_kwargs.update({'ell': self.modeID.result['ell']})
+        
+        _peakbag_kwargs.update(self.modeID.result['summary'])
+        
+        self.peakbag = peakbag(**_peakbag_kwargs)
+
+        self.peakbag(**_peakbag_kwargs)
  
     def __call__(self, modeID_kwargs={}, peakbag_kwargs={}):
- 
-        modeIDResult = self.modeID(**modeID_kwargs)
- 
-        peakbagResult = self.peakbag(self.modeID.result, **peakbag_kwargs)
+        
+        # Run the mode ID stage
+        self.runModeID(modeID_kwargs)
 
-        return modeIDResult, peakbagResult
+        # Run the peakbag stage
+        self.runPeakbag(peakbag_kwargs)
+        
+        return self.modeID.result, self.peakbag.result

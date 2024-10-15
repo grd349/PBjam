@@ -141,7 +141,8 @@ class EmceeSampling():
         """
 
         # Check if the average change in tau has become small
-        print(np.round(avgDtau/DtauLimit, 1))
+        print(f'Convergence >> 1: {np.round(avgDtau/DtauLimit, 1)}')
+
         stop = avgDtau < DtauLimit 
 
         if conservative:
@@ -260,7 +261,7 @@ class EmceeSampling():
                                             moves=[(emcee.moves.StretchMove(), 1-DEfrac),
                                                    (emcee.moves.DEMove(), DEfrac),])
             
-            walltimeFlag = self._iterateSampler(p0, sampler, nsteps, t0, walltime, progress=True)
+            walltimeFlag = self._iterateSampler(p0, sampler, nsteps, t0, walltime, progress=False)
 
             p0 = sampler.get_last_sample()
             
@@ -353,8 +354,16 @@ class EmceeSampling():
 
         chain = np.array([]).reshape((0, *pos.shape))
         
+        sampler = None
+
         while stepsTaken < stepsNeeded:
-        
+
+            # ensures no memory isues
+            if sampler:
+                sampler.reset()
+
+                del sampler
+ 
             sampler = emcee.EnsembleSampler(pos.shape[0], 
                                             self.ndims, 
                                             self.lnpost,
@@ -528,14 +537,22 @@ class EmceeSampling():
         ncontrol = min([ncontrol, nchains])
  
         t0 = time.time()
-
-        sampler, ctrlChain = self.burnInSampler(nchains, DEfrac, earlyStop, walltime, checkEvery, t0, ncontrol, DtauLimit)
+        print('Burning in sampler')
+        burnSampler, ctrlChain = self.burnInSampler(nchains, DEfrac, earlyStop, walltime, checkEvery, t0, ncontrol, DtauLimit)
  
-        pos = self._fold(sampler)
-         
+        pos = self._fold(burnSampler)
+        
         tau = emcee.autocorr.integrated_time(ctrlChain, tol=0)
-                                                      
-        samples, chain, sampler= self.samplePosterior(pos, tau, DEfrac, nsamples, maxThin, walltime, t0)
+
+        # ensures no memory isues
+        if burnSampler:
+            burnSampler.reset()
+
+            del burnSampler
+
+
+        print('Sampling posterior.')                                
+        samples, chain, postSampler= self.samplePosterior(pos, tau, DEfrac, nsamples, maxThin, walltime, t0)
 
         self.samples = samples
         
@@ -545,209 +562,14 @@ class EmceeSampling():
 
         self.ctrlChain = ctrlChain
 
+        # ensures no memory isues
+        if postSampler:
+            postSampler.reset()
+
+            del postSampler
+
         return self.samples
-    
-
-    class DynestySampling():
-        """ Generic dynesty sampling methods to be inherited.
-        
-        The inheriting class must have a callable lnlikelihood function, a
-        dictionary of callable prior ppf functions, and an integer ndims 
-        attribute.
-        
-        """
-        def __init__(self):
-            
-            pass
-        
-        @partial(jax.jit, static_argnums=(0,)) # Must stay jitted.
-        def ptform(self, u):
-            """
-            Transform a set of random variables from the unit hypercube to a set of 
-            random variables distributed according to specified prior distributions.
-
-            Parameters
-            ----------
-            u : jax device array
-                Set of pionts distributed randomly in the unit hypercube.
-
-            Returns
-            -------
-            theta : jax device array
-                Set of random variables distributed according to specified prior 
-                distributions.
-
-            Notes
-            -----
-            This method uses the inverse probability integral transform 
-            (also known as the quantile function or percent point function) to 
-            transform each element of `u` using the corresponding prior 
-            distribution. The resulting transformed variables are returned as a 
-            JAX device array.
-
-            Examples
-            --------
-            >>> from scipy.stats import uniform, norm
-            >>> import jax.numpy as jnp
-            >>> class MyModel:
-            ...     def __init__(self):
-            ...         self.priors = {'a': uniform(loc=0.0, scale=1.0), 'b': norm(loc=0.0, scale=1.0)}
-            ...     def ptform(self, u):
-            ...         theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
-            ...         return theta
-            ...
-            >>> model = MyModel()
-            >>> u = jnp.array([0.5, 0.8])
-            >>> theta = model.ptform(u)
-            >>> print(theta)
-            [0.5        0.84162123]
-            """
-
-            theta = jnp.array([self.priors[key].ppf(u[i]) for i, key in enumerate(self.priors.keys())])
-
-            return theta
-    
-        def initSamples(self, ndims, nlive, nliveMult=4, logl_kwargs={}, **kwargs):
-            """
-            Initializes live points for nested sampling.
-
-            The method generates `nliveMult * nlive` points uniformly in the unit cube, 
-            and transforms these points into the parameter space using the prior transform. 
-            Only the finite log-likelihood values are kept, and the top `nlive` points are returned.
-
-            Parameters
-            ----------
-            ndims : int
-                The number of dimensions in the parameter space.
-            nlive : int
-                The number of live points to use in the nested sampling.
-            nliveMult : int, optional
-                The multiplier for the number of live points generated initially. Default is 4.
-            logl_kwargs : dict, optional
-                Additional keyword arguments to pass to the likelihood function. Default is an empty dictionary.
-            **kwargs : dict
-                Additional keyword arguments.
-
-            Returns
-            -------
-            list
-                A list containing:
-                - u (ndarray): The live points in the unit cube.
-                - v (ndarray): The live points transformed to the parameter space.
-                - L (ndarray): The log-likelihood values of the live points.
-            """
-
-            # TODO put in a check for output dims consistent with nlive.
-            
-            u = np.random.uniform(0, 1, size=(nliveMult * nlive, ndims))
-
-            v = np.array([self.ptform(u[i, :]) for i in range(u.shape[0])])
-            
-            L = np.array([self.lnlikelihood(v[i, :], **logl_kwargs) for i in range(u.shape[0])])
-
-            idx = np.isfinite(L)
-                    
-            return [u[idx, :][:nlive, :], v[idx, :][:nlive, :], L[idx][:nlive]]
-    
-        def runSampler(self, dynamic=False, progress=False, minSamples=5000, logl_kwargs={}, 
-                    sampler_kwargs={}):
-            """
-            Runs the nested sampling algorithm, either in static or dynamic mode, to sample the posterior distribution.
-
-            By default assumes 50*ndim nlive points and sampling method is rwalk.
-
-            Parameters
-            ----------
-            dynamic : bool, optional
-                Whether to use dynamic nested sampling. Default is False (static nested sampling).
-            progress : bool, optional
-                Whether to display progress during sampling. Default is False.
-            minSamples : int, optional
-                The minimum number of samples to generate. Default is 5000.
-            logl_kwargs : dict, optional
-                Additional keyword arguments to pass to the likelihood function. Default is an empty dictionary.
-            sampler_kwargs : dict, optional
-                Additional keyword arguments to pass to the sampler. Default is an empty dictionary.
-
-            Returns
-            -------
-            samples : array-like
-                An array of posterior samples.
-            """ 
-            
-            ndims = len(self.priors)
-            
-            skwargs = sampler_kwargs.copy()
-
-            if 'nlive' not in skwargs.keys():
-                skwargs['nlive'] = 50*self.ndims
-
-            # rwalk seems to perform best out of all the sampling methods...
-            if 'sample' not in skwargs.keys():
-                skwargs['sample'] = 'rwalk'
-
-            # Set the initial locations of live points based on the prior.
-            if 'live_points' not in skwargs.keys() and not dynamic:
-                skwargs['live_points'] = self.initSamples(ndims, logl_kwargs=logl_kwargs, **skwargs)
-            
-            if dynamic:
-                sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
-                                                    self.ptform, 
-                                                    ndims,  
-                                                    **skwargs,
-                                                    logl_kwargs=logl_kwargs,
-                                                    )
-                
-                sampler.run_nested(print_progress=progress, 
-                                wt_kwargs={'pfrac': 1.0}, 
-                                dlogz_init=1e-3 * (skwargs['nlive'] - 1) + 0.01, 
-                                nlive_init=skwargs['nlive'])  
-                
-                _nsamples = sampler.results.niter
-
-                if _nsamples < minSamples:     
-                    missingSamples = minSamples-_nsamples
-
-                    sampler.run_nested(dlogz=1e-9, print_progress=progress, save_bounds=False, maxiter=missingSamples)
-
-            else:
-                
-                sampler = dynesty.NestedSampler(self.lnlikelihood, 
-                                                self.ptform, 
-                                                ndims,  
-                                                **skwargs,
-                                                logl_kwargs=logl_kwargs,
-                                                )
-                
-                sampler.run_nested(print_progress=progress, 
-                                save_bounds=False, dlogz=0.1,)
-
-                _nsamples = sampler.results.niter + sampler.results.nlive
-                
-                if _nsamples < minSamples:
-                    missingSamples = minSamples-_nsamples
-
-                    sampler.run_nested(dlogz=1e-9, print_progress=progress, save_bounds=False, maxiter=missingSamples)
-    
-            result = sampler.results
-
-            self.unweighted_samples, self.weights = result.samples, jnp.exp(result.logwt - result.logz[-1])
-
-            self.samples = dyfunc.resample_equal(self.unweighted_samples, self.weights)
-    
-            self.nsamples = self.samples.shape[0]
-
-            self.logz = result.logz
-            
-            self.logwt = result.logwt
-
-            sampler.reset()
-
-            del sampler
-
-            return self.samples 
-        
-
+ 
 class DynestySampling():
     """ Generic dynesty sampling methods to be inherited.
         
@@ -756,8 +578,7 @@ class DynestySampling():
         attribute.
         
         """
-    def __init__(self):
-        
+    def __init__(self):        
         pass
     
     @partial(jax.jit, static_argnums=(0,)) # Must stay jitted.
@@ -850,7 +671,7 @@ class DynestySampling():
         return [u[idx, :][:nlive, :], v[idx, :][:nlive, :], L[idx][:nlive]]
  
     def runSampler(self, dynamic=False, progress=False, minSamples=5000, logl_kwargs={}, 
-                   sampler_kwargs={}):
+                   sampler_kwargs={}, **kwargs):
         """
         Runs the nested sampling algorithm, either in static or dynamic mode, to sample the posterior distribution.
 
@@ -889,7 +710,7 @@ class DynestySampling():
         # Set the initial locations of live points based on the prior.
         if 'live_points' not in skwargs.keys() and not dynamic:
             skwargs['live_points'] = self.initSamples(ndims, logl_kwargs=logl_kwargs, **skwargs)
-         
+        
         if dynamic:
             sampler = dynesty.DynamicNestedSampler(self.lnlikelihood, 
                                                    self.ptform, 

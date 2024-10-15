@@ -3,7 +3,7 @@ import jax, emcee, warnings, time
 import jax.numpy as jnp
 from pbjam.plotting import plotting 
 import pbjam.distributions as dist
-from pbjam import jar
+from pbjam import jar, samplers
 import numpy as np
 import statsmodels.api as sm
 from tqdm import tqdm
@@ -545,7 +545,7 @@ class peakbag(plotting):
         else:
             self.pbInstances.append(sampler(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
     
-    def __call__(self, sampler_kwargs={}, Nsamples=10000):
+    def __call__(self, sampler_kwargs={}, Nsamples=10000, **kwargs):
         """
         Run the sampler for the slice(s) and parse the results. 
 
@@ -574,7 +574,7 @@ class peakbag(plotting):
 
         for i, inst in enumerate(self.pbInstances):
             print(f'Peakbagging slice {i+1}/{len(self.pbInstances)}')
-            inst(**sampler_kwargs);
+            inst(sampler_kwargs);
         
         print(f'Time taken {np.round((time.time() - t0)/60, 1)} minutes')
 
@@ -671,7 +671,7 @@ class peakbag(plotting):
         for key in samplesU.keys():
             self.result['summary'][key] = jar.smryStats(samplesU[key])
 
-class jointRotInc(jar.DynestySampling):
+class jointRotInc(samplers.DynestySampling):
     """
     A class to perform joint posterior sampling for rotation and inclination parameters using emcee.
 
@@ -1183,7 +1183,7 @@ class basePeakbag(plotting):
         
         return modes
     
-    def __call__(self, sampler_kwargs={}):
+    def __call__(self, sampler_kwargs):
         """
         Run the sampler for the slice(s) and parse the results. 
 
@@ -1370,11 +1370,11 @@ class basePeakbag(plotting):
 
     #     return GP
 
-class DynestyPeakbag(basePeakbag, jar.DynestySampling):
+class DynestyPeakbag(basePeakbag, samplers.DynestySampling):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-class EmceePeakbag(basePeakbag, jar.EmceeSampling):
+class EmceePeakbag(basePeakbag, samplers.EmceeSampling):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 

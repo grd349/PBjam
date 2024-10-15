@@ -71,7 +71,7 @@ class modeID(plotting, ):
         if self.priorPath is None:
             self.priorPath = IO.getPriorPath()
  
-    def runl20model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
+    def runl20model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
         """
         Runs the l20 model on the selected spectrum.
 
@@ -79,8 +79,10 @@ class modeID(plotting, ):
         ----------
         progress : bool, optional
             Whether to show progress during the model run. Default is True.
-        sampler_kwargs : dict, optional
-            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        dynamic : bool, optional
+            Whether to use dynamic nested sampling. Default is False (static nested sampling).
+        minSamples : int, optional
+            The minimum number of samples to generate. Default is 5000.
         logl_kwargs : dict, optional
             Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         PCAsamples : int, optional
@@ -106,9 +108,11 @@ class modeID(plotting, ):
                                     PCAdims,
                                     priorPath=self.priorPath)
         
-        self.l20Samples = self.l20model.runSampler(progress=progress, 
-                                                    logl_kwargs=logl_kwargs, 
-                                                    sampler_kwargs=sampler_kwargs)
+        self.l20Samples = self.l20model.runSampler(progress=progress,
+                                                   dynamic=dynamic,
+                                                   minSamples=minSamples, 
+                                                   logl_kwargs=logl_kwargs, 
+                                                   sampler_kwargs=sampler_kwargs)
 
         l20samples_u = self.l20model.unpackSamples(self.l20Samples)
 
@@ -118,7 +122,7 @@ class modeID(plotting, ):
  
         return self.l20result
 
-    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=500, PCAdims=7):
+    def runl1model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=500, PCAdims=7):
         """
         Runs the l1 model on the selected spectrum.
 
@@ -128,6 +132,10 @@ class modeID(plotting, ):
         ----------
         progress : bool, optional
             Whether to show progress during the model run. Default is True.
+        dynamic : bool, optional
+            Whether to use dynamic nested sampling. Default is False (static nested sampling).
+        minSamples : int, optional
+            The minimum number of samples to generate. Default is 5000.
         sampler_kwargs : dict, optional
             Additional keyword arguments for the sampler. Default is an empty dictionary.
         logl_kwargs : dict, optional
@@ -184,7 +192,9 @@ class modeID(plotting, ):
         else:
             raise ValueError(f'Model {model} is invalid. Please use either MS, SG or RGB.')
          
-        self.l1Samples  = self.l1model.runSampler(progress=progress, 
+        self.l1Samples  = self.l1model.runSampler(progress=progress,
+                                                  dynamic=dynamic,
+                                                  minSamples=minSamples, 
                                                   logl_kwargs=logl_kwargs, 
                                                   sampler_kwargs=sampler_kwargs)
         
@@ -196,7 +206,7 @@ class modeID(plotting, ):
 
         return self.l1result
 
-    def __call__(self, progress=True, sampler_kwargs={}, logl_kwargs={}, **kwargs):
+    def __call__(self, progress=True, dynamic=False, sampler_kwargs={}, logl_kwargs={}, **kwargs):
         """
         Run both the l20 and l1 models.
 
@@ -213,9 +223,9 @@ class modeID(plotting, ):
             Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         """
         
-        self.runl20model(progress, sampler_kwargs, logl_kwargs)
+        self.runl20model(progress, dynamic, sampler_kwargs, logl_kwargs)
         
-        self.runl1model(progress, sampler_kwargs, logl_kwargs)
+        self.runl1model(progress, dynamic, sampler_kwargs, logl_kwargs)
  
     def mergeResults(self, l20result=None, l1result=None, N=5000):
         """
