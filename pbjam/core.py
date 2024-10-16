@@ -915,7 +915,7 @@ class star(plotting):
         
         del self.__dict__['kwargs']
   
-        self.outpath = IO._set_outpath(self.name, self.outpath)
+        self.outpath = IO._setOutpath(self.name, self.outpath)
 
     def runModeID(self, modeID_kwargs={}):
         _modeID_kwargs = copy.deepcopy(self.__dict__)
