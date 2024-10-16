@@ -9,13 +9,9 @@ from . import PACKAGEDIR
 import jax.numpy as jnp
 import numpy as np
 from scipy.integrate import simpson
-import os, pickle, re, time
+import os, time
 import lightkurve as lk
 from lightkurve.periodogram import Periodogram
-from datetime import datetime
-from astroquery.mast import ObservationsClass as AsqMastObsCl
-from astroquery.mast import Catalogs
-from astroquery.simbad import Simbad
 from astropy.timeseries import LombScargle
 from astropy import units
  
@@ -89,56 +85,28 @@ class psd():
         Amplitude spectrum of the time series in ppm.
     """
     
-    def __init__(self, ID, lk_kwargs={}, time=None, flux=None, flux_err=None, 
-                 downloadDir=None, fit_mean=False, timeConversion=86400, 
-                 use_cached=False):
+    def __init__(self, ID, lk_kwargs={}, time=None, flux=None, flux_err=None, useWeighted=False, 
+                 downloadDir=None, fit_mean=False, timeConversion=86400, badIdx=None, numax=None):
  
-        self.ID = ID
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
-        self.downloadDir = downloadDir
-
-        self.TS = timeSeries(ID, self.downloadDir, lk_kwargs)
-
-        if (time is None) and (flux is None):
-            
-            time, flux = self.TS._getTS(use_cached=use_cached)
-
-            flux = (flux/np.nanmedian(flux) - 1) * 1e6
-         
-        self._time = time
-        
-        self._flux = flux
-
-        self._getBadIndex(time, flux)
- 
-        self.time, self.flux = time[self.indx], flux[self.indx]
- 
-        self.fit_mean = fit_mean
-
-        self.timeConversion = timeConversion
-
-        self.dt = self._getSampling()
-
-        self.dT = self.time.max() - self.time.min()
-
-        self.NT = len(self.time)
-
-        self.dutyCycle = self._getDutyCycle()
-
-        if flux_err is None:
-            # Init Astropy LS class without weights
-            self.ls = LombScargle(self.time * self.timeConversion,
-                                  self.flux, center_data=True,
-                                  fit_mean=self.fit_mean)
-
-        else:
+        self.TS = timeSeries(ID, lk_kwargs, time, flux, flux_err, self.badIdx, self.downloadDir, numax=self.numax)
+                             
+        if useWeighted:
             # Init Astropy LS class with weights
-            self.ls = LombScargle(self.time * self.timeConversion,
-                                  self.flux, center_data=True,
-                                  fit_mean=self.fit_mean,
-                                  dy=self.flux_err,)
+            assert flux_err is not None, 'To compute the weighted spectrum, provide a flux_err argument.'
 
-        self.Nyquist = 1/(2*self.timeConversion*self.dt) # Hz
+            self.ls = LombScargle(self.TS.time * self.timeConversion,
+                                  self.TS.flux, center_data=True,
+                                  fit_mean=self.fit_mean,
+                                  dy=self.TS.flux_err,)
+        else:
+            # Init Astropy LS class without weights
+            self.ls = LombScargle(self.TS.time * self.timeConversion,
+                                    self.TS.flux, center_data=True,
+                                    fit_mean=self.fit_mean)
+   
+        self.Nyquist = 1/(2 * self.timeConversion * self.TS.dt) # Hz
 
         self.df = self._fundamental_spacing_integral()
  
@@ -192,14 +160,7 @@ class psd():
  
         self.pg = pg
  
-    def _getBadIndex(self, time, flux):
-        """ Identify indices with nan/inf values
-
-        Flags array indices where either the timestamps, flux values, or flux errors
-        are nan or inf.
-        """
-
-        self.indx = np.invert(np.isnan(time) | np.isnan(flux) | np.isinf(time) | np.isinf(flux))
+    
 
     def getTSWindowFunction(self, tmin=None, tmax=None, cadenceMargin=1.01):
         """
@@ -228,25 +189,27 @@ class psd():
         """
 
         if tmin is None:
-            tmin = min(self.time)
+            tmin = min(self.TS.time)
 
         if tmax is None:
-            tmax = max(self.time)
+            tmax = max(self.TS.time)
 
-        t = self.time.copy()[self.indx]
+        t = self.TS.time.copy() 
 
         w = np.ones_like(t)
 
         break_counter = 0
+
         epsilon = 0.0001 # this is a tiny scaling of dt to avoid numerical issues
 
-        while any(np.diff(t) > cadenceMargin*self.dt):
+        while any(np.diff(t) > cadenceMargin * self.TS.dt):
 
-            idx = np.where(np.diff(t)>cadenceMargin*self.dt)[0][0]
+            idx = np.where(np.diff(t)>cadenceMargin*self.TS.dt)[0][0]
 
-            t_gap_fill = np.arange(t[idx], t[idx+1]-epsilon*self.dt, self.dt)
+            t_gap_fill = np.arange(t[idx], t[idx+1]-epsilon*self.TS.dt, self.TS.dt)
 
             w_gap_fill = np.zeros(len(t_gap_fill))
+
             w_gap_fill[0] = 1
 
             t = np.concatenate((t[:idx], t_gap_fill, t[idx+1:]))
@@ -254,18 +217,19 @@ class psd():
             w = np.concatenate((w[:idx], w_gap_fill, w[idx+1:]))
 
             break_counter +=1
+
             if break_counter == 100:
                 break
 
         if (tmin is not None) and (tmin < t[0]):
-            padLow = np.arange(tmin, t[0], self.dt)
+            padLow = np.arange(tmin, t[0], self.TS.dt)
 
             t = np.append(padLow, t)
             
             w = np.append(np.zeros_like(padLow), w)
 
         if (tmax is not None) and (t[0] < tmax):
-            padHi = np.arange(t[-1], tmax, self.dt)
+            padHi = np.arange(t[-1], tmax, self.TS.dt)
             
             t = np.append(t, padHi)
             
@@ -273,53 +237,7 @@ class psd():
 
         return t, w
 
-    def _getDutyCycle(self, cadence=None):
-        """ Compute the duty cycle
-
-        If cadence is not provided, it is assumed to be the median difference
-        of the time stamps in the time series.
-
-        Parameters
-        ----------
-        cadence : float
-            Nominal cadence of the time series. Units should be the
-            same as t.
-
-        Returns
-        -------
-        dutyCycle : float
-            Duty cycle of the time series
-        """
-
-        if cadence is None:
-            cadence = self._getSampling()
-
-        nomLen = np.ceil((np.nanmax(self.time) - np.nanmin(self.time)) / cadence)
-
-        idx = np.invert(np.isnan(self.time) | np.isinf(self.time))
-
-        dutyCycle = len(self.time[idx]) / nomLen
-
-        return dutyCycle
-
-    def _getSampling(self):
-        """ Compute sampling rate
-
-        Computes the average sampling rate in the time series.
-
-        This should approximate the nominal sampling rate,
-        even with gaps in the time series.
-
-        Returns
-        ----------
-        dt : float
-            Cadence of the time stamps.
-        """
-        idx = np.invert(np.isnan(self.time) | np.isinf(self.time))
-
-        dt = np.median(np.diff(self.time[idx]))
-
-        return dt
+    
 
     def _getNorm(self, power):
         """ Parseval normalization
@@ -355,7 +273,7 @@ class psd():
         """
 
         # The nominal frequency resolution
-        df = 1/(self.timeConversion*(np.nanmax(self.time) - np.nanmin(self.time))) # Hz
+        df = 1/(self.timeConversion*(np.nanmax(self.TS.time) - np.nanmin(self.TS.time))) # Hz
 
         # Compute the window function
         freq, window = self.windowfunction(df, width=100*df, oversampling=5) # oversampling for integral accuracy
@@ -403,132 +321,95 @@ class psd():
 
 class timeSeries():
 
-    def __init__(self, ID, downloadDir=None, lk_kwargs={}):
+    def __init__(self, ID, lk_kwargs, time, flux, flux_err=None, badIdx=None, downloadDir=None, numax=None):
         
-
-        self.constants = {'kplr_lc_exptime': 1800, 
-                          'kplr_sc_exptime': 60,
-                          'tess_120_exptime': 120,
-                          'tess_20_exptime': 20, 
-                          'tess_1800_exptime': 1800,
-                          'tess_200_exptime': 200
-                          }
+        self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
-        self.constants['kplr_lc_nyquist'] = nyquist(self.constants['kplr_lc_exptime'])
+        if (self.time is None) and (self.flux is None):
 
-        self.ID = self._set_ID(ID)
+            self.time, self.flux, self.flux_err = self._getTS()
 
-        self.downloadDir = downloadDir
+            self.flux = (self.flux/np.nanmedian(self.flux) - 1) * 1e6
 
-        self.lk_kwargs = lk_kwargs
+        self._getBadIndex(self.time, self.flux, self.flux_err, self.badIdx)
 
-        self._set_mission()
+        self.goodIdx = np.invert(self.badIdx)
 
-        self._set_author()
-
-        self._set_exptime(lk_kwargs)
+        self.time, self.flux, self.flux_err = self.time[self.goodIdx], self.flux[self.goodIdx], self.flux_err[self.goodIdx]
  
-    def _set_mission(self, ):
-        """ Set mission keyword.
-        
-        If no mission is selected will attempt to figure it out based on any
-        prefixes in the ID string, and add this to the LightKurve keywords 
-        arguments dictionary.
-        
+        self.dt = self._getSampling()
+
+        self.dT = self.time.max() - self.time.min()
+
+        self.NT = len(self.time)
+
+        self.dutyCycle = self._getDutyCycle()
+
+    def _getDutyCycle(self, cadence=None):
+        """ Compute the duty cycle
+
+        If cadence is not provided, it is assumed to be the median difference
+        of the time stamps in the time series.
+
         Parameters
         ----------
-        ID : str
-            ID string of the target
-        lkwargs : dict
-            Dictionary to be passed to LightKurve
-            
-        """
+        cadence : float
+            Nominal cadence of the time series. Units should be the
+            same as t.
 
-        if not 'mission' in self.lk_kwargs:
-            if ('kic' in self.ID.lower()):
-                self.lk_kwargs['mission'] = 'Kepler'
-            elif ('epic' in self.ID.lower()) :
-                self.lk_kwargs['mission'] = 'K2'
-            elif ('tic' in self.ID.lower()):
-                self.lk_kwargs['mission'] = 'TESS'
-            else:
-                self.lk_kwargs['mission'] = ('Kepler', 'K2', 'TESS')
-
-    def _set_author(self,):
-        if not 'author' in self.lk_kwargs.keys():
-            if ('KIC' in self.ID) or (self.lk_kwargs['mission']=='Kepler'):
-                self.lk_kwargs['author'] = 'Kepler'
-            if ('TIC' in self.ID) or (self.lk_kwargs['mission']=='TESS'):
-                self.lk_kwargs['author'] = 'SPOC'
-
-    def _set_exptime(self, lk_kwargs):
-
-        if not 'exptime' in lk_kwargs.keys():
-            if ('KIC' in self.ID) and (lk_kwargs['exptime'] < 1500):
-                lk_kwargs['exptime'] = self.constants['kplr_sc_exptime']
-                
-                self.lc_type = 'Kepler 60s'
-            
-            else:
-                lk_kwargs['exptime'] = self.constants['kplr_lc_exptime']
-                
-                self.lc_type = 'Kepler 1800s'
-
-            if 'TIC' in self.ID:
-                lk_kwargs['exptime'] = 120
-            
-                self.lc_type = 'TESS 120s'
-
-    def _set_ID(self, ID):
-        """ Format input ID
-        
-        Users tend to be inconsistent in naming targets, which is an issue for 
-        looking stuff up on, e.g., Simbad. This function formats the ID so that 
-        Simbad doesn't throw a fit.
-        
-        If the name doesn't look like anything in the variant list it will only be 
-        changed to a lower-case string.
-        
-        Parameters
-        ----------
-        ID : str
-            Name to be formatted.
-        
         Returns
         -------
-        ID : str
-            Formatted name
-            
+        dutyCycle : float
+            Duty cycle of the time series
         """
 
-        ID = str(ID)
-        ID = ID.lower()
-        
-        # Add naming exceptions here
-        variants = {'KIC': ['kic', 'kplr', 'KIC'],
-                    'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2', 'Gaia DR2'],
-                    'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1', 'Gaia DR1'], 
-                    'EPIC': ['epic', 'ktwo', 'EPIC'],
-                    'TIC': ['tic', 'tess', 'TIC']
-                }
-        
-        fname = None
-        for key in variants:   
-            for x in variants[key]:
-                if x in ID:
-                    fname = ID.replace(x,'')
-                    fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
-                    fname = key+' '+str(int(fname))
-                    return fname 
-        return ID
+        if cadence is None:
+            cadence = self._getSampling()
+
+        nomLen = np.ceil((np.nanmax(self.time) - np.nanmin(self.time)) / cadence)
  
-    def _getTS(self, use_cached):
+        dutyCycle = len(self.time) / nomLen
+
+        return dutyCycle
+    
+    def _getBadIndex(self, time, flux, flux_err, badIdx):
+        """ Identify indices with nan/inf values
+
+        Flags array indices where either the timestamps, flux values, or flux errors
+        are nan or inf.
+        """
+
+        if badIdx is None:
+            badIdx = np.zeros(len(time), dtype=bool)
+        
+        self.badIdx = np.invert(np.isfinite(time) & np.isfinite(flux) & np.isfinite(flux_err) & np.invert(badIdx)) 
+        
+    def _getSampling(self):
+        """ Compute sampling rate
+
+        Computes the average sampling rate in the time series.
+
+        This should approximate the nominal sampling rate,
+        even with gaps in the time series.
+
+        Returns
+        ----------
+        dt : float
+            Cadence of the time stamps.
+        """
+         
+        dt = np.median(np.diff(self.time))
+
+        return dt
+    
+    def _getTS(self, outlierRejection=5):
         """Get time series with lightkurve
 
         Parameters
         ----------
-        exptime : int, optional
-            The exposure time (cadence) of the data to get, by default None.
+        outlierRejection : float, optional
+            Number of sigma to use for sigma clipping in the time series cleaning.
+            Used as input the the lightkurve remove_outliers method.
 
         Returns
         -------
@@ -537,307 +418,54 @@ class timeSeries():
         flux : DeviceArray
             The flux values of the time series.
         """
-        # Waiting a short amount of time prevents multiple rapid requests from 
+        
+        # Force a short wait time to prevent multiple rapid requests from 
         # being rejected.
         time.sleep(np.random.uniform(1, 5))
 
-        # TODO this should be set depending on numax.
-        wlen = int(4e6/self.lk_kwargs['exptime'])-1
+        search = lk.search_lightcurve(self.ID, **self.lk_kwargs)
+        
+        LCcol = search.download_all(download_dir=self.downloadDir)
+
+        lc = LCcol.stitch()
+              
+        lc = self.cleanLC(lc, outlierRejection)
+
+        _time, _flux, _flux_err = jnp.array(lc.time.value), jnp.array(lc.flux.value), jnp.array(lc.flux_err.value)
+ 
+        return _time, _flux, _flux_err
+    
+    def cleanLC(self, lc, outlierRejection):
+        """ Perform Lightkurve operations on object.
+
+        Performes basic cleaning of a light curve, removing nans, outliers,
+        median filtering etc.
+
+        Parameters
+        ----------
+        lc : Lightkurve.LightCurve instance
+            Lightkurve object to be cleaned
+        outlierRejection : float, optional
+            Number of sigma to use for sigma clipping in the time series cleaning.
+            Used as input the the lightkurve remove_outliers method.
+
+        Returns
+        -------
+        lc : Lightkurve.LightCurve instance
+            The cleaned Lightkurve object
+        """
+
+        if self.numax is None:
+            wlen = int(4e6 / self.lk_kwargs['exptime'])
+        else:
+            wlen = int(1/(self.numax * 1e-3)*1e6 / self.lk_kwargs['exptime'])
+
         if wlen % 2 == 0:
             wlen += 1
-        
-        try:
-            LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=30)  
-        except:
-            LCcol = self.search_lightcurve(use_cached=use_cached, cache_expire=0)
-              
-        lc = LCcol.stitch().normalize().remove_nans().remove_outliers().flatten(window_length=wlen)
-
-        self.time, self.flux = jnp.array(lc.time.value), jnp.array(lc.flux.value)
- 
-        return self.time, self.flux
-
-    def load_fits(self, files):
-        """ Read fitsfiles into a Lightkurve object
-        
-        Parameters
-        ----------
-        files : list
-            List of pathnames to fits files
-        mission : str
-            Which mission to download the data from.
-        
-        Returns
-        -------
-        lc : lightkurve.lightcurve.KeplerLightCurve object
-            Lightkurve light curve object containing the concatenated set of 
-            quarters.
             
-        """
-        if self.lk_kwargs['mission'] in ['Kepler', 'K2']:
-            lcs = [lk.lightcurvefile.KeplerLightCurveFile(file) for file in files]
+        lc = lc.normalize().remove_nans().remove_outliers(outlierRejection).flatten(window_length=wlen) #remove_nans().flatten(window_length=4001).remove_outliers()
 
-            lcCol = lk.LightCurveCollection(lcs)
-        
-        elif self.lk_kwargs['mission'] == 'TESS':
-            lcs = [lk.lightcurvefile.TessLightCurveFile(file) for file in files if os.path.basename(file).startswith('tess')]
-        
-            lcCol = lk.LightCurveCollection(lcs)
-        
-        return lcCol
-            
-    def search_and_dump(self, ID, search_cache):
-        """ Get lightkurve search result online.
-        
-        Uses the lightkurve search_lightcurve to find the list of available data 
-        for a target ID. 
-        
-        Stores the result in the ~/.lightkurve/cache/searchResult directory as a 
-        dictionary with the search result object and a timestamp.
-        
-        Parameters
-        ----------
-        ID : str
-            ID string of the target
-        lkwargs : dict
-            Dictionary to be passed to LightKurve
-        search_cache : str
-            Directory to store the search results in. 
-            
-        Returns
-        -------
-        resultDict : dict
-            Dictionary with the search result object and timestamp.    
-        """
-        
-        current_date = datetime.now().isoformat()
-
-        store_date = current_date[:current_date.index('T')].replace('-','')
-
-        search = lk.search_lightcurve(ID, 
-                                      exptime=self.lk_kwargs['exptime'], 
-                                      mission=self.lk_kwargs['mission'], 
-                                      author=self.lk_kwargs['author'])
-        
-        resultDict = {'result': search,
-                      'timestamp': store_date}
-        
-        fname = os.path.join(*[search_cache, f"{ID}_{self.lk_kwargs['exptime']}.lksearchresult"])
-        
-        pickle.dump(resultDict, open(fname, "wb"))
-        
-        return resultDict   
-
-    def getMASTidentifier(self,):
-        """ return KIC/TIC/EPIC for given ID.
-        
-        If input ID is not a KIC/TIC/EPIC identifier then the target is looked 
-        up on MAST and the identifier is retried. If a mission is not specified 
-        the set of observations with the most quarters/sectors etc. will be 
-        used. 
-        
-        Parameters
-        ----------
-        ID : str
-            Target ID
-        lkwargs : dict
-            Dictionary with arguments to be passed to lightkurve. In this case
-            mission and exptime.
-        
-        Returns
-        -------
-        ID : str
-            The KIC/TIC/EPIC ID of the target.    
-        """
-        
-        if not any([x in self.ID for x in ['KIC', 'TIC', 'EPIC']]):
-            
-            search = lk.search_lightcurve(self.ID)
-
-            match = (self.lk_kwargs['exptime'] in search.exptime.value) & \
-                    (self.lk_kwargs['author'] in search.author) & \
-                    any([self.lk_kwargs['mission'] in x for x in search.mission])
-
-            if len(search) == 0:
-                raise ValueError(f'No results for {self.ID} found on MAST')
-            elif not match:
-                print(search)
-                print()
-                raise ValueError(f'Unable to find anything for {self.ID} matching criteria in lk_kwargs.')
-            #elif not (self.lk_kwargs['exptime'] in search.exptime.value):
-
-
-
-            maxFreqName = max(set(list(search.table['target_name'])), key = list(search.table['target_name']).count)
-
-            maxFreqObsCol = max(set(list(search.table['obs_collection'])), key = list(search.table['obs_collection']).count)
-
-            if maxFreqObsCol == 'TESS':
-                prefix = 'TIC'
-            else:
-                prefix = ''
-
-            temp_id = prefix + maxFreqName
-
-            ID = self._set_ID(temp_id).replace(' ', '')
-
-            self.lk_kwargs['mission'] = maxFreqObsCol
-
-        else:
-
-            ID = self.ID.replace(' ', '')
-
-        return ID
-
-    def check_sr_cache(self, ID, use_cached, cache_expire):
-        """ check search results cache
-        
-        Preferentially accesses cached search results, otherwise searches the 
-        MAST archive.
-        
-        Parameters
-        ----------
-        use_cached : bool, optional
-            Whether or not to use the cached time series. Default is True.
-        download_dir : str, optional.
-            Directory for fits file and search results caches. Default is 
-            ~/.lightkurve/cache. 
-        cache_expire : int, optional.
-            Expiration time for the search cache results. Files older than this 
-            will be. The default is 30 days.
-            
-        Returns
-        -------
-        search : lightkurve.search.SearchResult
-            Search result from MAST.  
-        """
-        
-        # Set default lightkurve cache directory if nothing else is given
-        if self.downloadDir is None:
-            downloadDir = os.path.join(*[os.path.expanduser('~'), '.lightkurve', 'cache'])
-        else:
-            downloadDir = self.downloadDir
-
-        # Make the search cache dir if it doesn't exist
-        cachepath = os.path.join(*[downloadDir, 'searchResults', self.lk_kwargs['mission']])
-        if not os.path.isdir(cachepath):
-            os.makedirs(cachepath)
-
-        filepath = os.path.join(*[cachepath, f"{ID}_{self.lk_kwargs['exptime']}.lksearchresult"])
-         
-        if os.path.exists(filepath) and use_cached:  
-            
-            resultDict = pickle.load(open(filepath, "rb"))
-
-            fdate = resultDict['timestamp'] 
-
-            ddate = datetime.now() - datetime(int(fdate[:4]), int(fdate[4:6]), int(fdate[6:]))
-            
-            # If file is saved more than cache_expire days ago, a new search is performed
-            if ddate.days > cache_expire:   
-                print(f'Last search was performed more than {cache_expire} days ago, checking for new data.')
-                resultDict = self.search_and_dump(ID, cachepath)
-            else:
-                print('Using cached search result.')    
-        else:
-            print('No cached search results, searching MAST')
-            resultDict = self.search_and_dump(ID, cachepath)
-            
-        return resultDict['result']
-
-    def check_fits_cache(self, search):
-        """ Query cache directory or download fits files.
-        
-        Searches the Lightkurve cache directory set by download_dir for fits files
-        matching the search query, and returns a list of path names of the fits
-        files.
-        
-        If not cache either doesn't exist or doesn't contain all the files in the
-        search, all the fits files will be downloaded again.
-        
-        Parameters
-        ----------
-        search : lightkurve.search.SearchResult
-            Search result from MAST. 
-        mission : str
-            Which mission to download the data from.
-        download_dir : str, optional.
-            Top level of the Lightkurve cache directory. default is 
-            ~/.lightkurve/cache
-            
-        Returns
-        -------
-        files_in_cache : list
-            List of path names to the fits files in the cache directory
-        """
-            
-        if self.downloadDir is None:
-            download_dir = os.path.join(*[os.path.expanduser('~'), '.lightkurve', 'cache'])
-        else:
-            download_dir = self.downloadDir
-            
-        files_in_cache = []
-
-        for i, row in enumerate(search.table):
-            fname = os.path.join(*[download_dir, 'mastDownload', self.lk_kwargs['mission'], row['obs_id'], row['productFilename']])
-            
-            if os.path.exists(fname):
-                files_in_cache.append(fname)
-        
-        if len(files_in_cache) != len(search):
-            if len(files_in_cache) == 0:
-                print('No files in cache, downloading.')
-            
-            elif len(files_in_cache) > 0:
-                print('Search result did not match cached fits files, downloading.')  
-             
-            search.download_all(download_dir=download_dir)
-            
-            files_in_cache = [os.path.join(*[download_dir, 'mastDownload', self.lk_kwargs['mission'], row['obs_id'], row['productFilename']]) for row in search.table]
-        
-        else:
-            print('Loading fits files from cache.')
-
-        return files_in_cache
-
-    def search_lightcurve(self, use_cached, cache_expire=30):
-        """ Get time series using LightKurve
-        
-        Performs a search for available fits files on MAST and then downloads them
-        if nessary.
-        
-        The search results are cached with an expiration of 30 days. If a search
-        result is found, the fits file cache is searched for a matching file list
-        which is then used.
-        
-        Parameters
-        ----------
-        ID : str
-            ID string of the target
-        download_dir : str
-            Directory for fits file and search results caches. 
-        lkwargs : dict
-            Dictionary to be passed to LightKurve  
-        
-        Returns
-        -------
-        lcCol : Lightkurve.LightCurveCollection instance
-            Contains a list of all the sectors/quarters of data either freshly 
-            downloaded or from the cache.
-        """
-        
-
-        
-        ID = self.getMASTidentifier()
-        
-        search = self.check_sr_cache(ID, use_cached=use_cached, cache_expire=cache_expire)
-        
-        fitsFiles = self.check_fits_cache(search)
-
-        lcCol = self.load_fits(fitsFiles)
-
-        return lcCol
-
+        return lc
 
 def _get_outpath(self, fname):
         """  Get basepath or make full file path name.
@@ -871,7 +499,7 @@ def _get_outpath(self, fname):
         else:
             return path
 
-def _set_outpath(ID, rootPath):
+def _setOutpath(ID, rootPath):
     """ Sets the path attribute for star
 
     If path is a string it is assumed to be a path name, if not the
@@ -917,310 +545,4 @@ def getPriorPath():
     
     return os.path.join(*[PACKAGEDIR, 'data', 'prior_data.csv'])
 
-def clean_lc(lc):
-    """ Perform Lightkurve operations on object.
 
-    Performes basic cleaning of a light curve, removing nans, outliers,
-    median filtering etc.
-
-    Parameters
-    ----------
-    lc : Lightkurve.LightCurve instance
-        Lightkurve object to be cleaned
-
-    Returns
-    -------
-    lc : Lightkurve.LightCurve instance
-        The cleaned Lightkurve object
-        
-    """
-
-    lc = lc.remove_nans().flatten(window_length=4001).remove_outliers()
-
-    return lc
-
-def squish(time, dt, gapSize=27):
-    """ Remove gaps
-
-    Adjusts timestamps to remove gaps of a given size. Large gaps influence
-    the statistics we use for the detection quite strongly.
-
-    Parameters
-    ----------
-    gapSize : float
-        Size of the gaps to consider, in units of the timestamps. Gaps
-        larger than this will be removed. Default is 27 days.
-
-    Returns
-    -------
-    t : array
-        Adjusted timestamps
-    """
-
-    tsquish = time.copy()
-
-    for i in np.where(np.diff(tsquish) > gapSize)[0]:
-        diff = tsquish[i] - tsquish[i+1]
-
-        tsquish[i+1:] = tsquish[i+1:] + diff + dt
-
-    return tsquish
-
-def nyquist(cad):
-    """ Nyquist freqeuncy in muHz
-
-    Parameters
-    ----------
-    cad : float
-        Observational cadence in seconds.
-
-    Returns
-    -------
-    Nyquist
-        Nyquist frequency in muHz.
-    """
-
-    return 1/(2*cad) 
-
-
-def _querySimbad(ID):
-    """ Query any ID at Simbad for Gaia DR2 source ID.
-    
-    Looks up the target ID on Simbad to check if it has a Gaia DR2 ID.
-    
-    The input ID can be any commonly used identifier, such as a Bayer 
-    designation, HD number or KIC.
-    
-    Returns None if there is not a valid cross-match with GDR2 on Simbad.
-    
-    Notes
-    -----
-    TIC numbers are note currently listed on Simbad. Do a separate MAST quiry 
-    for this.
-    
-    Parameters
-    ----------
-    ID : str
-        Target identifier. If Simbad can resolve the name then it should work. 
-        
-    Returns
-    -------
-    gaiaID : str
-        Gaia DR2 source ID. Returns None if no Gaia ID is found.   
-    """
-    
-    print('Querying Simbad for Gaia ID')
-
-    try:
-        job = Simbad.query_objectids(ID)
-    except:
-        print(f'Unable to resolve {ID} with Simbad')
-        return None
-    
-    for line in job['ID']:
-        if 'Gaia DR2' in line:
-            return line.replace('Gaia DR2 ', '')
-    return None
-
-def _queryTIC(ID, radius = 20):
-    """ Query TIC for bp-rp value
-    
-    Queries the TIC at MAST to search for a target ID to return bp-rp value. The
-    TIC is already cross-matched with the Gaia catalog, so it contains a bp-rp 
-    value for many targets (not all though).
-    
-    For some reason it does a cone search, which may return more than one 
-    target. In which case the target matching the ID is found in the returned
-    list. 
-    
-    Returns None if the target does not have a GDR3 ID.
-    
-    Parameters
-    ----------
-    ID : str
-        The TIC identifier to search for.
-    radius : float, optional
-        Radius in arcseconds to use for the sky cone search. Default is 20".
-    
-    Returns
-    -------
-    bp_rp : float
-        Gaia bp-rp value from the TIC.   
-    """
-    
-    print('Querying TIC for Gaia bp-rp values.')
-    job = Catalogs.query_object(objectname=ID, catalog='TIC', objType='STAR', 
-                                radius = radius*units.arcsec)
-
-    if len(job) > 0:
-        idx = job['ID'] == str(ID.replace('TIC','').replace(' ', ''))
-        return float(job['gaiabp'][idx] - job['gaiarp'][idx]) #This should crash if len(result) > 1.
-    else:
-        return None
-
-def _queryMAST(ID):
-    """ Query any ID at MAST
-    
-    Sends a query for a target ID to MAST which returns an Astropy Skycoords 
-    object with the target coordinates.
-    
-    ID can be any commonly used identifier such as a Bayer designation, HD, KIC,
-    2MASS or other name.
-    
-    Parameters
-    ----------
-    ID : str
-        Target identifier
-    
-    Returns
-    -------
-    job : astropy.Skycoords
-        An Astropy Skycoords object with the target coordinates.
-    
-    """
-
-    print(f'Querying MAST for the {ID} coordinates.')
-    mastobs = AsqMastObsCl()
-
-    try:            
-        return mastobs.resolve_object(objectname=ID)
-    except:
-        return None
-
-def _queryGaia(ID=None, coords=None, radius=2):
-    """ Query Gaia archive for bp-rp
-    
-    Sends an ADQL query to the Gaia archive to look up a requested target ID or
-    set of coordinates. 
-        
-    If the query is based on coordinates a cone search will be performed and the
-    closest target is returned. Provided coordinates must be astropy.Skycoords.
-    
-    Parameters
-    ----------
-    ID : str
-        Gaia source ID to search for.
-    coord : astropy.Skycoords
-        An Astropy Skycoords object with the target coordinates. Must only 
-        contain one target.
-    radius : float, optional
-        Radius in arcseconds to use for the sky cone search. Default is 20".
-    
-    Returns
-    -------
-    bp_rp : float
-        Gaia bp-rp value of the requested target from the Gaia archive.  
-    """
-    
-    from astroquery.gaia import Gaia
-
-    if ID is not None:
-        print('Querying Gaia archive for bp-rp values by target ID.')
-        adql_query = "select * from gaiadr2.gaia_source where source_id=%s" % (ID)
-        try:
-            job = Gaia.launch_job(adql_query).get_results()
-        except:
-            return None
-        return float(job['bp_rp'][0])
-    
-    elif coords is not None:
-        print('Querying Gaia archive for bp-rp values by target coordinates.')
-        ra = coords.ra.value
-        dec = coords.dec.value
-        adql_query = f"SELECT DISTANCE(POINT('ICRS', {ra}, {dec}), POINT('ICRS', ra, dec)) AS dist, * FROM gaiaedr3.gaia_source WHERE 1=CONTAINS(  POINT('ICRS', {ra}, {dec}),  CIRCLE('ICRS', ra, dec,{radius})) ORDER BY dist ASC"
-        try:
-            job = Gaia.launch_job(adql_query).get_results()
-        except:
-            return None
-        return float(job['bp_rp'][0])
-    else:
-        raise ValueError('No ID or coordinates provided when querying the Gaia archive.')
-
-def _format_name(ID):
-    """ Format input ID
-    
-    Users tend to be inconsistent in naming targets, which is an issue for 
-    looking stuff up on, e.g., Simbad. This function formats the ID so that 
-    Simbad doesn't throw a fit.
-    
-    If the name doesn't look like anything in the variant list it will only be 
-    changed to a lower-case string.
-    
-    Parameters
-    ----------
-    ID : str
-        Name to be formatted.
-    
-    Returns
-    -------
-    ID : str
-        Formatted name
-        
-    """
-
-    ID = str(ID)
-    ID = ID.lower()
-    
-    # Add naming exceptions here
-    variants = {'KIC': ['kic', 'kplr', 'KIC'],
-                'Gaia EDR3': ['gaia edr3', 'gedr3', 'edr3', 'Gaia EDR3'],
-                'Gaia DR2': ['gaia dr2', 'gdr2', 'dr2', 'Gaia DR2'],
-                'Gaia DR1': ['gaia dr1', 'gdr1', 'dr1', 'Gaia DR1'], 
-                'EPIC': ['epic', 'ktwo', 'EPIC'],
-                'TIC': ['tic', 'tess', 'TIC']
-               }
-    
-    fname = None
-    for key in variants:   
-        for x in variants[key]:
-            if x in ID:
-                fname = ID.replace(x,'')
-                fname = re.sub(r"\s+", "", fname, flags=re.UNICODE)
-                fname = key+' '+str(int(fname))
-                return fname 
-    return ID
-
-def get_bp_rp(ID):
-    """ Search online for bp_rp values based on ID.
-       
-    First a check is made to see if the target is a TIC number, in which case 
-    the TIC will be queried, since this is already cross-matched with Gaia DR2. 
-    
-    If it is not a TIC number, Simbad is queried to identify a possible Gaia 
-    source ID. 
-    
-    As a last resort MAST is queried to provide the target coordinates, after 
-    which a Gaia query is launched to find the closest target. The default 
-    search radius is 20" around the provided coordinates. 
-    
-    Parameters
-    ----------
-    ID : str
-        Target identifier to search for.
-    
-    Returns
-    -------
-    bp_rp : float
-        Gaia bp-rp value for the target. Is nan if no result is found or the
-        queries failed. 
-    """
-    
-    time.sleep(1) # Sleep timer to prevent temporary blacklisting by CDS servers.
-    
-    ID = _format_name(ID)
-    
-    if 'TIC' in ID:
-        bp_rp = _queryTIC(ID)          
-
-    else:
-        try:
-            gaiaID = _querySimbad(ID)
-            bp_rp = _queryGaia(ID=gaiaID)
-        except:
-            try:
-                coords = _queryMAST(ID)
-                bp_rp = _queryGaia(coords=coords)
-            except:
-                print(f'Unable to retrieve a bp_rp value for {ID}.')
-                bp_rp = np.nan
-    return bp_rp
