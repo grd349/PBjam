@@ -3,6 +3,8 @@ Example Docstring
 
 Docstrings are readable text associated with a function or unit of code that describes what it does, what inputs it takes and what outputs it provides. In Python code the docstring is usually the bit enclosed in a set of """ (see below). For PBjam we try to follow the `Numpy format <https://numpydoc.readthedocs.io/en/latest/format.html>`_ for docstring. Inline comments are somewhat different and start with #. These are typically used to explain lines or bits of code that aren't completely intuitive, but not to provide longer more extended explanations. When contributing code, providing both is nice for the review.
 
+A good rule of thumb is if you need to provide many inline comments, it might be because you're code is too complicated (too many one-liners for example). Good code should ideally be self explanatory, in principle at least...
+
 The following is an example:
 
 .. code-block:: python

@@ -1,6 +1,8 @@
 Example Github workflow
 ^^^^^^^^^^^^^^^^^^^^^^^
-This is a simplified set of steps for working with git and GitHub. There are a lot of steps, but the idea is that parts A, and C only have to be done once, and step B a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
+This is a simplified set of steps for working with git and GitHub. If you are confident in using git and github, feel free to skip this. Also, there are of course many ways of accomplishing the same as what we do below, this is just way we use git with PBjam. Furthermore, we highly recommend using developer environments like VScode or Pycharm, which have git handling integrated, this is often easier than using git on the commandline.
+
+There are a lot of steps, but the idea is that parts A, and C only have to be done once, and step B a few times as you work on your code. Also, the version control with git and GitHub makes it relatively safe to make changes to the code, so you won’t have to worry about messing things up.  
 
 If you haven't already,  `create a GitHub account <https://github.com/join?source=header-home>`_ and `install git <https://git-scm.com/book/en/v2/Getting-Started-Installing-Git>`_ on your computer.
 
@@ -18,7 +20,7 @@ If you haven't already,  `create a GitHub account <https://github.com/join?sourc
 
    $ git clone https://github.com/yourusername/PBjam.git
    
-2. Now you can write/edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
+2. Now you can edit the code as you wish, with all the wonderful docstrings and unit tests (naturally!).
    
 3. To see what files have been changed during your work, while in the PBjam directory, you can type
 
@@ -26,7 +28,7 @@ If you haven't already,  `create a GitHub account <https://github.com/join?sourc
 
    $ git status. 
        
-4. Git allows you to bundle all the changes you have made into a 'commit'. This list of changes will eventually be uploaded to the your PBjam repository on GitHub. You can add multiple files to such a commit. After having checked which files have changed, start adding them to a commit by doing:
+4. Git allows you to bundle all the changes you have made into a 'commit'. This list of changes will eventually be uploaded to the your PBjam repository on GitHub. You can add multiple files that have been changed to such a single commit. After having checked which files have changed, start adding them to a commit by doing:
 
 .. code-block:: console
 
@@ -59,3 +61,4 @@ If you haven't already,  `create a GitHub account <https://github.com/join?sourc
 2. Press the Pull Request button just below the green Clone button, and Create Pull Request on the following page. This will start the process of merging your changes into the main PBjam repository. 
    
 3. Don’t panic. Any changes will be reviewed and tested, so you won’t break anything.
+ 
