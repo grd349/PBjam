@@ -223,9 +223,9 @@ class modeID(plotting, ):
             Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         """
         
-        self.runl20model(progress, dynamic, sampler_kwargs, logl_kwargs)
+        self.runl20model(progress, dynamic, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
         
-        self.runl1model(progress, dynamic, sampler_kwargs, logl_kwargs)
+        self.runl1model(progress, dynamic, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
  
     def mergeResults(self, l20result=None, l1result=None, N=5000):
         """

@@ -91,7 +91,7 @@ class psd():
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
         self.TS = timeSeries(ID, lk_kwargs, time, flux, flux_err, self.badIdx, self.downloadDir, numax=self.numax)
-                             
+                          
         if useWeighted:
             # Init Astropy LS class with weights
             assert flux_err is not None, 'To compute the weighted spectrum, provide a flux_err argument.'
@@ -335,8 +335,11 @@ class timeSeries():
 
         self.goodIdx = np.invert(self.badIdx)
 
-        self.time, self.flux, self.flux_err = self.time[self.goodIdx], self.flux[self.goodIdx], self.flux_err[self.goodIdx]
- 
+        self.time, self.flux = self.time[self.goodIdx], self.flux[self.goodIdx]
+
+        if self.flux_err is not None:
+            self.flux_err = self.flux_err[self.goodIdx]
+        
         self.dt = self._getSampling()
 
         self.dT = self.time.max() - self.time.min()
@@ -381,6 +384,9 @@ class timeSeries():
 
         if badIdx is None:
             badIdx = np.zeros(len(time), dtype=bool)
+        
+        if flux_err is None:
+            flux_err = np.zeros(len(time), dtype=bool)
         
         self.badIdx = np.invert(np.isfinite(time) & np.isfinite(flux) & np.isfinite(flux_err) & np.invert(badIdx)) 
         
@@ -467,7 +473,7 @@ class timeSeries():
 
         return lc
 
-def _get_outpath(self, fname):
+def _getOutpath(self, fname):
         """  Get basepath or make full file path name.
         
         Convenience function for either setting the base path name for the star,
@@ -499,7 +505,7 @@ def _get_outpath(self, fname):
         else:
             return path
 
-def _setOutpath(ID, rootPath):
+def _setOutpath(name, rootPath):
     """ Sets the path attribute for star
 
     If path is a string it is assumed to be a path name, if not the
@@ -519,8 +525,8 @@ def _setOutpath(ID, rootPath):
     if rootPath is None:
         rootPath = os.getcwd()
 
-    if not os.path.basename == ID:
-        path = os.path.join(*[rootPath, f'{ID}'])
+    if not os.path.basename == name:
+        path = os.path.join(*[rootPath, f'{name}'])
     else:
         path = rootPath
 
@@ -529,7 +535,7 @@ def _setOutpath(ID, rootPath):
         try:
             os.makedirs(path)
         except Exception as ex:
-            message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(ID, type(ex).__name__, ex.args)
+            message = "Could not create directory for Star {0} because an exception of type {1} occurred. Arguments:\n{2!r}".format(name, type(ex).__name__, ex.args)
             print(message)
     
     return path
