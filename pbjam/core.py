@@ -366,6 +366,9 @@ class star(plotting):
             _peakbag_kwargs.update({'ell': self.modeID.result['ell']})
         
         _peakbag_kwargs.update(self.modeID.result['summary'])
+
+        if 'RV' in self.obs.keys():
+            _peakbag_kwargs.update({'RV': self.obs['RV']})
         
         self.peakbag = peakbag(**_peakbag_kwargs)
 
