@@ -102,7 +102,7 @@ class EmceeSampling():
             if not np.isfinite(self.lnpost(p0[i, :])):
                 thetaU = self.unpackParams(p0[i, :])
         
-                mod = self.model(*thetaU)
+                mod = self.model(thetaU)
                  
                 print('Parameters:', p0[i, :])
                 print('lnlike:', self.lnlikelihood(mod))
@@ -370,7 +370,7 @@ class EmceeSampling():
                                             moves=[(emcee.moves.StretchMove(), 1-DEfrac),
                                                 (emcee.moves.DEMove(), DEfrac),])
 
-            walltimeFlag = self._iterateSampler(pos, sampler, nsteps, t0, walltime, progress=True)
+            walltimeFlag = self._iterateSampler(pos, sampler, nsteps, t0, walltime, progress=False)
         
             if walltimeFlag:
                 print('Posterior sampling stopped due to walltime.')
@@ -500,7 +500,7 @@ class EmceeSampling():
 
         return walltimeFlag
     
-    def runSampler(self, nchains=None, DEfrac=1, earlyStop=True, walltime=60, nsamples=5000, checkEvery=1000, maxThin=1000, ncontrol=10, DtauLimit=5e-5):
+    def runSampler(self, nchains=None, DEfrac=1, earlyStop=True, walltime=99999, nsamples=5000, checkEvery=1000, maxThin=1000, ncontrol=10, DtauLimit=5e-5):
         """
         Runs the MCMC sampler, including burn-in and posterior sampling phases.
 
