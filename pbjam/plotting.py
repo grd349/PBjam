@@ -37,7 +37,7 @@ def smooth_power(freq, power, smooth_filter_width):
     return smoo
 
 
-def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=1):
+def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
     """Calculates the echelle diagram. Use this function if you want to do
     some more custom plotting.
 
