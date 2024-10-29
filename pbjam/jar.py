@@ -521,6 +521,7 @@ class constants:
     # Delta_Teff: float = 1550 # K
     # Henv0: float = 0.1 # ppm^2/muHz
     nu_to_omega: float = 2 * jnp.pi / 1e6 # radians/muHz
+    c : float = 299792.458 #km/s
     # dnu0: float = 135.9 # muHz
     # logg0 : float = 4.43775 # log10(2.74e4)
 
