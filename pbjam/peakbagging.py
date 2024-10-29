@@ -7,6 +7,7 @@ from pbjam import jar, samplers
 import numpy as np
 import statsmodels.api as sm
 from tqdm import tqdm
+import scipy.stats as st
 
 class peakbag(plotting):
     """
@@ -625,6 +626,9 @@ class peakbag(plotting):
                   'samples': {'freq'  : np.empty(shape=(N, 0), dtype=float),
                               'height': np.empty(shape=(N, 0), dtype=float),
                               'width' : np.empty(shape=(N, 0), dtype=float),},
+                  'kstest': {'significant': np.array([], dtype=bool),
+                             'pvalue': np.array([]),
+                             'statistic': np.array([]),}
                   }
         
         for inst in self.pbInstances:
@@ -652,7 +656,12 @@ class peakbag(plotting):
                 result['samples'][key] = np.append(result['samples'][key], 
                                                    smpl, 
                                                    axis=1)
-
+                
+            # Compute KS-statistic for mode frequencies
+            for key in ['significant', 'pvalue', 'statistic']:
+                result['kstest'][key] = np.append(result['kstest'][key], 
+                                                  inst.result['kstest'][key])
+          
         return result
 
     def getRotationInclination(self,):
@@ -894,9 +903,7 @@ class jointRotInc(samplers.DynestySampling):
 class basePeakbag(plotting):
     """
     Base model class for peakbagging a section of the power spectrum.
-
-
-
+ 
     Parameters
     ----------
     f : array-like
@@ -1226,6 +1233,26 @@ class basePeakbag(plotting):
 
         return doppler
 
+    def testFreqs(self, thetaU, pvalueLim=0.05):
+       
+        
+        testResult = {'pvalue': np.zeros(self.Nmodes),
+                      'statistic': np.zeros(self.Nmodes),
+                      'significant': np.zeros(self.Nmodes, dtype=bool)}
+        
+        for k in range(self.Nmodes):
+                        
+            kstestResult = st.kstest(thetaU[f'freq{k}'], 
+                                     self.priors[f'freq{k}'].cdf)
+            
+            testResult['pvalue'][k] = kstestResult.pvalue
+            
+            testResult['significant'][k] = kstestResult.pvalue <= pvalueLim
+            
+            testResult['statistic'][k] = kstestResult.statistic
+            
+        return testResult
+    
     def parseSamples(self, samples, N=10000):
         """
         Parses the samples to extract and organize the model parameters.
@@ -1251,7 +1278,9 @@ class basePeakbag(plotting):
         """
 
         thetaU = self.unpackSamples(samples)
-        
+
+        kstestResult = self.testFreqs(thetaU)
+
         D = self.dopplerRVCorrection(samples.shape[0])
 
         for key in thetaU:
@@ -1263,7 +1292,8 @@ class basePeakbag(plotting):
                   'emm': np.array([]),
                   'zeta': np.array([self.zeta]),
                   'summary': {},
-                  'samples': {}
+                  'samples': {},
+                  'kstest': kstestResult
                  }
         
         for key in self.variables:
