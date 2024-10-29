@@ -55,6 +55,8 @@ class peakbag(plotting):
         lowest and heighest radial mode frequencies -/+ 1 radial order are used to set the limits.
     rotAsym : array-like, optional
         Rotational asymmetry parameters. Default is None.
+    RV : array-like, optional
+        Radial velocity and associated error of the star in km/s. Default is None.
     slices : int, optional
         Number of slices for mode fitting. Default is -1, in which case the number of radial orders 
         determined from `freq` is used. 
@@ -71,7 +73,7 @@ class peakbag(plotting):
         Total number of modes.
     """
 
-    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, slices=0, snrInput=False, samplerType='emcee', **kwargs):
+    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, RV=None, slices=0, snrInput=False, samplerType='emcee', **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -121,6 +123,9 @@ class peakbag(plotting):
         
         if self.rotAsym is None:
             self.rotAsym = np.zeros_like(self.freq)
+
+        if self.RV is None:
+            self.RV = (0, 0)
 
     def _pickModes(self, fac=1):
         """
@@ -188,7 +193,7 @@ class peakbag(plotting):
         else:
             d02 = np.array(self.d02)
             
-            assert (d02.dtype==float) or (d02.type==int)
+            assert (d02.dtype==float) or (d02.dtype==int)
         
         return d02
     
@@ -210,6 +215,8 @@ class peakbag(plotting):
                 ref_l = 2
             elif 1 in self.ell:
                 ref_l = 1
+            else:
+                raise ValueError('ells must contain either l=0,1, or 2.')
 
             dnu = np.array([jnp.median(jnp.diff(self.freq[0, self.ell==ref_l])), jnp.nan])
         
@@ -219,7 +226,7 @@ class peakbag(plotting):
         else:
             dnu = np.array(self.dnu)
             
-            assert (dnu.dtype==float) or (dnu.type==int)
+            assert (dnu.dtype==float) or (dnu.dtype==int)
 
         return dnu
     
@@ -540,10 +547,10 @@ class peakbag(plotting):
 
                 _rotAsym = self.rotAsym[:, slcIdx]
                  
-                self.pbInstances.append(sampler(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym))
+                self.pbInstances.append(sampler(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym, self.RV))
                                                        
         else:
-            self.pbInstances.append(sampler(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym))
+            self.pbInstances.append(sampler(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym, self.RV))
     
     def __call__(self, sampler_kwargs={}, Nsamples=10000, **kwargs):
         """
@@ -900,35 +907,33 @@ class basePeakbag(plotting):
         Angular degree of the modes.
     freq : array-like
         Frequencies of the modes corresponding to the angular degrees.
-    height : array-like, optional
+    height : array-like
         Heights of the modes corresponding to the angular degrees. Default is None, 
         in which case an SNR of 1 is assumed. Providing betters estimates from 
         modeID is however strongly recommended.
-    width : array-like, optional
+    width : array-like
         Widths of the modes corresponding to the angular degrees. Default is None, 
         in which case an width of 0.1 is assumed. Providing betters estimates from 
         modeID is however strongly recommended.
-    zeta : array-like, optional
-        Mixed-mode coupling factors of the modes corresponding to the angular degrees. 
-        Default is None, in which case 0 (no mixing) is assumed for all modes.
-    dnu : float, optional
-        Large frequency separation. Default is None, in which case it's estimated from 
-        the provided `ell` and `freq` arrays.
-    d02 : float, optional
-        Small frequency separation between l=0 and l=2 modes. Default is None, in which 
-        case it's estimated from the provided `ell` and `freq` arrays.
-    freqLimits : list, optional
-        Frequency limits for the peakbagging. Default is an empty list, in which case the 
-        lowest and heighest radial mode frequencies -/+ 1 radial order are used to set the limits.
-    rotAsym : array-like, optional
-        Rotational asymmetry parameters. Default is None.
+    zeta : array-like
+        Mixed-mode coupling factors of the modes corresponding to the angular degrees.
+    dnu : float
+        Large frequency separation.
+    d02 : float
+        Small frequency separation between l=0 and l=2 modes.
+    freqLimits : list
+        Frequency limits for the peakbagging. 
+    rotAsym : array-like
+        Rotational asymmetry parameters. 
+    RV : array-like
+        Radial velocity of the star in km/s.
     addPriors : dict, optional
         Additional priors to be added. Default is an empty dictionary.
     **kwargs : dict
         Additional keyword arguments.
     """
  
-    def __init__(self, f, s, ell, freq, height, width, zeta, dnu, d02, freqLimits, rotAsym, addPriors={}, sampling='emcee', **kwargs):
+    def __init__(self, f, s, ell, freq, height, width, zeta, dnu, d02, freqLimits, rotAsym, RV, addPriors={}, sampling='emcee', **kwargs):
         
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
          
@@ -1208,6 +1213,19 @@ class basePeakbag(plotting):
   
         return self.result 
 
+    def dopplerRVCorrection(self, N):
+    
+        if self.RV[1] > 0:
+            RVs = np.random.normal(loc=self.RV[0], scale=self.RV[1], size=N)
+        else:
+            RVs = np.zeros(N)
+        
+        beta = RVs / jar.constants.c
+
+        doppler = np.sqrt((1 + beta) / (1 - beta))
+
+        return doppler
+
     def parseSamples(self, samples, N=10000):
         """
         Parses the samples to extract and organize the model parameters.
@@ -1234,6 +1252,12 @@ class basePeakbag(plotting):
 
         thetaU = self.unpackSamples(samples)
         
+        D = self.dopplerRVCorrection(samples.shape[0])
+
+        for key in thetaU:
+            if 'freq' in key:
+                thetaU[key] = D*thetaU[key]
+
         result = {'ell': np.array([self.ell]),
                   'enn': np.array([]),
                   'emm': np.array([]),
@@ -1243,6 +1267,7 @@ class basePeakbag(plotting):
                  }
         
         for key in self.variables:
+
             arr = np.array([thetaU[_key] for _key in thetaU.keys() if key in _key])
             
             result['summary'][key] = np.array([np.mean(arr, axis=1), np.std(arr, axis=1)]) 
