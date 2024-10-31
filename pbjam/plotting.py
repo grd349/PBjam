@@ -36,8 +36,7 @@ def smooth_power(freq, power, smooth_filter_width):
 
     return smoo
 
-
-def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
+def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.01):
     """Calculates the echelle diagram. Use this function if you want to do
     some more custom plotting.
 
@@ -78,8 +77,9 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
     # trim data
     index = (freq >= fmin) & (freq <= fmax)
     trimx = freq[index]
+ 
+    samplinginterval = np.median(np.diff(trimx)) * sampling
 
-    samplinginterval = np.median(trimx[1:-1] - trimx[0:-2]) * sampling
     xp = np.arange(fmin, fmax + dnu, samplinginterval)
     yp = np.interp(xp, freq, power)
 
@@ -87,17 +87,22 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.1):
     n_element = int(dnu / samplinginterval)
 
     morerow = 2
+
     arr = np.arange(1, n_stack) * dnu
     arr2 = np.array([arr, arr])
+    
     yn = np.reshape(arr2, len(arr) * 2, order="F")
     yn = np.insert(yn, 0, 0.0)
     yn = np.append(yn, n_stack * dnu) + fmin + offset
 
     xn = np.arange(1, n_element + 1) / n_element * dnu
+    
     z = np.zeros([n_stack * morerow, n_element])
+    
     for i in range(n_stack):
         for j in range(i * morerow, (i + 1) * morerow):
             z[j, :] = yp[n_element * (i) : n_element * (i + 1)]
+    
     return xn, yn, z
 
 def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
@@ -136,6 +141,7 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     """
     if smooth:
         power = smooth_power(freq, power, smooth_filter_width)
+
     echx, echy, echz = echelle(freq, power, dnu, **kwargs)
 
     if scale is not None:
@@ -147,7 +153,7 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     if ax is None:
         fig, ax = plt.subplots()
 
-    ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min(), echy.max()),
+    ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min()-dnu, echy.max()+dnu),
               origin="lower", cmap=cmap, interpolation=interpolation, )
 
     ax.set_xlabel(f"Frequency mod {str(np.round(dnu, 2))} "+r"[$\mu$Hz]")
@@ -155,11 +161,10 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
 
     ax.set_ylim(freq[0], freq[-1])
 
-    for x in np.arange(echy.min(), echy.max(), dnu):
+    for x in np.arange(echy.min(), echy.max()+dnu, dnu):
         ax.axhline(x, color='k', alpha=0.1)
         
     return ax
-
 
 def _scatterFrame(model, samples, key1, key2, ax,):
      
@@ -278,7 +283,6 @@ def _ModeIDPosteriorReference(model, N=1000):
     fig, axes = _baseReference(model, samples)
 
     return fig, axes
-
 
 @jax.jit
 def _echellify_freqs(nu, dnu, offset=0):
