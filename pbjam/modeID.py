@@ -71,7 +71,7 @@ class modeID(plotting, ):
         if self.priorPath is None:
             self.priorPath = IO.getPriorPath()
  
-    def runl20model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
+    def runl20model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6, **kwargs):
         """
         Runs the l20 model on the selected spectrum.
 
@@ -122,7 +122,7 @@ class modeID(plotting, ):
  
         return self.l20result
 
-    def runl1model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=500, PCAdims=7):
+    def runl1model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=500, PCAdims=7, **kwargs):
         """
         Runs the l1 model on the selected spectrum.
 
@@ -206,7 +206,7 @@ class modeID(plotting, ):
 
         return self.l1result
 
-    def __call__(self, progress=True, dynamic=False, sampler_kwargs={}, logl_kwargs={}, **kwargs):
+    def __call__(self, model='MS', progress=True, dynamic=False, sampler_kwargs={}, logl_kwargs={}, **kwargs):
         """
         Run both the l20 and l1 models.
 
@@ -222,10 +222,10 @@ class modeID(plotting, ):
         logl_kwargs : dict, optional
             Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         """
-        
+         
         self.runl20model(progress, dynamic, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
         
-        self.runl1model(progress, dynamic, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
+        self.runl1model(progress, dynamic, model=model, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
  
     def mergeResults(self, l20result=None, l1result=None, N=5000):
         """
