@@ -206,7 +206,7 @@ def _scatterFrame(model, samples, key1, key2, ax,):
     
     ax.set_ylim(miny, maxy)
 
-    if not np.isnan(samples).all():
+    if not np.isnan(samples).all() and (key1 in samplesU.keys()) and (key2 in samplesU.keys()):
         # Only plot the summary stats
         result1 = np.percentile(samplesU[key1], [15, 50, 85])
         
@@ -223,11 +223,24 @@ def _scatterFrame(model, samples, key1, key2, ax,):
                     yerr=np.array([[result2[1]-result2[0]], [result2[2]-result2[1]]]), 
                     fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0')
     
+    elif not np.isnan(samples).all() and (key1 in samplesU.keys()) and not (key2 in samplesU.keys()):
+        result1 = np.percentile(samplesU[key1], [15, 50, 85])
+
+        if key1 in model.logpars:
+            result1 = np.log10(result1)
+
+        ax.fill_betweenx([miny, maxy], x1=result1[0], x2=result1[2], color='C0', alpha=0.2)
+        ax.axvline(result1[1], color='C0')
+    
 def _baseReference(model, samples, fac=3):
 
-    labels = model.pcaLabels + model.addLabels
-
+    labels = model.pcaLabels + model.addLabels 
+    
     labelsInfile = [label for label in labels if label in model.DR.priorData.keys()]
+     
+    for key in model.DR.selectLabels:
+        if not key in labelsInfile:
+            labelsInfile.append(key)
 
     Nf = len(labelsInfile)-1
     

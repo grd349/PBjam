@@ -212,7 +212,7 @@ class modeID(plotting, ):
 
         return self.l1result
 
-    def __call__(self, model='MS', progress=True, dynamic=False, sampler_kwargs={}, logl_kwargs={}, **kwargs):
+    def __call__(self, model='auto', progress=True, dynamic=False, sampler_kwargs={}, logl_kwargs={}, **kwargs):
         """
         Run both the l20 and l1 models.
 

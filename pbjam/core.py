@@ -253,15 +253,21 @@ class session():
             Arguments passed to the peakbag stage of PBjam
         """
  
-        # Assume top-level keys correspond to names
+        # If top level keys correspond 
         if not (self.inputs.keys() == modeID_kwargs.keys()):
             _modeID_kwargs = {f'{st.name}': modeID_kwargs for st in self.stars}
+        else:
+            _modeID_kwargs = modeID_kwargs
             
         if not (self.inputs.keys() == peakbag_kwargs.keys()):
             _peakbag_kwargs = {f'{st.name}': peakbag_kwargs for st in self.stars}
+        else:
+            _peakbag_kwargs = peakbag_kwargs
 
         # Otherwise leave it to the user to make sure the keys are correct.
         for i, st in enumerate(self.stars):
+            print()
+            print(f'Target: {st.name}')
             st(_modeID_kwargs[f'{st.name}'], _peakbag_kwargs[f'{st.name}'])
   
  
