@@ -45,10 +45,10 @@ Main Contributors                                     Chaos Engineers           
 `Lindsey Carboneau <https://github.com/lmcarboneau>`_ `Warrick Ball <https://github.com/warrickball>`_ `Othman Benomar <https://github.com/OthmanB>`_
 `Guy Davies <https://github.com/grd349>`_             `Rafa Garcia <https://github.com/rgarcibus>`_    Bill Chaplin 
 `Oliver Hall <https://github.com/ojhall94>`_          `Tanda Li <https://github.com/litanda>`_	       `Enrico Corsaro <https://github.com/EnricoCorsaro>`_
-`Alex Lyttle <https://github.com/alexlyttle>`_        `Joel Ong <https://github.com/darthoctopus>`_    `Patrick Gaulme <https://github.com/gaulme>`_  
-`Martin Nielsen <https://github.com/nielsenmb>`_      |                                                `Mikkel Lund <https://github.com/Miklnl>`_
+`Alex Lyttle <https://github.com/alexlyttle>`_        Angharad Weeks                                   `Patrick Gaulme <https://github.com/gaulme>`_  
+`Martin Nielsen <https://github.com/nielsenmb>`_      Jens Rersted Larsen                              `Mikkel Lund <https://github.com/Miklnl>`_
 `Joel Ong <https://github.com/darthoctopus>`_         |                                                Benoit Mosser 
-`George Hookway <https://github.com/George-Hookway>`  |                                                Andy Moya
+`George Hookway <https://github.com/George-Hookway>`_ |                                                Andy Moya
 |                                                     |                                                Ian Roxburgh
 ===================================================== ================================================ ====================================================
 
