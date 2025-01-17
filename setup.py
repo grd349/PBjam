@@ -20,7 +20,7 @@ setuptools.setup(
     include_package_data=True,
     license="MIT",
     classifiers=[
-        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.10",
         "License :: OSI Approved :: MIT License",
         "Intended Audience :: Science/Research",
         "Development Status :: 3 - Alpha"
