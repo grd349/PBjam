@@ -1,4 +1,0 @@
-include README.rst
-include pbjam/data/prior_data.csv
-include pbjam/data/pbjam_references.bib
-include pbjam/data/parameters.json

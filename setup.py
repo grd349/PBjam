@@ -18,6 +18,12 @@ setuptools.setup(
     install_requires=open('requirements.txt').read().splitlines(),
     extras_require={'docs': ["nbsphinx"]},
     include_package_data=True,
+	package_data={ "": ["README.rst", 
+		                "LICENSE", 
+		                "pbjam/data/prior_data.csv",
+		                "pbjam/data/pbjam_references.bib",
+		                "pbjam/data/parameters.json"]
+                },
     license="MIT",
     classifiers=[
         "Programming Language :: Python :: 3.10",
