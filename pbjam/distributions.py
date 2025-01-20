@@ -1,3 +1,10 @@
+"""
+The distributions module contains a selection of probability densities and methods, 
+which are primarily used to build prior probability densities in PBjam. These classes
+to some extent mimic those of the scipy.stats package in terms of their inputs and 
+functionality.
+"""
+
 import jax.numpy as jnp
 from functools import partial
 import jax

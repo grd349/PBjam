@@ -1,3 +1,11 @@
+"""
+The PBjam core module contains the session and star classes which take care of many
+of the parts of setting up a peakbagging pipeline. This is meant to be a high-level
+interface with the more detailed methods that PBjam makes use of and so may not 
+be the best choice if constructing a custom pipeline. In such cases see the modeID and 
+peakbag classes. 
+"""
+
 import numpy as np
 import copy
 from collections.abc import Iterable
@@ -342,7 +350,7 @@ class star(plotting):
         _modeID_kwargs.update(modeID_kwargs)
          
         if not 'priorpath' in _modeID_kwargs:
-            self.priorpath = IO.getPriorPath()
+            self.priorpath = IO._getPriorPath()
             
             _modeID_kwargs['priorpath'] = self.priorpath
         

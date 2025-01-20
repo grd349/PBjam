@@ -1,8 +1,8 @@
 """
-
-This module contains classes and functions for handling I/O related matters,
-including downloading time series and computing power density spectra.
-
+The IO module contains the primary methods for PBjam to process either a time
+series or power density spectrum from the user or an automatically downloaded 
+data set from the Mikulski Archive for Spact Telescopes (https://archive.stsci.edu/home) 
+via the Lightkurve package.
 """
 
 from . import PACKAGEDIR
@@ -17,23 +17,23 @@ from astropy import units
  
  
 class psd():
-    """ Asteroseismology wrapper for Astropy Lomb-Scargle
+    """Asteroseismology wrapper for Astropy Lomb-Scargle
 
-    Uses the Astropy.LombScargle class to compute the power spectrum of a given
-    time series. A variety of choices for computing the spectrum are available.
-    The recommended methods are either `fast' or `Cython'.
+    Uses the Astropy.LombScargle class to compute the power spectrum of a given 
+    time series. A variety of choices for computing the spectrum are available. 
+    The recommended methods are either fast or Cython.
 
     Notes
     -----
-    The Cython implemenation is very slow for time series longer than about
-    1 month (array size of ~1e5). The Fast implementation is similar to the an
-    FFT, but at a very slight loss of accuracy. There appears to be a slight
-    increasing slope with frequency toward the Nyquist frequency.
+    The Cython implemenation is very slow for time series longer than about 1 month 
+    (array size of 1e5). The Fast implementation is similar to the an FFT, but at a 
+    very slight loss of accuracy. There appears to be a slight increasing slope with 
+    frequency toward the Nyquist frequency.
 
-    The adjustments to the frequency resolution, due to gaps, performed in the
-    KASOC filter may not be beneficial the statistics we use in the detection
-    algorithm.  This has not been thuroughly tested yet though. So recommend
-    leaving it in, but with a switch to turn it off for testing.
+    The adjustments to the frequency resolution, due to gaps, performed in the KASOC 
+    filter may not be beneficial the statistics we use in the detection algorithm.  
+    This has not been thuroughly tested yet though. So recommend leaving it in, but 
+    with a switch to turn it off for testing.
 
     Parameters
     ----------
@@ -44,13 +44,12 @@ class psd():
     flux_error : array
         Flux value errors of the time series.
     fit_mean : bool, optional
-        Keyword for Astropy.LombScargle. If True, uses the generalized
-        Lomb-Scargle approach and fits with a floating mean. Default is 
-        False.
+        Keyword for Astropy.LombScargle. If True, uses the generalized Lomb-Scargle 
+        approach and fits with a floating mean. Default is False.
     timeConversion : float
-        Factor to convert the time series such that it is in seconds. Note, 
-        all stored time values, e.g. cadence or duration, are kept in the 
-        input units. Default is 86400 to convert from days to seconds.
+        Factor to convert the time series such that it is in seconds. Note, all stored 
+        time values, e.g. cadence or duration, are kept in the input units. Default is 
+        86400 to convert from days to seconds.
 
     Attributes
     ----------
@@ -67,8 +66,7 @@ class psd():
     df : float
         Fundamental frequency spacing in Hz.
     ls : astropy.timeseries.LombScargle object:
-        Astropy Lomb-Scargle class instance used in computing the power
-        spectrum.
+        Astropy Lomb-Scargle class instance used in computing the power spectrum.
     indx : array, bool
         Mask array for removing nan and/or -inf values from the time series.
     freqHz : array, float
@@ -169,23 +167,29 @@ class psd():
         Parameters
         ----------
         tmin : float, optional
-            Minimum time value for padding. If None, uses the minimum of self.time. Default is None.
+            Minimum time value for padding. If None, uses the minimum of self.time. 
+            Default is None.
         tmax : float, optional
-            Maximum time value for padding. If None, uses the maximum of self.time. Default is None.
+            Maximum time value for padding. If None, uses the maximum of self.time. 
+            Default is None.
         cadenceMargin : float, optional
             Margin factor to identify gaps in the time series. Default is 1.01.
 
         Returns
         -------
         tuple
-            A tuple containing the adjusted time array and the corresponding window function array.
+            A tuple containing the adjusted time array and the corresponding window 
+            function array.
 
         Notes
         -----
         - The method first initializes the time (`t`) and window function (`w`) arrays.
-        - It then identifies gaps in the time series larger than `cadenceMargin * self.dt` and fills them with zeros in the window function.
-        - The method ensures the length of the time series does not exceed a break counter of 100 to avoid infinite loops.
-        - Padding is added at the start and end of the time series if `tmin` or `tmax` are specified and exceed the current bounds of `t`.
+        - It then identifies gaps in the time series larger than `cadenceMargin * self.dt` 
+        and fills them with zeros in the window function.
+        - The method ensures the length of the time series does not exceed a break counter 
+        of 100 to avoid infinite loops.
+        - Padding is added at the start and end of the time series if `tmin` or `tmax` are 
+        specified and exceed the current bounds of `t`.
         """
 
         if tmin is None:
@@ -284,17 +288,16 @@ class psd():
         return df*1e-6
 
     def windowfunction(self, df, width=None, oversampling=10):
-        """ Spectral window function.
+        """Spectral window function.
 
         Parameters
         ----------
-		 width : float, optional
-            The width in Hz on either side of zero to calculate spectral window.
-            Default is None.
+        width : float, optional
+            The width in Hz on either side of zero to calculate spectral window. Default is None.
         oversampling : float, optional
             Oversampling factor. Default is 10.
         """
-
+         
         if width is None:
             width = 100*df
 
@@ -540,7 +543,7 @@ def _setOutpath(name, rootPath):
     
     return path
 
-def getPriorPath():
+def _getPriorPath():
     """ Get default prior path name
     
     Returns

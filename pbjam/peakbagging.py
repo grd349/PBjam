@@ -1,3 +1,9 @@
+"""
+The peakbagging module contains the classes used for the peakbag stage of PBjam. The 
+main class to interacte with is the peakbag class, which will handle potential slicing
+of the spectrum or not and combine results for each case.
+"""
+
 from functools import partial
 import jax, emcee, warnings, time
 import jax.numpy as jnp

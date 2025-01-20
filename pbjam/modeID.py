@@ -6,12 +6,6 @@ The general mode ID strategy is to model the background + l=2,0 components
 separately from the l=1 modes, since the latter are often more computationally 
 difficult.
 
-A usage example could be:
-
-M = modeID(...)
-M.runl20model(...)
-M.runl1model(...)
-
 This provides the inputs for the detailed peakbagging stage which is provided as 
 a separate module.
 
@@ -69,7 +63,7 @@ class modeID(plotting, ):
         self.sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   
 
         if self.priorPath is None:
-            self.priorPath = IO.getPriorPath()
+            self.priorPath = IO._getPriorPath()
  
     def runl20model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6, **kwargs):
         """

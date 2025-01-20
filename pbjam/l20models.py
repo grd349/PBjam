@@ -1,3 +1,8 @@
+"""
+The l20models module contains the model used to compute the l=0 mode frequencies. This 
+currently only contains the asymptotic for p-modes.
+"""
+
 import jax
 import jax.numpy as jnp
 import numpy as np

@@ -1,3 +1,14 @@
+"""
+The l1models module contains the various models used to compute the l=1 mode frequencies 
+given a sample of model parameters from the sampler. The models currently include the 'ms',
+'sg', and 'rgb' models. 
+
+The naming of the model approximately suggests which types of stars they might be suited for,
+but any model may be applied to any star. For example near the transition between sub-giants
+and red-giants there may be some ambiguity in which model performs best, so it is recommended
+to try a different model if your first choice doesn't work.
+"""
+
 import jax.numpy as jnp
 import numpy as np
 import jax, warnings, dynesty
@@ -538,15 +549,12 @@ class Mixl1model(samplers.DynestySampling, commonFuncs):
                                 jnp.hstack((self.zeros_block.T, self.eye_N_g))))
         
     def setupDR(self):
-        """ Setup the latent parameters and projection functions
- 
+        """ Setup the latent parameters and projection functions 
+        
         Notes
         -----
-        - The prior distributions are constructed based on the PCA sample projection 
-        onto the reduced-dimensional space.
-        - If the target values are too far from the viable prior sample, the prior is 
-        labeled as unreliable. This can happen if the target is very far outside the main 
-        prior sample distribution.
+        - The prior distributions are constructed based on the PCA sample projection onto the reduced-dimensional space.
+        - If the target values are too far from the viable prior sample, the prior is labeled as unreliable. This can happen if the target is very far outside the main prior sample distribution.
         """
  
         _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}

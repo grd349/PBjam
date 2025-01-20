@@ -1,3 +1,8 @@
+"""
+The samplers modules contains a set of classes which are meant to be inherited by model classes. 
+These classes contain many of the 'standard' methods for sampling with their respective algorithm.
+"""
+
 import dynesty, emcee, time, jax
 from dynesty import utils as dyfunc
 import scipy.stats as st

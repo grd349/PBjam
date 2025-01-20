@@ -1,5 +1,5 @@
 
-PBjam
+PBjam 2
 ============================
 
 **Peakbagging made easy**
@@ -18,22 +18,21 @@ PBjam
 .. image:: http://img.shields.io/badge/arXiv-2012.00580-B31B1B.svg
     :target: https://arxiv.org/abs/2012.00580
 
-PBjam is toolbox for modeling the oscillation spectra of solar-like oscillators. This involves two main parts: identifying a set of modes of interest, and accurately modeling those modes to measure their frequencies.
+PBjam is toolbox for analyzing the oscillation spectra of solar-like oscillators. This involves two main parts: identifying a set of modes of interest in a spectrum of oscillations, and accurately modeling those modes to measure their frequencies.
 
-The mode identification works by fitting the asymptotic relation for p-modes to the l=2,0 pairs, which is followed by a selection of models for fitting the l=1 modes where each model is suitable for different stages of evolution.
-The process relies on of prior knowledge gained from NASA's Kepler, K2, TESS and missions to inform the sampling.
+The mode identification works by fitting the asymptotic relation for p-modes to the l=2,0 pairs, which is followed by a applying selection of models for fitting the l=1 modes where each model is suitable for different stages of evolution.
+The process relies on of large set of previous observations of the model parameters, which are then used to construct a prior distribution to inform the sampling. The observations have been gathered from the Kepler, K2 and TESS missions, and expanding it to improve accuracy is an on-going process. 
 
-Modeling the modes, or 'peakbagging', is done using the a nested sampling or MCMC algorithm, where Lorentzian profiles are fit to each of the identified modes, with much fewer contraints than during he mode ID process. This allows for a more accurate model of the spectrum of frequencies than the heavily parameterized models like the asymptotic relations.
+Modeling the modes, or 'peakbagging', is done using the a nested sampling or MCMC algorithm, where Lorentzian profiles are fit to each of the identified modes, with much fewer contraints than during the mode ID process. This allows for a more accurate model of the spectrum of frequencies than the heavily parameterized models like the asymptotic relations.
 
-
-Read the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
+To get started with PBjam please see the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
 
 .. inclusion_marker0
 
 
 Contributing
 ------------
-If you want to raise and issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
+If you want to raise an issue or contribute code to PBjam, see the `guidelines on contributing <https://github.com/grd349/PBjam/blob/master/CONTRIBUTING.rst>`_.
 
 Authors
 -------
@@ -55,6 +54,6 @@ Main Contributors                                     Chaos Engineers           
 
 Acknowledgements
 ----------------
-If you use PBjam in your work please cite the PBjam paper (forthcoming), and if possible provide links to the GitHub repository. 
+If you use PBjam in your work please cite the one of the PBjam papers (`Paper I Nielsen et al. 2021 <https://ui.adsabs.harvard.edu/abs/2021AJ....161...62N/abstract>`_,  `Paper II Nielsen et al. 2023 <https://ui.adsabs.harvard.edu/abs/2023A%26A...676A.117N/abstract>`_ ), and if possible provide links to the `GitHub repository <https://github.com/grd349/PBjam>`_. 
 
-We encourage PBjam users to also cite the packages and publications that PBjam makes use of.  
+We encourage users to also cite the packages and publications that PBjam makes use of.  
