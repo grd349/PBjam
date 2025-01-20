@@ -22,6 +22,6 @@ One way to do this is:
 
 Also, please clearly explain what the pull request is meant to fix, and how you went about fixing it.
 
-Please make sure to include docstrings in your submissions, along with the odd inline comment. This makes reviewing the submission that much easier. See the `example docstring <https://github.com/grd349/PBjam/blob/master/Examples/example_docstrings.rst>`_ for ideas on writing basic documentation.
+Please make sure to include docstrings in your submissions, along with the odd inline comment. This makes reviewing the submission that much easier. See the `example docstring <https://github.com/grd349/PBjam/blob/master/docs/source/Examples/example_docstrings.rst>`_ for ideas on writing basic documentation.
 
-Providing a few unit tests of your functions would be very helpful too. See the `example unittest <https://github.com/grd349/PBjam/blob/master/Examples/example_unittests.rst>`_ for a very simple example.
+Providing a few unit tests of your functions would be very helpful too. See the `example unittest <https://github.com/grd349/PBjam/blob/master/docs/source/Examples/example_unittests.rst>`_ for a very simple example.
