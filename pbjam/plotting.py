@@ -27,7 +27,7 @@ def smooth_power(freq, power, smooth_filter_width):
     array-like
         Smoothed power
     """
-     
+
     fac = max([1, smooth_filter_width / (freq[1] - freq[0])])
 
     kernel = conv.Gaussian1DKernel(stddev=np.array(fac))
@@ -36,7 +36,8 @@ def smooth_power(freq, power, smooth_filter_width):
 
     return smoo
 
-def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.01):
+
+def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.001):
     """Calculates the echelle diagram. Use this function if you want to do
     some more custom plotting.
 
@@ -61,7 +62,7 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.01):
     array-like
         The x, y, and z values of the echelle diagram.
     """
-     
+
     if fmax is None:
         fmax = freq[-1]
 
@@ -77,36 +78,35 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.01):
     # trim data
     index = (freq >= fmin) & (freq <= fmax)
     trimx = freq[index]
- 
-    samplinginterval = np.median(np.diff(trimx)) * sampling
+
+    samplinginterval = np.median(trimx[1:-1] - trimx[0:-2]) * sampling
+    samplinginterval = dnu/round(dnu/samplinginterval)
 
     xp = np.arange(fmin, fmax + dnu, samplinginterval)
     yp = np.interp(xp, freq, power)
 
-    n_stack = int((fmax - fmin) / dnu)
-    n_element = int(dnu / samplinginterval)
+    n_stack = int((fmax - fmin) / dnu) # Number of rows
+    n_element = int(dnu / samplinginterval) # Number of chunks in a row
 
     morerow = 2
-
-    arr = np.arange(1, n_stack) * dnu
+    arr = np.arange(0, n_stack) * dnu
     arr2 = np.array([arr, arr])
-    
     yn = np.reshape(arr2, len(arr) * 2, order="F")
     yn = np.insert(yn, 0, 0.0)
     yn = np.append(yn, n_stack * dnu) + fmin + offset
 
-    xn = np.arange(1, n_element + 1) / n_element * dnu
-    
+    xn = np.arange(0, n_element+1) / n_element * dnu
     z = np.zeros([n_stack * morerow, n_element])
-    
     for i in range(n_stack):
         for j in range(i * morerow, (i + 1) * morerow):
             z[j, :] = yp[n_element * (i) : n_element * (i + 1)]
     
+    #z = (z)**(0.5)
+
     return xn, yn, z
 
-def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
-                 interpolation=None, smooth=False, smooth_filter_width=50, 
+def plot_echelle(freq, power, numax, dnu, ax=None, cmap="Blues", scale=None,
+                 interpolation=None, smooth=False, smooth_filter_width=50, offset=0.0,
                  **kwargs):
     """Plots the echelle diagram.
 
@@ -141,8 +141,7 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     """
     if smooth:
         power = smooth_power(freq, power, smooth_filter_width)
-
-    echx, echy, echz = echelle(freq, power, dnu, **kwargs)
+    echx, echy, echz = echelle(freq, power, dnu, offset=offset, **kwargs)
 
     if scale is not None:
         if scale == "log":
@@ -153,23 +152,29 @@ def plot_echelle(freq, power, dnu, ax=None, cmap="Blues", scale=None,
     if ax is None:
         fig, ax = plt.subplots()
 
-    ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min()-dnu, echy.max()+dnu),
+    ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min(), echy.max()),
               origin="lower", cmap=cmap, interpolation=interpolation, )
 
-    ax.set_xlabel(f"Frequency mod {str(np.round(dnu, 2))} "+r"[$\mu$Hz]")
-    ax.set_ylabel(r"Frequency [$\mu$Hz]")
+    Symbol = '+'
+    if offset < dnu:
+        Symbol = '-'
 
-    ax.set_ylim(freq[0], freq[-1])
+    ax.set_xlabel(f"Frequency mod {str(np.round(dnu, 2))} {Symbol} "
+                  f"{abs(round(offset-dnu, 2))} " + r"[$\mu$Hz]", fontsize=15)
+    ax.set_ylabel(r"Frequency [$\mu$Hz]", fontsize=15)
 
-    for x in np.arange(echy.min(), echy.max()+dnu, dnu):
+    ax.set_ylim(freq[0], echy[-1])
+
+    for x in np.arange(echy.min(), echy.max(), dnu):
         ax.axhline(x, color='k', alpha=0.1)
-        
+
     return ax
 
+
 def _scatterFrame(model, samples, key1, key2, ax,):
-     
+
     df = model.DR.priorData
-    
+
     # Relevant bit of prior_data.csv
     prior1 = df[key1]
     
@@ -206,7 +211,7 @@ def _scatterFrame(model, samples, key1, key2, ax,):
     
     ax.set_ylim(miny, maxy)
 
-    if not np.isnan(samples).all() and (key1 in samplesU.keys()) and (key2 in samplesU.keys()):
+    if not np.isnan(samples).all():
         # Only plot the summary stats
         result1 = np.percentile(samplesU[key1], [15, 50, 85])
         
@@ -223,24 +228,11 @@ def _scatterFrame(model, samples, key1, key2, ax,):
                     yerr=np.array([[result2[1]-result2[0]], [result2[2]-result2[1]]]), 
                     fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0')
     
-    elif not np.isnan(samples).all() and (key1 in samplesU.keys()) and not (key2 in samplesU.keys()):
-        result1 = np.percentile(samplesU[key1], [15, 50, 85])
-
-        if key1 in model.logpars:
-            result1 = np.log10(result1)
-
-        ax.fill_betweenx([miny, maxy], x1=result1[0], x2=result1[2], color='C0', alpha=0.2)
-        ax.axvline(result1[1], color='C0')
-    
 def _baseReference(model, samples, fac=3):
 
-    labels = model.pcaLabels + model.addLabels 
-    
+    labels = model.pcaLabels + model.addLabels
+
     labelsInfile = [label for label in labels if label in model.DR.priorData.keys()]
-     
-    for key in model.DR.selectLabels:
-        if not key in labelsInfile:
-            labelsInfile.append(key)
 
     Nf = len(labelsInfile)-1
     
@@ -297,11 +289,12 @@ def _ModeIDPosteriorReference(model, N=1000):
 
     return fig, axes
 
+
 @jax.jit
 def _echellify_freqs(nu, dnu, offset=0):
     x = (nu - offset*dnu)  % dnu  
 
-    y =  nu  
+    y =  nu
 
     return x, y
 
@@ -332,15 +325,15 @@ def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
     - Returns the generated Figure and Axes objects.
     """
 
-    n = max([N_p + 1, 10])
+    n = max([round(N_p*3/4)+1, 9])
 
-    idx = ((numax - n * dnu) < f) & (f < (numax + n * dnu))
+    idx = ((numax - (n-1) * dnu) < f) & (f < (numax + (n+1) * dnu))
 
     f, s = f[idx], s[idx]
 
-    fig, ax = plt.subplots(figsize=(8,7))    
-        
-    plot_echelle(f, s, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale, **kwargs)
+    fig, ax = plt.subplots(figsize=(8,7))
+
+    plot_echelle(f, s, numax, dnu, ax=ax, smooth=True, smooth_filter_width=dnu * scale, **kwargs)
 
     return fig, ax
 
@@ -442,19 +435,22 @@ def _ModeIDClassPriorEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
 
 def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwargs):
 
+    gmodes = False
+
     if (dnu is None) and hasattr(self, 'result'):
         dnu = self.result['summary']['dnu'][0]
     else:
         dnu = self.obs['dnu'][0]
-    
-    
+
     if (numax is None) and hasattr(self, 'result'):
         numax = self.result['summary']['numax'][0]
     else:
         numax = self.obs['numax'][0]
 
-    offset = (self.result['summary']['eps_p'][0])  - 0.25
-     
+    Epsilon = self.result['summary']['eps_p'][0]
+
+    offset = Epsilon - 0.25
+
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, offset=offset * dnu, **kwargs)
 
     axes = np.array([ax])
@@ -462,28 +458,28 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
         for l in np.unique(self.result['ell']).astype(int):
 
             idx_ell = (self.result['ell'] == l ) & (self.result['emm'] == 0)
-            
+
             freqs = self.result['samples']['freq'][:Nsamples, idx_ell]
 
-            smp_x, smp_y = _echellify_freqs(freqs, dnu, offset) 
+            smp_x, smp_y = _echellify_freqs(freqs, dnu, offset=offset)
 
-            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=10)
 
             med_freqs = self.result['summary']['freq'][0, self.result['emm'] == 0]
 
-            med_x, med_y = _echellify_freqs(med_freqs, dnu, offset) 
+            med_x, med_y = _echellify_freqs(med_freqs, dnu, offset)
 
-            #ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
+            ax.scatter(med_x, med_y, alpha=1, s=100, facecolors='none', edgecolors='k', linestyle='--')
 
             # Add to legend
             ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
 
     ylims = ax.get_ylim()
-
+    '''
     # If fudge frequencies are used plot those
     if hasattr(self, 'l1model') and 'freqError0' in self.result['summary'].keys():
 
-        rect_ax = fig.add_axes([0.92, 0.107, 0.2, 0.775])   
+        rect_ax = fig.add_axes([0.92, 0.107, 0.2, 0.775])
         rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
         rect_ax.set_yticks([])
         rect_ax.set_ylim(ax.get_ylim())
@@ -505,10 +501,11 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
          
         rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, (self.result['ell']==1) & (self.result['emm']==0)], 'o', alpha=0.1, color='C4')
         axes = np.append(axes, ax)
-
+    '''
     # Overplot gmode frequencies
     if hasattr(self, 'l1model'):
-        if self.l1model.N_g > 0:
+        if self.l1model.N_g > 0:        
+            gmodes = True
 
             curlyN = dnu / (self.result['summary']['DPi1'][0] *1e-6 * numax**2)
             
@@ -535,13 +532,23 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
 
         nu1_p = nu0_p + self.result['summary']['d01'][0]
 
-        nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu) 
+        nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu)
 
         #ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
                         
     
  
     ax.set_xlim(0, dnu)
+    
+    Line = 4
+    if gmodes:
+        Line = 8
+
+    ax.plot([0, 0.05*dnu], [numax, numax], color='black', linewidth=Line, label=rf'$\nu_{{max}}$={round(numax)}$\mu$Hz')
+    
+    Lim = ax.get_ylim()[0]
+    
+    ax.plot([Epsilon%1*dnu, Epsilon%1*dnu], [Lim, Lim+dnu], color='forestgreen', linewidth=4, label=rf'$\epsilon_p$={round(Epsilon,2)}')
 
     ax.legend(ncols=len(np.unique(self.result['ell'])), loc=1)
     
@@ -594,7 +601,9 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
     
     if numax is None:
         numax = np.median(self.freq[0, :])
- 
+
+    #offset = (self.result['summary']['eps_p'][0]) - 0.25
+
     fig, ax = _baseEchelle(self.f, self.s, self.N_p, numax, dnu, scale)
     
     maxL = 0
@@ -608,26 +617,28 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
 
             smp_x, smp_y = _echellify_freqs(freqs, dnu) 
 
-            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=100)
+            ax.scatter(smp_x, smp_y, alpha=0.05, color=colors[l], s=10)
 
             maxL = max([maxL, l])
 
     # Add to legend
     for l in range(maxL+1):
         ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
+
+    #ax.plot([0, 0.05*dnu], [numax, numax], color='black', linewidth=4, label=rf'$\nu_{{max}}$={round(numax)}$\mu$Hz')
     
-    ax.legend(loc=1)
+    ax.legend(loc=1, fontsize=13)
 
     return fig, ax 
 
 
-def _baseSpectrum(ax, f, s, smoothness=0.1, xlim=[None, None], ylim=[None, None], **kwargs):
+def _baseSpectrum(ax, f, s, smoothness=0.1, alpha=0.6, xlim=[None, None], ylim=[None, None], Legend=None, **kwargs):
  
     #ax.plot(f, s, 'k-', label='Data', alpha=0.1)
     
     smoo = smooth_power(f, s, smoothness)
     
-    ax.plot(f, smoo, 'k-', label='Smoothed', lw=3, alpha=0.6)
+    ax.plot(f, smoo, 'k-', label=Legend, lw=3, alpha=alpha)
     
     _ylim = list(ax.get_ylim())
     
@@ -820,7 +831,7 @@ def _ModeIDClassPostSpectrum(self, N):
   
     ax[0].plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
     
-    ax[0].legend(loc=3)
+    ax[0].legend(loc=3, fontsize=14)
     
     # for i in range(1, ax.shape[0]):
     #     for j, nu in enumerate(self.result['summary']['freq'][0]):
@@ -845,7 +856,7 @@ def _PeakbagClassPriorSpectrum(self, N):
     
     fig, ax = plt.subplots(figsize=(16,9))
 
-    _baseSpectrum(ax, self.f, self.snr, smoothness=0.5)
+    _baseSpectrum(ax, self.f, self.snr, smoothness=0.05)    
 
     for inst in self.pbInstances:
 
@@ -886,7 +897,9 @@ def _PeakbagClassPostSpectrum(self, N):
 
     fig, ax = plt.subplots(figsize=(16,9))
 
-    _baseSpectrum(ax, self.f, self.snr, smoothness=0.1)
+    _baseSpectrum(ax, self.f, self.snr, smoothness=0.01, alpha=0.1, Legend='Smoothed')
+
+    _baseSpectrum(ax, self.f, self.snr, smoothness=0.5, alpha=0.4, Legend='Super Smoothed')
 
     for inst in self.pbInstances:
 
@@ -905,19 +918,27 @@ def _PeakbagClassPostSpectrum(self, N):
             m = jmodel(theta_u)
             
             ax.plot(inst.f[inst.sel], m, color='C3', alpha=0.2)
-
-    xlims = [float(min([min(inst.f[inst.sel]) for inst in self.pbInstances])),
+    
+    xLim = [float(min([min(inst.f[inst.sel]) for inst in self.pbInstances])),
              float(max([max(inst.f[inst.sel]) for inst in self.pbInstances]))]
+
+    Diff = xLim[1]*0.05
+
+    xlims = [xLim[0]-Diff, xLim[1]+Diff]
+    
+    ylims = [0, max(m)*1.5]
                      
     ax.plot([-100, -100], [-100, -100], color='C3', label='Posterior samples', alpha=1)
 
-    ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
+    ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]', fontsize=15)
     
-    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)', fontsize=15)
 
     ax.set_xlim(xlims)
+    
+    ax.set_ylim(ylims)
 
-    #ax.legend(loc=1)
+    ax.legend(loc=1, fontsize=15)
 
     return fig, ax
 
@@ -1101,7 +1122,7 @@ class plotting():
             kwargs['colors'] = ellColors
 
         if not 'scale' in kwargs:
-            kwargs['scale'] = 1/350
+            kwargs['scale'] = 1/300
 
         if not 'Nsamples' in kwargs:
             kwargs['Nsamples'] = 200
