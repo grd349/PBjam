@@ -1,3 +1,8 @@
+"""
+This module contains the model that is used to construct the background model
+of the power density spectrum. 
+"""
+
 from pbjam import jar 
 
 class bkgModel():

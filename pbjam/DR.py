@@ -1,3 +1,7 @@
+"""
+The DR (for dimensionality reduction) module contains the methods used by PBjam to compute the principle 
+components of the prior sample. This is used by PBjam to compute the prior density used during the sampling.
+"""
 import numpy as np
 import pandas as pd
 import jax, warnings

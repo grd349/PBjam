@@ -1,13 +1,18 @@
+"""
+The l20models module contains the model used to compute the l=0 mode frequencies. This 
+currently only contains the asymptotic for p-modes.
+"""
+
 import jax
 import jax.numpy as jnp
 import numpy as np
-from pbjam import jar
+from pbjam import jar, samplers
 from pbjam.background import bkgModel
 from pbjam.DR import PCA
 import pbjam.distributions as dist 
 jax.config.update('jax_enable_x64', True)
 
-class Asyl20model(jar.DynestySampling, jar.generalModelFuncs):
+class Asyl20model(samplers.DynestySampling, jar.generalModelFuncs):
     """
     A class for constructing the l20 model using the asymptotic relation for p-modes.
 

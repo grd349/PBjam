@@ -6,8 +6,9 @@ pandas
 lightkurve
 astropy
 corner
-nbsphinx
 dynesty
 jax
 jaxlib
 emcee
+tqdm
+nbsphinx

@@ -6,12 +6,6 @@ The general mode ID strategy is to model the background + l=2,0 components
 separately from the l=1 modes, since the latter are often more computationally 
 difficult.
 
-A usage example could be:
-
-M = modeID(...)
-M.runl20model(...)
-M.runl1model(...)
-
 This provides the inputs for the detailed peakbagging stage which is provided as 
 a separate module.
 
@@ -51,7 +45,7 @@ class modeID(plotting, ):
         Path to prior sample csv. If None, a default path is used.
     """
 
-    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorPath=None):
+    def __init__(self, f, s, obs, addPriors={}, N_p=7, freqLimits=None, priorPath=None, **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
 
@@ -69,9 +63,9 @@ class modeID(plotting, ):
         self.sel = (np.array(self.freqLimits).min() < self.f) & (self.f < np.array(self.freqLimits).max())   
 
         if self.priorPath is None:
-            self.priorPath = IO.getPriorPath()
+            self.priorPath = IO._getPriorPath()
  
-    def runl20model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6):
+    def runl20model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, PCAsamples=50, PCAdims=6, **kwargs):
         """
         Runs the l20 model on the selected spectrum.
 
@@ -79,8 +73,10 @@ class modeID(plotting, ):
         ----------
         progress : bool, optional
             Whether to show progress during the model run. Default is True.
-        sampler_kwargs : dict, optional
-            Additional keyword arguments for the sampler. Default is an empty dictionary.
+        dynamic : bool, optional
+            Whether to use dynamic nested sampling. Default is False (static nested sampling).
+        minSamples : int, optional
+            The minimum number of samples to generate. Default is 5000.
         logl_kwargs : dict, optional
             Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         PCAsamples : int, optional
@@ -106,9 +102,11 @@ class modeID(plotting, ):
                                     PCAdims,
                                     priorPath=self.priorPath)
         
-        self.l20Samples = self.l20model.runSampler(progress=progress, 
-                                                    logl_kwargs=logl_kwargs, 
-                                                    sampler_kwargs=sampler_kwargs)
+        self.l20Samples = self.l20model.runSampler(progress=progress,
+                                                   dynamic=dynamic,
+                                                   minSamples=minSamples, 
+                                                   logl_kwargs=logl_kwargs, 
+                                                   sampler_kwargs=sampler_kwargs)
 
         l20samples_u = self.l20model.unpackSamples(self.l20Samples)
 
@@ -118,7 +116,7 @@ class modeID(plotting, ):
  
         return self.l20result
 
-    def runl1model(self, progress=True, sampler_kwargs={}, logl_kwargs={}, model='MS', PCAsamples=500, PCAdims=7):
+    def runl1model(self, progress=True, dynamic=False, minSamples=5000, sampler_kwargs={}, logl_kwargs={}, model='auto', PCAsamples=500, PCAdims=7, **kwargs):
         """
         Runs the l1 model on the selected spectrum.
 
@@ -128,6 +126,10 @@ class modeID(plotting, ):
         ----------
         progress : bool, optional
             Whether to show progress during the model run. Default is True.
+        dynamic : bool, optional
+            Whether to use dynamic nested sampling. Default is False (static nested sampling).
+        minSamples : int, optional
+            The minimum number of samples to generate. Default is 5000.
         sampler_kwargs : dict, optional
             Additional keyword arguments for the sampler. Default is an empty dictionary.
         logl_kwargs : dict, optional
@@ -158,6 +160,12 @@ class modeID(plotting, ):
         for key in ['numax', 'dnu', 'env_height', 'env_width', 'mode_width', 'teff', 'bp_rp']:
             summary[key] = self.l20result['summary'][key]
 
+        if model.lower() =='auto':
+            
+            model = self.selectModel()
+
+            print(f'Input Teff={self.obs["teff"][0]}K and dnu={self.obs["dnu"][0]}muHz suggests the appropriate l=1 model is: {model}')
+
         if model.lower() == 'ms':
             self.l1model = Asyl1model(f, s, 
                                       summary, 
@@ -184,7 +192,9 @@ class modeID(plotting, ):
         else:
             raise ValueError(f'Model {model} is invalid. Please use either MS, SG or RGB.')
          
-        self.l1Samples  = self.l1model.runSampler(progress=progress, 
+        self.l1Samples  = self.l1model.runSampler(progress=progress,
+                                                  dynamic=dynamic,
+                                                  minSamples=minSamples, 
                                                   logl_kwargs=logl_kwargs, 
                                                   sampler_kwargs=sampler_kwargs)
         
@@ -196,7 +206,7 @@ class modeID(plotting, ):
 
         return self.l1result
 
-    def __call__(self, progress=True, sampler_kwargs={}, logl_kwargs={}):
+    def __call__(self, model='auto', progress=True, dynamic=False, sampler_kwargs={}, logl_kwargs={}, **kwargs):
         """
         Run both the l20 and l1 models.
 
@@ -212,10 +222,10 @@ class modeID(plotting, ):
         logl_kwargs : dict, optional
             Additional keyword arguments for the log-likelihood function. Default is an empty dictionary.
         """
+         
+        self.runl20model(progress, dynamic, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
         
-        self.runl20model(progress, sampler_kwargs, logl_kwargs)
-        
-        self.runl1model(progress, sampler_kwargs, logl_kwargs)
+        self.runl1model(progress, dynamic, model=model, sampler_kwargs=sampler_kwargs, logl_kwargs=logl_kwargs)
  
     def mergeResults(self, l20result=None, l1result=None, N=5000):
         """
@@ -350,4 +360,53 @@ class modeID(plotting, ):
         
         df.to_csv(basefilename+'.csv', index=False)
  
-  
+
+    def selectModel(self, ):
+        """
+        Select the appropriate stellar model based on observed properties.
+
+        The method classifies the star as either 'ms' (main sequence), 'sg' (subgiant), or 'rgb' (red giant branch) 
+        using thresholds based on the large frequency separation (`dnu`) and effective temperature (`Teff`).
+
+        Returns
+        -------
+        model : str
+            The selected model as a string: 'ms', 'sg', or 'rgb'.
+
+        Notes
+        -----
+        The classification uses linear relations:
+        - Main sequence (MS): `dnu > -0.016 * Teff + 157`
+        - Subgiant (SG): `dnu > -0.010 * Teff + 74`
+        - Red giant branch (RGB): Default if neither condition is satisfied.
+
+        Examples
+        --------
+        >>> obj.obs = {'dnu': 100, 'Teff': 5800}
+        >>> obj.selectModel()
+        'sg'
+
+        >>> obj.obs = {'dnu': 120, 'Teff': 6000}
+        >>> obj.selectModel()
+        'ms'
+
+        >>> obj.obs = {'dnu': 50, 'Teff': 5000}
+        >>> obj.selectModel()
+        'rgb'
+        """
+            
+        MSclassify = lambda Teff: -0.016 * Teff + 157
+
+        SGclassify = lambda Teff: -0.010 * Teff + 74
+
+        if self.obs['dnu'][0] > MSclassify(self.obs['teff'][0]):
+            model = 'ms'
+
+        elif self.obs['dnu'][0] > SGclassify(self.obs['teff'][0]):
+            model = 'sg'
+
+        else:
+            model = 'rgb'
+
+        return model
+    

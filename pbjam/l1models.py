@@ -1,7 +1,18 @@
+"""
+The l1models module contains the various models used to compute the l=1 mode frequencies 
+given a sample of model parameters from the sampler. The models currently include the 'ms',
+'sg', and 'rgb' models. 
+
+The naming of the model approximately suggests which types of stars they might be suited for,
+but any model may be applied to any star. For example near the transition between sub-giants
+and red-giants there may be some ambiguity in which model performs best, so it is recommended
+to try a different model if your first choice doesn't work.
+"""
+
 import jax.numpy as jnp
 import numpy as np
 import jax, warnings, dynesty
-from pbjam import jar
+from pbjam import jar, samplers
 from pbjam.jar import constants as c
 from pbjam.DR import PCA
 import pbjam.distributions as dist
@@ -199,7 +210,7 @@ class commonFuncs(jar.generalModelFuncs):
         
         return asym
 
-class Asyl1model(jar.DynestySampling, commonFuncs):
+class Asyl1model(samplers.DynestySampling, commonFuncs):
     def __init__(self, f, s, obs, addPriors, PCAsamples, vis={'V10': 1.22}, priorPath=None):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
@@ -429,7 +440,7 @@ class Asyl1model(jar.DynestySampling, commonFuncs):
 
         return result
         
-class Mixl1model(jar.DynestySampling, commonFuncs):
+class Mixl1model(samplers.DynestySampling, commonFuncs):
     """
     A class to model mixed l=1 modes using the coupling matrix formalism.
 
@@ -538,15 +549,12 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
                                 jnp.hstack((self.zeros_block.T, self.eye_N_g))))
         
     def setupDR(self):
-        """ Setup the latent parameters and projection functions
- 
+        """ Setup the latent parameters and projection functions 
+        
         Notes
         -----
-        - The prior distributions are constructed based on the PCA sample projection 
-        onto the reduced-dimensional space.
-        - If the target values are too far from the viable prior sample, the prior is 
-        labeled as unreliable. This can happen if the target is very far outside the main 
-        prior sample distribution.
+        - The prior distributions are constructed based on the PCA sample projection onto the reduced-dimensional space.
+        - If the target values are too far from the viable prior sample, the prior is labeled as unreliable. This can happen if the target is very far outside the main prior sample distribution.
         """
  
         _obs = {x: jar.to_log10(*self.obs[x]) for x in self.obs.keys() if x in ['numax', 'dnu', 'teff']}
@@ -952,7 +960,7 @@ class Mixl1model(jar.DynestySampling, commonFuncs):
 
         return result
     
-class RGBl1model(jar.DynestySampling, commonFuncs):
+class RGBl1model(samplers.DynestySampling, commonFuncs):
     """
     A class to model l=1 modes in red giant branch (RGB) stars using Dynesty sampling.
 
