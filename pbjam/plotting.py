@@ -78,8 +78,8 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.001):
     # trim data
     index = (freq >= fmin) & (freq <= fmax)
     trimx = freq[index]
-
-    samplinginterval = np.median(trimx[1:-1] - trimx[0:-2]) * sampling
+ 
+    samplinginterval = np.median(np.diff(trimx)) * sampling
     samplinginterval = dnu/round(dnu/samplinginterval)
 
     xp = np.arange(fmin, fmax + dnu, samplinginterval)
@@ -89,20 +89,22 @@ def echelle(freq, power, dnu, fmin=0.0, fmax=None, offset=0.0, sampling=0.001):
     n_element = int(dnu / samplinginterval) # Number of chunks in a row
 
     morerow = 2
+
     arr = np.arange(0, n_stack) * dnu
     arr2 = np.array([arr, arr])
+
     yn = np.reshape(arr2, len(arr) * 2, order="F")
     yn = np.insert(yn, 0, 0.0)
     yn = np.append(yn, n_stack * dnu) + fmin + offset
 
-    xn = np.arange(0, n_element+1) / n_element * dnu
+    xn = np.arange(0, n_element + 1) / n_element * dnu
+    
     z = np.zeros([n_stack * morerow, n_element])
+    
     for i in range(n_stack):
         for j in range(i * morerow, (i + 1) * morerow):
             z[j, :] = yp[n_element * (i) : n_element * (i + 1)]
     
-    #z = (z)**(0.5)
-
     return xn, yn, z
 
 def plot_echelle(freq, power, numax, dnu, ax=None, cmap="Blues", scale=None,
@@ -155,21 +157,15 @@ def plot_echelle(freq, power, numax, dnu, ax=None, cmap="Blues", scale=None,
     ax.imshow(echz, aspect="auto", extent=(echx.min(), echx.max(), echy.min(), echy.max()),
               origin="lower", cmap=cmap, interpolation=interpolation, )
 
-    Symbol = '+'
-    if offset < dnu:
-        Symbol = '-'
-
-    ax.set_xlabel(f"Frequency mod {str(np.round(dnu, 2))} {Symbol} "
-                  f"{abs(round(offset-dnu, 2))} " + r"[$\mu$Hz]", fontsize=15)
+    ax.set_xlabel(f"Frequency mod {str(np.round(dnu, 2))} " + r"[$\mu$Hz]", fontsize=15)
     ax.set_ylabel(r"Frequency [$\mu$Hz]", fontsize=15)
-
+    
     ax.set_ylim(freq[0], echy[-1])
 
-    for x in np.arange(echy.min(), echy.max(), dnu):
+    for x in np.arange(echy.min(), echy.max()+dnu, dnu):
         ax.axhline(x, color='k', alpha=0.1)
 
     return ax
-
 
 def _scatterFrame(model, samples, key1, key2, ax,):
 
@@ -211,7 +207,7 @@ def _scatterFrame(model, samples, key1, key2, ax,):
     
     ax.set_ylim(miny, maxy)
 
-    if not np.isnan(samples).all():
+    if not np.isnan(samples).all() and (key1 in samplesU.keys()) and (key2 in samplesU.keys()):
         # Only plot the summary stats
         result1 = np.percentile(samplesU[key1], [15, 50, 85])
         
@@ -228,11 +224,24 @@ def _scatterFrame(model, samples, key1, key2, ax,):
                     yerr=np.array([[result2[1]-result2[0]], [result2[2]-result2[1]]]), 
                     fmt='.-', lw=5, ms=25, markeredgecolor='k', color='C0')
     
+    elif not np.isnan(samples).all() and (key1 in samplesU.keys()) and not (key2 in samplesU.keys()):
+        result1 = np.percentile(samplesU[key1], [15, 50, 85])
+
+        if key1 in model.logpars:
+            result1 = np.log10(result1)
+
+        ax.fill_betweenx([miny, maxy], x1=result1[0], x2=result1[2], color='C0', alpha=0.2)
+        ax.axvline(result1[1], color='C0')
+    
 def _baseReference(model, samples, fac=3):
 
-    labels = model.pcaLabels + model.addLabels
-
+    labels = model.pcaLabels + model.addLabels 
+    
     labelsInfile = [label for label in labels if label in model.DR.priorData.keys()]
+     
+    for key in model.DR.selectLabels:
+        if not key in labelsInfile:
+            labelsInfile.append(key)
 
     Nf = len(labelsInfile)-1
     
@@ -289,7 +298,6 @@ def _ModeIDPosteriorReference(model, N=1000):
 
     return fig, axes
 
-
 @jax.jit
 def _echellify_freqs(nu, dnu, offset=0):
     x = (nu - offset*dnu)  % dnu  
@@ -327,7 +335,7 @@ def _baseEchelle(f, s, N_p, numax, dnu, scale, **kwargs):
 
     n = max([round(N_p*3/4)+1, 9])
 
-    idx = ((numax - (n-1) * dnu) < f) & (f < (numax + (n+1) * dnu))
+    idx = ((numax - (n) * dnu) < f) & (f < (numax + (n+2) * dnu))
 
     f, s = f[idx], s[idx]
 
@@ -540,17 +548,17 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
  
     ax.set_xlim(0, dnu)
     
-    Line = 4
-    if gmodes:
-        Line = 8
+    #Line = 4
+    #if gmodes:
+    #    Line = 8
 
-    ax.plot([0, 0.05*dnu], [numax, numax], color='black', linewidth=Line, label=rf'$\nu_{{max}}$={round(numax)}$\mu$Hz')
+    #ax.plot([0, 0.05*dnu], [numax, numax], color='black', linewidth=Line, label=rf'$\nu_{{max}}$={round(numax)}$\mu$Hz')
     
-    Lim = ax.get_ylim()[0]
+    #Lim = ax.get_ylim()[0]
     
-    ax.plot([Epsilon%1*dnu, Epsilon%1*dnu], [Lim, Lim+dnu], color='forestgreen', linewidth=4, label=rf'$\epsilon_p$={round(Epsilon,2)}')
+    #ax.plot([Epsilon%1*dnu, Epsilon%1*dnu], [Lim, Lim+dnu], color='forestgreen', linewidth=4, label=rf'$\epsilon_p$={round(Epsilon,2)}')
 
-    ax.legend(ncols=len(np.unique(self.result['ell'])), loc=1)
+    ax.legend(ncols=len(np.unique(self.result['ell'])), loc=1, fontsize=12)
     
     return fig, axes
 
@@ -627,7 +635,7 @@ def _PeakbagClassPostEchelle(self, Nsamples, scale, colors, dnu=None, numax=None
 
     #ax.plot([0, 0.05*dnu], [numax, numax], color='black', linewidth=4, label=rf'$\nu_{{max}}$={round(numax)}$\mu$Hz')
     
-    ax.legend(loc=1, fontsize=13)
+    ax.legend(ncols=len(np.unique(self.result['ell'])), loc=1, fontsize=12)
 
     return fig, ax 
 
@@ -885,7 +893,7 @@ def _PeakbagClassPriorSpectrum(self, N):
 
     ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]')
 
-    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)')
+    ax.set_xlabel(r'Frequency [$\mu \rm Hz$]')
 
     ax.set_xlim(xlims)
 
@@ -932,7 +940,7 @@ def _PeakbagClassPostSpectrum(self, N):
 
     ax.set_ylabel(r'PSD [$\mathrm{ppm}^2/\mu \rm Hz$]', fontsize=15)
     
-    ax.set_xlabel(r'Frequency ($\mu \rm Hz$)', fontsize=15)
+    ax.set_xlabel(r'Frequency [$\mu \rm Hz$]', fontsize=15)
 
     ax.set_xlim(xlims)
     
