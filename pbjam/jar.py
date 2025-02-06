@@ -208,9 +208,13 @@ class generalModelFuncs():
         - Identifies parameters that use a logarithmic scale and adds them to 
             logpars list.
         """
+        Path = os.path.join(*[PACKAGEDIR, 'data', 'parameters.json'])
 
-        with open("pbjam/data/parameters.json", "r") as read_file:
+        with open(Path, "r") as read_file:
             availableParams = json.load(read_file)
+
+        #with open("pbjam/data/parameters.json", "r") as read_file:
+        #    availableParams = json.load(read_file)
         
         self.variables = {key: availableParams[key] for key in modelParLabels}
 
