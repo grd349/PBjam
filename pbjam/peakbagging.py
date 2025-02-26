@@ -1220,7 +1220,7 @@ class basePeakbag(plotting):
             Dictionary containing the results of the sampling.
         """
 
-        self.runSampler(**sampler_kwargs, walltime=3720)
+        self.runSampler(**sampler_kwargs)
 
         self.result = self.parseSamples(self.samples)
   
