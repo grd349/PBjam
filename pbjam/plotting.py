@@ -483,33 +483,33 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
             ax.scatter(np.nan, np.nan, alpha=1, color=colors[l], s=100, label=r'$\ell=$'+str(l))
 
     ylims = ax.get_ylim()
-    '''
-    # If fudge frequencies are used plot those
-    if hasattr(self, 'l1model') and 'freqError0' in self.result['summary'].keys():
+    
+    # # If fudge frequencies are used plot those
+    # if hasattr(self, 'l1model') and 'freqError0' in self.result['summary'].keys():
 
-        rect_ax = fig.add_axes([0.92, 0.107, 0.2, 0.775])
-        rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
-        rect_ax.set_yticks([])
-        rect_ax.set_ylim(ax.get_ylim())
+    #     rect_ax = fig.add_axes([0.92, 0.107, 0.2, 0.775])
+    #     rect_ax.set_xlabel(r'$\sigma_{\nu,\ell=1}$')
+    #     rect_ax.set_yticks([])
+    #     rect_ax.set_ylim(ax.get_ylim())
     
-        rect_ax.fill_betweenx(ax.get_ylim(), 
-                              x1=self.l1model.priors['freqError0'].mean - self.l1model.priors['freqError0'].scale,
-                              x2=self.l1model.priors['freqError0'].mean + self.l1model.priors['freqError0'].scale, color='k', alpha=0.1)
+    #     rect_ax.fill_betweenx(ax.get_ylim(), 
+    #                           x1=self.l1model.priors['freqError0'].mean - self.l1model.priors['freqError0'].scale,
+    #                           x2=self.l1model.priors['freqError0'].mean + self.l1model.priors['freqError0'].scale, color='k', alpha=0.1)
     
-        rect_ax.fill_betweenx(ax.get_ylim(), 
-                              x1=self.l1model.priors['freqError0'].mean - 2*self.l1model.priors['freqError0'].scale,
-                              x2=self.l1model.priors['freqError0'].mean + 2*self.l1model.priors['freqError0'].scale, color='k', alpha=0.1)
+    #     rect_ax.fill_betweenx(ax.get_ylim(), 
+    #                           x1=self.l1model.priors['freqError0'].mean - 2*self.l1model.priors['freqError0'].scale,
+    #                           x2=self.l1model.priors['freqError0'].mean + 2*self.l1model.priors['freqError0'].scale, color='k', alpha=0.1)
     
-        rect_ax.set_xlim(self.l1model.priors['freqError0'].mean - 3*self.l1model.priors['freqError0'].scale,
-                         self.l1model.priors['freqError0'].mean + 3*self.l1model.priors['freqError0'].scale)
+    #     rect_ax.set_xlim(self.l1model.priors['freqError0'].mean - 3*self.l1model.priors['freqError0'].scale,
+    #                      self.l1model.priors['freqError0'].mean + 3*self.l1model.priors['freqError0'].scale)
     
-        rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
+    #     rect_ax.axvline(0, alpha=0.5, ls='dotted', color='k')
 
-        l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
+    #     l1error = np.array([self.result['samples'][key] for key in self.result['samples'].keys() if key.startswith('freqError')]).T
          
-        rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, (self.result['ell']==1) & (self.result['emm']==0)], 'o', alpha=0.1, color='C4')
-        axes = np.append(axes, ax)
-    '''
+    #     rect_ax.plot(l1error[:Nsamples, :], self.result['samples']['freq'][:Nsamples, (self.result['ell']==1) & (self.result['emm']==0)], 'o', alpha=0.1, color='C4')
+    #     axes = np.append(axes, ax)
+    
     # Overplot gmode frequencies
     if hasattr(self, 'l1model'):
         if self.l1model.N_g > 0:        
@@ -533,31 +533,21 @@ def _ModeIDClassPostEchelle(self, Nsamples, colors, dnu=None, numax=None, **kwar
                 ax.axhline(np.nan, color='k', ls='dashed', label='g-modes')
 
         #Overplot l=1 p-modes
-        nu0_p, _ = self.l20model.asymptotic_nu_p(self.result['summary']['numax'][0], 
-                                                self.result['summary']['dnu'][0],  
-                                                self.result['summary']['eps_p'][0], 
-                                                self.result['summary']['alpha_p'][0],)
+        # nu0_p, _ = self.l20model.asymptotic_nu_p(self.result['summary']['numax'][0], 
+        #                                         self.result['summary']['dnu'][0],  
+        #                                         self.result['summary']['eps_p'][0], 
+        #                                         self.result['summary']['alpha_p'][0],)
 
-        nu1_p = nu0_p + self.result['summary']['d01'][0]
+        # nu1_p = nu0_p + self.result['summary']['d01'][0]
 
-        nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu)
+        # nu1_p_x, nu1_p_y = _echellify_freqs(nu1_p, dnu)
 
         #ax.scatter(nu1_p_x, nu1_p_y, edgecolors='k', fc='None', s=100, label='p-like $\ell=1$')
                         
     
  
     ax.set_xlim(0, dnu)
-    
-    #Line = 4
-    #if gmodes:
-    #    Line = 8
-
-    #ax.plot([0, 0.05*dnu], [numax, numax], color='black', linewidth=Line, label=rf'$\nu_{{max}}$={round(numax)}$\mu$Hz')
-    
-    #Lim = ax.get_ylim()[0]
-    
-    #ax.plot([Epsilon%1*dnu, Epsilon%1*dnu], [Lim, Lim+dnu], color='forestgreen', linewidth=4, label=rf'$\epsilon_p$={round(Epsilon,2)}')
-
+   
     ax.legend(ncols=len(np.unique(self.result['ell'])), loc=1, fontsize=12)
     
     return fig, axes
