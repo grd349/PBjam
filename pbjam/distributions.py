@@ -13,8 +13,17 @@ import jax.scipy.special as jsp
 from pbjam import jar
 import statsmodels.api as sm
 
+def makeDistObject(data, **kwargs):
 
-def getQuantileFuncs(data, cut=5, densityScale=30):
+    ppfs, pdfs, logpdfs, cdfs = getQuantileFuncs(data, **kwargs)
+
+    D = []
+    for i in range(len(ppfs)):
+        D.append(distribution(ppfs[i], pdfs[i], logpdfs[i], cdfs[i]))
+
+    return D
+
+def getQuantileFuncs(data, cut=5, densityScale=30, **kwargs):
     """ Compute distribution methods for arbitrary distributions.
 
     All distributions are treated as separable.
@@ -96,10 +105,6 @@ class beta():
 
         # Turn init args into attributes
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
-
-#        self.fac = jnp.exp(jsp.gammaln(self.a + self.b)) / (jnp.exp(jsp.gammaln(self.a)) * jnp.exp(jsp.gammaln(self.b))) / self.scale
-
-#        self.logfac = jnp.log(self.fac)
 
         self.logfac = jsp.gammaln(self.a + self.b) - jsp.gammaln(self.a) - jsp.gammaln(self.b) - jnp.log(self.scale) 
 
