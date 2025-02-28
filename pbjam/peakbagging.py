@@ -1363,36 +1363,36 @@ class basePeakbag(plotting):
     #     """
 
     #     self.addObs = {}
-
-    #     # Frequency diff prior so that they have to be positive.
-    #     freq_diff = jnp.diff(self.freq)
-
-    #     df = 0.08*self.dnu
-
-    #     loc = max([0.01, min(freq_diff)-df])
-
-    #     scale = min([max(freq_diff)+df, 1.25*self.dnu])
-
-    #     self.addObs['freq diff'] = dist.beta(a=1.00, b=1.00, loc=loc, scale=scale)
-
-        # Correlated Noise Regularisation for width
-        # wGPtheta={'amp': 1, 'scale': self.dnu[0]}
-
-        # wGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.width[0, :]/(1-self.zeta)))
+ 
     
-        # wGP = self.build_gp(wGPtheta, self.freq[0, :], wGPmuFunc)
+    #     # Correlated Noise Regularisation for width
+    #     wGPtheta={'amp': 1, 'scale': self.dnu[0]}
 
-        # self.addObs['widthGP'] = wGP.log_probability
+    #     wGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.width[0, :]/(1-self.zeta)))
+
+    #     wGP = self.build_gp(wGPtheta, self.freq[0, :], wGPmuFunc)
+
+    #     self.addObs['widthGP'] = wGP.log_probability
+
+        
+    #     # Correlated Noise Regularisation for amplitude
+    #     hGPtheta={'amp': 1, 'scale': self.dnu[0]}
+
+    #     hGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.height[0, :]))
+
+    #     hGP = self.build_gp(hGPtheta, self.freq[0, :], hGPmuFunc)
+
+    #     self.addObs['heightGP'] = hGP.log_probability
 
 
-        # # Correlated Noise Regularisation for amplitude
-        # hGPtheta={'amp': 1, 'scale': self.dnu[0]}
+    # def build_gp(self, theta, X, muFunc, muKwargs={}):
+    #     from tinygp import GaussianProcess, kernels
 
-        # hGPmuFunc = jar.jaxInterp1D(self.freq[0, :], jnp.log10(self.height[0, :]))
-    
-        # hGP = self.build_gp(hGPtheta, self.freq[0, :], hGPmuFunc)
+    #     kernel = theta["amp"] * kernels.ExpSquared(theta["scale"])
 
-        # self.addObs['heightGP'] = hGP.log_probability
+    #     GP = GaussianProcess(kernel, X, diag=1e-6, mean=partial(muFunc, **muKwargs))
+
+    #     return GP
  
     def AddLikeTerms(self, theta, thetaU):
         """ Add the additional probabilities to likelihood
@@ -1423,13 +1423,7 @@ class basePeakbag(plotting):
 
         return lnp
 
-    # def build_gp(self, theta, X, muFunc, muKwargs={}):
-
-    #     kernel = theta["amp"] * kernels.ExpSquared(theta["scale"])
-
-    #     GP = GaussianProcess(kernel, X, diag=1e-6, mean=partial(muFunc, **muKwargs))
-
-    #     return GP
+   
 
 class DynestyPeakbag(basePeakbag, samplers.DynestySampling):
     def __init__(self, *args, **kwargs):
