@@ -1012,7 +1012,7 @@ class basePeakbag(plotting):
         for i in range(self.Nmodes):
             _key = f'width{i}'
             if _key not in self.priors:
-                self.priors[_key] = dist.normal(loc=jnp.log10(self.width[0, i]), scale=0.1)
+                self.priors[_key] = dist.normal(loc=jnp.log10(self.width[0, i]), scale=0.5)
         
         # Envelope rotation prior
         if 'nurot_e' not in self.priors.keys():
