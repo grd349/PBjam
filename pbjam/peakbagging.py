@@ -80,7 +80,7 @@ class peakbag(plotting):
         Total number of modes.
     """
 
-    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, RV=None, slices=0, snrInput=False, samplerType='emcee', **kwargs):
+    def __init__(self, f, s, ell, freq, height=None, width=None, zeta=None, dnu=None, d02=None, freqLimits=[], rotAsym=None, RV=None, slice=False, dipoleMask=None, snrInput=False, samplerType='emcee', **kwargs):
 
         self.__dict__.update((k, v) for k, v in locals().items() if k not in ['self'])
         
@@ -88,13 +88,6 @@ class peakbag(plotting):
         self._checkDefaults()
 
         self.width[0, :] = self.width[0, :] / (1-self.zeta)
-
-        # Select modes to include based on freqLimits        
-        self._pickModes()
-        
-        self.N_p = len(self.ell[self.ell==0])
-
-        self.Nmodes = len(self.freq[0, :])
  
         # If is not the SNR spectrum, remove the packground first and turn the input heights into SNR.
         if not self.snrInput:
@@ -106,9 +99,32 @@ class peakbag(plotting):
 
         else:
             self.snr = self.s
+
+
+        # Pick sampler
+        if self.samplerType.lower()=='emcee':
+            print('Using emcee to sample.')
+            sampler = EmceePeakbag
+
+        elif self.samplerType.lower()=='dynesty':
+            print('Using Dynesty to sample.')
+            sampler = DynestyPeakbag
+
+        else:
+            raise ValueError('Sampler choice must be emcee or dynesty')
+
+        self.spectrumMask = self._buildSpectrumMask()
+        
+        # Select modes to include based on freqLimits        
+        self._pickModes()
+        
+        self.N_p = len(self.ell[self.ell==0])
+
+        self.Nmodes = len(self.freq[0, :])
+
  
         # Create list of peakbag instances.
-        self.createPeakbagInstances()
+        self.createPeakbagInstances(sampler)
 
     def _checkDefaults(self):
         """
@@ -134,7 +150,7 @@ class peakbag(plotting):
         if self.RV is None:
             self.RV = (0, 0)
 
-    def _pickModes(self, fac=1):
+    def _pickModes(self,):
         """
         Selects the modes to include in the model based on frequency limits.
 
@@ -152,12 +168,13 @@ class peakbag(plotting):
         idx : array-like
             A boolean array indicating which modes are selected based on the frequency limits.
         """
+        
+        
+        globalMinFreq = min([min(x) for x in self.freqLimits])
+        
+        globalMaxFreq = max([max(x) for x in self.freqLimits])
 
-        if len(self.freqLimits) == 0:
-            self.freqLimits = [min(self.freq[0, self.ell==0]) - fac * self.dnu[0],
-                                max(self.freq[0, self.ell==0]) + fac * self.dnu[0]]
-
-        idx = (min(self.freqLimits) < self.freq[0, :]) & (self.freq[0,:] < max(self.freqLimits))
+        idx = (globalMinFreq< self.freq[0, :]) & (self.freq[0,:] < globalMaxFreq)
 
         self.ell = self.ell[idx]
 
@@ -187,9 +204,9 @@ class peakbag(plotting):
             Estimate of the l=2,0 small separation.
         """
            
-        if self.d02 is None and (2 in self.ell and 0 in self.ell):
+        if self.d02 is None and ((2 in self.ell) and (0 in self.ell)):
             try:
-                d02 = np.array([np.median(self.freq[0, self.ell==0]-self.freq[0, self.ell==2]), jnp.nan])
+                d02 = np.array([np.median(self.freq[0, self.ell==0] - self.freq[0, self.ell==2]), jnp.nan])
             except:
                 warnings.warn("Estimating d02 as 0.1*dnu")
                 d02 = np.array([0.1 * self.dnu[0], jnp.nan])
@@ -236,7 +253,79 @@ class peakbag(plotting):
             assert (dnu.dtype==float) or (dnu.dtype==int)
 
         return dnu
-    
+
+    def getBkg(self, a=0.66, b=0.88, skips=100):
+        """ Estimate the background
+
+        Takes an average of the power at linearly spaced points along the
+        log(frequency) axis, where the width of the averaging window increases
+        as a power law.
+
+        The mean power values are interpolated back onto the full linear
+        frequency axis to estimate the background noise level at all
+        frequencies.
+
+        Returns
+        -------
+        b : array
+            Array of psd values approximating the background.
+        """
+
+        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
+
+        m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
+
+        bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
+
+        return bkgModel
+  
+    def _buildSpectrumMask(self, fac=1):
+
+        if len(self.freqLimits) == 0:
+            self.freqLimits = [(min(self.freq[0, self.ell==0]) - fac * self.dnu[0],
+                                max(self.freq[0, self.ell==0]) + fac * self.dnu[0])]
+        
+
+        idx = np.zeros(len(self.snr), dtype=bool)
+        
+        # If no input (True or False) is given regarding applying the dipole masking, default to automatic
+        if self.dipoleMask is None:
+
+            if not (1 in self.ell):
+                self.dipoleMask = True
+
+            else:
+                self.dipoleMask = False
+
+        typicalWidth = np.median(self.width[0, self.ell==0])
+
+        if self.dipoleMask:
+            for llim, ulim in self.freqLimits:
+                
+                for nu in self.freq[0, self.ell != 1]:
+                
+                    delta = self.d02[0] + 10*typicalWidth + 0.01 * self.dnu[0]
+                     
+                    #pair_llim = nu - 0.16 * self.dnu[0]
+                    
+                    #pair_ulim = nu + 0.06 * self.dnu[0]
+                    
+                    insideFreqLims = (llim <= nu - delta <= ulim) & (llim <= nu + delta <= ulim)
+
+                    if insideFreqLims:
+                        idx += (nu - delta <= self.f) & (self.f <= nu + delta)
+                    else:
+                        raise ValueError('The range around a mode is outside the specified frequency range. Try increasing the range by supplying a wider range using freqLimits.')
+
+        else:
+            for llim, ulim in self.freqLimits:
+
+                idx += (llim <= self.f) & (self.f <= ulim)
+            
+        return idx
+
+
+
     def _checkSmallDiffs(self, cuts, nu, Gamma):
         """
         Check for any slices that split closely spaced modes defined in termes 
@@ -344,7 +433,7 @@ class peakbag(plotting):
         nu = np.sort(nu)
          
         if not centroids:
-            _k = int(np.ceil(len(ells[ells==0]) / self.Nslices))
+            _k = int(np.ceil(len(ells[ells==0]) / self.slices))
 
             centroids = nu[ells==0][::_k]
          
@@ -406,31 +495,7 @@ class peakbag(plotting):
 
         return cuts
 
-    def getBkg(self, a=0.66, b=0.88, skips=100):
-        """ Estimate the background
-
-        Takes an average of the power at linearly spaced points along the
-        log(frequency) axis, where the width of the averaging window increases
-        as a power law.
-
-        The mean power values are interpolated back onto the full linear
-        frequency axis to estimate the background noise level at all
-        frequencies.
-
-        Returns
-        -------
-        b : array
-            Array of psd values approximating the background.
-        """
-
-        freq_skips = np.exp(np.linspace(np.log(self.f[0]), np.log(self.f[-1]), skips))
-
-        m = np.array([np.median(self.s[np.abs(self.f-fi) < a*fi**b]) for fi in freq_skips])
-
-        bkgModel = jar.jaxInterp1D(freq_skips, m/np.log(2))
-
-        return bkgModel
-  
+    
     def _slc(self, x, low, high):
         """ Select indices of x based on provided low and high limits.
 
@@ -471,16 +536,34 @@ class peakbag(plotting):
             Frequencies delimiting the slices. 
         """
    
+
+        # Pick slices
+        if len(self.freqLimits) == 1:
+            
+            limits = self.getSliceLimits()
+            
+        elif len(self.freqLimits) > 1:
+            # Assume manual freqLimits correspond to cuts, and return these  
+            assert all([np.diff(pair) > 0 for i, pair in enumerate(self.freqLimits)]), 'freqLimits must be of the form [(lower, upper), (lower, upper), ...]'
+            limits = self.freqLimits
+
+        else:
+            raise ValueError('Something is off. len(freqLimits) should not be 0.')
+
+        return limits
+    
+    def getSliceLimits(self):
+
         sortidx = np.argsort(self.freq[0, :])
         
         freqs = self.freq[0, sortidx]
         ells = self.ell[sortidx]
-         
+        
         _, labels, nclusters = self._kmeans(freqs, ells)
-         
+        
         # find cuts
         cuts = self._determineCuts(self.dnu[0], freqs, labels)
- 
+
         assert len(cuts) == nclusters + 1
 
         # weed out small distances
@@ -495,7 +578,7 @@ class peakbag(plotting):
 
         return limits
     
-    def createPeakbagInstances(self, ):
+    def createPeakbagInstances(self, sampler):
         """
         Create a list of class instances which do the modeling in each spectrum slice. 
         Only the relevant part of the spectrum and mode parameters are passed to each 
@@ -515,49 +598,36 @@ class peakbag(plotting):
 
         self.pbInstances = []
 
-        if self.samplerType.lower()=='emcee':
-            print('Using emcee to sample.')
-            sampler = EmceePeakbag
-        elif self.samplerType.lower()=='dynesty':
-            print('Using Dynesty to sample.')
-            sampler = DynestyPeakbag
+        if self.slice:      
+            sliceLimits = self.sliceSpectrum() # TODO slicing of the spectrum must respect manually applied freqLimits
         else:
-            raise ValueError('Sampler choice must be emcee or dynesty')
- 
-        if self.slices < 0 or self.slices > len(self.ell):
-            self.Nslices = len(self.ell[self.ell==0])
-        
-        elif self.slices == 0:
-            self.Nslices = 0
-        
-        else:
-            self.Nslices = self.slices
-    
-        if self.Nslices > 0:
-                
-            sliceLimits = self.sliceSpectrum()
+            sliceLimits = self.freqLimits
+
+        for i in range(len(sliceLimits)):
             
-            print('Creating envelope slices')
-            for i in tqdm(range(len(sliceLimits) - 1)):
-                 
-                slcIdx = self._slc(self.freq[0, :], sliceLimits[i], sliceLimits[i + 1])
+            #slcIdx = self._slc(self.freq[0, :], min(sliceLimits[i]), max(sliceLimits[i]))
+            
+            idx = np.zeros(len(self.freq[0, :]), dtype=bool)
+            for j,nu in enumerate(self.freq[0, :]):
+                sr = np.argsort(abs(self.f-nu))[:2]
+                idx[j] = all(self.spectrumMask[sr])
 
-                _ell = self.ell[slcIdx]
-                
-                _zeta = self.zeta[slcIdx]
-                
-                _freq = self.freq[:, slcIdx]
-                
-                _height = self.height[:, slcIdx]
-                
-                _width = self.width[:, slcIdx]
+            _ell = self.ell[idx]
+            
+            _zeta = self.zeta[idx]
+            
+            _freq = self.freq[:, idx]
+            
+            _height = self.height[:, idx]
+            
+            _width = self.width[:, idx]
 
-                _rotAsym = self.rotAsym[:, slcIdx]
-                 
-                self.pbInstances.append(sampler(self.f, self.snr, _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, sliceLimits[i: i+2], _rotAsym, self.RV))
+            _rotAsym = self.rotAsym[:, idx]
+            
+            self.pbInstances.append(sampler(self.f[self.spectrumMask], self.snr[self.spectrumMask], _ell, _freq, _height, _width, _zeta, self.dnu, self.d02, [min(sliceLimits[i]), max(sliceLimits[i])], _rotAsym, self.RV))
                                                        
-        else:
-            self.pbInstances.append(sampler(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym, self.RV))
+        # else:
+        #     self.pbInstances.append(sampler(self.f, self.snr, self.ell, self.freq, self.height, self.width, self.zeta, self.dnu, self.d02, self.freqLimits, self.rotAsym, self.RV))
     
     def __call__(self, sampler_kwargs={}, Nsamples=10000, **kwargs):
         """
