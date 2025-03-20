@@ -1390,7 +1390,7 @@ class plotting():
 
 
     # def _fill_diag(self, axes, vals, vals_err, idxs):
-    #     """ Overplot diagnoal values along a corner plot diagonal.
+    #     """ Overplot diagonal values along a corner plot diagonal.
         
     #     Plots a set of specified values over the 1D histograms in the diagonal 
     #     frames of a corner plot.

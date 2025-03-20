@@ -1,6 +1,6 @@
 """
 The peakbagging module contains the classes used for the peakbag stage of PBjam. The 
-main class to interacte with is the peakbag class, which will handle potential slicing
+main class to interact with is the peakbag class, which will handle potential slicing
 of the spectrum or not and combine results for each case.
 """
 
@@ -59,7 +59,7 @@ class peakbag(plotting):
         case it's estimated from the provided `ell` and `freq` arrays.
     freqLimits : list, optional
         Frequency limits for the peakbagging. Default is an empty list, in which case the 
-        lowest and heighest radial mode frequencies -/+ 1 radial order are used to set the limits.
+        lowest and highest radial mode frequencies -/+ 1 radial order are used to set the limits.
     rotAsym : array-like, optional
         Rotational asymmetry parameters. Default is None.
     RV : array-like, optional
@@ -1101,7 +1101,7 @@ class basePeakbag(plotting):
             self.priors['shot'] = dist.normal(loc=0., scale=0.01)
 
         if not all([key in self.labels for key in self.priors.keys()]):
-            raise ValueError('Length of labels doesnt match lenght of priors.')
+            raise ValueError('Length of labels doesnt match length of priors.')
      
     def setLabels(self):
         """
@@ -1143,7 +1143,7 @@ class basePeakbag(plotting):
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
-        Evaulates the likelihood of observing the data given the model.
+        Evaluates the likelihood of observing the data given the model.
 
         Parameters
         ----------
@@ -1164,7 +1164,7 @@ class basePeakbag(plotting):
                  'height' : {'info': 'mode height list'         , 'log10': True},
                  'width'  : {'info': 'mode width list'          , 'log10': True},
                  'nurot_e': {'info': 'envelope rotation rate'   , 'log10': False},
-                 'nurot_c': {'info': 'core otation rate'        , 'log10': False}, 
+                 'nurot_c': {'info': 'core rotation rate'       , 'log10': False}, 
                  'inc'    : {'info': 'stellar inclination axis' , 'log10': False},
                  'shot'   : {'info': 'Shot noise level'         , 'log10': True }}
    
