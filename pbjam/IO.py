@@ -25,7 +25,7 @@ class psd():
 
     Notes
     -----
-    The Cython implemenation is very slow for time series longer than about 1 month 
+    The Cython implementation is very slow for time series longer than about 1 month 
     (array size of 1e5). The Fast implementation is similar to the an FFT, but at a 
     very slight loss of accuracy. There appears to be a slight increasing slope with 
     frequency toward the Nyquist frequency.
@@ -447,7 +447,7 @@ class timeSeries():
     def cleanLC(self, lc, outlierRejection):
         """ Perform Lightkurve operations on object.
 
-        Performes basic cleaning of a light curve, removing nans, outliers,
+        Performs basic cleaning of a light curve, removing nans, outliers,
         median filtering etc.
 
         Parameters

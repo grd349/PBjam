@@ -363,7 +363,7 @@ class EmceeSampling():
 
         while stepsTaken < stepsNeeded:
 
-            # ensures no memory isues
+            # ensures no memory issues
             if sampler:
                 sampler.reset()
 
@@ -549,7 +549,7 @@ class EmceeSampling():
         
         tau = emcee.autocorr.integrated_time(ctrlChain, tol=0)
 
-        # ensures no memory isues
+        # ensures no memory issues
         if burnSampler:
             burnSampler.reset()
 
@@ -567,7 +567,7 @@ class EmceeSampling():
 
         self.ctrlChain = ctrlChain
 
-        # ensures no memory isues
+        # ensures no memory issues
         if postSampler:
             postSampler.reset()
 
@@ -595,7 +595,7 @@ class DynestySampling():
         Parameters
         ----------
         u : jax device array
-            Set of pionts distributed randomly in the unit hypercube.
+            Set of points distributed randomly in the unit hypercube.
 
         Returns
         -------

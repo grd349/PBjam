@@ -119,7 +119,7 @@ class generalModelFuncs():
     def chi_sqr(self, mod):
         """ Chi^2 2 dof likelihood
 
-        Evaulates the likelihood of observing the data given the model.
+        Evaluates the likelihood of observing the data given the model.
 
         Parameters
         ----------

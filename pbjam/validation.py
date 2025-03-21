@@ -55,7 +55,7 @@ class validate():
 
         Computes the p-value for the JS distance by generating a null-distribution of JS values.
         This is produced by drawing N sets of samples of size equal to the set of posterior samples
-        and computing the JS distane for random combinations of these sets. The p-value is then the 
+        and computing the JS distance for random combinations of these sets. The p-value is then the 
         fraction of N where the null-JS values are above the JS value of the posterior sample.
 
         The significance of a result is determined by comparing the p-value to a threshold.
