@@ -622,17 +622,17 @@ class Mixl1model(samplers.DynestySampling, commonFuncs):
                                                  self.DR.logpdf[i], 
                                                  self.DR.cdf[i])
 
-        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
-
-        self.priors.update({key : self.addPriors[key] for key in AddKeys})
- 
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=2.)
-
         self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
 
         # The inclination prior is a sine truncated between 0, and pi/2.
-        self.priors['inc'] = dist.truncsine() 
+        self.priors['inc'] = dist.truncsine()
+
+        # override priors
+        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
+        self.priors.update({key : self.addPriors[key] for key in AddKeys})
+
  
     def model(self, thetaU,):
         """
@@ -1085,19 +1085,18 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
                                                  self.DR.logpdf[i], 
                                                  self.DR.cdf[i])
 
-        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
-
-        self.priors.update({key : self.addPriors[key] for key in AddKeys})
-
         self.priors['q'] = dist.uniform(loc=0.01, scale=0.6)
-
         # Core rotation prior
         self.priors['nurot_c'] = dist.uniform(loc=-2., scale=3.)
-
         self.priors['nurot_e'] = dist.uniform(loc=-2., scale=2.)
 
         # The inclination prior is a sine truncated between 0, and pi/2.
-        self.priors['inc'] = dist.truncsine() 
+        self.priors['inc'] = dist.truncsine()
+
+        # override priors
+        AddKeys = [k for k in self.variables if k in self.addPriors.keys()]
+        self.priors.update({key : self.addPriors[key] for key in AddKeys})
+
  
     def unpackParams(self, theta): 
         """ Cast the parameters in a dictionary
