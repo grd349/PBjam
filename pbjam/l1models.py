@@ -18,6 +18,7 @@ from pbjam.DR import PCA
 import pbjam.distributions as dist
 from dynesty import utils as dyfunc
 jax.config.update('jax_enable_x64', True)
+from functools import partial
 
 class commonFuncs(jar.generalModelFuncs):
     """ 
@@ -1255,6 +1256,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
 
         return nu_target[jnp.argmin(jnp.abs(nu[:, None] - nu_target[None, :]), axis=1)]
 
+    @partial(jax.jit,  static_argnums=(0,))
     def Theta_p(self, nu, Dnu, nu_p):
         """
         Compute the p-mode phase function Theta_p.
@@ -1278,6 +1280,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
                                  (nu - self.nearest(nu, nu_p)) / Dnu + jnp.round((self.nearest(nu, nu_p) - nu_p[0]) / Dnu)
                                 )
 
+    @partial(jax.jit,  static_argnums=(0,))
     def Theta_g(self, nu, DPi1, nu_g):
         """
         Compute the g-mode phase function Theta_g.
@@ -1302,6 +1305,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
                                   (1 / self.nearest(nu, nu_g) - 1 / nu) / DPi1
                                  )
 
+    @partial(jax.jit,  static_argnums=(0,))
     def zeta(self, nu, q, DPi1, Dnu, nu_p, nu_g):
         """
         Compute the local mixing fraction zeta.
@@ -1333,6 +1337,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
         
         return 1 / (1 + DPi1 / Dnu * nu**2 / q * jnp.sin(Theta_g)**2 / jnp.cos(Theta_p)**2)
 
+    @partial(jax.jit,  static_argnums=(0,))
     def zeta_p(self, nu, q, DPi1, Dnu, nu_p):
         """
         Compute the mixing fraction zeta using only the p-mode phase function. Agrees with zeta only at the 
@@ -1360,6 +1365,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
         
         return 1 / (1 + DPi1 / Dnu * nu**2 / (q * jnp.cos(Theta)**2 + jnp.sin(Theta)**2/q))
 
+    @partial(jax.jit,  static_argnums=(0,))
     def zeta_g(self, nu, q, DPi1, Dnu, nu_g):
  
         """
@@ -1389,6 +1395,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
 
         return 1 / (1 + DPi1 / Dnu * nu**2 * (q * jnp.cos(Theta)**2 + jnp.sin(Theta)**2/q))
 
+    @partial(jax.jit,  static_argnums=(0,))
     def F(self, nu, nu_p, nu_g, Dnu, DPi1, q):
         """
         Compute the characteristic function F such that F(nu) = 0 yields eigenvalues.
@@ -1416,6 +1423,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
 
         return jnp.tan(self.Theta_p(nu, Dnu, nu_p)) * jnp.tan(self.Theta_g(nu, DPi1, nu_g)) - q
 
+    @partial(jax.jit,  static_argnums=(0,))
     def Fp(self, nu, nu_p, nu_g, Dnu, DPi1, qp=0):
         """
         Compute the first derivative dF/dnu of the characteristic function F.
@@ -1445,6 +1453,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
               + jnp.tan(self.Theta_p(nu, Dnu, nu_p)) / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**2
               - qp)
 
+    @partial(jax.jit,  static_argnums=(0,))
     def Fpp(self, nu, nu_p, nu_g, Dnu, DPi1, qpp=0):
         """
         Compute the second derivative  d^2F / dnu^2of the characteristic function F.
@@ -1476,6 +1485,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
               + 2 / jnp.cos(self.Theta_p(nu, Dnu, nu_p))**2 * jnp.pi / Dnu / jnp.cos(self.Theta_g(nu, DPi1, nu_g))**2 * jnp.pi / DPi1 / nu**2
               - qpp)
     
+    @partial(jax.jit,  static_argnums=(0,5))
     def halley_iteration(self, x, y, yp, ypp, lmbda=1.):
         """
         Perform Halley's method (2nd order Householder) iteration, with damping
@@ -1500,6 +1510,7 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
         """
         return x - lmbda * 2 * y * yp / (2 * yp * yp - y * ypp)
 
+    @partial(jax.jit,  static_argnums=(0,6))
     def couple(self, nu_p, nu_g, q_p, q_g, DPi1, lmbda=.5):
         """
         Solve the characteristic equation using Halley's method to couple 
@@ -1527,21 +1538,20 @@ class RGBl1model(samplers.DynestySampling, commonFuncs):
         num : array-like
             Array of mixed mode frequencies.
         """
- 
-        num_p = jnp.copy(nu_p)
-        
-        num_g = jnp.copy(nu_g)
 
-        for _ in range(self.rootiter):
-            num_p = self.halley_iteration(num_p,
+        def _body(i, x0):
+            num_p, num_g = x0
+            a = self.halley_iteration(num_p,
                                           self.F(num_p, nu_p, nu_g, self.obs['dnu'][0], DPi1, q_p),
                                           self.Fp(num_p, nu_p, nu_g, self.obs['dnu'][0], DPi1),
                                           self.Fpp(num_p, nu_p, nu_g, self.obs['dnu'][0], DPi1), lmbda=lmbda)
-            num_g = self.halley_iteration(num_g,
+            b = self.halley_iteration(num_g,
                                           self.F(num_g, nu_p, nu_g, self.obs['dnu'][0], DPi1, q_g),
                                           self.Fp(num_g, nu_p, nu_g, self.obs['dnu'][0], DPi1),
                                           self.Fpp(num_g, nu_p, nu_g, self.obs['dnu'][0], DPi1), lmbda=lmbda)
+            return a, b
 
+        num_p, num_g = jax.lax.fori_loop(0, self.rootiter, _body, (nu_p, nu_g))
         return jnp.append(num_p, num_g)
  
     def parseSamples(self, smp, Nmax=5000):
