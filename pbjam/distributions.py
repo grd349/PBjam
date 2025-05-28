@@ -116,6 +116,9 @@ class beta():
 
         self._set_stdatt()
 
+    def __repr__(self):
+        return f'Distribution: Beta(a={self.a}, b={self.b}, x0={self.loc}, x1={self.loc + self.scale})'
+
     def rv(self):
         """ Draw random variable from distribution
 
@@ -411,6 +414,8 @@ class uniform():
 
         self._set_stdatt()
 
+    def __repr__(self):
+        return f'Distribution: Uniform(x1={self.a}, x2={self.b})'
     
     def rv(self):
         """ Draw random variable from distribution
@@ -544,6 +549,8 @@ class normal():
 
         self._set_stdatt()
 
+    def __repr__(self):
+        return f'Distribution: Normal(μ={self.loc}, σ={self.scale})'
 
     def rv(self):
         """ Draw random variable from distribution
@@ -656,6 +663,9 @@ class truncsine():
         """
 
         self._set_stdatt()
+
+    def __repr__(self):
+        return f'Distribution: TruncatedSine'
         
     def rv(self):
         """ Draw random variable from distribution
@@ -772,6 +782,9 @@ class randint():
         self.ints = jnp.arange(low, high, 1)
 
         self._set_stdatt()
+
+    def __repr__(self):
+        return f'Distribution: RandInt(min={self.low}, max={self.high})'
 
     def rv(self):
         """ Draw random variable from distribution
