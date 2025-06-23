@@ -2,3 +2,56 @@
 requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "pbjam"
+version = "2.0.4"
+authors = [{ name="Martin Nielsen", email="m.b.nielsen.1@bham.ac.uk"},
+           { name="Guy Davies", email="g.r.davies@bham.ac.uk"},
+           { name="Joel Ong", email="joelong@hawaii.edu"},
+            ]
+maintainers = [{ name="Martin Nielsen", email="m.b.nielsen.1@bham.ac.uk"},
+                ]
+description = "A package for peakbagging solar-like oscillators."
+readme = "README.rst"
+requires-python = ">=3.10"
+ 
+license = {file = "LICENSE"}
+dependencies = ["numpy>=2.2.4",
+                "scipy>=1.15.2",
+                "statsmodels>=0.14.4",
+                "matplotlib>=3.10",
+                "pandas>=2.2.3",
+                "lightkurve>=2.5.0",
+                "astropy>=6.1",
+                "corner>=2.2.3",
+                "dynesty>=2.1.5",
+                "jax>=0.5.2",
+                "jaxlib>=0.5.1",
+                "emcee>=3.1.6",
+                "tqdm>=4.67.1",    
+                ]
+keywords = ["asteroseismology", "astronomy", "stars", "solar-like",]
+
+classifiers = ["Development Status :: 5 - Production/Stable",
+               "Programming Language :: Python :: 3.10", 
+                ]
+
+[project.urls]
+Homepage = "https://pbjam.readthedocs.io/"
+Issues = "https://github.com/grd349/PBjam/issues"
+Documentation = "https://pbjam.readthedocs.io/"
+Repository = "https://github.com/grd349/PBjam"
+ 
+[project.optional-dependencies]
+test = ["pytest",
+        ]
+docs = ["sphinx",
+        "nbsphinx",
+        "ipykernel",
+        ]
+
+[tool.setuptools.package-data]
+"pbjam" = ["data/*.csv", "data/*.json"]
+
+[tool.setuptools]
+include-package-data = true

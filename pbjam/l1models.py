@@ -160,7 +160,7 @@ class commonFuncs(jar.generalModelFuncs):
         freq_lims = (min(self.obs['nu0_p']) - fac*self.obs['dnu'][0],  
                      max(self.obs['nu0_p']) + fac*self.obs['dnu'][0])
         
-        # Start with an exagerated number of g-modes.
+        # Start with an exaggerated number of g-modes.
         init_n_g = jnp.arange(10000)[::-1] + 1
                 
         nu_g = self.asymptotic_nu_g(init_n_g, DPi1, eps_g)

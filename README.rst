@@ -23,7 +23,7 @@ PBjam is toolbox for analyzing the oscillation spectra of solar-like oscillators
 The mode identification works by fitting the asymptotic relation for p-modes to the l=2,0 pairs, which is followed by a applying selection of models for fitting the l=1 modes where each model is suitable for different stages of evolution.
 The process relies on of large set of previous observations of the model parameters, which are then used to construct a prior distribution to inform the sampling. The observations have been gathered from the Kepler, K2 and TESS missions, and expanding it to improve accuracy is an on-going process. 
 
-Modeling the modes, or 'peakbagging', is done using the a nested sampling or MCMC algorithm, where Lorentzian profiles are fit to each of the identified modes, with much fewer contraints than during the mode ID process. This allows for a more accurate model of the spectrum of frequencies than the heavily parameterized models like the asymptotic relations.
+Modeling the modes, or 'peakbagging', is done using the a nested sampling or MCMC algorithm, where Lorentzian profiles are fit to each of the identified modes, with much fewer constraints than during the mode ID process. This allows for a more accurate model of the spectrum of frequencies than the heavily parameterized models like the asymptotic relations.
 
 To get started with PBjam please see the docs at `pbjam.readthedocs.io <http://pbjam.readthedocs.io/>`_.
 

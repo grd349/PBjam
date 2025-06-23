@@ -25,7 +25,7 @@ class PCA():
         fName : str
             Full pathname of the csv file containing the prior sample
         nsamples : int
-            Number of neightbors to use.
+            Number of neighbors to use.
         weights : object, optional
             Array corresponding to N or callable function to get a list of 
             weights to apply to the data sample, by default None
@@ -170,7 +170,7 @@ class PCA():
         Returns
         -------
         pandas dataframe
-            Subset of pdata that contains only the N nearest neightbors.
+            Subset of pdata that contains only the N nearest neighbors.
         """
 
         limits = {'numax': 0.2,

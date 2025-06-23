@@ -297,7 +297,7 @@ class Asyl20model(samplers.DynestySampling, jar.generalModelFuncs):
     def _get_n_p_max(self, dnu, numax, eps):
         """Compute radial order at numax.
     
-        Compute the radial order at numax, which in this implimentation of the
+        Compute the radial order at numax, which in this implementation of the
         asymptotic relation is not necessarily integer.
     
         Parameters
@@ -334,7 +334,7 @@ class Asyl20model(samplers.DynestySampling, jar.generalModelFuncs):
             Array of norders radial orders (integers) around nu_max (nmax).
         """
 
-        below = jnp.floor(nmax - self.N_p_mid).astype(int)
+        below = jnp.ceil(nmax - self.N_p_mid).astype(int)
          
         enns = self.N_p_range + below
 
