@@ -89,7 +89,7 @@ class session():
 
     The observational constraints, such numax, dnu, teff, bp_rp, must be provided 
     through keyword entries in a dictionary, which is then passed via the obs 
-    argument when initalizing the session class.
+    argument when initializing the session class.
         
     Unless you provide the time series or spectrum, PBjam will download it. In
     which case it will do some rudimentary reduction, like removing outliers,
@@ -288,7 +288,7 @@ class star(plotting):
 
     The observational constraints, such numax, dnu, teff, bp_rp, must be provided 
     through keyword entries in a dictionary, which is then passed via the obs 
-    argument when initalizing the session class.
+    argument when initializing the session class.
         
     The star class only accepts a power density spectrum in the form of a list of
     frequency bins 'f' and power density 's'.
